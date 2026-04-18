@@ -4,55 +4,121 @@
 // ═══════════════════════════════════════════
 
 export const MODEL_PRESETS = [
+  // ── Женщины ──
+  {
+    id: 'slavic_female',
+    gender: 'female',
+    label: 'Славянка',
+    emoji: '🪆',
+    prompt: '25-year-old Slavic female, fair skin, light eyes, soft facial features, natural beauty, high cheekbones',
+  },
   {
     id: 'asian_female',
+    gender: 'female',
     label: 'Азиатка',
-    emoji: '🇯🇵',
+    emoji: '🏯',
     prompt: '25-year-old Asian female, athletic build, natural makeup, clear skin, high cheekbones',
   },
   {
     id: 'european_female',
+    gender: 'female',
     label: 'Европейка',
-    emoji: '🇫🇷',
-    prompt: '25-year-old European female, slim build, light natural makeup, fair skin, soft features',
+    emoji: '🏰',
+    prompt: '25-year-old Western European female, slim build, light natural makeup, fair skin, soft features',
   },
   {
     id: 'african_female',
+    gender: 'female',
     label: 'Африканка',
     emoji: '🌍',
     prompt: '25-year-old African female, athletic build, glowing dark skin, elegant features, natural beauty',
   },
   {
-    id: 'european_male',
-    label: 'Европеец',
-    emoji: '🇬🇧',
-    prompt: '28-year-old European male, athletic build, clean shaven, strong jawline, groomed hair',
+    id: 'latina_female',
+    gender: 'female',
+    label: 'Латиноамериканка',
+    emoji: '🌺',
+    prompt: '24-year-old Latina female, olive skin, dark wavy hair, warm brown eyes, natural radiant beauty',
+  },
+  // ── Мужчины ──
+  {
+    id: 'slavic_male',
+    gender: 'male',
+    label: 'Славянин',
+    emoji: '🪆',
+    prompt: '28-year-old Slavic male, fair skin, light eyes, strong jawline, clean shaven, athletic build',
   },
   {
     id: 'asian_male',
+    gender: 'male',
     label: 'Азиат',
-    emoji: '🇰🇷',
+    emoji: '🏯',
     prompt: '26-year-old Asian male, slim fit build, clear skin, styled dark hair, modern K-fashion look',
   },
   {
-    id: 'plus_size_female',
-    label: 'Plus Size',
-    emoji: '💎',
-    prompt: '30-year-old female, plus size, curvy figure, confident posture, beautiful glowing skin, warm smile',
+    id: 'european_male',
+    gender: 'male',
+    label: 'Европеец',
+    emoji: '🏰',
+    prompt: '28-year-old Western European male, athletic build, clean shaven, strong jawline, groomed hair',
   },
   {
-    id: 'athletic_male',
-    label: 'Спортсмен',
-    emoji: '💪',
-    prompt: '27-year-old male, muscular athletic build, defined muscles, strong physique, intense gaze',
+    id: 'african_male',
+    gender: 'male',
+    label: 'Африканец',
+    emoji: '🌍',
+    prompt: '27-year-old African male, athletic build, dark glowing skin, strong features, confident look',
   },
   {
-    id: 'latina_female',
-    label: 'Латиноамериканка',
-    emoji: '🇧🇷',
-    prompt: '24-year-old Latina female, olive skin, dark wavy hair, warm brown eyes, natural radiant beauty',
+    id: 'latino_male',
+    gender: 'male',
+    label: 'Латиноамериканец',
+    emoji: '🌺',
+    prompt: '27-year-old Latino male, olive skin, dark styled hair, warm brown eyes, sharp jawline',
   },
 ];
+
+// ═══════════════════════════════════════════
+//  Детальные настройки внешности модели
+// ═══════════════════════════════════════════
+export const getModelDetails = (gender) => ({
+  bodyType: { 
+    id: 'bodyType',
+    label: 'Телосложение', 
+    options: ['Худощавое', 'Спортивное', 'Среднее', 'Полное', 'Мускулистое'] 
+  },
+  hairColor: { 
+    id: 'hairColor',
+    label: 'Цвет волос', 
+    options: gender === 'female' 
+      ? ['Брюнетка', 'Шатенка', 'Блондинка', 'Рыжая', 'Чёрные', 'Седые'] 
+      : ['Брюнет', 'Шатен', 'Блондин', 'Рыжий', 'Чёрные', 'Седые']
+  },
+  hairLength: { 
+    id: 'hairLength',
+    label: 'Длина волос', 
+    options: gender === 'female'
+      ? ['Короткие', 'Средние', 'Длинные', 'Бритая']
+      : ['Короткие', 'Средние', 'Длинные', 'Бритый']
+  },
+  emotion: { 
+    id: 'emotion',
+    label: 'Эмоция', 
+    options: gender === 'female'
+      ? ['Нейтральная', 'Лёгкая улыбка', 'Серьёзная', 'Уверенная', 'Дерзкая']
+      : ['Нейтральная', 'Лёгкая улыбка', 'Серьёзный', 'Уверенный', 'Дерзкий']
+  },
+  piercing: { 
+    id: 'piercing',
+    label: 'Пирсинг', 
+    options: ['Нет', 'Уши', 'Нос', 'Уши + Нос'] 
+  },
+  tattoo: { 
+    id: 'tattoo',
+    label: 'Тату', 
+    options: ['Нет', 'Минимализм', 'Рукав', 'Шея'] 
+  },
+});
 
 export const POSE_PRESETS = [
   {
@@ -87,7 +153,7 @@ export const POSE_PRESETS = [
   },
   {
     id: 'hands_on_hips',
-    label: 'Руки на бедрах',
+    label: 'Руки на бёдрах',
     emoji: '💃',
     prompt: 'standing with hands on hips, power pose, chest forward, confident commercial look',
   },
@@ -113,6 +179,12 @@ export const BACKGROUND_PRESETS = [
     prompt: 'stylish urban street background, modern city architecture, natural daylight',
   },
   {
+    id: 'moscow_street',
+    label: 'Улицы Москвы',
+    emoji: '🇷🇺',
+    prompt: 'iconic Moscow street setting, historic russian architecture, stylish urban fashion background, natural daylight',
+  },
+  {
     id: 'luxury_interior',
     label: 'Лакшери интерьер',
     emoji: '🏛️',
@@ -124,12 +196,6 @@ export const BACKGROUND_PRESETS = [
     emoji: '🌿',
     prompt: 'lush green park setting, soft natural daylight filtering through trees, bokeh background',
   },
-  {
-    id: 'milan_street',
-    label: 'Улицы Милана',
-    emoji: '🇮🇹',
-    prompt: 'iconic Milan fashion district street, European architecture, golden hour warm lighting',
-  },
 ];
 
 export const ASPECT_RATIOS = [
@@ -140,19 +206,9 @@ export const ASPECT_RATIOS = [
   { id: '16:9', label: '16:9 — Широкий баннер', icon: '🎬' },
 ];
 
-export const GARMENT_TYPES = [
-  { id: 'tshirt',    label: 'Футболка',     prompt: 'cotton t-shirt' },
-  { id: 'hoodie',    label: 'Худи',         prompt: 'cotton hoodie with kangaroo pocket' },
-  { id: 'jacket',    label: 'Куртка',       prompt: 'casual jacket' },
-  { id: 'dress',     label: 'Платье',       prompt: 'elegant dress' },
-  { id: 'pants',     label: 'Брюки',        prompt: 'fitted trousers' },
-  { id: 'sweater',   label: 'Свитер',       prompt: 'knitted sweater' },
-  { id: 'necklace',  label: 'Ожерелье',     prompt: 'delicate necklace jewelry, worn around the neck on collarbones' },
-  { id: 'ring',      label: 'Кольцо',       prompt: 'ring jewelry on finger, precise scale' },
-];
-
 export const CAMERA_ANGLES = [
-  { id: 'full_body',  label: 'В полный рост',  prompt: 'full body shot' },
-  { id: 'waist_up',   label: 'По пояс',        prompt: 'medium shot, waist up' },
-  { id: 'close_up',   label: 'Крупно (деталь)', prompt: 'close-up detail shot of the garment on body' },
+  { id: 'full_body',  label: 'В полный рост',                  prompt: 'full body shot' },
+  { id: 'waist_up',   label: 'По пояс',                        prompt: 'medium shot, waist up' },
+  { id: 'close_up',   label: 'Крупно (деталь)',                 prompt: 'close-up detail shot of the garment on body' },
+  { id: 'portrait',   label: 'Портрет / Макро (Крупный план)',  prompt: 'extreme close-up beauty portrait shot, macro lens, shallow depth of field, focus on face and jewelry/accessory detail, skin texture visible' },
 ];

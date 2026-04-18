@@ -1,123 +1,144 @@
 import { GoogleGenAI } from '@google/genai';
 
-// ═══════════════════════════════════════════
-//  НОДА: Prompt Builder
-// ═══════════════════════════════════════════
-const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, garmentType, backgroundPreset, aspectRatio }) => {
-  return `You are an elite commercial fashion photographer and an advanced Virtual Try-On (VTON) AI. 
-  
-CRITICAL INSTRUCTION: You are provided with an image of a garment. You MUST precisely extract the garment from the attached image and dress the model in it. Preserve the exact color, cut, fabric texture, collars, sleeves, graphics, and prints as seen in the source image. DO NOT change the clothing color or style. The clothing should naturally fit the model's body with realistic fabric physics, shadows, and tension.
+const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, backgroundPreset, aspectRatio, hasMultipleGarments, hasModelRef }) => {
+  const garmentInstruction = hasMultipleGarments
+    ? 'You are provided with MULTIPLE garment images. Identify EACH garment from the attached images and dress the model in ALL of them simultaneously. Preserve exact color, cut, fabric texture, collars, sleeves, graphics, and prints of EVERY garment.'
+    : 'You are provided with an image of a garment. Extract it precisely and dress the model in it. Preserve exact color, cut, fabric texture, collars, sleeves, graphics, and prints.';
+
+  const modelInstruction = hasModelRef
+    ? 'CRITICAL: Reference photos of the EXACT person are provided. You MUST replicate their face, skin tone, features, moles, freckles, and overall appearance with maximum precision. The generated image must look like the SAME real person.'
+    : '';
+
+  return `You are an elite commercial fashion photographer and an advanced Virtual Try-On (VTON) AI.
+
+CRITICAL INSTRUCTION: ${garmentInstruction} DO NOT change clothing colors or style. The clothing should naturally fit the model's body with realistic fabric physics, shadows, and tension.
+
+${modelInstruction}
 
 SUBJECT: A ${modelPreset}. Flawless natural skin texture, detailed pores, high-end commercial catalog look.
 
 POSE: The model is ${posePreset}. Professional modeling posture. Camera angle: ${cameraAngle}.
 
-CLOTHING: The model is wearing EXACTLY the ${garmentType} shown in the attached reference image.
-
 ENVIRONMENT: ${backgroundPreset}. Professional fashion studio lighting, soft key light, cinematic rim light, 85mm lens, f/1.8, 8k resolution, ultra-detailed.
 
 ASPECT RATIO: ${aspectRatio}.
 
-IMPORTANT: This is a professional e-commerce product photo for a marketplace listing. Do not alter the attached garment. No watermarks, no text on the final image.`;
+IMPORTANT: Professional e-commerce product photo for marketplace listing. No watermarks, no text on final image.`;
 };
 
-// ═══════════════════════════════════════════
-//  Vercel Serverless Function
-// ═══════════════════════════════════════════
+const extractBase64 = (dataUrl) => {
+  let mimeType = 'image/jpeg', base64str = dataUrl;
+  const match = dataUrl.match(/^data:(image\/\w+);base64,/);
+  if (match) { mimeType = match[1]; base64str = dataUrl.replace(/^data:image\/\w+;base64,/, ''); }
+  return { mimeType, base64str };
+};
+
+// Download image from URL and return base64
+const downloadToBase64 = async (url) => {
+  try {
+    const resp = await fetch(url);
+    const arrBuf = await resp.arrayBuffer();
+    const b64 = Buffer.from(arrBuf).toString('base64');
+    const contentType = resp.headers.get('content-type') || 'image/jpeg';
+    return { mimeType: contentType, base64str: b64 };
+  } catch (err) {
+    console.warn('⚠️ Failed to download image:', err.message);
+    return null;
+  }
+};
+
 export default async function handler(req, res) {
-  // CORS Handling
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-  );
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
   try {
     const {
       modelPreset = "25-year-old European female, slim build, natural makeup",
       posePreset = "standing straight, confident posture, facing the camera directly",
       cameraAngle = "full body shot",
-      garmentType = "cotton oversized t-shirt",
       backgroundPreset = "clean minimalist white cyclorama",
       aspectRatio = "3:4",
-      garmentImageBase64
+      garmentImagesBase64 = [],
+      garmentImageBase64,
+      modelReferenceImages,
+      locationImages,
+      customPoseText,
     } = req.body;
 
-    const finalPrompt = buildMasterPrompt({ modelPreset, posePreset, cameraAngle, garmentType, backgroundPreset, aspectRatio });
+    // Support both old single-image and new multi-image format
+    const garmentImages = garmentImagesBase64.length > 0 ? garmentImagesBase64 : (garmentImageBase64 ? [garmentImageBase64] : []);
+    if (!garmentImages.length) throw new Error('Изображение одежды не было передано!');
+    if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY не установлен.');
 
-    if (!process.env.GEMINI_API_KEY) {
-      throw new Error('Ключ API GEMINI_API_KEY не установлен на сервере.');
-    }
-
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    
-    if (!garmentImageBase64) {
-      throw new Error('Изображение одежды не было передано на сервер!');
-    }
-
-    let mimeType = 'image/jpeg';
-    let base64str = garmentImageBase64;
-    
-    const mimeMatch = garmentImageBase64.match(/^data:(image\/\w+);base64,/);
-    if (mimeMatch) {
-       mimeType = mimeMatch[1];
-       base64str = garmentImageBase64.replace(/^data:image\/\w+;base64,/, '');
-    }
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-image-preview',
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              inlineData: {
-                data: base64str,
-                mimeType: mimeType
-              }
-            },
-            { text: finalPrompt }
-          ],
-        },
-      ],
-      config: {
-        responseModalities: ['IMAGE', 'TEXT'],
-      },
+    const finalPrompt = buildMasterPrompt({
+      modelPreset, posePreset: customPoseText || posePreset, cameraAngle, backgroundPreset, aspectRatio,
+      hasMultipleGarments: garmentImages.length > 1,
+      hasModelRef: !!(modelReferenceImages && modelReferenceImages.length),
     });
 
-    let imageBase64 = null;
-    if (response.candidates && response.candidates.length > 0) {
-      const parts = response.candidates[0].content?.parts || [];
-      for (const part of parts) {
-        if (part.inlineData && part.inlineData.mimeType?.startsWith('image/')) {
-          imageBase64 = part.inlineData.data;
-          break;
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const parts = [];
+
+    // 1. Add model reference images first (for identity preservation)
+    if (modelReferenceImages && Array.isArray(modelReferenceImages) && modelReferenceImages.length > 0) {
+      for (const img of modelReferenceImages.slice(0, 5)) {
+        if (!img) continue;
+        if (img.startsWith('data:')) {
+          const { mimeType, base64str } = extractBase64(img);
+          parts.push({ inlineData: { data: base64str, mimeType } });
+        } else if (img.startsWith('http')) {
+          const result = await downloadToBase64(img);
+          if (result) parts.push({ inlineData: { data: result.base64str, mimeType: result.mimeType } });
         }
+      }
+      if (parts.length > 0) {
+        parts.push({ text: '[CHARACTER REFERENCE: The images above are STRICT identity references. The generated person MUST closely resemble the person in these photos. Match facial features, ethnicity, skin tone, age, hair color, hair style, and body proportions as closely as possible.]\n\n' });
       }
     }
 
-    if (!imageBase64) {
-      throw new Error('Нейросеть не сгенерировала изображение. Попробуйте изменить промпт.');
+    // 2. Add garment images
+    for (const img of garmentImages.slice(0, 9)) {
+      const { mimeType, base64str } = extractBase64(img);
+      parts.push({ inlineData: { data: base64str, mimeType } });
     }
 
-    return res.status(200).json({ success: true, imageBase64: imageBase64 });
+    // 3. Add location images
+    if (locationImages && Array.isArray(locationImages) && locationImages.length > 0) {
+      for (const img of locationImages.slice(0, 5)) {
+        if (img.startsWith('data:')) {
+          const { mimeType, base64str } = extractBase64(img);
+          parts.push({ inlineData: { data: base64str, mimeType } });
+        } else if (img.startsWith('http')) {
+          const result = await downloadToBase64(img);
+          if (result) parts.push({ inlineData: { data: result.base64str, mimeType: result.mimeType } });
+        }
+      }
+      parts.push({ text: '[LOCATION REFERENCE: The images above show the real location. Replicate this exact environment.]\n\n' });
+    }
 
-  } catch (error) {
-    console.error('❌ Ошибка при генерации:', error.message || error);
-    return res.status(500).json({
-      success: false,
-      error: 'Ошибка генерации',
-      details: error.message || 'Неизвестная ошибка'
+    parts.push({ text: finalPrompt });
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.1-flash-image-preview',
+      contents: [{ role: 'user', parts }],
+      config: { responseModalities: ['IMAGE', 'TEXT'] },
     });
+
+    let imageBase64 = null;
+    if (response.candidates?.[0]?.content?.parts) {
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData?.mimeType?.startsWith('image/')) { imageBase64 = part.inlineData.data; break; }
+      }
+    }
+    if (!imageBase64) throw new Error('Nano Banano 2 не сгенерировал изображение. Попробуйте другой промпт.');
+
+    return res.status(200).json({ success: true, imageBase64 });
+  } catch (error) {
+    console.error('❌ Ошибка:', error.message);
+    return res.status(500).json({ success: false, error: 'Ошибка генерации', details: error.message });
   }
 }

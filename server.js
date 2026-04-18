@@ -16,16 +16,17 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // ═══════════════════════════════════════════
 //  НОДА: Prompt Builder
-//  Склеивает системные правила + переменные
 // ═══════════════════════════════════════════
-const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, garmentType, backgroundPreset, aspectRatio }) => {
+const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, garmentType, backgroundPreset, aspectRatio, customPoseText }) => {
+  const poseInstruction = customPoseText || posePreset;
+
   return `You are an elite commercial fashion photographer and an advanced Virtual Try-On (VTON) AI. 
   
 CRITICAL INSTRUCTION: You are provided with an image of a garment. You MUST precisely extract the garment from the attached image and dress the model in it. Preserve the exact color, cut, fabric texture, collars, sleeves, graphics, and prints as seen in the source image. DO NOT change the clothing color or style. The clothing should naturally fit the model's body with realistic fabric physics, shadows, and tension.
 
 SUBJECT: A ${modelPreset}. Flawless natural skin texture, detailed pores, high-end commercial catalog look.
 
-POSE: The model is ${posePreset}. Professional modeling posture. Camera angle: ${cameraAngle}.
+POSE: The model is ${poseInstruction}. Professional modeling posture. Camera angle: ${cameraAngle}.
 
 CLOTHING: The model is wearing EXACTLY the ${garmentType} shown in the attached reference image.
 
@@ -48,68 +49,120 @@ app.post('/api/generate-image', async (req, res) => {
       garmentType = "cotton oversized t-shirt",
       backgroundPreset = "clean minimalist white cyclorama",
       aspectRatio = "3:4",
-      garmentImageBase64
+      garmentImageBase64,
+      garmentImagesBase64,
+      customPoseText,
+      locationImages,
+      modelReferenceImages,
     } = req.body;
 
-    const finalPrompt = buildMasterPrompt({ modelPreset, posePreset, cameraAngle, garmentType, backgroundPreset, aspectRatio });
+    // Support both single image and array formats
+    const primaryGarmentBase64 = garmentImageBase64 || (garmentImagesBase64 && garmentImagesBase64[0]) || null;
+
+    const finalPrompt = buildMasterPrompt({ modelPreset, posePreset, cameraAngle, garmentType, backgroundPreset, aspectRatio, customPoseText });
 
     console.log('\n══════════════════════════════════════');
     console.log('🚀 Новый запрос на генерацию (Nano Banano 2)');
     console.log('══════════════════════════════════════');
     console.log('📐 Формат:', aspectRatio);
     console.log('👤 Модель:', modelPreset.substring(0, 60));
-    console.log('🧍 Поза:', posePreset.substring(0, 60));
+    console.log('🧍 Поза:', (customPoseText || posePreset).substring(0, 60));
     console.log('👕 Вещь:', garmentType);
     console.log('🎨 Фон:', backgroundPreset.substring(0, 60));
-    console.log('📸 Картинка получена:', garmentImageBase64 ? 'ДА' : 'НЕТ');
+    console.log('📸 Картинка получена:', primaryGarmentBase64 ? 'ДА' : 'НЕТ');
+    console.log('📸 Всего вещей:', garmentImagesBase64 ? garmentImagesBase64.length : (garmentImageBase64 ? 1 : 0));
+    console.log('📍 Локация (фото):', locationImages ? `${locationImages.length} шт` : 'НЕТ');
+    console.log('👤 Реф модели:', modelReferenceImages ? `${modelReferenceImages.length} шт` : 'НЕТ');
     console.log('══════════════════════════════════════\n');
 
-    // ═══════════════════════════════════════════
-    //  Подготовка изображения
-    // ═══════════════════════════════════════════
-    if (!garmentImageBase64) {
+    if (!primaryGarmentBase64) {
       throw new Error('Изображение одежды не было передано на сервер!');
     }
 
     let mimeType = 'image/jpeg';
-    let base64str = garmentImageBase64;
-    
-    // Очищаем Data URL от префикса
-    const mimeMatch = garmentImageBase64.match(/^data:(image\/\w+);base64,/);
+    let base64str = primaryGarmentBase64;
+    const mimeMatch = primaryGarmentBase64.match(/^data:(image\/\w+);base64,/);
     if (mimeMatch) {
        mimeType = mimeMatch[1];
-       base64str = garmentImageBase64.replace(/^data:image\/\w+;base64,/, '');
+       base64str = primaryGarmentBase64.replace(/^data:image\/\w+;base64,/, '');
     }
 
-    // ═══════════════════════════════════════════
-    //  Отправка в Google AI
-    // ═══════════════════════════════════════════
+    // Build content parts
+    const parts = [];
+
+    // 1. Add ALL garment images
+    const allGarments = garmentImagesBase64 || (garmentImageBase64 ? [garmentImageBase64] : []);
+    for (const gImg of allGarments) {
+      let gMime = 'image/jpeg';
+      let gBase64 = gImg;
+      const gMatch = gImg.match(/^data:(image\/\w+);base64,/);
+      if (gMatch) { gMime = gMatch[1]; gBase64 = gImg.replace(/^data:image\/\w+;base64,/, ''); }
+      parts.push({ inlineData: { data: gBase64, mimeType: gMime } });
+    }
+    parts.push({ text: `[GARMENT REFERENCE: The ${allGarments.length} image(s) above show the exact garment(s) to dress the model in. Preserve exact color, fabric, texture, print, and cut.]` });
+
+    // 2. Add model reference images (face/identity preservation)
+    if (modelReferenceImages && Array.isArray(modelReferenceImages) && modelReferenceImages.length > 0) {
+      for (const refImg of modelReferenceImages.slice(0, 5)) {
+        // These are Firebase Storage URLs — download and convert, or pass as-is if base64
+        if (refImg.startsWith('data:')) {
+          let refMime = 'image/jpeg';
+          let refBase64 = refImg;
+          const refMatch = refImg.match(/^data:(image\/\w+);base64,/);
+          if (refMatch) { refMime = refMatch[1]; refBase64 = refImg.replace(/^data:image\/\w+;base64,/, ''); }
+          parts.push({ inlineData: { data: refBase64, mimeType: refMime } });
+        } else if (refImg.startsWith('http')) {
+          // Download from Firebase Storage URL
+          try {
+            const imgResp = await fetch(refImg);
+            const arrBuf = await imgResp.arrayBuffer();
+            const b64 = Buffer.from(arrBuf).toString('base64');
+            const contentType = imgResp.headers.get('content-type') || 'image/jpeg';
+            parts.push({ inlineData: { data: b64, mimeType: contentType } });
+          } catch (dlErr) {
+            console.warn('⚠️ Не удалось скачать реф-фото модели:', dlErr.message);
+          }
+        }
+      }
+      parts.push({ text: `[CHARACTER REFERENCE: The images above are STRICT identity references. The generated person MUST closely resemble the person in these photos. Match facial features, ethnicity, skin tone, age, hair color, hair style, and body proportions as closely as possible. This is critical for identity preservation.]` });
+    }
+
+    // 3. Add location reference images
+    if (locationImages && Array.isArray(locationImages)) {
+      for (const locImg of locationImages.slice(0, 5)) {
+        let locMime = 'image/jpeg';
+        let locBase64 = locImg;
+        if (locImg.startsWith('data:')) {
+          const locMatch = locImg.match(/^data:(image\/\w+);base64,/);
+          if (locMatch) { locMime = locMatch[1]; locBase64 = locImg.replace(/^data:image\/\w+;base64,/, ''); }
+          parts.push({ inlineData: { data: locBase64, mimeType: locMime } });
+        } else if (locImg.startsWith('http')) {
+          try {
+            const locResp = await fetch(locImg);
+            const locBuf = await locResp.arrayBuffer();
+            const locB64 = Buffer.from(locBuf).toString('base64');
+            const locCT = locResp.headers.get('content-type') || 'image/jpeg';
+            parts.push({ inlineData: { data: locB64, mimeType: locCT } });
+          } catch (dlErr) {
+            console.warn('⚠️ Не удалось скачать фото локации:', dlErr.message);
+          }
+        }
+      }
+      parts.push({ text: '[LOCATION REFERENCE: The images above show the real location. Replicate this exact environment as the background.]\n\n' + finalPrompt });
+    } else {
+      parts.push({ text: finalPrompt });
+    }
+
     const response = await ai.models.generateContent({
       model: 'gemini-3.1-flash-image-preview',
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              inlineData: {
-                data: base64str,
-                mimeType: mimeType
-              }
-            },
-            { text: finalPrompt }
-          ],
-        },
-      ],
-      config: {
-        responseModalities: ['IMAGE', 'TEXT'],
-      },
+      contents: [{ role: 'user', parts }],
+      config: { responseModalities: ['IMAGE', 'TEXT'] },
     });
 
-    // Ищем картинку в ответе
     let imageBase64 = null;
     if (response.candidates && response.candidates.length > 0) {
-      const parts = response.candidates[0].content?.parts || [];
-      for (const part of parts) {
+      const resParts = response.candidates[0].content?.parts || [];
+      for (const part of resParts) {
         if (part.inlineData && part.inlineData.mimeType?.startsWith('image/')) {
           imageBase64 = part.inlineData.data;
           break;
@@ -118,12 +171,12 @@ app.post('/api/generate-image', async (req, res) => {
     }
 
     if (!imageBase64) {
-      console.error('⚠️ Нейросеть не вернула изображение. Ответ:', JSON.stringify(response.candidates?.[0]?.content?.parts?.map(p => p.text || '[IMAGE]') || 'пустой'));
+      console.error('⚠️ Нейросеть не вернула изображение.');
       throw new Error('Нейросеть не сгенерировала изображение. Попробуйте изменить промпт или повторить запрос.');
     }
 
     console.log('✅ Картинка успешно сгенерирована через Nano Banano 2!\n');
-    res.json({ success: true, imageBase64: imageBase64 });
+    res.json({ success: true, imageBase64 });
 
   } catch (error) {
     console.error('❌ Ошибка при генерации:', error.message || error);
