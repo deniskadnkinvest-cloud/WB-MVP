@@ -6,7 +6,7 @@ import DetailPanel from './components/DetailPanel';
 import LoraModal from './components/LoraModal';
 import LoginPage from './components/LoginPage';
 import { useAuth } from './contexts/AuthContext';
-import { getModels, saveModel, deleteModelDoc, getLocations, saveLocation, deleteLocationDoc } from './lib/firestoreService';
+import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt } from './lib/firestoreService';
 import { uploadBase64Image, compressImage, uploadImage, deleteImage } from './lib/storageService';
 import './App.css';
 
@@ -67,6 +67,19 @@ function App() {
   const [processingMsg, setProcessingMsg] = useState('');
   const [statusText, setStatusText] = useState('');
   const [statusType, setStatusType] = useState('');
+
+  // Modifiers for saved models/locations
+  const [modelModifier, setModelModifier] = useState('');
+  const [showModelModifier, setShowModelModifier] = useState(false);
+  const [locModifier, setLocModifier] = useState('');
+  const [showLocModifier, setShowLocModifier] = useState(false);
+
+  // Post-generation editing
+  const [shotModifier, setShotModifier] = useState('');
+
+  // Photoshoot mode
+  const [photoshootImages, setPhotoshootImages] = useState([]);
+  const [isPhotoshooting, setIsPhotoshooting] = useState(false);
 
   // Load user data from Firestore
   useEffect(() => {
@@ -130,11 +143,21 @@ function App() {
         const sm = myModels.find(m => m.id === selectedSavedModelId);
         if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
       }
+      // Append model modifier if present
+      if (modelModifier.trim()) modelPrompt += `. Additionally: ${modelModifier.trim()}`;
 
       const posePrompt = customPoseText.trim() || selectedPose.prompt;
       let bgPrompt = customBgText.trim() || selectedBg.prompt;
       let locImages = null;
-      if (selectedLocId) { const loc = myLocations.find(l => l.id === selectedLocId); if (loc) { locImages = loc.imageUrls; bgPrompt = 'Replicate the exact real location shown in the reference photos'; } }
+      if (selectedLocId) {
+        const loc = myLocations.find(l => l.id === selectedLocId);
+        if (loc) {
+          locImages = loc.imageUrls;
+          bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
+        }
+      }
+      // Append location modifier if present
+      if (locModifier.trim()) bgPrompt += `. Additionally: ${locModifier.trim()}`;
 
       setProcessingMsg('🚀 Отправляем в Nano Banano 2...');
       const resp = await fetch('/api/generate-image', {
@@ -154,7 +177,7 @@ function App() {
     } finally { setIsProcessing(false); }
   };
 
-  const handleDownload = () => { if (!generatedImage) return; const a = document.createElement('a'); a.href = generatedImage; a.download = `PANX_VTON_${Date.now()}.jpg`; a.click(); };
+  const handleDownload = () => { if (!generatedImage) return; const a = document.createElement('a'); a.href = generatedImage; a.download = `SellerStudio_${Date.now()}.jpg`; a.click(); };
 
   // Location helpers
   const handleLocFiles = async (files) => {
@@ -234,6 +257,94 @@ function App() {
   };
 
   const filteredModels = MODEL_PRESETS.filter(m => m.gender === gender);
+
+  // Save model modifier to Firestore
+  const saveModelMod = async () => {
+    if (!user || !selectedSavedModelId || !modelModifier.trim()) return;
+    const sm = myModels.find(m => m.id === selectedSavedModelId);
+    const newPrompt = ((sm?.prompt || '') + '. Additionally: ' + modelModifier.trim()).trim();
+    try {
+      await updateModelPrompt(user.uid, selectedSavedModelId, newPrompt);
+      setMyModels(prev => prev.map(m => m.id === selectedSavedModelId ? { ...m, prompt: newPrompt } : m));
+      setModelModifier('');
+      setStatusText('✅ Изменения модели сохранены!'); setStatusType('success');
+    } catch (err) { console.error(err); setStatusText('Ошибка сохранения'); setStatusType('error'); }
+  };
+
+  // Save location modifier to Firestore
+  const saveLocMod = async () => {
+    if (!user || !selectedLocId || !locModifier.trim()) return;
+    const loc = myLocations.find(l => l.id === selectedLocId);
+    const newPrompt = ((loc?.prompt || '') + '. Additionally: ' + locModifier.trim()).trim();
+    try {
+      await updateLocationPrompt(user.uid, selectedLocId, newPrompt);
+      setMyLocations(prev => prev.map(l => l.id === selectedLocId ? { ...l, prompt: newPrompt } : l));
+      setLocModifier('');
+      setStatusText('✅ Изменения локации сохранены!'); setStatusType('success');
+    } catch (err) { console.error(err); setStatusText('Ошибка сохранения'); setStatusType('error'); }
+  };
+
+  // Re-generate with shot modifier (iterative editing)
+  const handleRegenerate = async () => {
+    if (!shotModifier.trim() || !imageFiles.length) return;
+    // Temporarily append modifier to customModelPrompt and re-run
+    const originalCustom = customModelPrompt;
+    const modSuffix = `. Additionally, ensure: ${shotModifier.trim()}`;
+    setCustomModelPrompt(prev => (prev || selectedModel.prompt + buildDetailString()) + modSuffix);
+    setShotModifier('');
+    // Small delay for state to update, then trigger
+    setTimeout(() => handleGenerate(), 50);
+  };
+
+  // Photoshoot mode: 5 parallel generations
+  const PHOTOSHOOT_ANGLES = [
+    { pose: 'close-up portrait shot, looking directly at camera, confident expression', camera: 'close-up portrait' },
+    { pose: 'full body shot, walking towards camera, dynamic fashion stride', camera: 'full body front' },
+    { pose: 'elegant side profile, relaxed posture, one hand on hip', camera: 'side profile medium' },
+    { pose: 'low angle power shot, confident stance, dramatic perspective', camera: 'low angle full body' },
+    { pose: 'over-the-shoulder glance back at camera, dynamic fabric movement', camera: '3/4 back view' },
+  ];
+
+  const handlePhotoshoot = async () => {
+    if (!imageFiles.length || isPhotoshooting) return;
+    setIsPhotoshooting(true);
+    setPhotoshootImages(new Array(5).fill(null));
+    setStatusText('📸 Фотосессия запущена! Генерируем 5 кадров...'); setStatusType('');
+    try {
+      const garmentImagesBase64 = await Promise.all(imageFiles.map(f => blobToBase64(f)));
+      let modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
+      let modelRefImages = null;
+      if (selectedSavedModelId) {
+        const sm = myModels.find(m => m.id === selectedSavedModelId);
+        if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
+      }
+      let bgPrompt = customBgText.trim() || selectedBg.prompt;
+      let locImages = null;
+      if (selectedLocId) {
+        const loc = myLocations.find(l => l.id === selectedLocId);
+        if (loc) { locImages = loc.imageUrls; bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos'; }
+      }
+
+      const promises = PHOTOSHOOT_ANGLES.map((angle, idx) =>
+        fetch('/api/generate-image', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            garmentImagesBase64, modelPreset: modelPrompt,
+            posePreset: angle.pose, cameraAngle: angle.camera,
+            backgroundPreset: bgPrompt, aspectRatio: selectedRatio.id,
+            modelReferenceImages: modelRefImages, locationImages: locImages,
+          }),
+        }).then(r => r.json()).then(data => {
+          if (data.success) {
+            setPhotoshootImages(prev => { const n = [...prev]; n[idx] = `data:image/jpeg;base64,${data.imageBase64}`; return n; });
+          }
+        }).catch(() => {})
+      );
+      await Promise.all(promises);
+      setStatusText('🎉 Фотосессия готова!'); setStatusType('success');
+    } catch (err) { setStatusText(`Ошибка фотосессии: ${err.message}`); setStatusType('error'); }
+    finally { setIsPhotoshooting(false); }
+  };
 
   if (loading) return <div className="app-wrapper" style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh'}}><div className="processing-spinner" /></div>;
   if (!user) return <LoginPage />;
@@ -322,6 +433,20 @@ function App() {
                   ))}
                 </div>
                 {selectedSavedModelId && <div className="selected-model-indicator">⭐ Ваша модель выбрана</div>}
+                {selectedSavedModelId && (
+                  <div className="modifier-block">
+                    <button className="modifier-toggle" onClick={() => setShowModelModifier(!showModelModifier)}>
+                      {showModelModifier ? '✖ Скрыть' : '✏️ Изменить модель'}
+                    </button>
+                    {showModelModifier && (
+                      <div className="modifier-content">
+                        <textarea className="modifier-input" rows={2} placeholder="Например: добавить татуировку на левую руку, сделать волосы рыжими, рост выше"
+                          value={modelModifier} onChange={e => setModelModifier(e.target.value)} />
+                        <button className="modifier-save-btn" onClick={saveModelMod} disabled={!modelModifier.trim()}>💾 Сохранить в модель</button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
             <div className="add-location-card" style={{marginTop: myModels.length ? 12 : 0}} onClick={() => setShowLoraModal(true)}>
@@ -384,6 +509,7 @@ function App() {
             </div>
           </>
         ) : (
+          <>
           <div className="location-card-grid">
             {myLocations.map(loc => (
               <div key={loc.id} className={`location-card ${selectedLocId===loc.id?'active':''}`} onClick={() => setSelectedLocId(loc.id)}>
@@ -395,6 +521,21 @@ function App() {
               <span className="plus-icon">+</span><span>Оцифровать локацию</span>
             </div>
           </div>
+          {selectedLocId && (
+            <div className="modifier-block">
+              <button className="modifier-toggle" onClick={() => setShowLocModifier(!showLocModifier)}>
+                {showLocModifier ? '✖ Скрыть' : '✏️ Изменить локацию'}
+              </button>
+              {showLocModifier && (
+                <div className="modifier-content">
+                  <textarea className="modifier-input" rows={2} placeholder="Например: добавить закат, сделать стены кирпичными, неоновая вывеска"
+                    value={locModifier} onChange={e => setLocModifier(e.target.value)} />
+                  <button className="modifier-save-btn" onClick={saveLocMod} disabled={!locModifier.trim()}>💾 Сохранить в локацию</button>
+                </div>
+              )}
+            </div>
+          )}
+          </>
         )}
       </motion.div>
 
@@ -426,6 +567,44 @@ function App() {
               <button className="download-btn" onClick={handleDownload}>⬇️ Скачать</button>
               <button className="save-model-btn" onClick={() => setShowSaveModelModal(true)}>⭐ Сохранить модель</button>
             </div>
+
+            {/* Iterative editing */}
+            <div className="shot-modifier-block">
+              <div className="shot-modifier-label">✏️ Хотите что-то изменить в кадре?</div>
+              <textarea className="modifier-input" rows={2} placeholder="Например: сделать модель выше, изменить цвет волос, добавить очки, убрать тени"
+                value={shotModifier} onChange={e => setShotModifier(e.target.value)} />
+              <button className="modifier-regen-btn" onClick={handleRegenerate} disabled={!shotModifier.trim() || isProcessing}>
+                🔄 Внести изменения
+              </button>
+            </div>
+
+            {/* Photoshoot */}
+            <button className="photoshoot-btn" onClick={handlePhotoshoot} disabled={isPhotoshooting || isProcessing}>
+              {isPhotoshooting ? '⏳ Генерируем 5 кадров...' : '📸 Сделать фотосессию'}
+            </button>
+
+            {/* Photoshoot gallery */}
+            {photoshootImages.length > 0 && (
+              <div className="photoshoot-gallery">
+                <h4>📷 Галерея фотосессии</h4>
+                <div className="photoshoot-grid">
+                  {photoshootImages.map((img, i) => (
+                    <div key={i} className="photoshoot-item">
+                      {img ? (
+                        <>
+                          <img src={img} alt={`Кадр ${i+1}`} />
+                          <button className="download-mini-btn" onClick={() => {
+                            const a = document.createElement('a'); a.href = img; a.download = `SellerStudio_${i+1}_${Date.now()}.jpg`; a.click();
+                          }}>⬇️</button>
+                        </>
+                      ) : (
+                        <div className="photoshoot-placeholder"><div className="processing-spinner" style={{width:24,height:24}} /></div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

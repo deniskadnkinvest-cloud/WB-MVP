@@ -1,5 +1,5 @@
 import {
-  collection, doc, addDoc, getDocs, deleteDoc, query, orderBy, serverTimestamp,
+  collection, doc, addDoc, getDocs, deleteDoc, updateDoc, query, orderBy, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -39,6 +39,17 @@ export const deleteModelDoc = async (uid, modelId) => {
   return deleteDoc(docRef);
 };
 
+/**
+ * Обновить промпт модели (сохранение модификаторов).
+ * @param {string} uid
+ * @param {string} modelId
+ * @param {string} prompt
+ */
+export const updateModelPrompt = async (uid, modelId, prompt) => {
+  const docRef = doc(db, 'users', uid, 'saved_models', modelId);
+  return updateDoc(docRef, { prompt, updatedAt: serverTimestamp() });
+};
+
 // ═══════════════════════════════════════
 //  ЛОКАЦИИ (saved_locations)
 // ═══════════════════════════════════════
@@ -73,4 +84,15 @@ export const getLocations = async (uid) => {
 export const deleteLocationDoc = async (uid, locationId) => {
   const docRef = doc(db, 'users', uid, 'saved_locations', locationId);
   return deleteDoc(docRef);
+};
+
+/**
+ * Обновить промпт локации (сохранение модификаторов).
+ * @param {string} uid
+ * @param {string} locationId
+ * @param {string} prompt
+ */
+export const updateLocationPrompt = async (uid, locationId, prompt) => {
+  const docRef = doc(db, 'users', uid, 'saved_locations', locationId);
+  return updateDoc(docRef, { prompt, updatedAt: serverTimestamp() });
 };
