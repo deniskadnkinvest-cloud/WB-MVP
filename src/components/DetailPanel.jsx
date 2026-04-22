@@ -79,6 +79,11 @@ export default function DetailPanel({ modelDetails, setModelDetails, visible, ge
             />
           </div>
 
+          {/* Tattoo warning */}
+          {((() => { const t = modelDetails.tattoo; return (Array.isArray(t) ? t.some(v => v !== 'Нет') : (t && t !== 'Нет')); })() || /тату|tattoo/i.test(extraPrompt || '')) && (
+            <div className="tattoo-warning">⚠️ Татуировка отлично получится на одиночном фото, но в серии (фотосессия) может искажаться. Для стабильной модели старайтесь не использовать тату.</div>
+          )}
+
           <button className="random-btn" onClick={randomize}>🎲 Случайно</button>
         </motion.div>
       )}

@@ -87,6 +87,15 @@ function App() {
   const [photoshootImages, setPhotoshootImages] = useState([]);
   const [isPhotoshooting, setIsPhotoshooting] = useState(false);
 
+  // Lightbox
+  const [lightboxSrc, setLightboxSrc] = useState(null);
+
+  // Model preview (for editing)
+  const [modelPreviewSrc, setModelPreviewSrc] = useState(null);
+  const [isPreviewingModel, setIsPreviewingModel] = useState(false);
+  const [showModelPreviewSave, setShowModelPreviewSave] = useState(false);
+  const [modelPreviewName, setModelPreviewName] = useState('');
+
   // Load user data from Firestore
   useEffect(() => {
     if (!user) return;
@@ -272,17 +281,59 @@ function App() {
 
   const filteredModels = MODEL_PRESETS.filter(m => m.gender === gender);
 
-  // Save model modifier to Firestore
-  const saveModelMod = async () => {
+  // Preview model with modifications (generates a portrait)
+  const handlePreviewModel = async () => {
     if (!user || !selectedSavedModelId || !modelModifier.trim()) return;
+    setIsPreviewingModel(true); setModelPreviewSrc(null);
     const sm = myModels.find(m => m.id === selectedSavedModelId);
-    const newPrompt = ((sm?.prompt || '') + '. Additionally: ' + modelModifier.trim()).trim();
+    const prompt = ((sm?.prompt || '') + '. Additionally: ' + modelModifier.trim()).trim();
     try {
-      await updateModelPrompt(user.uid, selectedSavedModelId, newPrompt);
-      setMyModels(prev => prev.map(m => m.id === selectedSavedModelId ? { ...m, prompt: newPrompt } : m));
-      setModelModifier('');
-      setStatusText('✅ Изменения модели сохранены!'); setStatusType('success');
+      // Use model reference images as "garment" placeholder to pass API validation
+      const refImgs = sm?.imageUrls || [];
+      let fakeGarment = [];
+      if (imageFiles.length > 0) {
+        fakeGarment = await Promise.all(imageFiles.slice(0, 1).map(f => blobToBase64(f)));
+      } else if (refImgs.length > 0) {
+        // Download first ref image and use as placeholder
+        const resp2 = await fetch(refImgs[0]); const blob = await resp2.blob();
+        fakeGarment = [await blobToBase64(blob)];
+      }
+      if (!fakeGarment.length) { setStatusText('Нужна хотя бы одна фотография одежды или модели'); setStatusType('error'); setIsPreviewingModel(false); return; }
+
+      const resp = await fetch('/api/generate-image', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          garmentImagesBase64: fakeGarment, modelPreset: prompt,
+          posePreset: 'standing straight, facing camera, neutral pose, wearing simple casual clothes',
+          cameraAngle: 'medium shot waist up', backgroundPreset: 'clean white studio',
+          aspectRatio: '3:4', modelReferenceImages: refImgs,
+        }),
+      });
+      const data = await resp.json();
+      if (data.success) {
+        setModelPreviewSrc(`data:image/jpeg;base64,${data.imageBase64}`);
+        setStatusText('Превью модели готово! Сохранить как новую?'); setStatusType('success');
+      } else { setStatusText(`Ошибка: ${data.error}`); setStatusType('error'); }
+    } catch (err) { setStatusText(`Ошибка: ${err.message}`); setStatusType('error'); }
+    finally { setIsPreviewingModel(false); }
+  };
+
+  // Save modified model as NEW (does not overwrite original)
+  const saveModelAsNew = async () => {
+    if (!user || !modelPreviewSrc || !modelPreviewName.trim()) return;
+    setIsSaving(true);
+    try {
+      const sm = myModels.find(m => m.id === selectedSavedModelId);
+      const newPrompt = ((sm?.prompt || '') + '. Additionally: ' + modelModifier.trim()).trim();
+      const { url, path } = await uploadBase64Image(user.uid, modelPreviewSrc, 'models');
+      await saveModel(user.uid, { name: modelPreviewName.trim(), type: 'generated', imageUrls: [url], storagePaths: [path], prompt: newPrompt });
+      const models = await getModels(user.uid);
+      setMyModels(models);
+      setModelPreviewSrc(null); setModelPreviewName(''); setModelModifier(''); setShowModelModifier(false);
+      setShowModelPreviewSave(false);
+      setStatusText('✅ Новая модель сохранена!'); setStatusType('success');
     } catch (err) { console.error(err); setStatusText('Ошибка сохранения'); setStatusType('error'); }
+    finally { setIsSaving(false); }
   };
 
   // Save location modifier to Firestore
@@ -392,11 +443,15 @@ function App() {
             <input type="file" accept="image/*" multiple ref={fileInputRef} style={{display:'none'}} onChange={handleFilesChange} />
           </div>
         ) : (
-          <div className="upload-zone" onClick={() => fileInputRef.current?.click()}>
+          <div className={`upload-zone ${statusType === 'dragging' ? 'dragging' : ''}`}
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={e => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('dragging'); }}
+            onDragLeave={e => { e.preventDefault(); e.currentTarget.classList.remove('dragging'); }}
+            onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('dragging'); if (e.dataTransfer.files?.length) handleFilesChange({ target: { files: e.dataTransfer.files } }); }}>
             <input type="file" accept="image/*" multiple ref={fileInputRef} style={{display:'none'}} onChange={handleFilesChange} />
             <div className="upload-icon">👕</div>
-            <p className="upload-text">Загрузите все вещи, которые хотите видеть на модели</p>
-            <p className="upload-hint">JPG, PNG • Можно несколько: футболка + брюки + серьги = всё на модели</p>
+            <p className="upload-text">Загрузите фото одежды — раскладки или фото на модели</p>
+            <p className="upload-hint">JPG, PNG • Перетащите сюда или нажмите • Можно несколько: футболка + брюки + серьги = всё на модели</p>
           </div>
         )}
       </motion.div>
@@ -432,6 +487,9 @@ function App() {
                 onFocus={() => { setShowDetails(false); setSelectedSavedModelId(null); }}
                 onChange={e => { setCustomModelPrompt(e.target.value); setSelectedSavedModelId(null); setShowDetails(false); }} />
             </div>
+            {/тату|tattoo/i.test(customModelPrompt) && (
+              <div className="tattoo-warning">⚠️ Татуировка отлично получится на одиночном фото, но в серии (фотосессия) может искажаться. Для стабильной модели старайтесь не использовать тату.</div>
+            )}
           </>
         ) : (
           <>
@@ -450,14 +508,29 @@ function App() {
                 {selectedSavedModelId && <div className="selected-model-indicator">⭐ Ваша модель выбрана</div>}
                 {selectedSavedModelId && (
                   <div className="modifier-block">
-                    <button className="modifier-toggle" onClick={() => setShowModelModifier(!showModelModifier)}>
+                    <button className="modifier-toggle" onClick={() => { setShowModelModifier(!showModelModifier); setModelPreviewSrc(null); }}>
                       {showModelModifier ? '✖ Скрыть' : '✏️ Изменить модель'}
                     </button>
                     {showModelModifier && (
                       <div className="modifier-content">
                         <textarea className="modifier-input" rows={2} placeholder="Например: добавить татуировку на левую руку, сделать волосы рыжими, рост выше"
                           value={modelModifier} onChange={e => setModelModifier(e.target.value)} />
-                        <button className="modifier-save-btn" onClick={saveModelMod} disabled={!modelModifier.trim()}>💾 Сохранить в модель</button>
+                        {/* Tattoo warning (text input) */}
+                        {/тату/i.test(modelModifier) && (
+                          <div className="tattoo-warning">⚠️ Татуировка отлично получится на одиночном фото, но в серии (фотосессия) может искажаться. Для стабильной модели старайтесь не использовать тату.</div>
+                        )}
+                        <button className="modifier-save-btn" onClick={handlePreviewModel} disabled={!modelModifier.trim() || isPreviewingModel}>
+                          {isPreviewingModel ? '⏳ Генерируем превью...' : '👁️ Предпросмотр'}
+                        </button>
+                        {modelPreviewSrc && (
+                          <div className="model-preview-block">
+                            <img src={modelPreviewSrc} alt="Превью модели" className="model-preview-img" onClick={() => setLightboxSrc(modelPreviewSrc)} />
+                            <input className="custom-variant-input" type="text" placeholder="Назовите новую модель" value={modelPreviewName} onChange={e => setModelPreviewName(e.target.value)} />
+                            <button className="modifier-save-btn" onClick={saveModelAsNew} disabled={!modelPreviewName.trim() || isSaving}>
+                              {isSaving ? '⏳ Сохраняем...' : '💾 Сохранить как новую модель'}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -582,7 +655,7 @@ function App() {
         {generatedImage && (
           <motion.div className="section result-section" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} exit={{opacity:0}} transition={{duration:0.5}}>
             <h3>Финальный Рендер</h3>
-            <div className="result-image-wrap"><img src={generatedImage} alt="VTON" /></div>
+            <div className="result-image-wrap"><img src={generatedImage} alt="VTON" onClick={() => setLightboxSrc(generatedImage)} style={{cursor:'pointer'}} /></div>
             <div className="result-actions">
               <button className="download-btn" onClick={handleDownload}>⬇️ Скачать</button>
               <button className="save-model-btn" onClick={() => setShowSaveModelModal(true)}>⭐ Сохранить модель</button>
@@ -621,7 +694,7 @@ function App() {
                     <div key={i} className="photoshoot-item">
                       {img ? (
                         <>
-                          <img src={img} alt={`Кадр ${i+1}`} />
+                          <img src={img} alt={`Кадр ${i+1}`} onClick={() => setLightboxSrc(img)} style={{cursor:'pointer'}} />
                           <button className="download-mini-btn" onClick={() => {
                             const a = document.createElement('a'); a.href = img; a.download = `SellerStudio_${i+1}_${Date.now()}.jpg`; a.click();
                           }}>⬇️</button>
@@ -691,6 +764,17 @@ function App() {
                 <button className="modal-btn-primary" onClick={saveGenModel} disabled={!saveModelName.trim()}>Сохранить</button>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* LIGHTBOX */}
+      <AnimatePresence>
+        {lightboxSrc && (
+          <motion.div className="lightbox-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => setLightboxSrc(null)}>
+            <button className="lightbox-close" onClick={() => setLightboxSrc(null)}>✕</button>
+            <img src={lightboxSrc} alt="Просмотр" className="lightbox-img" onClick={e => e.stopPropagation()} />
+            <button className="lightbox-download" onClick={e => { e.stopPropagation(); const a = document.createElement('a'); a.href = lightboxSrc; a.download = `SellerStudio_${Date.now()}.jpg`; a.click(); }}>⬇️ Скачать</button>
           </motion.div>
         )}
       </AnimatePresence>
