@@ -185,6 +185,12 @@ export const BACKGROUND_PRESETS = [
     prompt: 'iconic Moscow street setting, historic russian architecture, stylish urban fashion background, natural daylight',
   },
   {
+    id: 'milan_street',
+    label: 'Улица Милана',
+    emoji: '🇮🇹',
+    prompt: 'elegant Milan street setting, Italian fashion district architecture, Via Montenapoleone luxury boutique facades, warm Mediterranean sunlight, cobblestone pavement, European high-fashion atmosphere',
+  },
+  {
     id: 'luxury_interior',
     label: 'Лакшери интерьер',
     emoji: '🏛️',

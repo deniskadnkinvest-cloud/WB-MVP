@@ -305,11 +305,12 @@ function App() {
     { pose: 'over-the-shoulder glance back at camera, dynamic fabric movement', camera: '3/4 back view' },
   ];
 
-  const handlePhotoshoot = async () => {
+  const handlePhotoshoot = async (count = 5) => {
     if (!imageFiles.length || isPhotoshooting) return;
     setIsPhotoshooting(true);
-    setPhotoshootImages(new Array(5).fill(null));
-    setStatusText('📸 Фотосессия запущена! Генерируем 5 кадров...'); setStatusType('');
+    const angles = PHOTOSHOOT_ANGLES.slice(0, count);
+    setPhotoshootImages(new Array(count).fill(null));
+    setStatusText(`📸 Фотосессия запущена! Генерируем ${count} кадров...`); setStatusType('');
     try {
       const garmentImagesBase64 = await Promise.all(imageFiles.map(f => blobToBase64(f)));
       let modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
@@ -325,7 +326,7 @@ function App() {
         if (loc) { locImages = loc.imageUrls; bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos'; }
       }
 
-      const promises = PHOTOSHOOT_ANGLES.map((angle, idx) =>
+      const promises = angles.map((angle, idx) =>
         fetch('/api/generate-image', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -513,7 +514,8 @@ function App() {
           <div className="location-card-grid">
             {myLocations.map(loc => (
               <div key={loc.id} className={`location-card ${selectedLocId===loc.id?'active':''}`} onClick={() => setSelectedLocId(loc.id)}>
-                <img src={loc.thumb} alt={loc.name} /><div className="loc-name">{loc.name}</div>
+                <img src={loc.thumbnail || loc.imageUrls?.[0] || ''} alt={loc.title || loc.name || ''} />
+                <div className="loc-name">{loc.title || loc.name || 'Без названия'}</div>
                 <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteLoc(loc.id); }}>✕</button>
               </div>
             ))}
@@ -579,9 +581,18 @@ function App() {
             </div>
 
             {/* Photoshoot */}
-            <button className="photoshoot-btn" onClick={handlePhotoshoot} disabled={isPhotoshooting || isProcessing}>
-              {isPhotoshooting ? '⏳ Генерируем 5 кадров...' : '📸 Сделать фотосессию'}
-            </button>
+            <div className="photoshoot-block">
+              <div className="photoshoot-label">📸 Сделать фотосессию</div>
+              <p className="photoshoot-hint">Генерация нескольких фото с разных ракурсов</p>
+              <div className="photoshoot-choice">
+                <button className="photoshoot-btn photoshoot-btn--3" onClick={() => handlePhotoshoot(3)} disabled={isPhotoshooting || isProcessing}>
+                  {isPhotoshooting ? '⏳ Генерация...' : '📷 3 фото'}
+                </button>
+                <button className="photoshoot-btn photoshoot-btn--5" onClick={() => handlePhotoshoot(5)} disabled={isPhotoshooting || isProcessing}>
+                  {isPhotoshooting ? '⏳ Генерация...' : '📸 5 фото'}
+                </button>
+              </div>
+            </div>
 
             {/* Photoshoot gallery */}
             {photoshootImages.length > 0 && (

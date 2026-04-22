@@ -1335,9 +1335,32 @@
 }
 
 /* ═══ PHOTOSHOOT ═══ */
+.photoshoot-block {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.photoshoot-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.photoshoot-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.photoshoot-choice {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
 .photoshoot-btn {
-  margin-top: 14px;
-  width: 100%;
   background: linear-gradient(135deg, #059669, #047857);
   color: #fff;
   border: none;
