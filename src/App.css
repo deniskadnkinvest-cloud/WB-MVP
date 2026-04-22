@@ -980,6 +980,15 @@
   margin-bottom: 6px;
 }
 
+.multi-hint {
+  font-size: 0.6rem;
+  font-weight: 400;
+  color: var(--gold-primary);
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.7;
+}
+
 .detail-chips {
   display: flex;
   flex-wrap: wrap;

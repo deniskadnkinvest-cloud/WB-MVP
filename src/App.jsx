@@ -68,6 +68,12 @@ function App() {
   const [statusText, setStatusText] = useState('');
   const [statusType, setStatusType] = useState('');
 
+  // Extra free-text for preset model
+  const [extraModelPrompt, setExtraModelPrompt] = useState('');
+
+  // Extra free-text for preset bg/location
+  const [bgExtraText, setBgExtraText] = useState('');
+
   // Modifiers for saved models/locations
   const [modelModifier, setModelModifier] = useState('');
   const [showModelModifier, setShowModelModifier] = useState(false);
@@ -121,10 +127,16 @@ function App() {
 
   const blobToBase64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onloadend = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
 
-  // Build detail string
+  // Build detail string (supports arrays for multi-select fields like tattoo)
   const buildDetailString = () => {
     const parts = [];
-    Object.entries(modelDetails).forEach(([k, v]) => { if (v && v !== 'Нет') parts.push(v); });
+    Object.entries(modelDetails).forEach(([k, v]) => {
+      if (!v || v === 'Нет') return;
+      if (Array.isArray(v)) { const filtered = v.filter(x => x !== 'Нет'); if (filtered.length) parts.push(filtered.join(' + ')); }
+      else parts.push(v);
+    });
+    // Append extra free-text if any
+    if (extraModelPrompt.trim()) parts.push(extraModelPrompt.trim());
     return parts.length ? `, ${parts.join(', ')}` : '';
   };
 
@@ -158,6 +170,8 @@ function App() {
       }
       // Append location modifier if present
       if (locModifier.trim()) bgPrompt += `. Additionally: ${locModifier.trim()}`;
+      // Append preset bg extra text if present
+      if (bgExtraText.trim() && !customBgText.trim()) bgPrompt += `, ${bgExtraText.trim()}`;
 
       setProcessingMsg('🚀 Отправляем в Nano Banano 2...');
       const resp = await fetch('/api/generate-image', {
@@ -411,9 +425,9 @@ function App() {
                 </div>
               ))}
             </div>
-            <DetailPanel modelDetails={modelDetails} setModelDetails={setModelDetails} visible={showDetails && !customModelPrompt && !selectedSavedModelId} gender={gender} />
+            <DetailPanel modelDetails={modelDetails} setModelDetails={setModelDetails} visible={showDetails && !customModelPrompt && !selectedSavedModelId} gender={gender} extraPrompt={extraModelPrompt} setExtraPrompt={setExtraModelPrompt} />
             <div className="custom-variant-row">
-              <input className="custom-variant-input" type="text" placeholder="Или опишите свою модель: «рыжая девушка 25 лет с веснушками»"
+              <input className="custom-variant-input" type="text" placeholder="Описать модель с нуля: «рыжая девушка 25 лет с веснушками»"
                 value={customModelPrompt} 
                 onFocus={() => { setShowDetails(false); setSelectedSavedModelId(null); }}
                 onChange={e => { setCustomModelPrompt(e.target.value); setSelectedSavedModelId(null); setShowDetails(false); }} />
@@ -504,8 +518,12 @@ function App() {
                 </div>
               ))}
             </div>
+            <div className="modifier-block" style={{marginTop:10}}>
+              <textarea className="modifier-input" rows={1} placeholder="Добавить к локации: «закат, мокрый асфальт, неоновые огни»"
+                value={bgExtraText} onChange={e => setBgExtraText(e.target.value)} />
+            </div>
             <div className="custom-variant-row">
-              <input className="custom-variant-input" placeholder="Свой вариант: «крыша небоскрёба на закате»"
+              <input className="custom-variant-input" placeholder="Локация с нуля: «крыша небоскрёба на закате»"
                 value={customBgText} onChange={e => { setCustomBgText(e.target.value); setSelectedLocId(null); }} />
             </div>
           </>
