@@ -67,11 +67,12 @@ export default async function handler(req, res) {
       modelReferenceImages,
       locationImages,
       customPoseText,
+      previewMode,
     } = req.body;
 
     // Support both old single-image and new multi-image format
     const garmentImages = garmentImagesBase64.length > 0 ? garmentImagesBase64 : (garmentImageBase64 ? [garmentImageBase64] : []);
-    if (!garmentImages.length) throw new Error('Изображение одежды не было передано!');
+    if (!garmentImages.length && !previewMode) throw new Error('Изображение одежды не было передано!');
     if (!process.env.GEMINI_API_KEY) throw new Error('GEMINI_API_KEY не установлен.');
 
     const finalPrompt = buildMasterPrompt({

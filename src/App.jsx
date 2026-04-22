@@ -288,23 +288,19 @@ function App() {
     const sm = myModels.find(m => m.id === selectedSavedModelId);
     const prompt = ((sm?.prompt || '') + '. Additionally: ' + modelModifier.trim()).trim();
     try {
-      // Use model reference images as "garment" placeholder to pass API validation
       const refImgs = sm?.imageUrls || [];
-      let fakeGarment = [];
+      // Use loaded garments if available, otherwise send previewMode
+      let garments = [];
       if (imageFiles.length > 0) {
-        fakeGarment = await Promise.all(imageFiles.slice(0, 1).map(f => blobToBase64(f)));
-      } else if (refImgs.length > 0) {
-        // Download first ref image and use as placeholder
-        const resp2 = await fetch(refImgs[0]); const blob = await resp2.blob();
-        fakeGarment = [await blobToBase64(blob)];
+        garments = await Promise.all(imageFiles.slice(0, 1).map(f => blobToBase64(f)));
       }
-      if (!fakeGarment.length) { setStatusText('Нужна хотя бы одна фотография одежды или модели'); setStatusType('error'); setIsPreviewingModel(false); return; }
-
       const resp = await fetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          garmentImagesBase64: fakeGarment, modelPreset: prompt,
-          posePreset: 'standing straight, facing camera, neutral pose, wearing simple casual clothes',
+          garmentImagesBase64: garments,
+          previewMode: garments.length === 0,
+          modelPreset: prompt + '. Generate a fashion model portrait wearing simple casual clothing.',
+          posePreset: 'standing straight, facing camera, neutral pose',
           cameraAngle: 'medium shot waist up', backgroundPreset: 'clean white studio',
           aspectRatio: '3:4', modelReferenceImages: refImgs,
         }),
