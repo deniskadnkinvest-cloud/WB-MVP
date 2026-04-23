@@ -2,8 +2,8 @@ import { GoogleGenAI } from '@google/genai';
 
 const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, backgroundPreset, aspectRatio, hasMultipleGarments, hasModelRef }) => {
   const garmentInstruction = hasMultipleGarments
-    ? 'You are provided with MULTIPLE garment images. Identify EACH garment from the attached images and dress the model in ALL of them simultaneously. Preserve exact color, cut, fabric texture, collars, sleeves, graphics, and prints of EVERY garment.'
-    : 'You are provided with an image of a garment. Extract it precisely and dress the model in it. Preserve exact color, cut, fabric texture, collars, sleeves, graphics, and prints.';
+    ? 'You are provided with MULTIPLE garment reference images. Your ONLY job is to generate a photo of a human model WEARING ALL of these garments ON THEIR BODY simultaneously. Each garment must be physically ON the model.'
+    : 'You are provided with a reference image of a garment. Your ONLY job is to generate a photo of a human model WEARING this garment ON THEIR BODY. The garment must be physically ON the model — fitted to their torso/legs/body with realistic fabric draping, wrinkles, shadows, and tension.';
 
   const modelInstruction = hasModelRef
     ? 'CRITICAL: Reference photos of the EXACT person are provided. You MUST replicate their face, skin tone, features, moles, freckles, and overall appearance with maximum precision. The generated image must look like the SAME real person.'
@@ -17,7 +17,9 @@ const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, backgroundPre
 
   return `You are an elite commercial fashion photographer and an advanced Virtual Try-On (VTON) AI.
 ${adaptiveBlock}
-CRITICAL INSTRUCTION: ${garmentInstruction} DO NOT change clothing colors or style. The clothing should naturally fit the model's body with realistic fabric physics, shadows, and tension.
+CRITICAL INSTRUCTION — VIRTUAL TRY-ON: ${garmentInstruction} Preserve the EXACT color, cut, fabric texture, collars, sleeves, graphics, prints, logos, and patterns. DO NOT change clothing colors, design, or style.
+
+ABSOLUTE PROHIBITION: Do NOT show the garment on a hanger, on a mannequin, laid flat, floating, held in hands, or placed NEXT TO the model. The garment must ONLY appear as WORN CLOTHING on the model's body. There should be NO separate product shots or flat-lay images in the output.
 
 ${modelInstruction}
 
@@ -29,7 +31,7 @@ ENVIRONMENT: ${backgroundPreset}. Professional fashion studio lighting, soft key
 
 ASPECT RATIO: ${aspectRatio}.
 
-IMPORTANT: Professional e-commerce product photo for marketplace listing. No watermarks, no text on final image.`;
+IMPORTANT: This is a professional e-commerce product photo showing a model WEARING the garment. The final image must contain ONLY the model dressed in the referenced clothing. No watermarks, no text, no separate product shots.`;
 };
 
 const extractBase64 = (dataUrl) => {

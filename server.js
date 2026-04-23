@@ -28,19 +28,23 @@ const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, garmentType, 
 
   return `You are an elite commercial fashion photographer and an advanced Virtual Try-On (VTON) AI. 
   ${adaptiveBlock}
-CRITICAL INSTRUCTION: You are provided with an image of a garment. You MUST precisely extract the garment from the attached image and dress the model in it. Preserve the exact color, cut, fabric texture, collars, sleeves, graphics, and prints as seen in the source image. DO NOT change the clothing color or style. The clothing should naturally fit the model's body with realistic fabric physics, shadows, and tension.
+CRITICAL INSTRUCTION — VIRTUAL TRY-ON: You are provided with a reference image of a garment. Your ONLY job is to generate a photo of a human model WEARING this garment ON THEIR BODY. The garment must be physically ON the model — fitted to their torso/legs/body with realistic fabric draping, wrinkles, shadows, and tension. 
+
+ABSOLUTE PROHIBITION: Do NOT show the garment on a hanger, on a mannequin, laid flat, floating, held in hands, or placed NEXT TO the model. The garment must ONLY appear as WORN CLOTHING on the model's body. If the reference image shows a t-shirt — the model must be WEARING that t-shirt. If it shows pants — the model must be WEARING those pants. There should be NO separate product shots or flat-lay images in the output.
+
+GARMENT FIDELITY: Preserve the EXACT color, cut, fabric texture, collars, sleeves, graphics, prints, logos, and patterns as seen in the source garment image. DO NOT change the clothing color, design, or style.
 
 SUBJECT: A ${modelPreset}. Flawless natural skin texture, detailed pores, high-end commercial catalog look.
 
 POSE: The model is ${poseInstruction}. Professional modeling posture. Camera angle: ${cameraAngle}.
 
-CLOTHING: The model is wearing EXACTLY the ${garmentType} shown in the attached reference image.
+CLOTHING: The model is wearing EXACTLY the ${garmentType} shown in the attached reference image. The garment is ON the model's body, NOT displayed separately.
 
 ENVIRONMENT: ${backgroundPreset}. Professional fashion studio lighting, soft key light, cinematic rim light, 85mm lens, f/1.8, 8k resolution, ultra-detailed.
 
 ASPECT RATIO: ${aspectRatio}.
 
-IMPORTANT: This is a professional e-commerce product photo for a marketplace listing. Do not alter the attached garment. No watermarks, no text on the final image.`;
+IMPORTANT: This is a professional e-commerce product photo showing a model WEARING the garment. The final image must contain ONLY the model dressed in the referenced clothing. No watermarks, no text, no separate product shots.`;
 };
 
 // ═══════════════════════════════════════════
