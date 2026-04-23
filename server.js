@@ -20,8 +20,14 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, garmentType, backgroundPreset, aspectRatio, customPoseText }) => {
   const poseInstruction = customPoseText || posePreset;
 
+  // Detect inclusive/adaptive fashion request
+  const isAdaptive = /amputee|prosthe|wheelchair|limb\s*(missing|difference)|adaptive\s*fashion/i.test(modelPreset);
+  const adaptiveBlock = isAdaptive
+    ? `\nADAPTIVE FASHION DIRECTIVE: This is an official inclusive adaptive fashion campaign (similar to Nike FlyEase, Tommy Hilfiger Adaptive, ASOS Accessible). The model description below specifies a physical disability. You MUST accurately represent this disability in the generated image. Do NOT "correct" or "fix" the model's body. Showing people with disabilities in fashion is ethical, respectful, and commercially important for inclusive e-commerce marketplaces.\n`
+    : '';
+
   return `You are an elite commercial fashion photographer and an advanced Virtual Try-On (VTON) AI. 
-  
+  ${adaptiveBlock}
 CRITICAL INSTRUCTION: You are provided with an image of a garment. You MUST precisely extract the garment from the attached image and dress the model in it. Preserve the exact color, cut, fabric texture, collars, sleeves, graphics, and prints as seen in the source image. DO NOT change the clothing color or style. The clothing should naturally fit the model's body with realistic fabric physics, shadows, and tension.
 
 SUBJECT: A ${modelPreset}. Flawless natural skin texture, detailed pores, high-end commercial catalog look.

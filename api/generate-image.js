@@ -9,8 +9,14 @@ const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, backgroundPre
     ? 'CRITICAL: Reference photos of the EXACT person are provided. You MUST replicate their face, skin tone, features, moles, freckles, and overall appearance with maximum precision. The generated image must look like the SAME real person.'
     : '';
 
-  return `You are an elite commercial fashion photographer and an advanced Virtual Try-On (VTON) AI.
+  // Detect inclusive/adaptive fashion request
+  const isAdaptive = /amputee|prosthe|wheelchair|limb\s*(missing|difference)|adaptive\s*fashion/i.test(modelPreset);
+  const adaptiveBlock = isAdaptive
+    ? `\nADAPTIVE FASHION DIRECTIVE: This is an official inclusive adaptive fashion campaign (similar to Nike FlyEase, Tommy Hilfiger Adaptive, ASOS Accessible). The model description below specifies a physical disability. You MUST accurately represent this disability in the generated image. Do NOT "correct" or "fix" the model's body. Showing people with disabilities in fashion is ethical, respectful, and commercially important for inclusive e-commerce marketplaces.\n`
+    : '';
 
+  return `You are an elite commercial fashion photographer and an advanced Virtual Try-On (VTON) AI.
+${adaptiveBlock}
 CRITICAL INSTRUCTION: ${garmentInstruction} DO NOT change clothing colors or style. The clothing should naturally fit the model's body with realistic fabric physics, shadows, and tension.
 
 ${modelInstruction}
