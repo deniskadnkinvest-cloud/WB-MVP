@@ -24,7 +24,7 @@ const STEPS = [
   { id: 'review', label: 'Обзор' },
 ];
 
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 3;
 
 export default function ModelCalibrationWizard({
   show,
