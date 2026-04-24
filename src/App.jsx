@@ -4,6 +4,7 @@ import { MODEL_PRESETS, POSE_PRESETS, BACKGROUND_PRESETS, ASPECT_RATIOS, CAMERA_
 import GenderToggle from './components/GenderToggle';
 import DetailPanel from './components/DetailPanel';
 import LoraModal from './components/LoraModal';
+import ModelCalibrationWizard from './components/ModelCalibrationWizard';
 import LoginPage from './components/LoginPage';
 import { useAuth } from './contexts/AuthContext';
 import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt } from './lib/firestoreService';
@@ -55,6 +56,10 @@ function App() {
   const [showSaveModelModal, setShowSaveModelModal] = useState(false);
   const [saveModelName, setSaveModelName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  // Calibration wizard
+  const [showCalibWizard, setShowCalibWizard] = useState(false);
+  const [calibPurpose, setCalibPurpose] = useState('save'); // 'save' | 'photoshoot'
 
   // Multi-upload garments
   const [imageFiles, setImageFiles] = useState([]);
@@ -268,6 +273,63 @@ function App() {
       setShowSaveModelModal(false); setSaveModelName('');
     } catch (err) { console.error('Ошибка сохранения модели:', err); }
     finally { setIsSaving(false); }
+  };
+
+  // Save calibrated model from wizard (3-angle photos)
+  const saveCalibratedModel = async (name, photos, prompt) => {
+    if (!user) return;
+    setIsSaving(true);
+    try {
+      const photoEntries = Object.entries(photos).filter(([, v]) => v);
+      const uploads = await Promise.all(photoEntries.map(async ([, base64]) => {
+        return uploadBase64Image(user.uid, base64, 'models');
+      }));
+      const imageUrls = uploads.map(u => u.url);
+      const storagePaths = uploads.map(u => u.path);
+      await saveModel(user.uid, {
+        name,
+        type: 'calibrated',
+        imageUrls,
+        storagePaths,
+        prompt: prompt || '',
+      });
+      const models = await getModels(user.uid);
+      setMyModels(models);
+      setShowCalibWizard(false);
+      setStatusText('✅ Откалиброванная модель сохранена!');
+      setStatusType('success');
+    } catch (err) {
+      console.error('Ошибка сохранения модели:', err);
+      setStatusText('Ошибка сохранения модели');
+      setStatusType('error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Open calibration wizard
+  const openCalibration = (purpose = 'save') => {
+    setCalibPurpose(purpose);
+    setShowCalibWizard(true);
+  };
+
+  // Get current model prompt for calibration
+  const getCurrentModelPrompt = () => {
+    if (customModelPrompt.trim()) return customModelPrompt.trim();
+    if (selectedSavedModelId) {
+      const sm = myModels.find(m => m.id === selectedSavedModelId);
+      if (sm?.prompt) return sm.prompt;
+    }
+    return selectedModel.prompt + buildDetailString();
+  };
+
+  // Get current model ref images for calibration
+  const getCurrentModelRefs = () => {
+    if (selectedSavedModelId) {
+      const sm = myModels.find(m => m.id === selectedSavedModelId);
+      if (sm?.imageUrls) return sm.imageUrls;
+    }
+    return [];
   };
 
   const deleteModel = async (id) => {
@@ -654,7 +716,7 @@ function App() {
             <div className="result-image-wrap"><img src={generatedImage} alt="VTON" onClick={() => setLightboxSrc(generatedImage)} style={{cursor:'pointer'}} /></div>
             <div className="result-actions">
               <button className="download-btn" onClick={handleDownload}>⬇️ Скачать</button>
-              <button className="save-model-btn" onClick={() => setShowSaveModelModal(true)}>⭐ Сохранить модель</button>
+              <button className="save-model-btn" onClick={() => openCalibration('save')}>🎯 Сохранить модель (калибровка)</button>
             </div>
 
             {/* Iterative editing */}
@@ -671,6 +733,17 @@ function App() {
             <div className="photoshoot-block">
               <div className="photoshoot-label">📸 Сделать фотосессию</div>
               <p className="photoshoot-hint">Генерация нескольких фото с разных ракурсов</p>
+
+              {/* Calibration prompt */}
+              {!selectedSavedModelId && (
+                <div className="calibration-prompt">
+                  <p className="calibration-prompt-text">💡 Для максимальной консистентности лица рекомендуем сначала <strong>откалибровать модель</strong></p>
+                  <button className="calib-prompt-btn" onClick={() => openCalibration('photoshoot')}>
+                    🎯 Откалибровать модель
+                  </button>
+                </div>
+              )}
+
               <div className="photoshoot-choice">
                 <button className="photoshoot-btn photoshoot-btn--3" onClick={() => handlePhotoshoot(3)} disabled={isPhotoshooting || isProcessing}>
                   {isPhotoshooting ? '⏳ Генерация...' : '📷 3 фото'}
@@ -773,6 +846,17 @@ function App() {
             <button className="lightbox-download" onClick={e => { e.stopPropagation(); const a = document.createElement('a'); a.href = lightboxSrc; a.download = `SellerStudio_${Date.now()}.jpg`; a.click(); }}>⬇️ Скачать</button>
           </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* CALIBRATION WIZARD */}
+      <AnimatePresence>
+        <ModelCalibrationWizard
+          show={showCalibWizard}
+          onClose={() => setShowCalibWizard(false)}
+          onSave={saveCalibratedModel}
+          modelPrompt={getCurrentModelPrompt()}
+          modelRefImages={getCurrentModelRefs()}
+        />
       </AnimatePresence>
     </div>
   );

@@ -1,0 +1,538 @@
+/* ═══════════════════════════════════════════ */
+/*  Model Calibration Wizard Styles            */
+/* ═══════════════════════════════════════════ */
+
+.calib-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 950;
+  padding: 16px;
+}
+
+.calib-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: 28px 24px;
+  max-width: 560px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.calib-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--text-muted);
+  font-size: 14px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  z-index: 10;
+}
+
+.calib-close:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-error);
+  background: rgba(248, 113, 113, 0.1);
+}
+
+/* ═══ PROGRESS BAR ═══ */
+.calib-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  margin-bottom: 28px;
+  padding: 0 20px;
+}
+
+.calib-progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  position: relative;
+}
+
+.calib-progress-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  background: var(--border-subtle);
+  z-index: 0;
+}
+
+.calib-progress-step.active:not(:last-child)::after {
+  background: var(--gold-primary);
+}
+
+.calib-progress-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bg-glass);
+  border: 2px solid var(--border-subtle);
+  z-index: 1;
+  transition: all var(--transition-fast);
+}
+
+.calib-progress-step.active .calib-progress-dot {
+  background: var(--gold-primary);
+  border-color: var(--gold-primary);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+}
+
+.calib-progress-step.current .calib-progress-dot {
+  box-shadow: 0 0 16px rgba(212, 175, 55, 0.5);
+  animation: calibPulse 2s ease-in-out infinite;
+}
+
+@keyframes calibPulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(212, 175, 55, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(212, 175, 55, 0.6); }
+}
+
+.calib-progress-label {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.calib-progress-step.active .calib-progress-label {
+  color: var(--gold-light);
+}
+
+/* ═══ STEP CONTENT ═══ */
+.calib-step {
+  text-align: center;
+}
+
+.calib-step-icon {
+  font-size: 2.5rem;
+  margin-bottom: 8px;
+}
+
+.calib-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--gold-light);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.calib-step-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #0a0a0c;
+  background: var(--gold-primary);
+  padding: 2px 8px;
+  border-radius: 10px;
+  letter-spacing: 0.5px;
+}
+
+.calib-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.calib-desc strong {
+  color: var(--gold-light);
+}
+
+.calib-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 16px;
+  line-height: 1.5;
+}
+
+.calib-hint strong {
+  color: var(--text-secondary);
+}
+
+/* ═══ INTRO ANGLES ═══ */
+.calib-angles-preview {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.calib-angle-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+  min-width: 90px;
+}
+
+.calib-angle-icon {
+  font-size: 1.8rem;
+}
+
+/* ═══ IMAGE AREA ═══ */
+.calib-image-area {
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 16px 0;
+}
+
+.calib-generating {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.calib-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.calib-placeholder span {
+  font-size: 2rem;
+  opacity: 0.4;
+}
+
+/* ═══ SINGLE PORTRAIT ═══ */
+.calib-portrait-wrap {
+  display: inline-block;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 2px solid var(--gold-primary);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(212, 175, 55, 0.1);
+}
+
+.calib-portrait {
+  display: block;
+  max-width: 280px;
+  max-height: 350px;
+  width: 100%;
+}
+
+/* ═══ BATCH GRID (5 options) ═══ */
+.calib-batch-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+.calib-batch-item {
+  position: relative;
+  border: 2px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  aspect-ratio: 1;
+}
+
+.calib-batch-item:hover {
+  border-color: rgba(212, 175, 55, 0.4);
+  transform: scale(1.02);
+}
+
+.calib-batch-item.selected {
+  border-color: var(--gold-primary);
+  box-shadow: 0 0 16px rgba(212, 175, 55, 0.3);
+}
+
+.calib-batch-item.loading {
+  cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-glass);
+}
+
+.calib-batch-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.calib-batch-num {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 22px;
+  height: 22px;
+  background: rgba(0, 0, 0, 0.7);
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  font-weight: 700;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calib-batch-check {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 2rem;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.8));
+}
+
+.calib-batch-loading {
+  padding: 20px;
+}
+
+/* ═══ REFERENCE STRIP ═══ */
+.calib-ref-strip {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 16px;
+  padding: 10px;
+  background: rgba(212, 175, 55, 0.05);
+  border: 1px solid rgba(212, 175, 55, 0.15);
+  border-radius: var(--radius-md);
+}
+
+.calib-ref-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.calib-ref-item img {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--gold-primary);
+}
+
+.calib-ref-item span {
+  font-size: 0.6rem;
+  color: var(--gold-light);
+  font-weight: 600;
+}
+
+/* ═══ REVIEW GRID ═══ */
+.calib-review-grid {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.calib-review-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  max-width: 140px;
+}
+
+.calib-review-item img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--gold-primary);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.calib-review-item span {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.calib-review-empty {
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--bg-glass);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 1.5rem;
+}
+
+/* ═══ NAME INPUT ═══ */
+.calib-name-input {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color var(--transition-fast);
+  box-sizing: border-box;
+  text-align: center;
+  margin: 12px 0;
+}
+
+.calib-name-input:focus {
+  border-color: var(--gold-primary);
+}
+
+/* ═══ ACTIONS ═══ */
+.calib-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.calib-btn-primary {
+  padding: 12px 24px;
+  border: none;
+  background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
+  color: #0a0a0c;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.calib-btn-primary:hover:not(:disabled) {
+  box-shadow: 0 4px 20px rgba(212, 175, 55, 0.35);
+  transform: translateY(-2px);
+}
+
+.calib-btn-primary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.calib-btn-secondary {
+  padding: 12px 24px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.85rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.calib-btn-secondary:hover:not(:disabled) {
+  border-color: var(--gold-primary);
+  color: var(--gold-light);
+  background: var(--gold-glow);
+}
+
+.calib-btn-secondary:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ═══ ERROR ═══ */
+.calib-error {
+  margin-top: 12px;
+  padding: 8px 14px;
+  background: rgba(255, 59, 48, 0.08);
+  border: 1px solid rgba(255, 59, 48, 0.2);
+  border-radius: var(--radius-sm);
+  color: var(--accent-error);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+/* ═══ GEN COUNT ═══ */
+.calib-gen-count {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 10px;
+  opacity: 0.7;
+}
+
+/* ═══ MOBILE ═══ */
+@media (max-width: 480px) {
+  .calib-modal {
+    padding: 20px 16px;
+    max-height: 95vh;
+  }
+
+  .calib-title {
+    font-size: 0.95rem;
+  }
+
+  .calib-angles-preview {
+    gap: 8px;
+  }
+
+  .calib-angle-card {
+    padding: 12px 14px;
+    min-width: 70px;
+  }
+
+  .calib-batch-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .calib-portrait {
+    max-width: 220px;
+  }
+
+  .calib-review-grid {
+    gap: 8px;
+  }
+
+  .calib-actions {
+    flex-direction: column;
+  }
+}
