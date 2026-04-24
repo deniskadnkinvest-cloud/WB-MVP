@@ -44,6 +44,10 @@
   font-weight: 300;
 }
 
+/* ═══════════════════════════════════════════ */
+/*  Google Button                              */
+/* ═══════════════════════════════════════════ */
+
 .google-btn {
   width: 100%;
   display: flex;
@@ -73,6 +77,10 @@
   cursor: not-allowed;
 }
 
+/* ═══════════════════════════════════════════ */
+/*  Divider                                    */
+/* ═══════════════════════════════════════════ */
+
 .login-divider {
   display: flex;
   align-items: center;
@@ -91,6 +99,10 @@
   height: 1px;
   background: var(--border-subtle);
 }
+
+/* ═══════════════════════════════════════════ */
+/*  Email Form                                 */
+/* ═══════════════════════════════════════════ */
 
 .email-form {
   display: flex;
@@ -115,6 +127,49 @@
 .login-input:focus {
   border-color: var(--gold-primary);
 }
+
+.login-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* ═══════════════════════════════════════════ */
+/*  Password Field with Toggle                */
+/* ═══════════════════════════════════════════ */
+
+.password-field {
+  position: relative;
+}
+
+.password-field .login-input {
+  padding-right: 48px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: opacity var(--transition-fast);
+  padding: 0;
+}
+
+.password-toggle:hover {
+  opacity: 1;
+}
+
+/* ═══════════════════════════════════════════ */
+/*  Email Submit Button                        */
+/* ═══════════════════════════════════════════ */
 
 .email-btn {
   width: 100%;
@@ -141,16 +196,44 @@
   cursor: not-allowed;
 }
 
+/* ═══════════════════════════════════════════ */
+/*  Error & Success Messages                   */
+/* ═══════════════════════════════════════════ */
+
 .login-error {
   color: var(--accent-error);
   font-size: 0.78rem;
   margin-top: 12px;
+  padding: 8px 12px;
+  background: rgba(255, 59, 48, 0.08);
+  border: 1px solid rgba(255, 59, 48, 0.2);
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+
+.login-success {
+  color: #34c759;
+  font-size: 0.78rem;
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: rgba(52, 199, 89, 0.08);
+  border: 1px solid rgba(52, 199, 89, 0.2);
+  border-radius: var(--radius-sm);
+  text-align: left;
+}
+
+/* ═══════════════════════════════════════════ */
+/*  Mode Toggle Links                          */
+/* ═══════════════════════════════════════════ */
+
+.login-links {
+  margin-top: 16px;
 }
 
 .login-toggle {
   color: var(--text-secondary);
   font-size: 0.78rem;
-  margin-top: 16px;
+  margin-top: 8px;
   cursor: pointer;
   transition: color var(--transition-fast);
 }
@@ -159,8 +242,66 @@
   color: var(--gold-light);
 }
 
+.login-toggle strong {
+  color: var(--gold-primary);
+}
+
+.login-toggle-secondary {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  margin-top: 12px;
+}
+
+.login-toggle-secondary:hover {
+  color: var(--text-secondary);
+}
+
 /* ═══════════════════════════════════════════ */
-/*  In-App Browser Warning Banner             */
+/*  Guest Mode Section                         */
+/* ═══════════════════════════════════════════ */
+
+.guest-section {
+  margin-top: 0;
+}
+
+.guest-section .login-divider {
+  margin: 20px 0 16px 0;
+}
+
+.guest-btn {
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.guest-btn:hover:not(:disabled) {
+  color: var(--gold-light);
+  border-color: var(--gold-primary);
+  background: rgba(212, 175, 55, 0.05);
+}
+
+.guest-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.guest-hint {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  margin-top: 8px;
+  opacity: 0.7;
+}
+
+/* ═══════════════════════════════════════════ */
+/*  In-App Browser Warning Banner              */
 /* ═══════════════════════════════════════════ */
 
 .inapp-banner {
@@ -217,4 +358,33 @@
 .inapp-open-btn:hover {
   box-shadow: 0 4px 16px rgba(212, 175, 55, 0.3);
   transform: translateY(-1px);
+}
+
+/* ═══════════════════════════════════════════ */
+/*  Mobile Responsive                          */
+/* ═══════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .login-card {
+    padding: 32px 20px;
+    border-radius: 16px;
+  }
+
+  .login-logo {
+    font-size: 1.6rem;
+  }
+
+  .login-subtitle {
+    font-size: 0.75rem;
+    margin-bottom: 24px;
+  }
+
+  .inapp-banner {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .inapp-banner-text p {
+    font-size: 0.7rem;
+  }
 }

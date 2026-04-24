@@ -98,7 +98,7 @@ function App() {
 
   // Load user data from Firestore (skip for guest users in embedded mode)
   useEffect(() => {
-    if (!user || user.isGuest) return;
+    if (!user || user.isGuest || user.isAnonymous) return;
     const loadData = async () => {
       try {
         const [models, locations] = await Promise.all([getModels(user.uid), getLocations(user.uid)]);
