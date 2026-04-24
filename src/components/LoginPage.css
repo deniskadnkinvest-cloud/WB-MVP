@@ -158,3 +158,63 @@
 .login-toggle:hover {
   color: var(--gold-light);
 }
+
+/* ═══════════════════════════════════════════ */
+/*  In-App Browser Warning Banner             */
+/* ═══════════════════════════════════════════ */
+
+.inapp-banner {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(212, 175, 55, 0.08);
+  border: 1px solid rgba(212, 175, 55, 0.25);
+  border-radius: var(--radius-md);
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.inapp-banner-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+
+.inapp-banner-text {
+  flex: 1;
+}
+
+.inapp-banner-text strong {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--gold-light);
+  margin-bottom: 6px;
+}
+
+.inapp-banner-text p {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin: 0 0 10px 0;
+  line-height: 1.5;
+}
+
+.inapp-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
+  color: #0a0a0c;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.inapp-open-btn:hover {
+  box-shadow: 0 4px 16px rgba(212, 175, 55, 0.3);
+  transform: translateY(-1px);
+}

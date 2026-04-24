@@ -5,10 +5,23 @@
   "functions": {
     "api/generate-image.js": {
       "maxDuration": 120
+    },
+    "api/verify-panx-token.js": {
+      "maxDuration": 10
     }
   },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "ALLOWALL" },
+        { "key": "Content-Security-Policy", "value": "frame-ancestors *" }
+      ]
+    }
+  ],
   "rewrites": [
     { "source": "/api/generate-image", "destination": "/api/generate-image" },
+    { "source": "/api/verify-panx-token", "destination": "/api/verify-panx-token" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
