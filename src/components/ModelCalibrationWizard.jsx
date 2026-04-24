@@ -19,8 +19,8 @@ import './ModelCalibrationWizard.css';
 const STEPS = [
   { id: 'intro', label: 'Начало' },
   { id: 'front', label: 'Анфас', icon: '👤', angle: 'front', posePrompt: 'standing straight, facing the camera directly, neutral expression, head slightly tilted, fashion model portrait', cameraPrompt: 'close-up portrait, head and shoulders, front-facing' },
-  { id: 'left34', label: '3/4 слева', icon: '◀️', angle: 'left34', posePrompt: 'elegant 3/4 view from the left side, face turned slightly to the right, chin slightly up, model posing naturally', cameraPrompt: 'portrait 3/4 view from left, head and shoulders' },
-  { id: 'right34', label: '3/4 справа', icon: '▶️', angle: 'right34', posePrompt: 'elegant 3/4 view from the right side, face turned slightly to the left, chin slightly up, model posing naturally', cameraPrompt: 'portrait 3/4 view from right, head and shoulders' },
+  { id: 'left34', label: '3/4 слева', icon: '◀️', angle: 'left34', posePrompt: 'model body is turned to THE LEFT of the frame (viewer\'s left), showing the LEFT side of the face and body. The model\'s nose points to the left edge of the image. 3/4 profile view. Chin slightly up, elegant posing', cameraPrompt: 'portrait shot, camera positioned to the model\'s right side capturing their left profile at 3/4 angle, head and shoulders' },
+  { id: 'right34', label: '3/4 справа', icon: '▶️', angle: 'right34', posePrompt: 'model body is turned to THE RIGHT of the frame (viewer\'s right), showing the RIGHT side of the face and body. The model\'s nose points to the right edge of the image. 3/4 profile view. Chin slightly up, elegant posing', cameraPrompt: 'portrait shot, camera positioned to the model\'s left side capturing their right profile at 3/4 angle, head and shoulders' },
   { id: 'review', label: 'Обзор' },
 ];
 
@@ -73,23 +73,7 @@ export default function ModelCalibrationWizard({
     throw new Error(data.details || data.error || 'Ошибка генерации');
   }, [modelPrompt, modelRefImages]);
 
-  // ═══════════════════════════════════════════
-  //  GENERATE SINGLE (for FRONT step)
-  // ═══════════════════════════════════════════
-  const handleGenerateSingle = async () => {
-    setIsGenerating(true);
-    setError('');
-    setCurrentImage(null);
-    try {
-      const img = await generatePortrait(currentStep);
-      setCurrentImage(img);
-      setGenerationCount(prev => prev + 1);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
+  // handleGenerateSingle removed — front now uses batch mode too
 
   // ═══════════════════════════════════════════
   //  GENERATE BATCH (for LEFT34 / RIGHT34 steps)
@@ -137,21 +121,17 @@ export default function ModelCalibrationWizard({
   // ═══════════════════════════════════════════
   //  LOCK CURRENT IMAGE
   // ═══════════════════════════════════════════
-  const handleLockFront = () => {
-    if (!currentImage) return;
-    setLockedImages(prev => ({ ...prev, front: currentImage }));
-    setCurrentImage(null);
-    setStep(2); // → left34
-  };
 
   const handleLockBatch = () => {
     if (selectedBatchIdx === null || !batchImages[selectedBatchIdx]) return;
-    const angle = currentStep.id; // 'left34' or 'right34'
+    const angle = currentStep.id; // 'front', 'left34' or 'right34'
     setLockedImages(prev => ({ ...prev, [angle]: batchImages[selectedBatchIdx] }));
     setBatchImages([]);
     setSelectedBatchIdx(null);
 
-    if (angle === 'left34') {
+    if (angle === 'front') {
+      setStep(2); // → left34
+    } else if (angle === 'left34') {
       setStep(3); // → right34
     } else {
       setStep(4); // → review
@@ -256,7 +236,7 @@ export default function ModelCalibrationWizard({
           </div>
         )}
 
-        {/* ═══ STEP: FRONT ═══ */}
+        {/* ═══ STEP: FRONT (batch mode, same as left34/right34) ═══ */}
         {currentStep.id === 'front' && (
           <div className="calib-step">
             <h2 className="calib-title">
@@ -264,30 +244,44 @@ export default function ModelCalibrationWizard({
               👤 Анфас — фиксируем лицо
             </h2>
             <p className="calib-desc">
-              Сгенерируйте портрет анфас. Если лицо вас устраивает — фиксируйте. Если нет — перегенерируйте.
+              Сгенерируем {BATCH_SIZE} вариантов анфас. Выберите тот, который вас <strong>устраивает больше всего</strong>.
             </p>
 
-            {/* Current generated image */}
+            {/* Batch images */}
             <div className="calib-image-area">
-              {isGenerating && (
+              {isGenerating && batchImages.filter(Boolean).length === 0 && (
                 <div className="calib-generating">
                   <div className="processing-spinner" />
-                  <p>Генерируем портрет анфас...</p>
+                  <p>Генерируем {BATCH_SIZE} вариантов анфас...</p>
                 </div>
               )}
-              {!isGenerating && currentImage && (
-                <motion.div
-                  className="calib-portrait-wrap"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                >
-                  <img src={currentImage} alt="Анфас" className="calib-portrait" />
-                </motion.div>
+              {batchImages.length > 0 && (
+                <div className="calib-batch-grid">
+                  {batchImages.map((img, i) => (
+                    <div
+                      key={i}
+                      className={`calib-batch-item ${selectedBatchIdx === i ? 'selected' : ''} ${!img ? 'loading' : ''}`}
+                      onClick={() => img && setSelectedBatchIdx(i)}
+                    >
+                      {img ? (
+                        <>
+                          <img src={img} alt={`Вариант ${i + 1}`} />
+                          <span className="calib-batch-num">{i + 1}</span>
+                          {selectedBatchIdx === i && <div className="calib-batch-check">✅</div>}
+                        </>
+                      ) : (
+                        <div className="calib-batch-loading">
+                          <div className="processing-spinner" style={{ width: 20, height: 20 }} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
-              {!isGenerating && !currentImage && (
+              {!isGenerating && batchImages.length === 0 && (
                 <div className="calib-placeholder">
                   <span>👤</span>
-                  <p>Нажмите «Сгенерировать» чтобы увидеть портрет</p>
+                  <p>Нажмите «Сгенерировать {BATCH_SIZE} вариантов»</p>
                 </div>
               )}
             </div>
@@ -295,27 +289,23 @@ export default function ModelCalibrationWizard({
             <div className="calib-actions">
               <button
                 className="calib-btn-secondary"
-                onClick={handleGenerateSingle}
+                onClick={handleGenerateBatch}
                 disabled={isGenerating}
               >
-                {currentImage ? '🔄 Перегенерировать' : '✨ Сгенерировать'}
+                {batchImages.length > 0 ? `🔄 Перегенерировать ${BATCH_SIZE}` : `✨ Сгенерировать ${BATCH_SIZE} вариантов`}
               </button>
 
-              {currentImage && (
-                <button className="calib-btn-primary" onClick={handleLockFront}>
-                  ✅ Фиксируем лицо
+              {selectedBatchIdx !== null && batchImages[selectedBatchIdx] && (
+                <button className="calib-btn-primary" onClick={handleLockBatch}>
+                  ✅ Фиксируем лицо (вариант {selectedBatchIdx + 1})
                 </button>
               )}
             </div>
-
-            {generationCount > 0 && (
-              <p className="calib-gen-count">Сгенерировано портретов: {generationCount}</p>
-            )}
           </div>
         )}
 
         {/* ═══ STEP: LEFT34 / RIGHT34 (batch mode) ═══ */}
-        {(currentStep.id === 'left34' || currentStep.id === 'right34') && (
+        {(currentStep.id === 'left34' || currentStep.id === 'right34') && !isNaN(step) && (
           <div className="calib-step">
             <h2 className="calib-title">
               <span className="calib-step-badge">{currentStep.id === 'left34' ? '2/3' : '3/3'}</span>
