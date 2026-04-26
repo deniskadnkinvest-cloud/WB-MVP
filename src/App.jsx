@@ -410,13 +410,84 @@ function App() {
   // Re-generate with shot modifier (iterative editing)
   const handleRegenerate = async () => {
     if (!shotModifier.trim() || !imageFiles.length) return;
-    // Temporarily append modifier to customModelPrompt and re-run
-    const originalCustom = customModelPrompt;
-    const modSuffix = `. Additionally, ensure: ${shotModifier.trim()}`;
-    setCustomModelPrompt(prev => (prev || selectedModel.prompt + buildDetailString()) + modSuffix);
-    setShotModifier('');
-    // Small delay for state to update, then trigger
-    setTimeout(() => handleGenerate(), 50);
+    setIsProcessing(true);
+    setGeneratedImage(null);
+    setStatusText('');
+    let msgI = 0;
+    const iv = setInterval(() => { setProcessingMsg(msgI < MSGS.length ? MSGS[msgI++] : 'Финальные штрихи...'); }, 8000);
+
+    try {
+      setProcessingMsg('Подготавливаем исходники...');
+      const garmentImagesBase64 = await Promise.all(imageFiles.map(f => blobToBase64(f)));
+
+      let modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
+      let modelRefImages = null;
+      if (selectedSavedModelId) {
+        const sm = myModels.find(m => m.id === selectedSavedModelId);
+        if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
+      }
+
+      // Determine base pose
+      let posePrompt = customPoseText.trim() || selectedPose.prompt;
+
+      // Smart modifier injection: detect if modifier describes a pose/action
+      const mod = shotModifier.trim();
+      const poseKeywords = /(?:поз[аеуы]|сид(?:ит|я|еть)|стоит|лежит|идёт|идет|ходит|бежит|танцу|прыга|lotus|sitting|standing|lying|walking|running|dancing|crouching|leaning|kneeling|jumping|squat)/i;
+      if (poseKeywords.test(mod)) {
+        // Modifier is about pose — inject into BOTH pose and model prompt
+        posePrompt = `${mod}. ${posePrompt}`;
+        modelPrompt += `. The model is ${mod}`;
+      } else {
+        // Modifier is about appearance/environment — append to model
+        modelPrompt += `. Additionally, ensure: ${mod}`;
+      }
+
+      let bgPrompt = customBgText.trim() || selectedBg.prompt;
+      let locImages = null;
+      if (selectedLocId) {
+        const loc = myLocations.find(l => l.id === selectedLocId);
+        if (loc) {
+          locImages = loc.imageUrls;
+          bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
+        }
+      }
+      if (locModifier.trim()) bgPrompt += `. Additionally: ${locModifier.trim()}`;
+      if (bgExtraText.trim() && !customBgText.trim()) bgPrompt += `, ${bgExtraText.trim()}`;
+
+      // Check if modifier mentions location/background keywords
+      const bgKeywords = /(?:фон|бали|пляж|улиц|город|парк|лес|горы|интерьер|студи|background|beach|street|city|park|forest|mountain|interior|studio)/i;
+      if (bgKeywords.test(mod)) {
+        bgPrompt += `. ${mod}`;
+      }
+
+      setProcessingMsg('🚀 Отправляем в Nano Banano 2...');
+      const resp = await fetch('/api/generate-image', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          garmentImagesBase64, modelPreset: modelPrompt, posePreset: posePrompt,
+          cameraAngle: selectedCamera.prompt, backgroundPreset: bgPrompt,
+          aspectRatio: selectedRatio.id, modelReferenceImages: modelRefImages,
+          locationImages: locImages,
+        }),
+      });
+      clearInterval(iv);
+      const data = await resp.json();
+      if (data.success) {
+        setGeneratedImage(`data:image/jpeg;base64,${data.imageBase64}`);
+        setStatusText('Кадр обновлён!');
+        setStatusType('success');
+      } else {
+        setStatusText(`Ошибка: ${data.details || data.error}`);
+        setStatusType('error');
+      }
+    } catch (err) {
+      setStatusText(`Ошибка: ${err.message}`);
+      setStatusType('error');
+      clearInterval(iv);
+    } finally {
+      setIsProcessing(false);
+      setShotModifier('');
+    }
   };
 
   // Photoshoot mode: 5 parallel generations
