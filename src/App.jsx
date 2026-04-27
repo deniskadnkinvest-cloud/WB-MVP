@@ -142,13 +142,53 @@ function App() {
 
   const blobToBase64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onloadend = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
 
+  // ═══ RU→EN Prompt Mapping (AI needs English instructions) ═══
+  const DETAIL_TO_PROMPT = {
+    // Body type
+    'Худощавое': 'slim lean body type',
+    'Спортивное': 'athletic fit body with toned muscles',
+    'Среднее': 'average body build',
+    'Полное': 'plus-size curvy body',
+    'Мускулистое': 'muscular well-defined body, visible muscle definition, toned arms and shoulders',
+    // Hair color
+    'Брюнетка': 'dark brunette hair', 'Брюнет': 'dark brunette hair',
+    'Шатенка': 'chestnut brown hair', 'Шатен': 'chestnut brown hair',
+    'Блондинка': 'blonde hair', 'Блондин': 'blonde hair',
+    'Рыжая': 'red ginger hair', 'Рыжий': 'red ginger hair',
+    'Чёрные': 'jet black hair',
+    'Седые': 'silver gray hair',
+    // Hair length
+    'Короткие': 'short hair', 'Средние': 'medium-length hair',
+    'Длинные': 'long flowing hair', 'Бритая': 'shaved head', 'Бритый': 'shaved head',
+    // Emotion
+    'Нейтральная': 'neutral calm expression',
+    'Лёгкая улыбка': 'slight gentle smile',
+    'Серьёзная': 'serious intense expression', 'Серьёзный': 'serious intense expression',
+    'Уверенная': 'confident powerful expression', 'Уверенный': 'confident powerful expression',
+    'Дерзкая': 'bold edgy attitude', 'Дерзкий': 'bold edgy attitude',
+    // Piercing
+    'Уши': 'ear piercings with small studs',
+    'Нос': 'subtle nose piercing',
+    'Уши + Нос': 'ear piercings and nose piercing',
+    // Tattoo
+    'Минимализм': 'small minimalist fine-line tattoos on visible skin areas (wrists, collarbones, fingers)',
+    'Рукав': 'full sleeve tattoo on one arm with detailed ink work',
+    'Шея': 'neck tattoo with visible artistic design',
+  };
+
   // Build detail string (supports arrays for multi-select fields like tattoo)
   const buildDetailString = () => {
     const parts = [];
     Object.entries(modelDetails).forEach(([k, v]) => {
       if (!v || v === 'Нет') return;
-      if (Array.isArray(v)) { const filtered = v.filter(x => x !== 'Нет'); if (filtered.length) parts.push(filtered.join(' + ')); }
-      else parts.push(v);
+      if (Array.isArray(v)) {
+        const filtered = v.filter(x => x !== 'Нет');
+        filtered.forEach(item => {
+          parts.push(DETAIL_TO_PROMPT[item] || item);
+        });
+      } else {
+        parts.push(DETAIL_TO_PROMPT[v] || v);
+      }
     });
     // Append extra free-text if any
     if (extraModelPrompt.trim()) parts.push(extraModelPrompt.trim());
@@ -513,6 +553,10 @@ function App() {
       if (selectedSavedModelId) {
         const sm = myModels.find(m => m.id === selectedSavedModelId);
         if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
+      }
+      // Identity lock: use main render as face reference for consistent photoshoot
+      if (!modelRefImages && generatedImage) {
+        modelRefImages = [generatedImage];
       }
       let bgPrompt = customBgText.trim() || selectedBg.prompt;
       let locImages = null;
