@@ -1578,3 +1578,140 @@
   box-shadow: 0 4px 16px rgba(212, 175, 55, 0.2);
   transform: translateY(-1px);
 }
+
+/* ═══ MOBILE TOUCH HINT ═══ */
+.touch-zoom-hint {
+  display: none;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin: 6px 0 0 0;
+  opacity: 0.6;
+}
+
+@media (pointer: coarse) {
+  .touch-zoom-hint {
+    display: block;
+  }
+}
+
+/* ═══ TERMINAL OF MAGIC ═══ */
+.terminal-magic {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 80px rgba(120, 80, 255, 0.06);
+  margin: 16px 0;
+}
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.terminal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.terminal-dot.red { background: #ff5f57; }
+.terminal-dot.yellow { background: #febc2e; }
+.terminal-dot.green { background: #28c840; }
+
+.terminal-title {
+  margin-left: 10px;
+  font-size: 0.7rem;
+  color: rgba(255,255,255,0.3);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  letter-spacing: 0.08em;
+}
+
+.terminal-pulse {
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #28c840;
+  animation: termPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes termPulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
+.terminal-body {
+  padding: 14px 16px;
+  max-height: 220px;
+  overflow-y: auto;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.78rem;
+}
+
+.terminal-log {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.terminal-time {
+  color: rgba(255,255,255,0.2);
+  font-size: 0.68rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.terminal-msg {
+  color: rgba(255,255,255,0.7);
+}
+
+.terminal-progress-wrap {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.terminal-progress-bar {
+  width: 80px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+
+.terminal-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #7850ff, #50c8ff);
+  transition: width 0.4s ease;
+}
+
+.terminal-progress-pct {
+  color: rgba(255,255,255,0.3);
+  font-size: 0.65rem;
+}
+
+.terminal-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 14px;
+  background: #28c840;
+  border-radius: 2px;
+  margin-top: 4px;
+  animation: termBlink 0.8s step-end infinite;
+}
+
+@keyframes termBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}

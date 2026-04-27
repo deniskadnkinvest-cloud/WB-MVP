@@ -1,5 +1,13 @@
 import { GoogleGenAI } from '@google/genai';
 
+// ═══════════════════════════════════════════════════════════════════
+// SKIN ULTRA-REALISM SYSTEM PROMPT (применяется ГЛОБАЛЬНО)
+// ═══════════════════════════════════════════════════════════════════
+const SKIN_REALISM_PROMPT = `SKIN & FACE ULTRA-REALISM DIRECTIVE (MANDATORY):
+Render skin with extreme photographic authenticity: authentic pores, subtle texture variations, fine lines, micro-cracks, natural asymmetry, barely visible scars, vellus hair, and genuine surface irregularities. Render realistic skin material response — separation of matte and oily zones, natural specularity and micro-shadows — with zero smoothing, softening, or plastic artifacts. Correct only elements that appear broken or AI-distorted, while fully preserving subject identity. STRICTLY preserve the original color grading unchanged.
+Render eyes with high micro-detail fidelity: sharp iris texture, natural radial patterns, subtle chromatic variations, and correct subsurface scattering. Render eyelids, lashes, and tear ducts with anatomical precision — exact lash separation, natural moisture level, micro-shadows, and realistic translucency. Preserve genuine asymmetry. Avoid artificial glow, over-sharpening, and plastic shine.
+The final image must be INDISTINGUISHABLE from a real professional photograph taken by a human photographer.`;
+
 const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, backgroundPreset, aspectRatio, hasMultipleGarments, hasModelRef }) => {
   const garmentInstruction = hasMultipleGarments
     ? 'You are provided with MULTIPLE garment reference images. Your ONLY job is to generate a photo of a human model WEARING ALL of these garments ON THEIR BODY simultaneously. Each garment must be physically ON the model.'
@@ -30,6 +38,8 @@ POSE: The model is ${posePreset}. Professional modeling posture. Camera angle: $
 ENVIRONMENT: ${backgroundPreset}. Professional fashion studio lighting, soft key light, cinematic rim light, 85mm lens, f/1.8, 8k resolution, ultra-detailed.
 
 ASPECT RATIO: ${aspectRatio}.
+
+${SKIN_REALISM_PROMPT}
 
 IMPORTANT: This is a professional e-commerce product photo showing a model WEARING the garment. The final image must contain ONLY the model dressed in the referenced clothing. No watermarks, no text, no separate product shots.`;
 };

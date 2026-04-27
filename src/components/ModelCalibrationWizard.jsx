@@ -51,11 +51,10 @@ export default function ModelCalibrationWizard({
   const generatePortrait = useCallback(async (stepDef, existingRefs = []) => {
     const body = {
       garmentImagesBase64: [],
-      previewMode: true,
-      modelPreset: modelPrompt + '. Generate a fashion model portrait wearing simple casual clothing (plain white t-shirt).',
+      modelPreset: modelPrompt + '. Generate an ultra-realistic fashion model portrait wearing a plain white t-shirt. The portrait MUST have photographic-level skin detail: visible pores, natural skin texture variations, micro-imperfections, authentic asymmetry, and zero AI smoothing or plastic artifacts. Render as if captured by a Canon EOS R5 with an 85mm f/1.4 lens.',
       posePreset: stepDef.posePrompt,
       cameraAngle: stepDef.cameraPrompt,
-      backgroundPreset: 'clean soft grey studio background, professional fashion photography lighting',
+      backgroundPreset: 'clean soft grey studio background, professional fashion photography lighting with subtle rim light',
       aspectRatio: '1:1',
       modelReferenceImages: existingRefs.length > 0 ? existingRefs : (modelRefImages || []),
     };

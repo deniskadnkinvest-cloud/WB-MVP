@@ -5,6 +5,7 @@ import GenderToggle from './components/GenderToggle';
 import DetailPanel from './components/DetailPanel';
 import LoraModal from './components/LoraModal';
 import ModelCalibrationWizard from './components/ModelCalibrationWizard';
+import TerminalOfMagic from './components/TerminalOfMagic';
 import LoginPage from './components/LoginPage';
 import { useAuth } from './contexts/AuthContext';
 import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt } from './lib/firestoreService';
@@ -775,7 +776,7 @@ function App() {
 
       {/* 7. ГЕНЕРАЦИЯ */}
       <motion.div className="generate-section" initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.4}}>
-        <button className="generate-btn" onClick={handleGenerate} disabled={!imageFiles.length||isProcessing}>✨ Сгенерировать студийный кадр</button>
+        <button className="generate-btn" onClick={handleGenerate} onMouseEnter={() => { fetch('/api/generate-image', { method: 'OPTIONS', keepalive: true }).catch(() => {}); }} disabled={!imageFiles.length||isProcessing}>✨ Сгенерировать студийный кадр</button>
         <div className="status-bar">{statusText && <p className={`status-text ${statusType}`}>{statusText}</p>}</div>
       </motion.div>
 
@@ -785,6 +786,7 @@ function App() {
           <motion.div className="section result-section" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} exit={{opacity:0}} transition={{duration:0.5}}>
             <h3>Финальный Рендер</h3>
             <div className="result-image-wrap"><img src={generatedImage} alt="VTON" onClick={() => setLightboxSrc(generatedImage)} style={{cursor:'pointer'}} /></div>
+            <p className="touch-zoom-hint">👆 Нажмите на фото для увеличения</p>
             <div className="result-actions">
               <button className="download-btn" onClick={handleDownload}>⬇️ Скачать</button>
               <button className="save-model-btn" onClick={() => openCalibration('save')}>🎯 Сохранить модель (калибровка)</button>
@@ -855,7 +857,10 @@ function App() {
       <AnimatePresence>
         {isProcessing && (
           <motion.div className="processing-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
-            <div className="processing-spinner" /><p className="processing-status">{processingMsg}</p><p className="processing-hint">Обычно 30с — 2 мин</p>
+            <div style={{width:'90%', maxWidth:480}}>
+              <TerminalOfMagic isActive={isProcessing} customMessage={processingMsg} />
+              <p className="processing-hint" style={{textAlign:'center', marginTop:12}}>Обычно 30с — 2 мин</p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
