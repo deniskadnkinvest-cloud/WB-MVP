@@ -277,26 +277,42 @@ function App() {
       if (bgExtraText.trim() && !customBgText.trim()) bgPrompt += `. MANDATORY SCENE ADDITION (must be visible): ${bgExtraText.trim()}`;
 
       setProcessingMsg('🚀 Отправляем в Nano Banano 2...');
-      const biometricSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
-      const resp = await fetch('/api/generate-image', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          garmentImagesBase64, modelPreset: modelPrompt, posePreset: posePrompt,
-          cameraAngle: selectedCamera.prompt, backgroundPreset: bgPrompt,
-          aspectRatio: selectedRatio.id, modelReferenceImages: modelRefImages,
-          locationImages: locImages, customPoseText: customPoseText.trim() || undefined,
-          attributes: modelDetails, isBeautyMode, biometricSeed,
-        }),
+
+      // Generate 2 variants in parallel for user choice
+      const seeds = [
+        Math.random().toString(36).substring(2, 10).toUpperCase(),
+        Math.random().toString(36).substring(2, 10).toUpperCase(),
+      ];
+      const buildBody = (seed) => JSON.stringify({
+        garmentImagesBase64, modelPreset: modelPrompt, posePreset: posePrompt,
+        cameraAngle: selectedCamera.prompt, backgroundPreset: bgPrompt,
+        aspectRatio: selectedRatio.id, modelReferenceImages: modelRefImages,
+        locationImages: locImages, customPoseText: customPoseText.trim() || undefined,
+        attributes: modelDetails, isBeautyMode, biometricSeed: seed,
       });
+
+      const results = await Promise.all(seeds.map(seed =>
+        fetch('/api/generate-image', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: buildBody(seed),
+        }).then(r => safeParseJSON(r)).catch(err => ({ success: false, error: err.message }))
+      ));
       clearInterval(iv);
-      const data = await safeParseJSON(resp);
-      if (data.success) {
-        const newImg = `data:image/jpeg;base64,${data.imageBase64}`;
-        setGeneratedImage(newImg);
-        setImageHistory(prev => { const h = [...prev, { image: newImg, label: 'Первая генерация' }]; setHistoryIndex(h.length - 1); return h; });
-        setStatusText('Студийный кадр готов!'); setStatusType('success');
+
+      const successImages = results
+        .filter(d => d.success)
+        .map(d => `data:image/jpeg;base64,${d.imageBase64}`);
+
+      if (successImages.length > 0) {
+        setGeneratedImage(successImages[0]);
+        setImageHistory(prev => {
+          const h = [...prev, ...successImages.map((img, i) => ({ image: img, label: i === 0 ? '🎨 Вариант A' : '🎨 Вариант B' }))];
+          setHistoryIndex(h.length - successImages.length);
+          return h;
+        });
+        setStatusText(`Готово! ${successImages.length} вариант${successImages.length > 1 ? 'а — листайте ◀▶' : ''}`); setStatusType('success');
       }
-      else { setStatusText(`Ошибка: ${data.details||data.error}`); setStatusType('error'); }
+      else { setStatusText(`Ошибка: ${results[0]?.details||results[0]?.error||'unknown'}`); setStatusType('error'); }
     } catch (err) { setStatusText(`Ошибка: ${err.message}`); setStatusType('error'); clearInterval(iv);
     } finally { setIsProcessing(false); }
   };
@@ -613,8 +629,10 @@ function App() {
     if (!imageFiles.length || isPhotoshooting) return;
     setIsPhotoshooting(true);
     const angles = PHOTOSHOOT_ANGLES.slice(0, count);
-    setPhotoshootImages(new Array(count).fill(null));
-    setStatusText(`📸 Фотосессия запущена! Генерируем ${count} кадров...`); setStatusType('');
+    // APPEND: add null placeholders for new batch at the end of existing gallery
+    const existingCount = photoshootImages.filter(Boolean).length;
+    setPhotoshootImages(prev => [...prev.filter(Boolean), ...new Array(count).fill(null)]);
+    setStatusText(`📸 Генерируем ещё ${count} кадров...`); setStatusType('');
     try {
       const garmentImagesBase64 = await Promise.all(imageFiles.map(f => blobToBase64(f)));
       let modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
@@ -647,14 +665,16 @@ function App() {
           }),
         }).then(r => safeParseJSON(r)).then(data => {
           if (data.success) {
-            setPhotoshootImages(prev => { const n = [...prev]; n[idx] = `data:image/jpeg;base64,${data.imageBase64}`; return n; });
+            // Place at the correct offset position (existing photos + batch index)
+            setPhotoshootImages(prev => { const n = [...prev]; n[existingCount + idx] = `data:image/jpeg;base64,${data.imageBase64}`; return n; });
           } else {
-            console.warn(`Кадр ${idx + 1}: ${data.details || data.error}`);
+            console.warn(`Кадр ${existingCount + idx + 1}: ${data.details || data.error}`);
           }
-        }).catch(err => console.warn(`Кадр ${idx + 1} ошибка:`, err.message))
+        }).catch(err => console.warn(`Кадр ${existingCount + idx + 1} ошибка:`, err.message))
       });
       await Promise.all(promises);
-      setStatusText('🎉 Фотосессия готова!'); setStatusType('success');
+      const totalReady = photoshootImages.filter(Boolean).length + count;
+      setStatusText(`🎉 Фотосессия: ${totalReady} кадров готово!`); setStatusType('success');
     } catch (err) { setStatusText(`Ошибка фотосессии: ${err.message}`); setStatusType('error'); }
     finally { setIsPhotoshooting(false); }
   };
@@ -962,6 +982,9 @@ function App() {
             <div className="photoshoot-block">
               <div className="photoshoot-label">📸 Сделать фотосессию</div>
               <p className="photoshoot-hint">Генерация нескольких фото с разных ракурсов</p>
+              <p className="photoshoot-hint" style={{fontSize:'0.72rem', opacity:0.6, marginTop:2}}>
+                👕 Одежда берётся из загруженных вами фото, не из сгенерированного кадра
+              </p>
 
               {/* Calibration prompt */}
               {!selectedSavedModelId && (
@@ -975,10 +998,10 @@ function App() {
 
               <div className="photoshoot-choice">
                 <button className="photoshoot-btn photoshoot-btn--3" onClick={() => handlePhotoshoot(3)} disabled={isPhotoshooting || isProcessing}>
-                  {isPhotoshooting ? '⏳ Генерация...' : '📷 3 фото'}
+                  {isPhotoshooting ? '⏳ Генерация...' : photoshootImages.filter(Boolean).length > 0 ? `📷 ещё +3` : '📷 3 фото'}
                 </button>
                 <button className="photoshoot-btn photoshoot-btn--5" onClick={() => handlePhotoshoot(5)} disabled={isPhotoshooting || isProcessing}>
-                  {isPhotoshooting ? '⏳ Генерация...' : '📸 5 фото'}
+                  {isPhotoshooting ? '⏳ Генерация...' : photoshootImages.filter(Boolean).length > 0 ? `📸 ещё +5` : '📸 5 фото'}
                 </button>
               </div>
             </div>
