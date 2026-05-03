@@ -42,6 +42,7 @@ export default function ModelCalibrationWizard({
   const [generationCount, setGenerationCount] = useState(0);
   const [modelName, setModelName] = useState('');
   const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Lightbox (long-press fullscreen)
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -165,7 +166,7 @@ export default function ModelCalibrationWizard({
   // ═══════════════════════════════════════════
   //  SAVE MODEL
   // ═══════════════════════════════════════════
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!modelName.trim()) {
       setError('Введите имя модели');
       return;
@@ -181,7 +182,16 @@ export default function ModelCalibrationWizard({
       right34: lockedImages.right34,
     };
 
-    onSave(modelName.trim(), photos, modelPrompt);
+    setIsSaving(true);
+    setError('');
+    try {
+      await onSave(modelName.trim(), photos, modelPrompt);
+    } catch (err) {
+      console.error('Ошибка сохранения:', err);
+      setError(`Ошибка сохранения: ${err.message || 'попробуйте ещё раз'}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // ═══════════════════════════════════════════
@@ -522,9 +532,9 @@ export default function ModelCalibrationWizard({
               <button
                 className="calib-btn-primary"
                 onClick={handleSave}
-                disabled={!modelName.trim() || !lockedImages.front}
+                disabled={!modelName.trim() || !lockedImages.front || isSaving}
               >
-                💾 Сохранить модель
+                {isSaving ? '⏳ Сохраняю...' : '💾 Сохранить модель'}
               </button>
             </div>
           </div>

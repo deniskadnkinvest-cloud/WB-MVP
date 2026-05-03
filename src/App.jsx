@@ -389,9 +389,12 @@ function App() {
 
   // Save calibrated model from wizard (3-angle photos)
   const saveCalibratedModel = async (name, photos, prompt) => {
-    if (!user) return;
+    if (!user) {
+      throw new Error('Пользователь не авторизован. Войдите в аккаунт.');
+    }
     setIsSaving(true);
     try {
+      console.log('📦 Saving calibrated model:', name, 'photos:', Object.keys(photos).filter(k => photos[k]));
       const photoEntries = Object.entries(photos).filter(([, v]) => v);
       const uploads = await Promise.all(photoEntries.map(async ([, base64]) => {
         return uploadBase64Image(user.uid, base64, 'models');
@@ -410,10 +413,12 @@ function App() {
       setShowCalibWizard(false);
       setStatusText('✅ Откалиброванная модель сохранена!');
       setStatusType('success');
+      console.log('✅ Model saved successfully:', name);
     } catch (err) {
       console.error('Ошибка сохранения модели:', err);
       setStatusText('Ошибка сохранения модели');
       setStatusType('error');
+      throw err; // Re-throw so wizard can show the error
     } finally {
       setIsSaving(false);
     }
