@@ -403,6 +403,34 @@
   font-size: 1.5rem;
 }
 
+.calib-regen-single {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 0.85rem;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  z-index: 5;
+}
+.calib-regen-single:hover:not(:disabled) {
+  background: rgba(212, 175, 55, 0.3);
+  border-color: var(--gold-primary);
+  transform: rotate(90deg);
+}
+.calib-regen-single:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
 /* ═══ NAME INPUT ═══ */
 .calib-name-input {
   width: 100%;

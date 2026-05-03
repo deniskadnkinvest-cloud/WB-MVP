@@ -18,9 +18,9 @@ import './ModelCalibrationWizard.css';
 
 const STEPS = [
   { id: 'intro', label: 'Начало' },
-  { id: 'front', label: 'Анфас', icon: '👤', angle: 'front', posePrompt: 'standing straight, facing the camera directly, neutral expression, head slightly tilted, fashion model portrait', cameraPrompt: 'close-up portrait, head and shoulders, front-facing' },
-  { id: 'left34', label: '3/4 слева', icon: '◀️', angle: 'left34', posePrompt: 'model body is turned to THE LEFT of the frame (viewer\'s left), showing the LEFT side of the face and body. The model\'s nose points to the left edge of the image. 3/4 profile view. Chin slightly up, elegant posing', cameraPrompt: 'portrait shot, camera positioned to the model\'s right side capturing their left profile at 3/4 angle, head and shoulders' },
-  { id: 'right34', label: '3/4 справа', icon: '▶️', angle: 'right34', posePrompt: 'model body is turned to THE RIGHT of the frame (viewer\'s right), showing the RIGHT side of the face and body. The model\'s nose points to the right edge of the image. 3/4 profile view. Chin slightly up, elegant posing', cameraPrompt: 'portrait shot, camera positioned to the model\'s left side capturing their right profile at 3/4 angle, head and shoulders' },
+  { id: 'front', label: 'Анфас', icon: '👤', angle: 'front', posePrompt: 'standing straight, facing the camera DIRECTLY with BOTH eyes equally visible, looking STRAIGHT into the lens, symmetrical front-facing portrait, neutral expression', cameraPrompt: 'close-up portrait, head and shoulders, camera DIRECTLY in front of the face, perfectly centered symmetrical framing' },
+  { id: 'left34', label: '3/4 слева', icon: '◀️', angle: 'left34', posePrompt: 'CRITICAL DIRECTION: The model\'s face and body are rotated so the LEFT CHEEK is more visible to the camera. The nose tip points toward the LEFT edge of the image. The RIGHT ear should be partially hidden. The LEFT ear is fully visible. This is a classic 3/4 view showing the LEFT side of the face. Chin slightly up, elegant posing', cameraPrompt: 'portrait shot, camera is positioned to the RIGHT of the model (shooting from the model\'s right), capturing the model\'s LEFT facial profile at exactly 3/4 angle (~45 degrees). Head and shoulders framing' },
+  { id: 'right34', label: '3/4 справа', icon: '▶️', angle: 'right34', posePrompt: 'CRITICAL DIRECTION: The model\'s face and body are rotated so the RIGHT CHEEK is more visible to the camera. The nose tip points toward the RIGHT edge of the image. The LEFT ear should be partially hidden. The RIGHT ear is fully visible. This is a classic 3/4 view showing the RIGHT side of the face. Chin slightly up, elegant posing', cameraPrompt: 'portrait shot, camera is positioned to the LEFT of the model (shooting from the model\'s left), capturing the model\'s RIGHT facial profile at exactly 3/4 angle (~45 degrees). Head and shoulders framing' },
   { id: 'review', label: 'Обзор' },
 ];
 
@@ -145,11 +145,15 @@ export default function ModelCalibrationWizard({
   const handleLockBatch = () => {
     if (selectedBatchIdx === null || !batchImages[selectedBatchIdx]) return;
     const angle = currentStep.id; // 'front', 'left34' or 'right34'
-    setLockedImages(prev => ({ ...prev, [angle]: batchImages[selectedBatchIdx] }));
+    const newLocked = { ...lockedImages, [angle]: batchImages[selectedBatchIdx] };
+    setLockedImages(newLocked);
     setBatchImages([]);
     setSelectedBatchIdx(null);
 
-    if (angle === 'front') {
+    // If all 3 angles are now locked (re-gen from review), go back to review
+    if (newLocked.front && newLocked.left34 && newLocked.right34) {
+      setStep(4); // → review
+    } else if (angle === 'front') {
       setStep(2); // → left34
     } else if (angle === 'left34') {
       setStep(3); // → right34
@@ -468,20 +472,40 @@ export default function ModelCalibrationWizard({
           <div className="calib-step">
             <h2 className="calib-title">🎉 Калибровка завершена!</h2>
             <p className="calib-desc">
-              Вот 3 референсных фото вашей модели. Дайте ей имя и сохраните.
+              Нажмите 🔄 на любом кадре, чтобы перегенерировать только его.
             </p>
 
             <div className="calib-review-grid">
-              {['front', 'left34', 'right34'].map(angle => (
-                <div key={angle} className="calib-review-item">
-                  {lockedImages[angle] ? (
-                    <img src={lockedImages[angle]} alt={angle} />
-                  ) : (
-                    <div className="calib-review-empty">—</div>
-                  )}
-                  <span>{angle === 'front' ? '👤 Анфас' : angle === 'left34' ? '◀️ 3/4 слева' : '▶️ 3/4 справа'}</span>
-                </div>
-              ))}
+              {['front', 'left34', 'right34'].map(angle => {
+                const stepDef = STEPS.find(s => s.id === angle);
+                const labels = { front: '👤 Анфас', left34: '◀️ 3/4 слева', right34: '▶️ 3/4 справа' };
+                return (
+                  <div key={angle} className="calib-review-item">
+                    {lockedImages[angle] ? (
+                      <div style={{position:'relative'}}>
+                        <img src={lockedImages[angle]} alt={angle} />
+                        <button
+                          className="calib-regen-single"
+                          disabled={isGenerating}
+                          title="Перегенерировать этот ракурс"
+                          onClick={() => {
+                            // Jump to that step to regenerate just this angle
+                            const stepIdx = STEPS.findIndex(s => s.id === angle);
+                            if (stepIdx >= 0) {
+                              setBatchImages([]);
+                              setSelectedBatchIdx(null);
+                              setStep(stepIdx);
+                            }
+                          }}
+                        >🔄</button>
+                      </div>
+                    ) : (
+                      <div className="calib-review-empty">—</div>
+                    )}
+                    <span>{labels[angle]}</span>
+                  </div>
+                );
+              })}
             </div>
 
             <input
