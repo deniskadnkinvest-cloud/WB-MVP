@@ -1003,6 +1003,7 @@ function App() {
       <AnimatePresence>
         {isProcessing && (
           <motion.div className="processing-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
+            <button className="processing-close-btn" onClick={() => setIsProcessing(false)} title="Скрыть">✕</button>
             <div style={{width:'90%', maxWidth:480}}>
               <TerminalOfMagic isActive={isProcessing} customMessage={processingMsg} />
               <p className="processing-hint" style={{textAlign:'center', marginTop:12}}>Обычно 30с — 2 мин</p>
