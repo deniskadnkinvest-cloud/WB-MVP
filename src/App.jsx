@@ -613,10 +613,10 @@ function App() {
         const sm = myModels.find(m => m.id === selectedSavedModelId);
         if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
       }
-      // Identity lock: use main render as face reference for consistent photoshoot
-      if (!modelRefImages && generatedImage) {
-        modelRefImages = [generatedImage];
-      }
+      // Identity lock: use saved model URLs (lightweight) for consistent photoshoot
+      // NOTE: Do NOT send generatedImage here — it's a raw base64 blob (~3-5 MB)
+      // that causes 413 Payload Too Large when combined with garment images.
+      // Saved model imageUrls are Firebase URLs (a few bytes), so they're safe.
       let bgPrompt = customBgText.trim() || selectedBg.prompt;
       let locImages = null;
       if (selectedLocId) {
