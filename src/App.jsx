@@ -15,6 +15,21 @@ import './App.css';
 const MSGS = ['Анализируем текстуру ткани...','Выставляем студийный свет...','Строим 3D-модель фигуры...','Натягиваем одежду с учетом физики...','Рендерим финальный кадр...'];
 const initDetails = () => { const d={}; Object.keys(getModelDetails('female')).forEach(k=>{d[k]=null;}); return d; };
 
+// Safe JSON parser — handles Vercel timeouts that return HTML instead of JSON
+const safeParseJSON = async (resp) => {
+  const text = await resp.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Vercel returned HTML error page (timeout/crash)
+    console.error('⚠️ Non-JSON response from API:', text.substring(0, 200));
+    if (text.includes('FUNCTION_INVOCATION_TIMEOUT') || text.includes('An error occurred')) {
+      return { success: false, error: 'Сервер не успел ответить (таймаут). Попробуйте ещё раз.' };
+    }
+    return { success: false, error: `Сервер вернул некорректный ответ. Попробуйте позже.` };
+  }
+};
+
 function App() {
   const { user, loading, signOut, isEmbedded } = useAuth();
 
@@ -69,6 +84,8 @@ function App() {
 
   // Processing
   const [generatedImage, setGeneratedImage] = useState(null);
+  const [imageHistory, setImageHistory] = useState([]); // all generated renders
+  const [historyIndex, setHistoryIndex] = useState(-1); // current position in history
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingMsg, setProcessingMsg] = useState('');
   const [statusText, setStatusText] = useState('');
@@ -76,6 +93,9 @@ function App() {
 
   // Extra free-text for preset model
   const [extraModelPrompt, setExtraModelPrompt] = useState('');
+
+  // Beauty mode toggle
+  const [isBeautyMode, setIsBeautyMode] = useState(false);
 
   // Extra free-text for preset bg/location
   const [bgExtraText, setBgExtraText] = useState('');
@@ -142,45 +162,63 @@ function App() {
 
   const blobToBase64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onloadend = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
 
-  // ═══ RU→EN Prompt Mapping (AI needs English instructions) ═══
+  // ═══ RU→EN Prompt Mapping — ULTRA-DETAILED descriptors ═══
+  // Each characteristic MUST be described in enough detail that Gemini cannot skip it.
   const DETAIL_TO_PROMPT = {
-    // Body type
-    'Худощавое': 'slim lean body type',
-    'Спортивное': 'athletic fit body with toned muscles',
-    'Среднее': 'average body build',
-    'Полное': 'plus-size curvy body',
-    'Мускулистое': 'muscular well-defined body, visible muscle definition, toned arms and shoulders',
-    // Hair color
-    'Брюнетка': 'dark brunette hair', 'Брюнет': 'dark brunette hair',
-    'Шатенка': 'chestnut brown hair', 'Шатен': 'chestnut brown hair',
-    'Блондинка': 'blonde hair', 'Блондин': 'blonde hair',
-    'Рыжая': 'red ginger hair', 'Рыжий': 'red ginger hair',
-    'Чёрные': 'jet black hair',
-    'Седые': 'silver gray hair',
-    // Hair length
-    'Короткие': 'short hair', 'Средние': 'medium-length hair',
-    'Длинные': 'long flowing hair', 'Бритая': 'shaved head', 'Бритый': 'shaved head',
-    // Emotion
-    'Нейтральная': 'neutral calm expression',
-    'Лёгкая улыбка': 'slight gentle smile',
-    'Серьёзная': 'serious intense expression', 'Серьёзный': 'serious intense expression',
-    'Уверенная': 'confident powerful expression', 'Уверенный': 'confident powerful expression',
-    'Дерзкая': 'bold edgy attitude', 'Дерзкий': 'bold edgy attitude',
-    // Piercing
-    'Уши': 'ear piercings with small studs',
-    'Нос': 'subtle nose piercing',
-    'Уши + Нос': 'ear piercings and nose piercing',
-    // Tattoo
-    'Минимализм': 'small minimalist fine-line tattoos on visible skin areas (wrists, collarbones, fingers)',
-    'Рукав': 'full sleeve tattoo on one arm with detailed ink work',
-    'Шея': 'neck tattoo with visible artistic design',
+    // ─── BODY TYPE (critical — needs strongest overrides) ───
+    'Худощавое': 'BODY TYPE: slim lean body with thin limbs, narrow bony shoulders, visible collarbones and wrist bones, very low body fat, elongated proportions, delicate frame. The person must look noticeably thin.',
+    'Спортивное': 'BODY TYPE: athletic fit body with visibly toned muscles, defined arms and shoulders, flat toned stomach, healthy skin glow. Body of a person who exercises regularly. NOT overweight, NOT skinny.',
+    'Среднее': 'BODY TYPE: average normal healthy body build, neither thin nor heavy, standard proportions, BMI 20-25. Natural everyday person, not a fitness model.',
+    'Полное': 'BODY TYPE: visibly overweight plus-size body, BMI 33+, large round belly, thick heavy arms and thighs, double chin, wide torso, US clothing size 2XL-3XL, heavy-set build with visible body fat and round full face. The person MUST look noticeably fat.',
+    'Мускулистое': 'BODY TYPE: muscular body with clearly visible muscle definition on arms, shoulders, chest and legs. Broad powerful shoulders, narrow waist (V-taper), low body fat 12-18%. Veins visible on forearms. Strong thick neck. The body MUST look like a fitness competitor or bodybuilder — NOT soft, NOT average, NOT overweight.',
+
+    // ─── HAIR COLOR (specific tones, not generic words) ───
+    'Брюнетка': 'HAIR: rich dark brunette brown hair color', 'Брюнет': 'HAIR: rich dark brunette brown hair color',
+    'Шатенка': 'HAIR: warm chestnut medium-brown hair color with natural highlights', 'Шатен': 'HAIR: warm chestnut medium-brown hair color with natural highlights',
+    'Блондинка': 'HAIR: light golden blonde hair color', 'Блондин': 'HAIR: light golden blonde hair color',
+    'Рыжая': 'HAIR: vibrant red-ginger copper hair color (clearly red, not brown)', 'Рыжий': 'HAIR: vibrant red-ginger copper hair color (clearly red, not brown)',
+    'Чёрные': 'HAIR: jet black hair color, deep dark without any brown tint',
+    'Седые': 'HAIR: natural silver-gray hair color suggesting age 50+',
+
+    // ─── HAIR LENGTH (explicit visual description) ───
+    'Короткие': 'HAIR LENGTH: short hair above the ears, cropped close to the head',
+    'Средние': 'HAIR LENGTH: medium-length hair reaching the shoulders',
+    'Длинные': 'HAIR LENGTH: long flowing hair reaching well below the shoulders, past the chest',
+    'Бритая': 'HAIR LENGTH: completely shaved bald head, no hair visible', 'Бритый': 'HAIR LENGTH: completely shaved bald head, no hair visible',
+
+    // ─── EMOTION (describe facial muscles, not abstract feelings) ───
+    'Нейтральная': 'EXPRESSION: neutral calm relaxed face, mouth closed, no smile, eyes looking directly at camera',
+    'Лёгкая улыбка': 'EXPRESSION: gentle slight warm smile with lips slightly curved upward, soft friendly eyes',
+    'Серьёзная': 'EXPRESSION: serious intense focused expression, strong direct eye contact, slight frown, no smile', 'Серьёзный': 'EXPRESSION: serious intense focused expression, strong direct eye contact, slight frown, no smile',
+    'Уверенная': 'EXPRESSION: confident powerful self-assured expression, chin slightly raised, bold direct gaze, subtle commanding smile', 'Уверенный': 'EXPRESSION: confident powerful self-assured expression, chin slightly raised, bold direct gaze, subtle commanding smile',
+    'Дерзкая': 'EXPRESSION: bold edgy rebellious attitude, slightly squinted eyes, smirk, defiant look', 'Дерзкий': 'EXPRESSION: bold edgy rebellious attitude, slightly squinted eyes, smirk, defiant look',
+
+    // ─── PIERCING (specific placement and visibility) ───
+    'Уши': 'PIERCING: visible small metallic stud earrings in both earlobes, must be clearly visible',
+    'Нос': 'PIERCING: visible small subtle nose ring or stud piercing on one nostril, must be clearly visible',
+    'Уши + Нос': 'PIERCING: visible metallic stud earrings in both earlobes AND a small nose ring/stud on one nostril — both must be clearly visible',
+
+    // ─── TATTOO (MANDATORY visibility — these must actually appear) ───
+    'Минимализм': 'TATTOO (MANDATORY — MUST BE VISIBLE): small minimalist fine-line black ink tattoos on visible skin areas such as wrists, collarbones, or fingers. The tattoos MUST be clearly visible in the final image.',
+    'Рукав': 'TATTOO (MANDATORY — MUST BE VISIBLE): full detailed tattoo sleeve covering one entire arm from shoulder to wrist with intricate dark ink artwork. The tattooed arm MUST be clearly visible in the final image.',
+    'Шея': 'TATTOO (MANDATORY — MUST BE VISIBLE): prominent artistic tattoo on the neck/throat area with dark ink design clearly visible against the skin. The neck tattoo MUST be unmistakably present in the final image.',
   };
 
   // Build detail string (supports arrays for multi-select fields like tattoo)
   const buildDetailString = () => {
     const parts = [];
     Object.entries(modelDetails).forEach(([k, v]) => {
-      if (!v || v === 'Нет') return;
+      // EXPLICIT NEGATIVE CONSTRAINTS — when "Нет" is selected, add hard prohibition
+      if (v === 'Нет' || (Array.isArray(v) && v.length === 1 && v[0] === 'Нет')) {
+        if (k === 'tattoo') {
+          parts.push('absolutely NO tattoos anywhere on the body, completely clean unmarked skin, zero ink');
+        }
+        if (k === 'piercing') {
+          parts.push('absolutely NO piercings anywhere on the body or face');
+        }
+        return;
+      }
+      if (!v) return;
       if (Array.isArray(v)) {
         const filtered = v.filter(x => x !== 'Нет');
         filtered.forEach(item => {
@@ -225,10 +263,11 @@ function App() {
       }
       // Append location modifier if present
       if (locModifier.trim()) bgPrompt += `. Additionally: ${locModifier.trim()}`;
-      // Append preset bg extra text if present
-      if (bgExtraText.trim() && !customBgText.trim()) bgPrompt += `, ${bgExtraText.trim()}`;
+      // bg extra text COMBINES with preset as a mandatory addition
+      if (bgExtraText.trim() && !customBgText.trim()) bgPrompt += `. MANDATORY SCENE ADDITION (must be visible): ${bgExtraText.trim()}`;
 
       setProcessingMsg('🚀 Отправляем в Nano Banano 2...');
+      const biometricSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
       const resp = await fetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -236,11 +275,17 @@ function App() {
           cameraAngle: selectedCamera.prompt, backgroundPreset: bgPrompt,
           aspectRatio: selectedRatio.id, modelReferenceImages: modelRefImages,
           locationImages: locImages, customPoseText: customPoseText.trim() || undefined,
+          attributes: modelDetails, isBeautyMode, biometricSeed,
         }),
       });
       clearInterval(iv);
-      const data = await resp.json();
-      if (data.success) { setGeneratedImage(`data:image/jpeg;base64,${data.imageBase64}`); setStatusText('Студийный кадр готов!'); setStatusType('success'); }
+      const data = await safeParseJSON(resp);
+      if (data.success) {
+        const newImg = `data:image/jpeg;base64,${data.imageBase64}`;
+        setGeneratedImage(newImg);
+        setImageHistory(prev => { const h = [...prev, { image: newImg, label: 'Первая генерация' }]; setHistoryIndex(h.length - 1); return h; });
+        setStatusText('Студийный кадр готов!'); setStatusType('success');
+      }
       else { setStatusText(`Ошибка: ${data.details||data.error}`); setStatusType('error'); }
     } catch (err) { setStatusText(`Ошибка: ${err.message}`); setStatusType('error'); clearInterval(iv);
     } finally { setIsProcessing(false); }
@@ -365,12 +410,18 @@ function App() {
   };
 
   // Get current model ref images for calibration
+  // CRITICAL: Include generatedImage as PRIMARY reference so calibration
+  // generates the SAME person that's currently on screen, not a new one.
   const getCurrentModelRefs = () => {
+    const refs = [];
+    // The generated render IS the person we want to calibrate
+    if (generatedImage) refs.push(generatedImage);
+    // Also include saved model refs if any
     if (selectedSavedModelId) {
       const sm = myModels.find(m => m.id === selectedSavedModelId);
-      if (sm?.imageUrls) return sm.imageUrls;
+      if (sm?.imageUrls) refs.push(...sm.imageUrls);
     }
-    return [];
+    return refs;
   };
 
   const deleteModel = async (id) => {
@@ -408,11 +459,11 @@ function App() {
           aspectRatio: '3:4', modelReferenceImages: refImgs,
         }),
       });
-      const data = await resp.json();
+      const data = await safeParseJSON(resp);
       if (data.success) {
         setModelPreviewSrc(`data:image/jpeg;base64,${data.imageBase64}`);
         setStatusText('Превью модели готово! Сохранить как новую?'); setStatusType('success');
-      } else { setStatusText(`Ошибка: ${data.error}`); setStatusType('error'); }
+      } else { setStatusText(`Ошибка: ${data.details||data.error}`); setStatusType('error'); }
     } catch (err) { setStatusText(`Ошибка: ${err.message}`); setStatusType('error'); }
     finally { setIsPreviewingModel(false); }
   };
@@ -452,7 +503,7 @@ function App() {
   const handleRegenerate = async () => {
     if (!shotModifier.trim() || !imageFiles.length) return;
     setIsProcessing(true);
-    setGeneratedImage(null);
+    // DON'T clear generatedImage here — preserve it in case of error
     setStatusText('');
     let msgI = 0;
     const iv = setInterval(() => { setProcessingMsg(msgI < MSGS.length ? MSGS[msgI++] : 'Финальные штрихи...'); }, 8000);
@@ -475,12 +526,7 @@ function App() {
       const mod = shotModifier.trim();
       const poseKeywords = /(?:поз[аеуы]|сид(?:ит|я|еть)|стоит|лежит|идёт|идет|ходит|бежит|танцу|прыга|lotus|sitting|standing|lying|walking|running|dancing|crouching|leaning|kneeling|jumping|squat)/i;
       if (poseKeywords.test(mod)) {
-        // Modifier is about pose — inject into BOTH pose and model prompt
         posePrompt = `${mod}. ${posePrompt}`;
-        modelPrompt += `. The model is ${mod}`;
-      } else {
-        // Modifier is about appearance/environment — append to model
-        modelPrompt += `. Additionally, ensure: ${mod}`;
       }
 
       let bgPrompt = customBgText.trim() || selectedBg.prompt;
@@ -493,7 +539,7 @@ function App() {
         }
       }
       if (locModifier.trim()) bgPrompt += `. Additionally: ${locModifier.trim()}`;
-      if (bgExtraText.trim() && !customBgText.trim()) bgPrompt += `, ${bgExtraText.trim()}`;
+      if (bgExtraText.trim() && !customBgText.trim()) bgPrompt += `. MANDATORY SCENE ADDITION (must be visible): ${bgExtraText.trim()}`;
 
       // Check if modifier mentions location/background keywords
       const bgKeywords = /(?:фон|бали|пляж|улиц|город|парк|лес|горы|интерьер|студи|background|beach|street|city|park|forest|mountain|interior|studio)/i;
@@ -502,19 +548,32 @@ function App() {
       }
 
       setProcessingMsg('🚀 Отправляем в Nano Banano 2...');
+      // ═══ STATELESS REGENERATION ═══
+      // NEVER send the generated photo back as reference — it creates "Visual Attention Sink"
+      // where Gemini locks onto the photorealistic result and refuses to change body geometry.
+      // Instead, we re-send ONLY the original garment photos + text edit instruction.
+      // Gemini will regenerate the body from scratch with new metrics.
+      const editRefImages = modelRefImages ? [...modelRefImages] : [];
+
+      const biometricSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
       const resp = await fetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           garmentImagesBase64, modelPreset: modelPrompt, posePreset: posePrompt,
           cameraAngle: selectedCamera.prompt, backgroundPreset: bgPrompt,
-          aspectRatio: selectedRatio.id, modelReferenceImages: modelRefImages,
+          aspectRatio: selectedRatio.id, modelReferenceImages: editRefImages.length > 0 ? editRefImages : null,
           locationImages: locImages,
+          editInstruction: mod,
+          attributes: modelDetails, isBeautyMode, biometricSeed,
         }),
       });
       clearInterval(iv);
-      const data = await resp.json();
+      const data = await safeParseJSON(resp);
       if (data.success) {
-        setGeneratedImage(`data:image/jpeg;base64,${data.imageBase64}`);
+        const newImg = `data:image/jpeg;base64,${data.imageBase64}`;
+        setGeneratedImage(newImg);
+        const editLabel = shotModifier.trim() || 'Перегенерация';
+        setImageHistory(prev => { const h = [...prev, { image: newImg, label: editLabel }]; setHistoryIndex(h.length - 1); return h; });
         setStatusText('Кадр обновлён!');
         setStatusType('success');
       } else {
@@ -574,7 +633,7 @@ function App() {
             backgroundPreset: bgPrompt, aspectRatio: selectedRatio.id,
             modelReferenceImages: modelRefImages, locationImages: locImages,
           }),
-        }).then(r => r.json()).then(data => {
+        }).then(r => safeParseJSON(r)).then(data => {
           if (data.success) {
             setPhotoshootImages(prev => { const n = [...prev]; n[idx] = `data:image/jpeg;base64,${data.imageBase64}`; return n; });
           }
@@ -820,6 +879,13 @@ function App() {
 
       {/* 7. ГЕНЕРАЦИЯ */}
       <motion.div className="generate-section" initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.4}}>
+        <div className="beauty-toggle">
+          <label className={`beauty-switch ${isBeautyMode ? 'active' : ''}`} title={isBeautyMode ? 'Beauty: идеальная ретушь, гладкая кожа, журнальный глянец' : 'Реализм: натуральная кожа с порами и текстурой'}>
+            <input type="checkbox" checked={isBeautyMode} onChange={e => setIsBeautyMode(e.target.checked)} />
+            <span className="beauty-label">{isBeautyMode ? '✨ Beauty-ретушь' : '📷 Реализм'}</span>
+          </label>
+          <span className="beauty-hint">{isBeautyMode ? 'Журнальный глянец, идеальная кожа' : 'Натуральная кожа с текстурой'}</span>
+        </div>
         <button className="generate-btn" onClick={handleGenerate} onMouseEnter={() => { fetch('/api/generate-image', { method: 'OPTIONS', keepalive: true }).catch(() => {}); }} disabled={!imageFiles.length||isProcessing}>✨ Сгенерировать студийный кадр</button>
         <div className="status-bar">{statusText && <p className={`status-text ${statusType}`}>{statusText}</p>}</div>
       </motion.div>
@@ -829,11 +895,43 @@ function App() {
         {generatedImage && (
           <motion.div className="section result-section" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} exit={{opacity:0}} transition={{duration:0.5}}>
             <h3>Финальный Рендер</h3>
-            <div className="result-image-wrap"><img src={generatedImage} alt="VTON" onClick={() => setLightboxSrc(generatedImage)} style={{cursor:'pointer'}} /></div>
+            <div className="result-image-wrap" style={{position:'relative'}}>
+              {/* ← Previous render */}
+              {imageHistory.length > 1 && historyIndex > 0 && (
+                <button
+                  className="history-nav-btn history-prev"
+                  onClick={(e) => { e.stopPropagation(); const ni = historyIndex - 1; setHistoryIndex(ni); setGeneratedImage(imageHistory[ni].image); }}
+                  title="Предыдущий вариант"
+                >‹</button>
+              )}
+              <img src={generatedImage} alt="VTON" onClick={() => setLightboxSrc(generatedImage)} style={{cursor:'pointer'}} />
+              {/* → Next render */}
+              {imageHistory.length > 1 && historyIndex < imageHistory.length - 1 && (
+                <button
+                  className="history-nav-btn history-next"
+                  onClick={(e) => { e.stopPropagation(); const ni = historyIndex + 1; setHistoryIndex(ni); setGeneratedImage(imageHistory[ni].image); }}
+                  title="Следующий вариант"
+                >›</button>
+              )}
+            </div>
+            {imageHistory.length > 1 && (
+              <div className="history-info">
+                <p className="history-counter">{historyIndex + 1} / {imageHistory.length}</p>
+                {imageHistory[historyIndex]?.label && (
+                  <p className="history-label">✏️ {imageHistory[historyIndex].label}</p>
+                )}
+              </div>
+            )}
             <p className="touch-zoom-hint">👆 Нажмите на фото для увеличения</p>
             <div className="result-actions">
               <button className="download-btn" onClick={handleDownload}>⬇️ Скачать</button>
               <button className="save-model-btn" onClick={() => openCalibration('save')}>🎯 Сохранить модель (калибровка)</button>
+              <button
+                className="redress-btn"
+                onClick={handleGenerate}
+                disabled={isProcessing}
+                title="Если одежда исказилась после редактирования — нажмите, чтобы заново надеть оригинальную одежду на эту модель"
+              >👗 Переодеть модель</button>
             </div>
 
             {/* Iterative editing */}

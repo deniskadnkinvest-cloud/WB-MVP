@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './ModelCalibrationWizard.css';
 
@@ -43,6 +43,14 @@ export default function ModelCalibrationWizard({
   const [modelName, setModelName] = useState('');
   const [error, setError] = useState('');
 
+  // Lightbox (long-press fullscreen)
+  const [lightboxSrc, setLightboxSrc] = useState(null);
+  const longPressTimer = useRef(null);
+  const isLongPress = useRef(false);
+
+  // Close confirmation
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+
   const currentStep = STEPS[step];
 
   // ═══════════════════════════════════════════
@@ -50,6 +58,7 @@ export default function ModelCalibrationWizard({
   // ═══════════════════════════════════════════
   const generatePortrait = useCallback(async (stepDef, existingRefs = []) => {
     const body = {
+      isCalibration: true,
       garmentImagesBase64: [],
       modelPreset: modelPrompt + '. Generate an ultra-realistic fashion model portrait wearing a plain white t-shirt. The portrait MUST have photographic-level skin detail: visible pores, natural skin texture variations, micro-imperfections, authentic asymmetry, and zero AI smoothing or plastic artifacts. Render as if captured by a Canon EOS R5 with an 85mm f/1.4 lens.',
       posePreset: stepDef.posePrompt,
@@ -65,7 +74,19 @@ export default function ModelCalibrationWizard({
       body: JSON.stringify(body),
     });
 
-    const data = await resp.json();
+    // Safe parse: Vercel may return HTML on timeout instead of JSON
+    let data;
+    const rawText = await resp.text();
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      console.error('⚠️ Non-JSON response:', rawText.substring(0, 200));
+      if (rawText.includes('FUNCTION_INVOCATION_TIMEOUT') || rawText.includes('An error occurred')) {
+        throw new Error('Сервер не успел ответить (таймаут). Попробуйте ещё раз.');
+      }
+      throw new Error('Сервер вернул некорректный ответ. Попробуйте позже.');
+    }
+
     if (data.success) {
       return `data:image/jpeg;base64,${data.imageBase64}`;
     }
@@ -95,23 +116,23 @@ export default function ModelCalibrationWizard({
 
     try {
       // Generate in parallel
-      const promises = Array.from({ length: BATCH_SIZE }, (_, i) =>
-        generatePortrait(currentStep, refs)
-          .then(img => {
-            results[i] = img;
-            // Update incrementally
-            setBatchImages([...results]);
-          })
-          .catch(() => {
-            results[i] = null;
-          })
-      );
+      const promises = Array.from({ length: BATCH_SIZE }, async (_, i) => {
+        try {
+          const img = await generatePortrait(currentStep, refs);
+          results[i] = img;
+          setBatchImages([...results]);
+        } catch (err) {
+          results[i] = null;
+          throw err; // Re-throw to be caught by Promise.all
+        }
+      });
 
       await Promise.all(promises);
       setBatchImages([...results]);
       setGenerationCount(prev => prev + BATCH_SIZE);
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Произошла ошибка при генерации варианта.');
+      setBatchImages([]); // Reset so it doesn't show infinite spinners
     } finally {
       setIsGenerating(false);
     }
@@ -171,7 +192,51 @@ export default function ModelCalibrationWizard({
     setGenerationCount(0);
     setModelName('');
     setError('');
+    setShowCloseConfirm(false);
+    setLightboxSrc(null);
     onClose();
+  };
+
+  // Close with confirmation (only when progress exists)
+  const handleAttemptClose = () => {
+    if (step === 0) {
+      handleClose(); // No progress yet, close immediately
+    } else {
+      setShowCloseConfirm(true);
+    }
+  };
+
+  // ═══════════════════════════════════════════
+  //  LONG PRESS → LIGHTBOX
+  // ═══════════════════════════════════════════
+  const handlePointerDown = (imgSrc) => {
+    isLongPress.current = false;
+    longPressTimer.current = setTimeout(() => {
+      isLongPress.current = true;
+      setLightboxSrc(imgSrc);
+    }, 400);
+  };
+
+  const handlePointerUp = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handlePointerCancel = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handleBatchClick = (img, i) => {
+    if (isLongPress.current) {
+      isLongPress.current = false;
+      return; // Don't select — it was a long press
+    }
+    if (img) setSelectedBatchIdx(i);
   };
 
   if (!show) return null;
@@ -182,7 +247,6 @@ export default function ModelCalibrationWizard({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      onClick={handleClose}
     >
       <motion.div
         className="calib-modal"
@@ -260,11 +324,15 @@ export default function ModelCalibrationWizard({
                     <div
                       key={i}
                       className={`calib-batch-item ${selectedBatchIdx === i ? 'selected' : ''} ${!img ? 'loading' : ''}`}
-                      onClick={() => img && setSelectedBatchIdx(i)}
+                      onClick={() => handleBatchClick(img, i)}
+                      onPointerDown={() => img && handlePointerDown(img)}
+                      onPointerUp={handlePointerUp}
+                      onPointerCancel={handlePointerCancel}
+                      onContextMenu={e => e.preventDefault()}
                     >
                       {img ? (
                         <>
-                          <img src={img} alt={`Вариант ${i + 1}`} />
+                          <img src={img} alt={`Вариант ${i + 1}`} draggable={false} />
                           <span className="calib-batch-num">{i + 1}</span>
                           {selectedBatchIdx === i && <div className="calib-batch-check">✅</div>}
                         </>
@@ -284,6 +352,9 @@ export default function ModelCalibrationWizard({
                 </div>
               )}
             </div>
+            {batchImages.filter(Boolean).length > 0 && (
+              <p className="calib-longpress-hint">💡 Зажмите фото для просмотра во весь экран</p>
+            )}
 
             <div className="calib-actions">
               <button
@@ -342,11 +413,15 @@ export default function ModelCalibrationWizard({
                     <div
                       key={i}
                       className={`calib-batch-item ${selectedBatchIdx === i ? 'selected' : ''} ${!img ? 'loading' : ''}`}
-                      onClick={() => img && setSelectedBatchIdx(i)}
+                      onClick={() => handleBatchClick(img, i)}
+                      onPointerDown={() => img && handlePointerDown(img)}
+                      onPointerUp={handlePointerUp}
+                      onPointerCancel={handlePointerCancel}
+                      onContextMenu={e => e.preventDefault()}
                     >
                       {img ? (
                         <>
-                          <img src={img} alt={`Вариант ${i + 1}`} />
+                          <img src={img} alt={`Вариант ${i + 1}`} draggable={false} />
                           <span className="calib-batch-num">{i + 1}</span>
                           {selectedBatchIdx === i && <div className="calib-batch-check">✅</div>}
                         </>
@@ -366,6 +441,9 @@ export default function ModelCalibrationWizard({
                 </div>
               )}
             </div>
+            {batchImages.filter(Boolean).length > 0 && (
+              <p className="calib-longpress-hint">💡 Зажмите фото для просмотра во весь экран</p>
+            )}
 
             <div className="calib-actions">
               <button
@@ -443,8 +521,53 @@ export default function ModelCalibrationWizard({
         </AnimatePresence>
 
         {/* ═══ CLOSE BUTTON ═══ */}
-        <button className="calib-close" onClick={handleClose}>✕</button>
+        <button className="calib-close" onClick={handleAttemptClose}>✕</button>
+
+        {/* ═══ CLOSE CONFIRMATION DIALOG ═══ */}
+        <AnimatePresence>
+          {showCloseConfirm && (
+            <motion.div
+              className="calib-confirm-overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowCloseConfirm(false)}
+            >
+              <motion.div
+                className="calib-confirm-dialog"
+                initial={{ scale: 0.85, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.85, opacity: 0 }}
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="calib-confirm-icon">⚠️</div>
+                <h3>Закрыть калибровку?</h3>
+                <p>Весь прогресс будет потерян. Вы уверены?</p>
+                <div className="calib-confirm-actions">
+                  <button className="calib-btn-secondary" onClick={() => setShowCloseConfirm(false)}>Отмена</button>
+                  <button className="calib-btn-danger" onClick={handleClose}>Да, закрыть</button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
+
+      {/* ═══ LIGHTBOX (fullscreen preview) ═══ */}
+      <AnimatePresence>
+        {lightboxSrc && (
+          <motion.div
+            className="calib-lightbox"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setLightboxSrc(null)}
+          >
+            <img src={lightboxSrc} alt="Полноэкранный просмотр" />
+            <button className="calib-lightbox-close" onClick={() => setLightboxSrc(null)}>✕</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

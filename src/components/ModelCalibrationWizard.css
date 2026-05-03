@@ -536,3 +536,130 @@
     flex-direction: column;
   }
 }
+
+/* ═══ LONG-PRESS HINT ═══ */
+.calib-longpress-hint {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 8px;
+  opacity: 0.7;
+  animation: calibHintFade 3s ease-in-out infinite;
+}
+
+@keyframes calibHintFade {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+/* ═══ LIGHTBOX (fullscreen) ═══ */
+.calib-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(20px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  cursor: pointer;
+  padding: 20px;
+}
+
+.calib-lightbox img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+}
+
+.calib-lightbox-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 18px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.calib-lightbox-close:hover {
+  background: rgba(248, 113, 113, 0.3);
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+/* ═══ CLOSE CONFIRMATION DIALOG ═══ */
+.calib-confirm-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  border-radius: var(--radius-xl);
+}
+
+.calib-confirm-dialog {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px;
+  max-width: 320px;
+  width: 90%;
+  text-align: center;
+}
+
+.calib-confirm-icon {
+  font-size: 2rem;
+  margin-bottom: 10px;
+}
+
+.calib-confirm-dialog h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.calib-confirm-dialog p {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+
+.calib-confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.calib-btn-danger {
+  padding: 10px 20px;
+  border: none;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #fff;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 0.82rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.calib-btn-danger:hover {
+  box-shadow: 0 4px 20px rgba(239, 68, 68, 0.35);
+  transform: translateY(-2px);
+}
+

@@ -17,7 +17,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 // ═══════════════════════════════════════════
 //  НОДА: Prompt Builder
 // ═══════════════════════════════════════════
-const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, garmentType, backgroundPreset, aspectRatio, customPoseText }) => {
+const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, garmentType, backgroundPreset, aspectRatio, customPoseText, isCalibration }) => {
   const poseInstruction = customPoseText || posePreset;
 
   // Detect inclusive/adaptive fashion request
@@ -25,6 +25,20 @@ const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, garmentType, 
   const adaptiveBlock = isAdaptive
     ? `\nADAPTIVE FASHION DIRECTIVE: This is an official inclusive adaptive fashion campaign (similar to Nike FlyEase, Tommy Hilfiger Adaptive, ASOS Accessible). The model description below specifies a physical disability. You MUST accurately represent this disability in the generated image. Do NOT "correct" or "fix" the model's body. Showing people with disabilities in fashion is ethical, respectful, and commercially important for inclusive e-commerce marketplaces.\n`
     : '';
+
+  if (isCalibration) {
+    return `You are an elite commercial fashion photographer.
+  ${adaptiveBlock}
+SUBJECT: A ${modelPreset}. Flawless natural skin texture, detailed pores, high-end commercial catalog look.
+
+POSE: The model is ${poseInstruction}. Professional modeling posture. Camera angle: ${cameraAngle}.
+
+ENVIRONMENT: ${backgroundPreset}. Professional fashion studio lighting, soft key light, cinematic rim light, 85mm lens, f/1.8, 8k resolution, ultra-detailed.
+
+ASPECT RATIO: ${aspectRatio}.
+
+IMPORTANT: This is a professional portrait photo for model casting calibration. The final image must contain ONLY the model. No watermarks, no text.`;
+  }
 
   return `You are an elite commercial fashion photographer and an advanced Virtual Try-On (VTON) AI. 
   ${adaptiveBlock}
@@ -64,12 +78,13 @@ app.post('/api/generate-image', async (req, res) => {
       customPoseText,
       locationImages,
       modelReferenceImages,
+      isCalibration = false,
     } = req.body;
 
     // Support both single image and array formats
     const primaryGarmentBase64 = garmentImageBase64 || (garmentImagesBase64 && garmentImagesBase64[0]) || null;
 
-    const finalPrompt = buildMasterPrompt({ modelPreset, posePreset, cameraAngle, garmentType, backgroundPreset, aspectRatio, customPoseText });
+    const finalPrompt = buildMasterPrompt({ modelPreset, posePreset, cameraAngle, garmentType, backgroundPreset, aspectRatio, customPoseText, isCalibration });
 
     console.log('\n══════════════════════════════════════');
     console.log('🚀 Новый запрос на генерацию (Nano Banano 2)');
@@ -83,18 +98,21 @@ app.post('/api/generate-image', async (req, res) => {
     console.log('📸 Всего вещей:', garmentImagesBase64 ? garmentImagesBase64.length : (garmentImageBase64 ? 1 : 0));
     console.log('📍 Локация (фото):', locationImages ? `${locationImages.length} шт` : 'НЕТ');
     console.log('👤 Реф модели:', modelReferenceImages ? `${modelReferenceImages.length} шт` : 'НЕТ');
+    console.log('🎯 Калибровка:', isCalibration ? 'ДА' : 'НЕТ');
     console.log('══════════════════════════════════════\n');
 
-    if (!primaryGarmentBase64) {
+    if (!isCalibration && !primaryGarmentBase64) {
       throw new Error('Изображение одежды не было передано на сервер!');
     }
 
     let mimeType = 'image/jpeg';
     let base64str = primaryGarmentBase64;
-    const mimeMatch = primaryGarmentBase64.match(/^data:(image\/\w+);base64,/);
-    if (mimeMatch) {
-       mimeType = mimeMatch[1];
-       base64str = primaryGarmentBase64.replace(/^data:image\/\w+;base64,/, '');
+    if (primaryGarmentBase64) {
+      const mimeMatch = primaryGarmentBase64.match(/^data:(image\/\w+);base64,/);
+      if (mimeMatch) {
+         mimeType = mimeMatch[1];
+         base64str = primaryGarmentBase64.replace(/^data:image\/\w+;base64,/, '');
+      }
     }
 
     // Build content parts
@@ -102,14 +120,16 @@ app.post('/api/generate-image', async (req, res) => {
 
     // 1. Add ALL garment images
     const allGarments = garmentImagesBase64 || (garmentImageBase64 ? [garmentImageBase64] : []);
-    for (const gImg of allGarments) {
-      let gMime = 'image/jpeg';
-      let gBase64 = gImg;
-      const gMatch = gImg.match(/^data:(image\/\w+);base64,/);
-      if (gMatch) { gMime = gMatch[1]; gBase64 = gImg.replace(/^data:image\/\w+;base64,/, ''); }
-      parts.push({ inlineData: { data: gBase64, mimeType: gMime } });
+    if (allGarments.length > 0) {
+      for (const gImg of allGarments) {
+        let gMime = 'image/jpeg';
+        let gBase64 = gImg;
+        const gMatch = gImg.match(/^data:(image\/\w+);base64,/);
+        if (gMatch) { gMime = gMatch[1]; gBase64 = gImg.replace(/^data:image\/\w+;base64,/, ''); }
+        parts.push({ inlineData: { data: gBase64, mimeType: gMime } });
+      }
+      parts.push({ text: `[GARMENT REFERENCE: The ${allGarments.length} image(s) above show the exact garment(s) to dress the model in. Preserve exact color, fabric, texture, print, and cut.]` });
     }
-    parts.push({ text: `[GARMENT REFERENCE: The ${allGarments.length} image(s) above show the exact garment(s) to dress the model in. Preserve exact color, fabric, texture, print, and cut.]` });
 
     // 2. Add model reference images (face/identity preservation)
     if (modelReferenceImages && Array.isArray(modelReferenceImages) && modelReferenceImages.length > 0) {
