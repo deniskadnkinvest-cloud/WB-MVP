@@ -113,8 +113,18 @@ function App() {
   const [photoshootImages, setPhotoshootImages] = useState([]);
   const [isPhotoshooting, setIsPhotoshooting] = useState(false);
 
-  // Lightbox
+  // Lightbox (gallery mode)
   const [lightboxSrc, setLightboxSrc] = useState(null);
+  const [lightboxGallery, setLightboxGallery] = useState([]);
+  const [lightboxIdx, setLightboxIdx] = useState(0);
+
+  const openLightboxGallery = (images, startIdx) => {
+    const filtered = images.filter(Boolean);
+    if (!filtered.length) return;
+    setLightboxGallery(filtered);
+    setLightboxIdx(Math.min(startIdx, filtered.length - 1));
+    setLightboxSrc(filtered[Math.min(startIdx, filtered.length - 1)]);
+  };
 
   // Model preview (for editing)
   const [modelPreviewSrc, setModelPreviewSrc] = useState(null);
@@ -982,7 +992,7 @@ function App() {
                     <div key={i} className="photoshoot-item">
                       {img ? (
                         <>
-                          <img src={img} alt={`Кадр ${i+1}`} onClick={() => setLightboxSrc(img)} style={{cursor:'pointer'}} />
+                          <img src={img} alt={`Кадр ${i+1}`} onClick={() => openLightboxGallery(photoshootImages, i)} style={{cursor:'pointer'}} />
                           <button className="download-mini-btn" onClick={() => {
                             const a = document.createElement('a'); a.href = img; a.download = `SellerStudio_${i+1}_${Date.now()}.jpg`; a.click();
                           }}>⬇️</button>
@@ -1060,13 +1070,30 @@ function App() {
         )}
       </AnimatePresence>
 
-      {/* LIGHTBOX */}
+      {/* LIGHTBOX with gallery navigation */}
       <AnimatePresence>
         {lightboxSrc && (
-          <motion.div className="lightbox-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => setLightboxSrc(null)}>
-            <button className="lightbox-close" onClick={() => setLightboxSrc(null)}>✕</button>
+          <motion.div className="lightbox-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
+            <button className="lightbox-close" onClick={() => { setLightboxSrc(null); setLightboxGallery([]); }}>✕</button>
+            {lightboxGallery.length > 1 && (
+              <button className="lightbox-nav lightbox-nav--prev" onClick={e => {
+                e.stopPropagation();
+                const newIdx = (lightboxIdx - 1 + lightboxGallery.length) % lightboxGallery.length;
+                setLightboxIdx(newIdx); setLightboxSrc(lightboxGallery[newIdx]);
+              }}>‹</button>
+            )}
             <img src={lightboxSrc} alt="Просмотр" className="lightbox-img" onClick={e => e.stopPropagation()} />
-            <button className="lightbox-download" onClick={e => { e.stopPropagation(); const a = document.createElement('a'); a.href = lightboxSrc; a.download = `SellerStudio_${Date.now()}.jpg`; a.click(); }}>⬇️ Скачать</button>
+            {lightboxGallery.length > 1 && (
+              <button className="lightbox-nav lightbox-nav--next" onClick={e => {
+                e.stopPropagation();
+                const newIdx = (lightboxIdx + 1) % lightboxGallery.length;
+                setLightboxIdx(newIdx); setLightboxSrc(lightboxGallery[newIdx]);
+              }}>›</button>
+            )}
+            <div className="lightbox-footer">
+              {lightboxGallery.length > 1 && <span className="lightbox-counter">{lightboxIdx + 1} / {lightboxGallery.length}</span>}
+              <button className="lightbox-download" onClick={e => { e.stopPropagation(); const a = document.createElement('a'); a.href = lightboxSrc; a.download = `SellerStudio_${Date.now()}.jpg`; a.click(); }}>⬇️ Скачать</button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

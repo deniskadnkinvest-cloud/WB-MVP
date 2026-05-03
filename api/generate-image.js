@@ -331,8 +331,8 @@ function selectPoseFromSeed(seed, gender) {
 
 function buildGenderLock(gender) {
   return gender === 'male'
-    ? '<GENDER_LOCK>BIOLOGICAL MALE. You MUST strictly enforce male anatomy, masculine bone structure, and male features. The model is a MAN.</GENDER_LOCK>'
-    : '<GENDER_LOCK>BIOLOGICAL FEMALE. You MUST strictly enforce 100% biological female anatomy, female breast contour, narrow waist, and highly feminine facial features. Under NO circumstances should she look like a man, even if muscular or bald.</GENDER_LOCK>';
+    ? '<GENDER_LOCK>BIOLOGICAL MALE. You MUST strictly enforce male anatomy, masculine bone structure, masculine hands with wider knuckles, and male features. The model is a MAN.</GENDER_LOCK>'
+    : '<GENDER_LOCK>BIOLOGICAL FEMALE. You MUST strictly enforce 100% biological female anatomy: female breast contour, narrow waist, highly feminine facial features, DELICATE FEMININE HANDS (slender fingers, narrow wrists, soft skin, NO masculine knuckles or veins), and elegant feminine posture. Under NO circumstances should ANY body part — especially hands and arms — look masculine, even if she is muscular or bald. Every visible limb must read as unmistakably female.</GENDER_LOCK>';
 }
 
 // ═══════════════════════════════════════════════════════════════════
