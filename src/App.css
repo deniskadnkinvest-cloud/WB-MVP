@@ -1855,3 +1855,43 @@
     white-space: normal;
   }
 }
+
+/* ═══ CUSTOM TOOLTIP (data-tooltip) ═══ */
+.has-tooltip {
+  position: relative;
+}
+
+.has-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(20, 20, 30, 0.95);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.85);
+  font-size: 0.72rem;
+  font-weight: 500;
+  white-space: nowrap;
+  max-width: 220px;
+  white-space: normal;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 100;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+.has-tooltip:hover::after {
+  opacity: 1;
+}
+
+/* Hide tooltips on touch devices */
+@media (hover: none) {
+  .has-tooltip::after {
+    display: none;
+  }
+}

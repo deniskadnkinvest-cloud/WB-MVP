@@ -880,7 +880,7 @@ function App() {
       {/* 7. ГЕНЕРАЦИЯ */}
       <motion.div className="generate-section" initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.4}}>
         <div className="beauty-toggle">
-          <label className={`beauty-switch ${isBeautyMode ? 'active' : ''}`} title={isBeautyMode ? 'Beauty: идеальная ретушь, гладкая кожа, журнальный глянец' : 'Реализм: натуральная кожа с порами и текстурой'}>
+          <label className={`beauty-switch ${isBeautyMode ? 'active' : ''}`}>
             <input type="checkbox" checked={isBeautyMode} onChange={e => setIsBeautyMode(e.target.checked)} />
             <span className="beauty-label">{isBeautyMode ? '✨ Beauty-ретушь' : '📷 Реализм'}</span>
           </label>
@@ -927,10 +927,10 @@ function App() {
               <button className="download-btn" onClick={handleDownload}>⬇️ Скачать</button>
               <button className="save-model-btn" onClick={() => openCalibration('save')}>🎯 Сохранить модель (калибровка)</button>
               <button
-                className="redress-btn"
+                className="redress-btn has-tooltip"
                 onClick={handleGenerate}
                 disabled={isProcessing}
-                title="Если одежда исказилась после редактирования — нажмите, чтобы заново надеть оригинальную одежду на эту модель"
+                data-tooltip="Вернуть одежду в исходный вид"
               >👗 Переодеть модель</button>
             </div>
 
