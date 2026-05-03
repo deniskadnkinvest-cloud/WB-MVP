@@ -604,7 +604,7 @@ function App() {
     setIsPhotoshooting(true);
     const angles = PHOTOSHOOT_ANGLES.slice(0, count);
     setPhotoshootImages(new Array(count).fill(null));
-    setStatusText(`📸 Фотосессия запущена! Генерируем ${count} кадров по очереди...`); setStatusType('');
+    setStatusText(`📸 Фотосессия запущена! Генерируем ${count} кадров...`); setStatusType('');
     try {
       const garmentImagesBase64 = await Promise.all(imageFiles.map(f => blobToBase64(f)));
       let modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
@@ -616,7 +616,6 @@ function App() {
       // Identity lock: use saved model URLs (lightweight) for consistent photoshoot
       // NOTE: Do NOT send generatedImage here — it's a raw base64 blob (~3-5 MB)
       // that causes 413 Payload Too Large when combined with garment images.
-      // Saved model imageUrls are Firebase URLs (a few bytes), so they're safe.
       let bgPrompt = customBgText.trim() || selectedBg.prompt;
       let locImages = null;
       if (selectedLocId) {
@@ -624,36 +623,28 @@ function App() {
         if (loc) { locImages = loc.imageUrls; bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos'; }
       }
 
-      // SEQUENTIAL generation — one by one to avoid Vercel 60s timeout
-      let successCount = 0;
-      for (let idx = 0; idx < angles.length; idx++) {
-        const angle = angles[idx];
-        setStatusText(`📸 Кадр ${idx + 1} из ${count}...`);
-        try {
-          const biometricSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
-          const resp = await fetch('/api/generate-image', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              garmentImagesBase64, modelPreset: modelPrompt,
-              posePreset: angle.pose, cameraAngle: angle.camera,
-              backgroundPreset: bgPrompt, aspectRatio: selectedRatio.id,
-              modelReferenceImages: modelRefImages, locationImages: locImages,
-              attributes: modelDetails, isBeautyMode, biometricSeed,
-            }),
-          });
-          const data = await safeParseJSON(resp);
+      // PARALLEL generation — all shots fire simultaneously for speed
+      const promises = angles.map((angle, idx) => {
+        const biometricSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
+        return fetch('/api/generate-image', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            garmentImagesBase64, modelPreset: modelPrompt,
+            posePreset: angle.pose, cameraAngle: angle.camera,
+            backgroundPreset: bgPrompt, aspectRatio: selectedRatio.id,
+            modelReferenceImages: modelRefImages, locationImages: locImages,
+            attributes: modelDetails, isBeautyMode, biometricSeed,
+          }),
+        }).then(r => safeParseJSON(r)).then(data => {
           if (data.success) {
             setPhotoshootImages(prev => { const n = [...prev]; n[idx] = `data:image/jpeg;base64,${data.imageBase64}`; return n; });
-            successCount++;
           } else {
-            console.warn(`Кадр ${idx + 1} не удался: ${data.details || data.error}`);
+            console.warn(`Кадр ${idx + 1}: ${data.details || data.error}`);
           }
-        } catch (err) {
-          console.warn(`Кадр ${idx + 1} ошибка: ${err.message}`);
-        }
-      }
-      setStatusText(successCount > 0 ? `🎉 Фотосессия: ${successCount} из ${count} кадров готовы!` : '❌ Не удалось сгенерировать фото');
-      setStatusType(successCount > 0 ? 'success' : 'error');
+        }).catch(err => console.warn(`Кадр ${idx + 1} ошибка:`, err.message))
+      });
+      await Promise.all(promises);
+      setStatusText('🎉 Фотосессия готова!'); setStatusType('success');
     } catch (err) { setStatusText(`Ошибка фотосессии: ${err.message}`); setStatusType('error'); }
     finally { setIsPhotoshooting(false); }
   };
