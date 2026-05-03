@@ -127,41 +127,180 @@ const downloadToBase64 = async (url) => {
 // ═══════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════
-// XML-TAGGED ATTRIBUTE DICTIONARY
+
 // ═══════════════════════════════════════════════════════════════════
-const ATTR_DICT = {
-  'Худощавое': '<BODY_OVERRIDE>TARGET: SLENDER/PETITE. IMPERATIVE: Completely IGNORE source image body mass. Force a very thin frame, slender limbs, delicate narrow shoulders, visible collarbones, low body fat. Warp and shrink clothing geometry to drape loosely over a noticeably thin frame. NOT average, NOT athletic.</BODY_OVERRIDE>',
-  'Спортивное': '<BODY_OVERRIDE>TARGET: ATHLETIC/FIT. IMPERATIVE: Force visibly toned active musculature, flat defined core, athletic posture, strong shoulders. Reshape clothing to wrap firmly around athletic contours. NOT overweight, NOT skinny.</BODY_OVERRIDE>',
-  'Среднее': '<BODY_OVERRIDE>TARGET: AVERAGE. Standard healthy normal proportions, BMI 20-25. Natural everyday person build.</BODY_OVERRIDE>',
-  'Полное': '<BODY_OVERRIDE>TARGET: PLUS-SIZE/HEAVY. IMPERATIVE: Completely IGNORE source image body mass. Force a heavy-set build, wide torso, thick arms/thighs, full round face, pronounced soft belly, US size 2XL-3XL. Expand and stretch clothing geometry heavily to fit a plus-size figure. NOT average, NOT slim.</BODY_OVERRIDE>',
-  'Мускулистое': '<BODY_OVERRIDE>TARGET: HYPER-MUSCULAR/BODYBUILDER. IMPERATIVE: Completely IGNORE source image body mass. Force massive muscular build, hyper-defined biceps and shoulders, broad powerful V-taper, thick neck, veins on forearms, low body fat 12-18%. Stretch clothing extremely tightly across massive muscles. NOT soft, NOT average, NOT overweight.</BODY_OVERRIDE>',
-  'Брюнетка': '<HAIR_COLOR>Deep rich dark brunette brown hair color</HAIR_COLOR>', 'Брюнет': '<HAIR_COLOR>Deep rich dark brunette brown hair color</HAIR_COLOR>',
-  'Шатенка': '<HAIR_COLOR>Warm chestnut medium-brown hair with natural highlights</HAIR_COLOR>', 'Шатен': '<HAIR_COLOR>Warm chestnut medium-brown hair with natural highlights</HAIR_COLOR>',
-  'Блондинка': '<HAIR_COLOR>Bright golden light blonde hair color</HAIR_COLOR>', 'Блондин': '<HAIR_COLOR>Bright golden light blonde hair color</HAIR_COLOR>',
-  'Рыжая': '<HAIR_COLOR>Vibrant copper ginger red hair (strictly non-brown, clearly red)</HAIR_COLOR>', 'Рыжий': '<HAIR_COLOR>Vibrant copper ginger red hair (strictly non-brown, clearly red)</HAIR_COLOR>',
-  'Чёрные': '<HAIR_COLOR>Jet black hair, pure dark, zero brown tint</HAIR_COLOR>',
-  'Седые': '<HAIR_COLOR>Natural silver-gray white aged hair</HAIR_COLOR>',
-  'Короткие': '<HAIR_LENGTH>Short cropped hair, cut above the ears</HAIR_LENGTH>',
-  'Средние': '<HAIR_LENGTH>Medium-length hair reaching the shoulders</HAIR_LENGTH>',
-  'Длинные': '<HAIR_LENGTH>Long flowing hair reaching well below the shoulders, past the chest</HAIR_LENGTH>',
-  'Бритая': '<HAIR_LENGTH>Completely shaved bald head, clean scalp, zero hair visible</HAIR_LENGTH>',
-  'Бритый': '<HAIR_LENGTH>Completely shaved bald head, clean scalp, zero hair visible</HAIR_LENGTH>',
-  'Нейтральная': '<EXPRESSION>Neutral calm face, mouth closed, direct relaxed gaze at camera</EXPRESSION>',
-  'Лёгкая улыбка': '<EXPRESSION>Gentle subtle warm smile, lips slightly curved upward, soft friendly eyes</EXPRESSION>',
-  'Серьёзная': '<EXPRESSION>Serious intense focused editorial look, strong direct eye contact, slight frown, no smile</EXPRESSION>',
-  'Серьёзный': '<EXPRESSION>Serious intense focused editorial look, strong direct eye contact, slight frown, no smile</EXPRESSION>',
-  'Уверенная': '<EXPRESSION>Confident powerful expression, chin slightly raised, bold commanding gaze</EXPRESSION>',
-  'Уверенный': '<EXPRESSION>Confident powerful expression, chin slightly raised, bold commanding gaze</EXPRESSION>',
-  'Дерзкая': '<EXPRESSION>Bold edgy rebellious attitude, defiant smirk, slightly squinted eyes</EXPRESSION>',
-  'Дерзкий': '<EXPRESSION>Bold edgy rebellious attitude, defiant smirk, slightly squinted eyes</EXPRESSION>',
-  'Уши': '<PIERCING>MANDATORY RENDER: Shiny metallic stud/hoop earrings clearly visible in both earlobes.</PIERCING>',
-  'Нос': '<PIERCING>MANDATORY RENDER: Metallic nose ring/stud piercing clearly visible on one nostril.</PIERCING>',
-  'Уши + Нос': '<PIERCING>MANDATORY RENDER: Metallic earrings in both ears AND a nostril nose ring — BOTH must be clearly visible.</PIERCING>',
-  'Минимализм': '<TATTOO>MANDATORY RENDER: Sharp minimalist fine-line black ink tattoos visible on exposed skin (wrists, collarbones, fingers). Ensure the model pose naturally EXPOSES these areas.</TATTOO>',
-  'Рукав': '<TATTOO>MANDATORY RENDER: Dense dark ink FULL TATTOO SLEEVE completely covering ONE ENTIRE ARM shoulder to wrist. MODIFICATION EXPOSURE: Ensure the tattooed arm is clearly visible and not hidden by clothing.</TATTOO>',
-  'Шея': '<TATTOO>MANDATORY RENDER: Prominent artistic dark ink tattoo on NECK/THROAT area. MODIFICATION EXPOSURE: Ensure neck is visible, not covered by collar. Tattoo must be unmistakably present.</TATTOO>',
+// GENDER-ISOLATED ATTRIBUTE DICTIONARIES
+// ═══════════════════════════════════════════════════════════════════
+const DICT_FEMALE = {
+  'Худощавое': '<BODY_OVERRIDE>TARGET: SLENDER PETITE FEMALE. Very thin feminine frame, delicate narrow shoulders, slender limbs, visible collarbones. Deform clothing to drape over a noticeably thin female body.</BODY_OVERRIDE>',
+  'Спортивное': '<BODY_OVERRIDE>TARGET: FIT FEMALE / YOGA BODY. Toned feminine figure, subtle healthy muscle definition on arms and core. Maintain soft feminine curves and female breast contour. Adjust clothing for an active female fit.</BODY_OVERRIDE>',
+  'Среднее': '<BODY_OVERRIDE>TARGET: AVERAGE NORMAL FEMALE. Standard healthy feminine proportions, natural female curves, soft body lines.</BODY_OVERRIDE>',
+  'Полное': '<BODY_OVERRIDE>TARGET: PLUS-SIZE FEMALE. Voluptuous curvy feminine figure, heavy-set. Full hips, thick feminine thighs, larger bust. Expand clothing heavily to naturally fit a confident plus-size woman (XXL).</BODY_OVERRIDE>',
+  'Мускулистое': '<BODY_OVERRIDE>TARGET: STRONG FEMALE ATHLETE / CROSSFIT BUILD. Strictly retain FEMININE body structure. Defined abdominal muscles, strong toned female arms. ABSOLUTELY NO masculine chest, NO thick male neck. Deform clothing to fit a very muscular BIOLOGICAL WOMAN.</BODY_OVERRIDE>',
+  'Брюнетка': '<HAIR_COLOR>Deep rich dark brunette brown female hair</HAIR_COLOR>',
+  'Шатенка': '<HAIR_COLOR>Warm chestnut brown female hair</HAIR_COLOR>',
+  'Блондинка': '<HAIR_COLOR>Bright golden blonde female hair</HAIR_COLOR>',
+  'Рыжая': '<HAIR_COLOR>Vibrant copper ginger red female hair</HAIR_COLOR>',
+  'Чёрные': '<HAIR_COLOR>Jet black female hair, pure dark</HAIR_COLOR>',
+  'Седые': '<HAIR_COLOR>Elegant silver-gray white mature female hair</HAIR_COLOR>',
+  'Короткие': '<HAIR_LENGTH>Chic short feminine haircut, pixie cut or short bob framing a female face.</HAIR_LENGTH>',
+  'Средние': '<HAIR_LENGTH>Medium-length elegant female hair, reaching the collarbones.</HAIR_LENGTH>',
+  'Длинные': '<HAIR_LENGTH>Long, beautiful flowing feminine hair cascading well past the chest.</HAIR_LENGTH>',
+  'Бритая': '<HAIR_LENGTH>TARGET: COMPLETELY BALD FEMALE / SHAVED HEAD. Bare scalp on a biological woman. CRITICAL: Maintain highly elegant, delicate FEMININE facial bone structure and flawless makeup. Do NOT make her look masculine.</HAIR_LENGTH>',
+  'Нейтральная': '<EXPRESSION>Calm, relaxed feminine face, soft neutral gaze, relaxed lips.</EXPRESSION>',
+  'Лёгкая улыбка': '<EXPRESSION>Gentle, warm, inviting feminine smile, soft friendly eyes.</EXPRESSION>',
+  'Серьёзная': '<EXPRESSION>Intense high-fashion editorial female look, striking feminine features, slight pout, no smile.</EXPRESSION>',
+  'Уверенная': '<EXPRESSION>Powerful, confident woman, chin slightly raised, commanding gaze.</EXPRESSION>',
+  'Дерзкая': '<EXPRESSION>Fierce femme-fatale attitude, seductive or playful smirk, bold confident female energy.</EXPRESSION>',
+  'Уши': '<PIERCING>MANDATORY RENDER: Shiny metallic earrings clearly visible in the woman\'s earlobes.</PIERCING>',
+  'Нос': '<PIERCING>MANDATORY RENDER: Delicate female nose ring/stud piercing clearly visible on her nostril.</PIERCING>',
+  'Уши + Нос': '<PIERCING>MANDATORY RENDER: Feminine earrings AND a delicate nostril nose ring clearly visible.</PIERCING>',
+  'Минимализм': '<TATTOO>MANDATORY RENDER: Elegant minimalist fine-line black ink tattoos visible on exposed female skin.</TATTOO>',
+  'Рукав': '<TATTOO>MANDATORY RENDER: Detailed artistic tattoo sleeve fully covering one of the woman\'s arms.</TATTOO>',
+  'Шея': '<TATTOO>MANDATORY RENDER: Prominent artistic dark ink tattoo strictly located on the woman\'s neck/throat area. Do NOT thicken the neck!</TATTOO>',
 };
 
+const DICT_MALE = {
+  'Худощавое': '<BODY_OVERRIDE>TARGET: LEAN/SLIM MALE. Lanky boyish build, narrow shoulders, thin masculine arms, low body fat. Force clothing to drape loosely on a thin male frame.</BODY_OVERRIDE>',
+  'Спортивное': '<BODY_OVERRIDE>TARGET: FIT ATHLETIC MALE. Gym-goer / swimmer physique, defined masculine chest and arms, flat core, broad shoulders. Reshape clothing to highlight athletic male contours.</BODY_OVERRIDE>',
+  'Среднее': '<BODY_OVERRIDE>TARGET: AVERAGE MALE. Standard everyday male body, regular build, healthy proportions.</BODY_OVERRIDE>',
+  'Полное': '<BODY_OVERRIDE>TARGET: HEAVY-SET MALE. Stocky, large male frame, broad thick waist, visible belly, thick arms. Expand clothing heavily to fit a large male figure (XXL).</BODY_OVERRIDE>',
+  'Мускулистое': '<BODY_OVERRIDE>TARGET: HYPER-MUSCULAR MALE BODYBUILDER. Massive masculine build. Hyper-defined biceps, broad powerful shoulders (V-taper), thick masculine neck, heavy chest muscles. Stretch clothing extremely tightly across massive male muscles.</BODY_OVERRIDE>',
+  'Брюнет': '<HAIR_COLOR>Deep rich dark brunette brown male hair</HAIR_COLOR>',
+  'Шатен': '<HAIR_COLOR>Warm chestnut brown male hair</HAIR_COLOR>',
+  'Блондин': '<HAIR_COLOR>Bright golden blonde male hair</HAIR_COLOR>',
+  'Рыжий': '<HAIR_COLOR>Vibrant copper ginger red male hair</HAIR_COLOR>',
+  'Чёрные': '<HAIR_COLOR>Jet black male hair, pure dark</HAIR_COLOR>',
+  'Седые': '<HAIR_COLOR>Silver fox, sophisticated silver-gray white mature male hair</HAIR_COLOR>',
+  'Короткие': '<HAIR_LENGTH>Classic short male haircut, neat fade or styled crop.</HAIR_LENGTH>',
+  'Средние': '<HAIR_LENGTH>Medium-length male hair, stylish modern flow or surfer look.</HAIR_LENGTH>',
+  'Длинные': '<HAIR_LENGTH>Long masculine hair, reaching shoulders, Viking or rockstar aesthetic.</HAIR_LENGTH>',
+  'Бритый': '<HAIR_LENGTH>TARGET: COMPLETELY BALD MALE. Clean shaved masculine scalp, strong skull shape, sharp male jawline.</HAIR_LENGTH>',
+  'Нейтральная': '<EXPRESSION>Calm, stoic masculine face, relaxed strong jaw, steady gaze.</EXPRESSION>',
+  'Лёгкая улыбка': '<EXPRESSION>Approachable, friendly male smile, warm eyes.</EXPRESSION>',
+  'Серьёзный': '<EXPRESSION>Intense, sharp masculine gaze, serious focused editorial look, furrowed brow.</EXPRESSION>',
+  'Уверенный': '<EXPRESSION>Strong alpha presence, self-assured male expression, solid eye contact.</EXPRESSION>',
+  'Дерзкий': '<EXPRESSION>Rebellious, edgy masculine attitude, defiant smirk, squinted challenging eyes.</EXPRESSION>',
+  'Уши': '<PIERCING>MANDATORY RENDER: Shiny metallic stud/hoop earrings clearly visible in the man\'s earlobes.</PIERCING>',
+  'Нос': '<PIERCING>MANDATORY RENDER: Masculine nose ring/stud piercing clearly visible on his nostril.</PIERCING>',
+  'Уши + Нос': '<PIERCING>MANDATORY RENDER: Male earrings AND a nostril nose ring clearly visible.</PIERCING>',
+  'Минимализм': '<TATTOO>MANDATORY RENDER: Sharp minimalist fine-line black ink tattoos visible on exposed male skin.</TATTOO>',
+  'Рукав': '<TATTOO>MANDATORY RENDER: Dense, dark ink FULL TATTOO SLEEVE completely covering ONE ENTIRE ARM.</TATTOO>',
+  'Шея': '<TATTOO>MANDATORY RENDER: Prominent artistic dark ink tattoo strictly located on the man\'s neck/throat area.</TATTOO>',
+};
+
+// ═══════════════════════════════════════════════════════════════════
+// POSE LIBRARIES (50 female + 50 male)
+// ═══════════════════════════════════════════════════════════════════
+const FEMALE_POSES = [
+  "Classic frontal stance, arms relaxed down with slight space between arms and torso to show garment shape.",
+  "Weight shifted to one leg, natural soft hip curve, hands resting naturally at sides.",
+  "Subtle 3/4 turn towards the camera, looking over the front shoulder, arms loose.",
+  "Symmetrical standing, perfect posture, chin parallel to the floor, high fashion catalog look.",
+  "Casual straight stance, feet shoulder-width apart, arms hanging with relaxed hands.",
+  "One foot slightly forward, natural effortless posture, chest open and facing the lens.",
+  "Delicate lean backward, weight on the back heel, front leg extended slightly.",
+  "Soft A-frame stance, hands gently clasped behind the back to fully expose the front garment.",
+  "Upright posture, slight tilt of the head, hands resting softly on upper thighs.",
+  "Elegant simplicity, standing tall, shoulders completely relaxed, soft facial expression.",
+  "One hand resting lightly on the waist, opposite arm straight down, confident look.",
+  "Both hands placed gently on the hips, elbows pointing outward to create a strong silhouette.",
+  "Thumbs hooked casually into front pockets, hands resting low to keep the shirt visible.",
+  "One hand touching the lower hip/thigh, slight twist of the torso, dynamic catalog pose.",
+  "Right hand on waist, left hand lightly touching the jawline, editorial attitude.",
+  "Fingers loosely resting on the belt loops, shoulders dropped, effortless cool.",
+  "One hand placed on the lower back to push the chest slightly forward, proud posture.",
+  "Asymmetrical hip placement, one hand low on the waist, creating an hourglass shape.",
+  "Subtle power pose, hands on waist but pulled back so the front of the garment is unobstructed.",
+  "Casual frame, hands touching the side seams of the pants/skirt, looking straight.",
+  "Mid-stride forward walk, right foot leading, natural arm swing capturing movement.",
+  "Stepping confidently towards the camera, wind-blown aesthetic, fabric in motion.",
+  "Dynamic step to the side, shifting weight sharply, creating diagonal energy.",
+  "Mid-turn, body twisted sideways but face looking back at the camera over the shoulder.",
+  "Striding forward rapidly, shoulders back, chin high, runway walk momentum.",
+  "Light stepping motion, one heel lifted, floating and airy sensation.",
+  "Stepping heavily on the front foot, leaning slightly into the motion, strong street-style walk.",
+  "Walking away from the lens but upper torso completely turned to look back.",
+  "Subtle swaying motion, weight shifting from left to right, capturing soft fabric drape.",
+  "Action stance, stepping down as if descending a stair, dynamic angles.",
+  "Avant-garde geometry, one shoulder raised, sharp collarbones, intense gaze.",
+  "Dramatic lean, torso angled 45 degrees, face turned to the camera, arms dropped.",
+  "One hand resting behind the neck, elbow pointing up, chest perfectly open and visible.",
+  "High-fashion slouch, upper back slightly rounded, chin tucked, intense moody look.",
+  "Asymmetrical arm placement, one arm extended slightly outward, creating negative space.",
+  "Vogue cover pose, chin lifted high, one hand lightly touching the collarbone.",
+  "Subtle torso twist, creating an S-curve, hands kept entirely out of the garment's way.",
+  "Architectural stance, sharp angles with the body, leaning sideways into an invisible wall.",
+  "Fashion drop, one shoulder aggressively dropped down, neck elongated.",
+  "Elegant power, hands crossed but placed extremely low below the hips.",
+  "Wide confident stance, feet apart, alpha female energy, intense straight gaze.",
+  "Strong athletic ready-stance, slight knee bend, focused powerful presence.",
+  "Urban attitude, leaning slightly forward, hands relaxed but body full of tension.",
+  "Fists gently clenched by the sides, feet firmly planted, strong aesthetic.",
+  "Power pose: chest pushed forward, shoulders rolled back, absolute dominance.",
+  "One foot planted heavily forward, strong torso angle, rebellious attitude.",
+  "Casual streetwear slouch, hands deep in front pockets, straight unbothered look.",
+  "Wide stance, slightly squatting or low-angle lean, edgy urban posture.",
+  "Looking directly into the lens with a fierce, challenging smirk, chest out.",
+  "Standing perfectly tall, unshakeable confidence, commanding runway presence.",
+];
+
+const MALE_POSES = [
+  "Strong upright stance, arms relaxed by the sides, shoulders squared to the camera.",
+  "Weight shifted slightly to one leg, relaxed masculine posture, natural arms.",
+  "Frontal view, feet shoulder-width apart, arms hanging straight down, classic catalog.",
+  "Subtle 3/4 angle, face turned to the camera, strong jawline display, relaxed arms.",
+  "Symmetrical stance, perfect posture, chest slightly open, professional male model look.",
+  "Relaxed straight stand, subtle droop in one shoulder for an unposed feel.",
+  "One foot slightly forward, arms detached from torso to clearly show garment fit.",
+  "Frontal stance, chest relaxed, hands resting in back pockets, easygoing stance.",
+  "Perfect vertical posture, chin parallel to the floor, neutral masculine grounding.",
+  "Slight forward lean from the waist, engaging the camera directly, arms loose.",
+  "Right hand fully in the pants pocket, left arm relaxed by the side, effortless casual look.",
+  "Both hands resting lightly in front pockets, thumbs visible pointing inward.",
+  "Left hand in pocket, right arm slightly bent, casual street-style leaning posture.",
+  "One hand casually hooked onto the belt loop, weight on one leg, confident relaxed vibe.",
+  "Both thumbs resting lightly in the front pockets, hands hanging loose, modern casual.",
+  "Hands resting on hips but positioned low near the belt line, strong casual stance.",
+  "One hand in pocket, the other hand adjusting the opposite cuff or watch.",
+  "Casual slouch, one hand in pocket, shoulders relaxed forward, urban aesthetic.",
+  "Both hands deep in pockets, slight lean back, confident and effortlessly stylish.",
+  "Hands resting in back pockets, chest pushed forward, extremely relaxed weekend vibe.",
+  "Mid-stride confident walk, right foot forward, natural masculine arm swing.",
+  "Urban street walk, stepping directly towards the camera, intense focused gaze.",
+  "Walking casually, looking off to the side, one hand swinging, dynamic fabric movement.",
+  "Stepping heavily forward, strong momentum, wide shoulders, commanding presence.",
+  "Looking back over the shoulder while mid-stride away from the camera, dynamic turn.",
+  "Fast paced walk, slight lean forward, energetic and modern city vibe.",
+  "Walking posture with one hand sliding into a pocket, capturing mid-movement flow.",
+  "Slightly elevated step, representing walking up stairs or uneven ground, active look.",
+  "Striding with purpose, both arms swinging naturally, chest leading the movement.",
+  "Urban motion, stopping mid-step, shifting weight backward, highly dynamic tension.",
+  "High fashion male pose, subtle torso twist, strong neck, angular and sharp posture.",
+  "One hand touching the back of the neck, elbow raised, highly editorial framing.",
+  "Slight lean to the side as if resting on an invisible wall, relaxed but striking.",
+  "Shoulder dropped, chin raised slightly, arrogant high-fashion editorial look.",
+  "Hands gently clasped in front of the lower waist, highly formal and composed.",
+  "Tilted head, intense eye contact, body turned slightly, emphasizing the jaw and shoulders.",
+  "Leaning forward slightly, looking up from under the brow, intense moody editorial.",
+  "Hands rubbing together slowly, elbows slightly out, sophisticated dynamic tension.",
+  "Adjusting the collar or tie, sharp focused look, classic menswear editorial.",
+  "One hand resting on the chin/jawline, the thinker pose, highly intellectual and sharp.",
+  "Wide dominant stance, arms crossed firmly over the lower chest, kept low to show clothing.",
+  "Strong athletic ready position, wide feet, slight knee bend, intense alpha focus.",
+  "Legs wide apart, fists slightly clenched by the hips, exuding raw power and strength.",
+  "Power pose: chest pushed forward, broad shoulders expanded, looking down slightly.",
+  "One foot heavily forward, leaning into the stance, aggressive and confident posture.",
+  "Athletic rest pose, hands on hips, chest expanding, heavy breath look.",
+  "Arms folded loosely, dominant posture, unshakeable solid grounding.",
+  "Standing extremely tall, military-like straight posture, commanding alpha presence.",
+  "Flexing subtly, arms slightly bent, emphasizing arm and shoulder definition.",
+  "Legs wide, hands resting on upper thighs, slightly leaning forward, fierce masculine dominance.",
+];
+
+// ═══════════════════════════════════════════════════════════════════
+// BIOMETRIC NOISE + POSE SELECTOR
+// ═══════════════════════════════════════════════════════════════════
 const MICRO_FEATURES = [
   "slightly asymmetrical jawline", "tiny beauty mark on cheek", "straight sharp nose bridge",
   "soft rounded jaw", "subtle dimples", "slightly wider-set eyes", "faint natural freckles across nose",
@@ -177,12 +316,39 @@ function getBiometricNoise(seed) {
   return idx === idx2 ? MICRO_FEATURES[idx] : `${MICRO_FEATURES[idx]}, ${MICRO_FEATURES[idx2]}`;
 }
 
-const SKIN_BEAUTY_PROMPT = `SKIN & FACE BEAUTY EDITORIAL DIRECTIVE (MANDATORY):
-Apply high-end commercial fashion beauty retouching. Flawless, perfectly smooth, airbrushed skin with a luminous healthy glow. Perfectly even skin tone, zero blemishes, zero visible pores, zero wrinkles. Soft flattering studio beauty lighting with gentle catch lights in eyes. Highly aesthetic, idealized model features suitable for a premium fashion magazine cover (Vogue, Elle level).
-The final image must look like a professionally retouched high-fashion editorial photograph.`;
+function detectGender(modelPreset) {
+  if (!modelPreset) return 'female';
+  const lower = modelPreset.toLowerCase();
+  if (/\b(male|мужск|славянин|азиат\b|европеец|африканец|латиноамериканец)\b/i.test(lower)) return 'male';
+  return 'female';
+}
 
-function buildAttributeDirectives(attributes) {
+function selectPoseFromSeed(seed, gender) {
+  const poses = gender === 'male' ? MALE_POSES : FEMALE_POSES;
+  const numericSeed = Math.abs(parseInt(seed, 36)) || Math.floor(Math.random() * 100000);
+  return poses[numericSeed % poses.length];
+}
+
+function buildGenderLock(gender) {
+  return gender === 'male'
+    ? '<GENDER_LOCK>BIOLOGICAL MALE. You MUST strictly enforce male anatomy, masculine bone structure, and male features. The model is a MAN.</GENDER_LOCK>'
+    : '<GENDER_LOCK>BIOLOGICAL FEMALE. You MUST strictly enforce 100% biological female anatomy, female breast contour, narrow waist, and highly feminine facial features. Under NO circumstances should she look like a man, even if muscular or bald.</GENDER_LOCK>';
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SKIN RENDER MODES
+// ═══════════════════════════════════════════════════════════════════
+const SKIN_BEAUTY_PROMPT = `<RENDER_PIPELINE>
+MODE: HIGH-END BEAUTY FASHION EDITORIAL.
+DIRECTIVE: Apply high-end commercial fashion retouching. Flawless, perfectly smooth, airbrushed skin. Glowing complexion, perfectly even skin tone, soft flattering studio lighting. Idealized model features.
+</RENDER_PIPELINE>`;
+
+// ═══════════════════════════════════════════════════════════════════
+// ATTRIBUTE DIRECTIVE BUILDER (gender-aware)
+// ═══════════════════════════════════════════════════════════════════
+function buildAttributeDirectives(attributes, gender) {
   if (!attributes || typeof attributes !== 'object') return '';
+  const dict = gender === 'male' ? DICT_MALE : DICT_FEMALE;
   const directives = [];
   Object.entries(attributes).forEach(([key, val]) => {
     if (!val) return;
@@ -192,9 +358,9 @@ function buildAttributeDirectives(attributes) {
       return;
     }
     if (Array.isArray(val)) {
-      val.filter(x => x !== 'Нет').forEach(item => { if (ATTR_DICT[item]) directives.push(ATTR_DICT[item]); });
+      val.filter(x => x !== 'Нет').forEach(item => { if (dict[item]) directives.push(dict[item]); });
     } else {
-      if (ATTR_DICT[val]) directives.push(ATTR_DICT[val]);
+      if (dict[val]) directives.push(dict[val]);
     }
   });
   return directives.join('\n');
@@ -207,7 +373,6 @@ function enhanceBodyMetrics(preset, editCmd) {
   }
   return enhanced;
 }
-
 // ═══════════════════════════════════════════════════════════════════
 // GARMENT SANITIZER — destroys facial data with solid black box
 // Gaussian blur leaves low-frequency data (skull shape, jawline shadows)
@@ -287,10 +452,15 @@ export default async function handler(req, res) {
     
     console.log(`🚀 [${new Date().toISOString()}] Запрос: calibration=${isCalibration}, garments=${garmentImages.length}, refs=${modelReferenceImages?.length || 0}, edit=${editInstruction || 'none'}, beauty=${isBeautyMode}`);
 
-    // Build XML attribute directives from structured selections
-    const attrDirectives = buildAttributeDirectives(attributes);
+    // Detect gender from model preset text
+    const gender = detectGender(modelPreset);
+
+    // Build XML attribute directives from structured selections (gender-aware)
+    const attrDirectives = buildAttributeDirectives(attributes, gender);
     const bioNoise = getBiometricNoise(biometricSeed);
     const skinPrompt = isBeautyMode ? SKIN_BEAUTY_PROMPT : SKIN_REALISM_PROMPT;
+    const genderLock = buildGenderLock(gender);
+    const selectedPose = selectPoseFromSeed(biometricSeed, gender);
 
     const enhancedActorProfile = enhanceBodyMetrics(modelPreset, editInstruction);
 
@@ -393,6 +563,7 @@ ${multiGarmentNote}
 
 <phase_2_subject_recasting>
 Generate a completely novel, living human actor to wear the isolated garment.
+${genderLock}
 SUBJECT GEOMETRY & TRAITS (CRITICAL): "${enhancedActorProfile}"
 - You MUST enforce a totally new biometric generation matching ONLY the traits above.
 ${modelInstruction}
@@ -400,6 +571,13 @@ ${bioNoise ? `<BIOMETRIC_SEED>UID-${biometricSeed}. Unique facial micro-features
 ${attrDirectives ? `<APPLIED_CHARACTERISTICS>
 ${attrDirectives}
 </APPLIED_CHARACTERISTICS>` : ''}
+<POSE_AND_CAMERA_DIRECTIVE>
+TARGET POSE: "${customPoseText || posePreset || selectedPose}"
+IMPERATIVE RULES FOR POSE EXECUTION:
+1. GARMENT VISIBILITY IS ABSOLUTE: Execute the target pose, but hands, arms, and accessories MUST NEVER completely cover or obscure the main design, logos, or chest/stomach area of the clothing. If the pose dictates crossed arms, place them loose and low.
+2. FABRIC PHYSICS & GRAVITY: The clothing must dynamically adapt to this specific pose. Calculate realistic fabric tension, drape, stretching, and wrinkles based on the model's body angle and limb positioning.
+3. EDITORIAL VIBE: The final image must look like a high-end fashion magazine lookbook. Break the flat "mannequin" syndrome entirely.
+</POSE_AND_CAMERA_DIRECTIVE>
 </phase_2_subject_recasting>
 `;
 
