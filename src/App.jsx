@@ -624,21 +624,23 @@ function App() {
         if (loc) { locImages = loc.imageUrls; bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos'; }
       }
 
-      const promises = angles.map((angle, idx) =>
-        fetch('/api/generate-image', {
+      const promises = angles.map((angle, idx) => {
+        const biometricSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
+        return fetch('/api/generate-image', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             garmentImagesBase64, modelPreset: modelPrompt,
             posePreset: angle.pose, cameraAngle: angle.camera,
             backgroundPreset: bgPrompt, aspectRatio: selectedRatio.id,
             modelReferenceImages: modelRefImages, locationImages: locImages,
+            attributes: modelDetails, isBeautyMode, biometricSeed,
           }),
         }).then(r => safeParseJSON(r)).then(data => {
           if (data.success) {
             setPhotoshootImages(prev => { const n = [...prev]; n[idx] = `data:image/jpeg;base64,${data.imageBase64}`; return n; });
           }
         }).catch(() => {})
-      );
+      });
       await Promise.all(promises);
       setStatusText('🎉 Фотосессия готова!'); setStatusType('success');
     } catch (err) { setStatusText(`Ошибка фотосессии: ${err.message}`); setStatusType('error'); }
