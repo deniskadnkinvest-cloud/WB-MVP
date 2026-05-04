@@ -85,6 +85,8 @@ function App() {
   // Multi-upload garments
   const [imageFiles, setImageFiles] = useState([]);
   const [previewUrls, setPreviewUrls] = useState([]);
+  const [garmentUrls, setGarmentUrls] = useState([]); // Firebase Storage URLs (lightweight)
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
 
   // Processing
@@ -161,22 +163,44 @@ function App() {
     if (filtered.length > 0) { setSelectedModel(filtered[0]); setCustomModelPrompt(''); setSelectedSavedModelId(null); }
   }, [gender]);
 
-  // Multi-file upload
+  // Multi-file upload — compress + upload to Firebase Storage immediately
   const handleFilesChange = useCallback(async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     const newFiles = [...imageFiles, ...files].slice(0, 9);
     setImageFiles(newFiles);
-    const urls = newFiles.map(f => URL.createObjectURL(f));
-    setPreviewUrls(urls);
+    const localUrls = newFiles.map(f => URL.createObjectURL(f));
+    setPreviewUrls(localUrls);
     setGeneratedImage(null);
-    setStatusText(`Загружено ${newFiles.length} вещ${newFiles.length === 1 ? 'ь' : newFiles.length < 5 ? 'и' : 'ей'}. Все будут надеты на модель.`);
+    setStatusText('☁️ Загружаем фото в облако...');
     setStatusType('');
-  }, [imageFiles]);
+    setIsUploading(true);
+    try {
+      // Only upload NEW files (ones not yet in garmentUrls)
+      const existingCount = garmentUrls.length;
+      const filesToUpload = newFiles.slice(existingCount);
+      const newUrls = await Promise.all(filesToUpload.map(async (f) => {
+        const compressed = await compressImage(f, 1200);
+        const { url } = await uploadImage(user?.uid || 'anonymous', compressed, 'garments');
+        return url;
+      }));
+      const allUrls = [...garmentUrls, ...newUrls].slice(0, 9);
+      setGarmentUrls(allUrls);
+      setStatusText(`Загружено ${newFiles.length} вещ${newFiles.length === 1 ? 'ь' : newFiles.length < 5 ? 'и' : 'ей'}. Все будут надеты на модель.`);
+    } catch (err) {
+      console.error('Upload error:', err);
+      setStatusText('Ошибка загрузки. Попробуйте ещё раз.');
+      setStatusType('error');
+    } finally {
+      setIsUploading(false);
+    }
+  }, [imageFiles, garmentUrls, user]);
 
   const removeFile = (idx) => {
     const nf = imageFiles.filter((_,i) => i !== idx);
+    const nu = garmentUrls.filter((_,i) => i !== idx);
     setImageFiles(nf); setPreviewUrls(nf.map(f => URL.createObjectURL(f)));
+    setGarmentUrls(nu);
     if (!nf.length) setStatusText('');
   };
 
@@ -283,7 +307,6 @@ function App() {
     const iv = setInterval(() => { setProcessingMsg(msgI < MSGS.length ? MSGS[msgI++] : 'Финальные штрихи...'); }, 8000);
     try {
       setProcessingMsg('Подготавливаем исходники...');
-      const garmentImagesBase64 = await Promise.all(imageFiles.map(f => blobToBase64(f)));
 
       let modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
       let modelRefImages = null;
@@ -317,7 +340,7 @@ function App() {
         Math.random().toString(36).substring(2, 10).toUpperCase(),
       ];
       const buildBody = (seed) => JSON.stringify({
-        garmentImagesBase64, modelPreset: modelPrompt, posePreset: posePrompt,
+        garmentImageUrls: garmentUrls, modelPreset: modelPrompt, posePreset: posePrompt,
         cameraAngle: selectedCamera.prompt, backgroundPreset: bgPrompt,
         aspectRatio: selectedRatio.id, modelReferenceImages: modelRefImages,
         locationImages: locImages, customPoseText: customPoseText.trim() || undefined,
@@ -508,15 +531,12 @@ function App() {
     try {
       const refImgs = sm?.imageUrls || [];
       // Use loaded garments if available, otherwise send previewMode
-      let garments = [];
-      if (imageFiles.length > 0) {
-        garments = await Promise.all(imageFiles.slice(0, 1).map(f => blobToBase64(f)));
-      }
+      let garmentUrlsForPreview = garmentUrls.slice(0, 1);
       const resp = await fetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          garmentImagesBase64: garments,
-          previewMode: garments.length === 0,
+          garmentImageUrls: garmentUrlsForPreview,
+          previewMode: garmentUrlsForPreview.length === 0,
           modelPreset: prompt + '. Generate a fashion model portrait wearing simple casual clothing.',
           posePreset: 'standing straight, facing camera, neutral pose',
           cameraAngle: 'medium shot waist up', backgroundPreset: 'clean white studio',
@@ -574,7 +594,6 @@ function App() {
 
     try {
       setProcessingMsg('Подготавливаем исходники...');
-      const garmentImagesBase64 = await Promise.all(imageFiles.map(f => blobToBase64(f)));
 
       let modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
       let modelRefImages = null;
@@ -623,7 +642,7 @@ function App() {
       const resp = await fetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          garmentImagesBase64, modelPreset: modelPrompt, posePreset: posePrompt,
+          garmentImageUrls: garmentUrls, modelPreset: modelPrompt, posePreset: posePrompt,
           cameraAngle: selectedCamera.prompt, backgroundPreset: bgPrompt,
           aspectRatio: selectedRatio.id, modelReferenceImages: editRefImages.length > 0 ? editRefImages : null,
           locationImages: locImages,
@@ -672,7 +691,6 @@ function App() {
     setPhotoshootImages(prev => [...prev.filter(Boolean), ...new Array(count).fill(null)]);
     setStatusText(`📸 Генерируем ещё ${count} кадров...`); setStatusType('');
     try {
-      const garmentImagesBase64 = await Promise.all(imageFiles.map(f => blobToBase64(f)));
       let modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
       let modelRefImages = null;
       if (selectedSavedModelId) {
@@ -695,7 +713,7 @@ function App() {
         return fetch('/api/generate-image', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            garmentImagesBase64, modelPreset: modelPrompt,
+            garmentImageUrls: garmentUrls, modelPreset: modelPrompt,
             posePreset: angle.pose, cameraAngle: angle.camera,
             backgroundPreset: bgPrompt, aspectRatio: selectedRatio.id,
             modelReferenceImages: modelRefImages, locationImages: locImages,
@@ -728,7 +746,6 @@ function App() {
     setIsPhotoEditing(true);
     setStatusText('✏️ Редактируем кадр...'); setStatusType('');
     try {
-      const garmentImagesBase64 = await Promise.all(imageFiles.map(f => blobToBase64(f)));
       let modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
       let modelRefImages = null;
       if (selectedSavedModelId) {
@@ -746,7 +763,7 @@ function App() {
       const resp = await fetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          garmentImagesBase64, modelPreset: modelPrompt,
+          garmentImageUrls: garmentUrls, modelPreset: modelPrompt,
           posePreset: photoEditText.trim(),
           cameraAngle: selectedCamera.prompt,
           backgroundPreset: bgPrompt, aspectRatio: selectedRatio.id,
@@ -1017,7 +1034,7 @@ function App() {
           </label>
           <span className="beauty-hint">{isBeautyMode ? 'Журнальный глянец, идеальная кожа' : 'Натуральная кожа с текстурой'}</span>
         </div>
-        <button className="generate-btn" onClick={handleGenerate} onMouseEnter={() => { fetch('/api/generate-image', { method: 'OPTIONS', keepalive: true }).catch(() => {}); }} disabled={!imageFiles.length||isProcessing}>✨ Сгенерировать студийный кадр</button>
+        <button className="generate-btn" onClick={handleGenerate} onMouseEnter={() => { fetch('/api/generate-image', { method: 'OPTIONS', keepalive: true }).catch(() => {}); }} disabled={!garmentUrls.length||isProcessing||isUploading}>{isUploading ? '☁️ Загрузка в облако...' : '✨ Сгенерировать студийный кадр'}</button>
         <div className="status-bar">{statusText && <p className={`status-text ${statusType}`}>{statusText}</p>}</div>
       </motion.div>
 

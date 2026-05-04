@@ -437,6 +437,7 @@ export default async function handler(req, res) {
       aspectRatio = "3:4",
       garmentImagesBase64 = [],
       garmentImageBase64,
+      garmentImageUrls = [],
       modelReferenceImages,
       locationImages,
       customPoseText,
@@ -448,9 +449,24 @@ export default async function handler(req, res) {
       biometricSeed,
     } = req.body;
 
-    let garmentImages = garmentImagesBase64.length > 0 ? garmentImagesBase64 : (garmentImageBase64 ? [garmentImageBase64] : []);
+    // ═══ GARMENT SOURCE RESOLUTION ═══
+    // Priority: URLs (lightweight) → base64 (legacy) → single base64 (legacy v1)
+    let garmentImages = [];
+    if (garmentImageUrls.length > 0) {
+      // New path: download from Firebase Storage (server-to-server, instant inside Google network)
+      console.log(`☁️ Downloading ${garmentImageUrls.length} garment(s) from Firebase Storage...`);
+      const downloads = await Promise.all(garmentImageUrls.map(url => downloadToBase64(url)));
+      garmentImages = downloads
+        .filter(d => d !== null)
+        .map(d => `data:${d.mimeType};base64,${d.base64str}`);
+      console.log(`☁️ Downloaded ${garmentImages.length}/${garmentImageUrls.length} garment(s) successfully`);
+    } else if (garmentImagesBase64.length > 0) {
+      garmentImages = garmentImagesBase64;
+    } else if (garmentImageBase64) {
+      garmentImages = [garmentImageBase64];
+    }
     
-    console.log(`🚀 [${new Date().toISOString()}] Запрос: calibration=${isCalibration}, garments=${garmentImages.length}, refs=${modelReferenceImages?.length || 0}, edit=${editInstruction || 'none'}, beauty=${isBeautyMode}`);
+    console.log(`🚀 [${new Date().toISOString()}] Запрос: calibration=${isCalibration}, garments=${garmentImages.length}, refs=${modelReferenceImages?.length || 0}, edit=${editInstruction || 'none'}, beauty=${isBeautyMode}, source=${garmentImageUrls.length > 0 ? 'URLs' : 'base64'}`);
 
     // Detect gender from model preset text
     const gender = detectGender(modelPreset);
