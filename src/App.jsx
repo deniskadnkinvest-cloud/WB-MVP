@@ -113,6 +113,11 @@ function App() {
   const [photoshootImages, setPhotoshootImages] = useState([]);
   const [isPhotoshooting, setIsPhotoshooting] = useState(false);
 
+  // Per-photo editor
+  const [editingPhotoIdx, setEditingPhotoIdx] = useState(null);
+  const [photoEditText, setPhotoEditText] = useState('');
+  const [isPhotoEditing, setIsPhotoEditing] = useState(false);
+
   // Lightbox (gallery mode)
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [lightboxGallery, setLightboxGallery] = useState([]);
@@ -684,6 +689,65 @@ function App() {
     finally { setIsPhotoshooting(false); }
   };
 
+  // ═══ PER-PHOTO EDITOR ═══
+  // Takes a specific photo from the photoshoot gallery, sends it with an edit instruction,
+  // and replaces the original photo with the result.
+  const handlePhotoEdit = async () => {
+    if (editingPhotoIdx === null || !photoEditText.trim()) return;
+    const originalPhoto = photoshootImages[editingPhotoIdx];
+    if (!originalPhoto) return;
+
+    setIsPhotoEditing(true);
+    setStatusText('✏️ Редактируем кадр...'); setStatusType('');
+    try {
+      const garmentImagesBase64 = await Promise.all(imageFiles.map(f => blobToBase64(f)));
+      let modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
+      let modelRefImages = null;
+      if (selectedSavedModelId) {
+        const sm = myModels.find(m => m.id === selectedSavedModelId);
+        if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
+      }
+      let bgPrompt = customBgText.trim() || selectedBg.prompt;
+      let locImages = null;
+      if (selectedLocId) {
+        const loc = myLocations.find(l => l.id === selectedLocId);
+        if (loc) { locImages = loc.imageUrls; bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos'; }
+      }
+
+      const biometricSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
+      const resp = await fetch('/api/generate-image', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          garmentImagesBase64, modelPreset: modelPrompt,
+          posePreset: photoEditText.trim(),
+          cameraAngle: selectedCamera.prompt,
+          backgroundPreset: bgPrompt, aspectRatio: selectedRatio.id,
+          modelReferenceImages: modelRefImages, locationImages: locImages,
+          editInstruction: photoEditText.trim(),
+          attributes: modelDetails, isBeautyMode, biometricSeed,
+        }),
+      });
+      const data = await safeParseJSON(resp);
+      if (data.success) {
+        const editedImg = `data:image/jpeg;base64,${data.imageBase64}`;
+        setPhotoshootImages(prev => {
+          const n = [...prev];
+          n[editingPhotoIdx] = editedImg;
+          return n;
+        });
+        setStatusText('✅ Кадр отредактирован!'); setStatusType('success');
+        setEditingPhotoIdx(null);
+        setPhotoEditText('');
+      } else {
+        setStatusText(`Ошибка: ${data.details || data.error}`); setStatusType('error');
+      }
+    } catch (err) {
+      setStatusText(`Ошибка: ${err.message}`); setStatusType('error');
+    } finally {
+      setIsPhotoEditing(false);
+    }
+  };
+
   if (loading) return <div className="app-wrapper" style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh'}}><div className="processing-spinner" /></div>;
   if (!user) return <LoginPage />;
 
@@ -1021,6 +1085,11 @@ function App() {
                       {img ? (
                         <>
                           <img src={img} alt={`Кадр ${i+1}`} onClick={() => openLightboxGallery(photoshootImages, i)} style={{cursor:'pointer'}} />
+                          <button className="edit-mini-btn" title="Редактировать этот кадр" onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingPhotoIdx(i);
+                            setPhotoEditText('');
+                          }}>✏️</button>
                           <button className="download-mini-btn" onClick={() => {
                             const a = document.createElement('a'); a.href = img; a.download = `SellerStudio_${i+1}_${Date.now()}.jpg`; a.click();
                           }}>⬇️</button>
@@ -1122,6 +1191,40 @@ function App() {
               {lightboxGallery.length > 1 && <span className="lightbox-counter">{lightboxIdx + 1} / {lightboxGallery.length}</span>}
               <button className="lightbox-download" onClick={e => { e.stopPropagation(); const a = document.createElement('a'); a.href = lightboxSrc; a.download = `SellerStudio_${Date.now()}.jpg`; a.click(); }}>⬇️ Скачать</button>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* PHOTO EDITOR MODAL */}
+      <AnimatePresence>
+        {editingPhotoIdx !== null && photoshootImages[editingPhotoIdx] && (
+          <motion.div className="photo-editor-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => { if (!isPhotoEditing) { setEditingPhotoIdx(null); setPhotoEditText(''); } }}>
+            <motion.div className="photo-editor-modal" initial={{scale:0.9, opacity:0}} animate={{scale:1, opacity:1}} exit={{scale:0.9, opacity:0}} onClick={e => e.stopPropagation()}>
+              <button className="photo-editor-close" onClick={() => { if (!isPhotoEditing) { setEditingPhotoIdx(null); setPhotoEditText(''); } }}>✕</button>
+              <div className="photo-editor-preview">
+                <img src={photoshootImages[editingPhotoIdx]} alt="Редактируемый кадр" />
+                <span className="photo-editor-badge">Кадр {editingPhotoIdx + 1}</span>
+              </div>
+              <div className="photo-editor-controls">
+                <p className="photo-editor-hint">Опишите, что изменить в этом кадре:</p>
+                <textarea
+                  className="photo-editor-input"
+                  placeholder="Добавь солнечные очки, измени фон на пляж, разверни модель в профиль..."
+                  value={photoEditText}
+                  onChange={e => setPhotoEditText(e.target.value)}
+                  rows={3}
+                  disabled={isPhotoEditing}
+                />
+                <div className="photo-editor-quick-tags">
+                  {['Добавить очки', 'Сменить фон', 'Крупный план', 'Поза в движении', 'Другая причёска'].map(tag => (
+                    <button key={tag} className="photo-editor-tag" onClick={() => setPhotoEditText(prev => prev ? `${prev}, ${tag.toLowerCase()}` : tag.toLowerCase())} disabled={isPhotoEditing}>{tag}</button>
+                  ))}
+                </div>
+                <button className="photo-editor-submit" onClick={handlePhotoEdit} disabled={!photoEditText.trim() || isPhotoEditing}>
+                  {isPhotoEditing ? '⏳ Редактируем...' : '✨ Применить изменения'}
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
