@@ -17,16 +17,21 @@ const initDetails = () => { const d={}; Object.keys(getModelDetails('female')).f
 
 // Safe JSON parser — handles Vercel timeouts that return HTML instead of JSON
 const safeParseJSON = async (resp) => {
+  // Check HTTP status first
+  if (resp.status === 413) {
+    console.error('⚠️ 413 Payload Too Large — image files are too big');
+    return { success: false, error: 'Файл слишком большой. Попробуйте фото меньшего размера.' };
+  }
   const text = await resp.text();
   try {
     return JSON.parse(text);
   } catch {
     // Vercel returned HTML error page (timeout/crash)
-    console.error('⚠️ Non-JSON response from API:', text.substring(0, 200));
+    console.error('⚠️ Non-JSON response from API:', resp.status, text.substring(0, 200));
     if (text.includes('FUNCTION_INVOCATION_TIMEOUT') || text.includes('An error occurred')) {
       return { success: false, error: 'Сервер не успел ответить (таймаут). Попробуйте ещё раз.' };
     }
-    return { success: false, error: `Сервер вернул некорректный ответ. Попробуйте позже.` };
+    return { success: false, error: `Ошибка сервера (${resp.status}). Попробуйте позже.` };
   }
 };
 
@@ -175,7 +180,30 @@ function App() {
     if (!nf.length) setStatusText('');
   };
 
-  const blobToBase64 = blob => new Promise((res, rej) => { const r = new FileReader(); r.onloadend = () => res(r.result); r.onerror = rej; r.readAsDataURL(blob); });
+  const blobToBase64 = (blob, maxSize = 1200) => new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onerror = rej;
+    reader.onloadend = () => {
+      const img = new Image();
+      img.onload = () => {
+        // If already small enough, return as-is
+        if (img.width <= maxSize && img.height <= maxSize) {
+          res(reader.result);
+          return;
+        }
+        // Resize through canvas
+        const ratio = Math.min(maxSize / img.width, maxSize / img.height, 1);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        res(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = () => res(reader.result); // fallback: return raw
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(blob);
+  });
 
   // ═══ RU→EN Prompt Mapping — ULTRA-DETAILED descriptors ═══
   // Each characteristic MUST be described in enough detail that Gemini cannot skip it.
