@@ -474,30 +474,33 @@ export default async function handler(req, res) {
 
         console.log(`✏️ Source image: ${sourceData.mimeType}, ${Math.round(sourceData.base64str.length / 1024)}KB base64`);
 
-        const editPrompt = `You are a professional photo retoucher. You will receive a photograph.
+        const editPrompt = `PHOTO EDITING MODE — NON-DESTRUCTIVE RETOUCHING.
 
-YOUR TASK: Apply ONLY the following edit to this photograph:
-"${editInstruction}"
+You are receiving an existing photograph. Your ONLY job is to make ONE specific modification to it.
 
-CRITICAL RULES:
-1. Keep the ENTIRE image IDENTICAL — same person, same pose, same clothing, same background, same lighting, same camera angle, same composition, same colors.
-2. Change ONLY what the user explicitly requested. Nothing else.
-3. If the user asks to remove something (e.g. tattoo), seamlessly blend the area with natural surrounding skin/surface.
-4. If the user asks to add something (e.g. sunglasses), add it naturally while keeping everything else untouched.
-5. Maintain the exact same image resolution. 
-6. The result must look like the original photo with a single precise edit — NOT a regenerated image.
+EDIT REQUESTED: "${editInstruction}"
 
-OUTPUT: Return ONLY the edited image. No text.`;
+ABSOLUTE REQUIREMENTS:
+- DO NOT regenerate, recreate, or reimagine this image.
+- DO NOT change the person's identity, face shape, body shape, skin color, hair, clothing, or pose.
+- DO NOT change the background, lighting, camera angle, or composition.
+- DO NOT add or remove anything that was NOT explicitly requested.
+- The output image MUST be visually identical to the input image in every way EXCEPT for the specific edit requested.
+- Treat this as Photoshop-level retouching: precise, surgical, minimal.
+- If asked to "add a smile": change ONLY the mouth area. Everything else stays pixel-identical.
+- If asked to "remove tattoo": blend ONLY the tattoo area with surrounding skin. Nothing else changes.
+
+Return ONLY the edited photograph.`;
 
         const parts = [
-          { text: editPrompt },
           { inlineData: { data: sourceData.base64str, mimeType: sourceData.mimeType } },
+          { text: editPrompt },
         ];
 
         const response = await ai.models.generateContent({
           model: 'gemini-3.1-flash-image-preview',
           contents: [{ role: 'user', parts }],
-          config: { responseModalities: ['IMAGE', 'TEXT'], temperature: 0.3 },
+          config: { responseModalities: ['IMAGE', 'TEXT'], temperature: 0.1 },
         });
 
         let imageBase64 = null;
