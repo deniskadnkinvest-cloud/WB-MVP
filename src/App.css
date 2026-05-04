@@ -1542,9 +1542,6 @@
 }
 
 .download-mini-btn {
-  position: absolute;
-  bottom: 6px;
-  right: 6px;
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(6px);
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -1581,6 +1578,121 @@
 .edit-mini-btn:hover {
   background: rgba(212, 175, 55, 0.3);
   border-color: var(--gold-primary);
+}
+
+/* ═══ EDITED PHOTO INDICATOR ═══ */
+.photoshoot-item--edited {
+  border: 2px solid var(--gold-primary) !important;
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.3);
+}
+
+.photo-edited-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  background: rgba(212, 175, 55, 0.85);
+  backdrop-filter: blur(6px);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #000;
+  z-index: 3;
+}
+
+/* ═══ PHOTO HISTORY NAV (per-photo ◀▶) ═══ */
+.photo-history-nav {
+  position: absolute;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  border-radius: 16px;
+  padding: 2px 6px;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.photoshoot-item:hover .photo-history-nav {
+  opacity: 1;
+}
+
+.photo-history-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.2s ease;
+}
+.photo-history-btn:hover:not(:disabled) {
+  background: var(--gold-primary);
+  color: #000;
+}
+.photo-history-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.photo-history-counter {
+  font-size: 0.6rem;
+  color: rgba(255, 255, 255, 0.8);
+  min-width: 28px;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* ═══ DOWNLOAD MENU ═══ */
+.download-mini-wrapper {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  z-index: 4;
+}
+
+.download-menu {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  min-width: 160px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 10;
+}
+
+.download-menu button {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.72rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+.download-menu button:hover {
+  background: rgba(212, 175, 55, 0.15);
+  color: var(--gold-primary);
+}
+.download-menu button + button {
+  border-top: 1px solid var(--border-subtle);
 }
 
 /* ═══ PHOTO EDITOR MODAL ═══ */

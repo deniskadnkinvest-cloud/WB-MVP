@@ -125,6 +125,13 @@ function App() {
   const [photoEditText, setPhotoEditText] = useState('');
   const [isPhotoEditing, setIsPhotoEditing] = useState(false);
 
+  // Per-photo edit history: { [photoIndex]: [original, edit1, edit2, ...] }
+  const [photoHistory, setPhotoHistory] = useState({});
+  // Which version is currently shown per photo: { [photoIndex]: viewIndex }
+  const [photoViewIdx, setPhotoViewIdx] = useState({});
+  // Download menu open state
+  const [downloadMenuIdx, setDownloadMenuIdx] = useState(null);
+
   // Lightbox (gallery mode)
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [lightboxGallery, setLightboxGallery] = useState([]);
@@ -721,8 +728,13 @@ function App() {
           }),
         }).then(r => safeParseJSON(r)).then(data => {
           if (data.success) {
+            const imgData = `data:image/jpeg;base64,${data.imageBase64}`;
+            const slotIdx = existingCount + idx;
             // Place at the correct offset position (existing photos + batch index)
-            setPhotoshootImages(prev => { const n = [...prev]; n[existingCount + idx] = `data:image/jpeg;base64,${data.imageBase64}`; return n; });
+            setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = imgData; return n; });
+            // Initialize history with original
+            setPhotoHistory(prev => ({ ...prev, [slotIdx]: [imgData] }));
+            setPhotoViewIdx(prev => ({ ...prev, [slotIdx]: 0 }));
           } else {
             console.warn(`Кадр ${existingCount + idx + 1}: ${data.details || data.error}`);
           }
@@ -740,8 +752,9 @@ function App() {
   // and replaces the original photo with the result.
   const handlePhotoEdit = async () => {
     if (editingPhotoIdx === null || !photoEditText.trim()) return;
-    const originalPhoto = photoshootImages[editingPhotoIdx];
-    if (!originalPhoto) return;
+    const currentVersions = photoHistory[editingPhotoIdx] || [photoshootImages[editingPhotoIdx]];
+    const currentImg = currentVersions[currentVersions.length - 1];
+    if (!currentImg) return;
 
     setIsPhotoEditing(true);
     setStatusText('✏️ Редактируем кадр...'); setStatusType('');
@@ -775,10 +788,21 @@ function App() {
       const data = await safeParseJSON(resp);
       if (data.success) {
         const editedImg = `data:image/jpeg;base64,${data.imageBase64}`;
+        // Update photoshootImages to show latest
         setPhotoshootImages(prev => {
           const n = [...prev];
           n[editingPhotoIdx] = editedImg;
           return n;
+        });
+        // Push to history
+        setPhotoHistory(prev => {
+          const versions = prev[editingPhotoIdx] || [currentVersions[0]];
+          return { ...prev, [editingPhotoIdx]: [...versions, editedImg] };
+        });
+        // Set view to latest
+        setPhotoViewIdx(prev => {
+          const versions = (photoHistory[editingPhotoIdx] || [currentVersions[0]]);
+          return { ...prev, [editingPhotoIdx]: versions.length }; // new length = old + 1, index = length
         });
         setStatusText('✅ Кадр отредактирован!'); setStatusType('success');
         setEditingPhotoIdx(null);
@@ -1125,25 +1149,75 @@ function App() {
               <div className="photoshoot-gallery">
                 <h4>📷 Галерея фотосессии</h4>
                 <div className="photoshoot-grid">
-                  {photoshootImages.map((img, i) => (
-                    <div key={i} className="photoshoot-item">
-                      {img ? (
+                  {photoshootImages.map((img, i) => {
+                    const versions = photoHistory[i];
+                    const hasEdits = versions && versions.length > 1;
+                    const viewIdx = photoViewIdx[i] ?? (versions ? versions.length - 1 : 0);
+                    const displayImg = hasEdits ? versions[viewIdx] : img;
+                    return (
+                    <div key={i} className={`photoshoot-item ${hasEdits ? 'photoshoot-item--edited' : ''}`}>
+                      {displayImg ? (
                         <>
-                          <img src={img} alt={`Кадр ${i+1}`} onClick={() => openLightboxGallery(photoshootImages, i)} style={{cursor:'pointer'}} />
+                          <img src={displayImg} alt={`Кадр ${i+1}`} onClick={() => {
+                            const gallery = hasEdits ? versions : photoshootImages;
+                            openLightboxGallery(gallery, hasEdits ? viewIdx : i);
+                          }} style={{cursor:'pointer'}} />
+                          {hasEdits && (
+                            <>
+                              <span className="photo-edited-badge">✨ Изменено ({versions.length - 1})</span>
+                              <div className="photo-history-nav">
+                                <button className="photo-history-btn" disabled={viewIdx <= 0} onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPhotoViewIdx(prev => ({ ...prev, [i]: viewIdx - 1 }));
+                                }}>‹</button>
+                                <span className="photo-history-counter">{viewIdx + 1}/{versions.length}</span>
+                                <button className="photo-history-btn" disabled={viewIdx >= versions.length - 1} onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPhotoViewIdx(prev => ({ ...prev, [i]: viewIdx + 1 }));
+                                }}>›</button>
+                              </div>
+                            </>
+                          )}
                           <button className="edit-mini-btn" title="Редактировать этот кадр" onClick={(e) => {
                             e.stopPropagation();
                             setEditingPhotoIdx(i);
                             setPhotoEditText('');
                           }}>✏️</button>
-                          <button className="download-mini-btn" onClick={() => {
-                            const a = document.createElement('a'); a.href = img; a.download = `SellerStudio_${i+1}_${Date.now()}.jpg`; a.click();
-                          }}>⬇️</button>
+                          <div className="download-mini-wrapper">
+                            <button className="download-mini-btn" onClick={(e) => {
+                              e.stopPropagation();
+                              if (hasEdits) {
+                                setDownloadMenuIdx(downloadMenuIdx === i ? null : i);
+                              } else {
+                                const a = document.createElement('a'); a.href = displayImg; a.download = `SellerStudio_${i+1}_${Date.now()}.jpg`; a.click();
+                              }
+                            }}>⬇️</button>
+                            {downloadMenuIdx === i && hasEdits && (
+                              <div className="download-menu">
+                                <button onClick={(e) => {
+                                  e.stopPropagation();
+                                  const a = document.createElement('a'); a.href = versions[versions.length - 1]; a.download = `SellerStudio_${i+1}_latest_${Date.now()}.jpg`; a.click();
+                                  setDownloadMenuIdx(null);
+                                }}>📸 Последнюю версию</button>
+                                <button onClick={(e) => {
+                                  e.stopPropagation();
+                                  versions.forEach((v, vi) => {
+                                    setTimeout(() => {
+                                      const a = document.createElement('a'); a.href = v; a.download = `SellerStudio_${i+1}_v${vi+1}_${Date.now()}.jpg`; a.click();
+                                    }, vi * 300);
+                                  });
+                                  setDownloadMenuIdx(null);
+                                }}>📦 Все версии ({versions.length})</button>
+                              </div>
+                            )}
+                          </div>
                         </>
                       ) : (
                         <div className="photoshoot-placeholder"><div className="processing-spinner" style={{width:24,height:24}} /></div>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
