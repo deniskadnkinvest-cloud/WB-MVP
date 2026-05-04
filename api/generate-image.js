@@ -457,21 +457,24 @@ export default async function handler(req, res) {
     // Does NOT regenerate from scratch — only modifies what the user asked for.
     if (isPhotoEdit && editInstruction) {
       console.log(`✏️ [${new Date().toISOString()}] Photo Edit: "${editInstruction}"`);
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      try {
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-      // Get source image data
-      let sourceData = null;
-      if (sourceImageUrl) {
-        sourceData = await downloadToBase64(sourceImageUrl);
-      } else if (sourceImageBase64) {
-        const { mimeType, base64str } = extractBase64(sourceImageBase64);
-        sourceData = { mimeType, base64str };
-      }
-      if (!sourceData) {
-        return res.status(400).json({ success: false, error: 'No source image provided for editing.' });
-      }
+        // Get source image data
+        let sourceData = null;
+        if (sourceImageUrl) {
+          sourceData = await downloadToBase64(sourceImageUrl);
+        } else if (sourceImageBase64) {
+          const { mimeType, base64str } = extractBase64(sourceImageBase64);
+          sourceData = { mimeType, base64str };
+        }
+        if (!sourceData) {
+          return res.status(200).json({ success: false, error: 'Нет исходного изображения для редактирования.' });
+        }
 
-      const editPrompt = `You are a professional photo retoucher. You will receive a photograph.
+        console.log(`✏️ Source image: ${sourceData.mimeType}, ${Math.round(sourceData.base64str.length / 1024)}KB base64`);
+
+        const editPrompt = `You are a professional photo retoucher. You will receive a photograph.
 
 YOUR TASK: Apply ONLY the following edit to this photograph:
 "${editInstruction}"
@@ -486,31 +489,35 @@ CRITICAL RULES:
 
 OUTPUT: Return ONLY the edited image. No text.`;
 
-      const parts = [
-        { text: editPrompt },
-        { inlineData: { data: sourceData.base64str, mimeType: sourceData.mimeType } },
-      ];
+        const parts = [
+          { text: editPrompt },
+          { inlineData: { data: sourceData.base64str, mimeType: sourceData.mimeType } },
+        ];
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-image-preview',
-        contents: [{ role: 'user', parts }],
-        config: { responseModalities: ['IMAGE', 'TEXT'], temperature: 0.3 },
-      });
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.1-flash-image-preview',
+          contents: [{ role: 'user', parts }],
+          config: { responseModalities: ['IMAGE', 'TEXT'], temperature: 0.3 },
+        });
 
-      let imageBase64 = null;
-      let textResponse = '';
-      if (response.candidates?.[0]?.content?.parts) {
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData?.mimeType?.startsWith('image/')) { imageBase64 = part.inlineData.data; break; }
-          if (part.text) { textResponse += part.text; }
+        let imageBase64 = null;
+        let textResponse = '';
+        if (response.candidates?.[0]?.content?.parts) {
+          for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData?.mimeType?.startsWith('image/')) { imageBase64 = part.inlineData.data; break; }
+            if (part.text) { textResponse += part.text; }
+          }
         }
+        if (!imageBase64) {
+          console.error(`❌ Photo edit failed. Text: ${textResponse.substring(0, 300)}`);
+          return res.status(200).json({ success: false, error: textResponse || 'Gemini не вернул отредактированное изображение.' });
+        }
+        console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Photo edit complete`);
+        return res.status(200).json({ success: true, imageBase64 });
+      } catch (editError) {
+        console.error(`❌ Photo edit error:`, editError.message);
+        return res.status(200).json({ success: false, error: `Ошибка редактирования: ${editError.message}` });
       }
-      if (!imageBase64) {
-        console.error(`❌ Photo edit failed. Text: ${textResponse.substring(0, 300)}`);
-        throw new Error(textResponse || 'Gemini did not return an edited image.');
-      }
-      console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Photo edit complete`);
-      return res.status(200).json({ success: true, imageBase64 });
     }
 
     // ═══ GARMENT SOURCE RESOLUTION ═══

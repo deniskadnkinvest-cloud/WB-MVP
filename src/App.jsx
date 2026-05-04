@@ -766,11 +766,13 @@ function App() {
     setEditingPhotos(prev => new Set(prev).add(idx));
 
     try {
+      // Upload source image to Firebase Storage to avoid body size limits
+      const { url: sourceUrl } = await uploadBase64Image(user?.uid || 'anonymous', currentImg, 'edits');
       const resp = await fetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           isPhotoEdit: true,
-          sourceImageBase64: currentImg,
+          sourceImageUrl: sourceUrl,
           editInstruction: instruction,
         }),
       });
