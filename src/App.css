@@ -1586,6 +1586,37 @@
   box-shadow: 0 0 12px rgba(212, 175, 55, 0.3);
 }
 
+/* ═══ PROCESSING PHOTO (background edit in progress) ═══ */
+.photoshoot-item--processing {
+  border: 2px solid var(--gold-primary) !important;
+  animation: pulse-editing 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-editing {
+  0%, 100% { box-shadow: 0 0 8px rgba(212, 175, 55, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(212, 175, 55, 0.6); }
+}
+
+.photo-editing-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(2px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  z-index: 5;
+  border-radius: inherit;
+}
+
+.photo-editing-overlay span {
+  color: var(--gold-primary);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
 .photo-edited-badge {
   position: absolute;
   top: 6px;

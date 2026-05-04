@@ -443,11 +443,75 @@ export default async function handler(req, res) {
       customPoseText,
       previewMode,
       isCalibration = false,
+      isPhotoEdit = false,
+      sourceImageBase64,
+      sourceImageUrl,
       editInstruction,
       attributes,
       isBeautyMode = false,
       biometricSeed,
     } = req.body;
+
+    // ═══ PHOTO EDIT MODE — precise, non-destructive editing ═══
+    // Sends the EXISTING photo + edit instruction to Gemini.
+    // Does NOT regenerate from scratch — only modifies what the user asked for.
+    if (isPhotoEdit && editInstruction) {
+      console.log(`✏️ [${new Date().toISOString()}] Photo Edit: "${editInstruction}"`);
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+      // Get source image data
+      let sourceData = null;
+      if (sourceImageUrl) {
+        sourceData = await downloadToBase64(sourceImageUrl);
+      } else if (sourceImageBase64) {
+        const { mimeType, base64str } = extractBase64(sourceImageBase64);
+        sourceData = { mimeType, base64str };
+      }
+      if (!sourceData) {
+        return res.status(400).json({ success: false, error: 'No source image provided for editing.' });
+      }
+
+      const editPrompt = `You are a professional photo retoucher. You will receive a photograph.
+
+YOUR TASK: Apply ONLY the following edit to this photograph:
+"${editInstruction}"
+
+CRITICAL RULES:
+1. Keep the ENTIRE image IDENTICAL — same person, same pose, same clothing, same background, same lighting, same camera angle, same composition, same colors.
+2. Change ONLY what the user explicitly requested. Nothing else.
+3. If the user asks to remove something (e.g. tattoo), seamlessly blend the area with natural surrounding skin/surface.
+4. If the user asks to add something (e.g. sunglasses), add it naturally while keeping everything else untouched.
+5. Maintain the exact same image resolution. 
+6. The result must look like the original photo with a single precise edit — NOT a regenerated image.
+
+OUTPUT: Return ONLY the edited image. No text.`;
+
+      const parts = [
+        { text: editPrompt },
+        { inlineData: { data: sourceData.base64str, mimeType: sourceData.mimeType } },
+      ];
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-image-preview',
+        contents: [{ role: 'user', parts }],
+        config: { responseModalities: ['IMAGE', 'TEXT'], temperature: 0.3 },
+      });
+
+      let imageBase64 = null;
+      let textResponse = '';
+      if (response.candidates?.[0]?.content?.parts) {
+        for (const part of response.candidates[0].content.parts) {
+          if (part.inlineData?.mimeType?.startsWith('image/')) { imageBase64 = part.inlineData.data; break; }
+          if (part.text) { textResponse += part.text; }
+        }
+      }
+      if (!imageBase64) {
+        console.error(`❌ Photo edit failed. Text: ${textResponse.substring(0, 300)}`);
+        throw new Error(textResponse || 'Gemini did not return an edited image.');
+      }
+      console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Photo edit complete`);
+      return res.status(200).json({ success: true, imageBase64 });
+    }
 
     // ═══ GARMENT SOURCE RESOLUTION ═══
     // Priority: URLs (lightweight) → base64 (legacy) → single base64 (legacy v1)

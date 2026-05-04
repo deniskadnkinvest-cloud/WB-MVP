@@ -123,7 +123,7 @@ function App() {
   // Per-photo editor
   const [editingPhotoIdx, setEditingPhotoIdx] = useState(null);
   const [photoEditText, setPhotoEditText] = useState('');
-  const [isPhotoEditing, setIsPhotoEditing] = useState(false);
+  const [editingPhotos, setEditingPhotos] = useState(new Set()); // indices currently being edited (background)
 
   // Per-photo edit history: { [photoIndex]: [original, edit1, edit2, ...] }
   const [photoHistory, setPhotoHistory] = useState({});
@@ -752,37 +752,26 @@ function App() {
   // and replaces the original photo with the result.
   const handlePhotoEdit = async () => {
     if (editingPhotoIdx === null || !photoEditText.trim()) return;
-    const currentVersions = photoHistory[editingPhotoIdx] || [photoshootImages[editingPhotoIdx]];
+    const idx = editingPhotoIdx;
+    const instruction = photoEditText.trim();
+    const currentVersions = photoHistory[idx] || [photoshootImages[idx]];
     const currentImg = currentVersions[currentVersions.length - 1];
     if (!currentImg) return;
 
-    setIsPhotoEditing(true);
-    setStatusText('✏️ Редактируем кадр...'); setStatusType('');
-    try {
-      let modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
-      let modelRefImages = null;
-      if (selectedSavedModelId) {
-        const sm = myModels.find(m => m.id === selectedSavedModelId);
-        if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
-      }
-      let bgPrompt = customBgText.trim() || selectedBg.prompt;
-      let locImages = null;
-      if (selectedLocId) {
-        const loc = myLocations.find(l => l.id === selectedLocId);
-        if (loc) { locImages = loc.imageUrls; bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos'; }
-      }
+    // Close modal immediately — editing runs in background
+    setEditingPhotoIdx(null);
+    setPhotoEditText('');
 
-      const biometricSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
+    // Mark this photo as "editing"
+    setEditingPhotos(prev => new Set(prev).add(idx));
+
+    try {
       const resp = await fetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          garmentImageUrls: garmentUrls, modelPreset: modelPrompt,
-          posePreset: photoEditText.trim(),
-          cameraAngle: selectedCamera.prompt,
-          backgroundPreset: bgPrompt, aspectRatio: selectedRatio.id,
-          modelReferenceImages: modelRefImages, locationImages: locImages,
-          editInstruction: photoEditText.trim(),
-          attributes: modelDetails, isBeautyMode, biometricSeed,
+          isPhotoEdit: true,
+          sourceImageBase64: currentImg,
+          editInstruction: instruction,
         }),
       });
       const data = await safeParseJSON(resp);
@@ -790,30 +779,25 @@ function App() {
         const editedImg = `data:image/jpeg;base64,${data.imageBase64}`;
         // Update photoshootImages to show latest
         setPhotoshootImages(prev => {
-          const n = [...prev];
-          n[editingPhotoIdx] = editedImg;
-          return n;
+          const n = [...prev]; n[idx] = editedImg; return n;
         });
         // Push to history
         setPhotoHistory(prev => {
-          const versions = prev[editingPhotoIdx] || [currentVersions[0]];
-          return { ...prev, [editingPhotoIdx]: [...versions, editedImg] };
+          const versions = prev[idx] || [currentVersions[0]];
+          return { ...prev, [idx]: [...versions, editedImg] };
         });
         // Set view to latest
         setPhotoViewIdx(prev => {
-          const versions = (photoHistory[editingPhotoIdx] || [currentVersions[0]]);
-          return { ...prev, [editingPhotoIdx]: versions.length }; // new length = old + 1, index = length
+          const versions = (photoHistory[idx] || [currentVersions[0]]);
+          return { ...prev, [idx]: versions.length };
         });
-        setStatusText('✅ Кадр отредактирован!'); setStatusType('success');
-        setEditingPhotoIdx(null);
-        setPhotoEditText('');
       } else {
-        setStatusText(`Ошибка: ${data.details || data.error}`); setStatusType('error');
+        setStatusText(`Ошибка редактирования кадра ${idx + 1}: ${data.details || data.error}`); setStatusType('error');
       }
     } catch (err) {
       setStatusText(`Ошибка: ${err.message}`); setStatusType('error');
     } finally {
-      setIsPhotoEditing(false);
+      setEditingPhotos(prev => { const n = new Set(prev); n.delete(idx); return n; });
     }
   };
 
@@ -1154,14 +1138,21 @@ function App() {
                     const hasEdits = versions && versions.length > 1;
                     const viewIdx = photoViewIdx[i] ?? (versions ? versions.length - 1 : 0);
                     const displayImg = hasEdits ? versions[viewIdx] : img;
+                    const isEditing = editingPhotos.has(i);
                     return (
-                    <div key={i} className={`photoshoot-item ${hasEdits ? 'photoshoot-item--edited' : ''}`}>
+                    <div key={i} className={`photoshoot-item ${hasEdits ? 'photoshoot-item--edited' : ''} ${isEditing ? 'photoshoot-item--processing' : ''}`}>
                       {displayImg ? (
                         <>
                           <img src={displayImg} alt={`Кадр ${i+1}`} onClick={() => {
                             const gallery = hasEdits ? versions : photoshootImages;
                             openLightboxGallery(gallery, hasEdits ? viewIdx : i);
                           }} style={{cursor:'pointer'}} />
+                          {isEditing && (
+                            <div className="photo-editing-overlay">
+                              <div className="processing-spinner" style={{width:28,height:28}} />
+                              <span>Редактируется...</span>
+                            </div>
+                          )}
                           {hasEdits && (
                             <>
                               <span className="photo-edited-badge">✨ Изменено ({versions.length - 1})</span>
@@ -1317,9 +1308,9 @@ function App() {
       {/* PHOTO EDITOR MODAL */}
       <AnimatePresence>
         {editingPhotoIdx !== null && photoshootImages[editingPhotoIdx] && (
-          <motion.div className="photo-editor-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => { if (!isPhotoEditing) { setEditingPhotoIdx(null); setPhotoEditText(''); } }}>
+          <motion.div className="photo-editor-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => { setEditingPhotoIdx(null); setPhotoEditText(''); }}>
             <motion.div className="photo-editor-modal" initial={{scale:0.9, opacity:0}} animate={{scale:1, opacity:1}} exit={{scale:0.9, opacity:0}} onClick={e => e.stopPropagation()}>
-              <button className="photo-editor-close" onClick={() => { if (!isPhotoEditing) { setEditingPhotoIdx(null); setPhotoEditText(''); } }}>✕</button>
+              <button className="photo-editor-close" onClick={() => { setEditingPhotoIdx(null); setPhotoEditText(''); }}>✕</button>
               <div className="photo-editor-preview">
                 <img src={photoshootImages[editingPhotoIdx]} alt="Редактируемый кадр" />
                 <span className="photo-editor-badge">Кадр {editingPhotoIdx + 1}</span>
@@ -1328,20 +1319,20 @@ function App() {
                 <p className="photo-editor-hint">Опишите, что изменить в этом кадре:</p>
                 <textarea
                   className="photo-editor-input"
-                  placeholder="Добавь солнечные очки, измени фон на пляж, разверни модель в профиль..."
+                  placeholder="Убери татуировку, добавь очки, смени цвет волос..."
                   value={photoEditText}
                   onChange={e => setPhotoEditText(e.target.value)}
                   rows={3}
-                  disabled={isPhotoEditing}
                 />
                 <div className="photo-editor-quick-tags">
-                  {['Добавить очки', 'Сменить фон', 'Крупный план', 'Поза в движении', 'Другая причёска'].map(tag => (
-                    <button key={tag} className="photo-editor-tag" onClick={() => setPhotoEditText(prev => prev ? `${prev}, ${tag.toLowerCase()}` : tag.toLowerCase())} disabled={isPhotoEditing}>{tag}</button>
+                  {['Убрать татуировку', 'Добавить очки', 'Сменить фон', 'Убрать пирсинг', 'Другая причёска', 'Добавить улыбку'].map(tag => (
+                    <button key={tag} className="photo-editor-tag" onClick={() => setPhotoEditText(prev => prev ? `${prev}, ${tag.toLowerCase()}` : tag.toLowerCase())}>{tag}</button>
                   ))}
                 </div>
-                <button className="photo-editor-submit" onClick={handlePhotoEdit} disabled={!photoEditText.trim() || isPhotoEditing}>
-                  {isPhotoEditing ? '⏳ Редактируем...' : '✨ Применить изменения'}
+                <button className="photo-editor-submit" onClick={handlePhotoEdit} disabled={!photoEditText.trim()}>
+                  ✨ Применить изменения
                 </button>
+                <p className="photo-editor-hint" style={{fontSize:'0.7rem', opacity:0.5, textAlign:'center', marginTop:4}}>Модал закроется, редактирование пойдёт в фоне</p>
               </div>
             </motion.div>
           </motion.div>
