@@ -780,6 +780,23 @@ ${skinPrompt}
     return res.status(200).json({ success: true, imageBase64 });
   } catch (error) {
     console.error(`❌ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Ошибка:`, error.message);
-    return res.status(500).json({ success: false, error: 'Ошибка генерации', details: error.message });
+    
+    // Detect quota/rate-limit errors and return friendly messages
+    const msg = error.message || '';
+    if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) {
+      return res.status(200).json({ 
+        success: false, 
+        error: '⏳ Лимит запросов временно исчерпан. Подождите 1-2 минуты и попробуйте снова.',
+        isQuotaError: true
+      });
+    }
+    if (msg.includes('400') || msg.includes('INVALID_ARGUMENT')) {
+      return res.status(200).json({ 
+        success: false, 
+        error: '❌ Некорректный запрос. Попробуйте другие настройки или фото.'
+      });
+    }
+    
+    return res.status(500).json({ success: false, error: 'Ошибка генерации', details: msg.substring(0, 300) });
   }
 }
