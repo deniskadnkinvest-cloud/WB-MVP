@@ -524,16 +524,22 @@ Return ONLY the edited photograph.`;
     }
 
     // ═══ GARMENT SOURCE RESOLUTION ═══
-    // Priority: URLs (lightweight) → base64 (legacy) → single base64 (legacy v1)
+    // Handles: Firebase Storage URLs, base64 data URLs (fallback), legacy fields
     let garmentImages = [];
     if (garmentImageUrls.length > 0) {
-      // New path: download from Firebase Storage (server-to-server, instant inside Google network)
-      console.log(`☁️ Downloading ${garmentImageUrls.length} garment(s) from Firebase Storage...`);
-      const downloads = await Promise.all(garmentImageUrls.map(url => downloadToBase64(url)));
-      garmentImages = downloads
-        .filter(d => d !== null)
-        .map(d => `data:${d.mimeType};base64,${d.base64str}`);
-      console.log(`☁️ Downloaded ${garmentImages.length}/${garmentImageUrls.length} garment(s) successfully`);
+      console.log(`☁️ Processing ${garmentImageUrls.length} garment source(s)...`);
+      const processed = await Promise.all(garmentImageUrls.map(async (url) => {
+        if (url.startsWith('data:')) {
+          // Already a base64 data URL — use directly (fallback mode when Storage is down)
+          console.log('  📎 Using base64 data URL directly (Storage fallback)');
+          return url;
+        }
+        // Firebase Storage URL — download server-side
+        const dl = await downloadToBase64(url);
+        return dl ? `data:${dl.mimeType};base64,${dl.base64str}` : null;
+      }));
+      garmentImages = processed.filter(Boolean);
+      console.log(`☁️ Resolved ${garmentImages.length}/${garmentImageUrls.length} garment(s) successfully`);
     } else if (garmentImagesBase64.length > 0) {
       garmentImages = garmentImagesBase64;
     } else if (garmentImageBase64) {

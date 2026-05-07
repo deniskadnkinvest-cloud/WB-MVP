@@ -170,7 +170,15 @@ function App() {
     if (filtered.length > 0) { setSelectedModel(filtered[0]); setCustomModelPrompt(''); setSelectedSavedModelId(null); }
   }, [gender]);
 
-  // Multi-file upload — compress + upload to Firebase Storage immediately
+  // Helper: convert File/Blob to base64 data URL
+  const fileToBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  // Multi-file upload — try Firebase Storage first, fall back to base64
   const handleFilesChange = useCallback(async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -179,17 +187,23 @@ function App() {
     const localUrls = newFiles.map(f => URL.createObjectURL(f));
     setPreviewUrls(localUrls);
     setGeneratedImage(null);
-    setStatusText('☁️ Загружаем фото в облако...');
+    setStatusText('☁️ Загружаем фото...');
     setStatusType('');
     setIsUploading(true);
     try {
-      // Only upload NEW files (ones not yet in garmentUrls)
       const existingCount = garmentUrls.length;
       const filesToUpload = newFiles.slice(existingCount);
       const newUrls = await Promise.all(filesToUpload.map(async (f) => {
         const compressed = await compressImage(f, 1200);
-        const { url } = await uploadImage(user?.uid || 'anonymous', compressed, 'garments');
-        return url;
+        try {
+          // Try Firebase Storage first
+          const { url } = await uploadImage(user?.uid || 'anonymous', compressed, 'garments');
+          return url;
+        } catch (storageErr) {
+          // Fallback: convert to base64 data URL (works without Storage)
+          console.warn('⚠️ Storage unavailable, using base64 fallback:', storageErr.message);
+          return await fileToBase64(compressed);
+        }
       }));
       const allUrls = [...garmentUrls, ...newUrls].slice(0, 9);
       setGarmentUrls(allUrls);
