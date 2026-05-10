@@ -24,15 +24,62 @@ const AuthContext = createContext(null);
 //  ENVIRONMENT DETECTION
 // ═══════════════════════════════════════════
 
+// ═══ TELEGRAM MINI APP DETECTION ═══
+// Must be checked BEFORE isEmbedded, because Telegram also uses iframes
+const isTelegram = (() => {
+  try {
+    return !!(window.Telegram?.WebApp?.initData && window.Telegram.WebApp.initData.length > 0);
+  } catch { return false; }
+})();
+
+// Extract Telegram user data (available immediately from SDK)
+const telegramUser = (() => {
+  try {
+    if (!isTelegram) return null;
+    const tg = window.Telegram.WebApp;
+    const user = tg.initDataUnsafe?.user;
+    if (!user) return null;
+    return {
+      id: user.id,
+      firstName: user.first_name || '',
+      lastName: user.last_name || '',
+      username: user.username || '',
+      languageCode: user.language_code || 'ru',
+      photoUrl: user.photo_url || null,
+    };
+  } catch { return null; }
+})();
+
+// Initialize Telegram WebApp features
+if (isTelegram) {
+  try {
+    const tg = window.Telegram.WebApp;
+    // Expand to full screen (removes bottom bar gap)
+    tg.expand();
+    // Enable closing confirmation to prevent accidental close
+    tg.enableClosingConfirmation();
+    // Set header color to match our dark theme
+    tg.setHeaderColor('#0a0e1a');
+    tg.setBackgroundColor('#0a0e1a');
+    console.log('📱 Telegram Mini App detected:', telegramUser?.firstName || 'unknown user');
+  } catch (e) {
+    console.warn('Telegram WebApp init error:', e.message);
+  }
+}
+
 // Detect if running inside an iframe (embedded in PANX marketplace)
+// Telegram is also an iframe, but handled separately above
 const isEmbedded = (() => {
+  if (isTelegram) return false; // Telegram has its own flow
   try { return window.self !== window.top; } catch { return true; }
 })();
 
 // Detect in-app browsers (Telegram, Instagram, Facebook, etc.)
 // These browsers block popups and partition sessionStorage,
 // causing Firebase "missing initial state" errors
+// NOTE: Telegram Mini App is NOT treated as in-app browser — it has its own auth flow
 const isInAppBrowser = (() => {
+  if (isTelegram) return false; // Telegram Mini App has dedicated auth
   try {
     const ua = navigator.userAgent || '';
     return /Telegram|TelegramBot|Instagram|FBAN|FBAV|Twitter|Line\/|Snapchat|WeChat|MicroMessenger|QQBrowser|DuckDuckGo/i.test(ua);
@@ -124,6 +171,45 @@ export function AuthProvider({ children }) {
 
     // Always set localStorage persistence (most reliable across all browsers)
     setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+    // ═══ TELEGRAM MINI APP — instant auto-login ═══
+    if (isTelegram) {
+      console.log('📱 Telegram auth: auto-login as guest with Telegram identity');
+      const tgUser = telegramUser;
+      const displayName = tgUser
+        ? [tgUser.firstName, tgUser.lastName].filter(Boolean).join(' ')
+        : 'Telegram User';
+      
+      // Create a guest user with Telegram identity
+      // uid is prefixed to avoid collisions with Firebase UIDs
+      setUser({
+        uid: `tg-${tgUser?.id || 'unknown'}`,
+        displayName,
+        email: tgUser?.username ? `${tgUser.username}@telegram.user` : null,
+        photoURL: tgUser?.photoUrl || null,
+        isGuest: true,
+        isTelegramUser: true,
+        telegramId: tgUser?.id,
+        telegramUsername: tgUser?.username,
+      });
+      setLoading(false);
+
+      // Also try Firebase anonymous auth in background for Firestore access
+      signInAnonymously(auth).then((result) => {
+        // Merge Telegram identity with Firebase anonymous session
+        setUser(prev => ({
+          ...prev,
+          uid: result.user.uid, // Use Firebase UID for Firestore
+          firebaseUid: result.user.uid,
+          isAnonymous: true,
+        }));
+        console.log('📱 Telegram + Firebase anonymous session established');
+      }).catch(err => {
+        console.warn('📱 Firebase anonymous auth failed (still works as guest):', err.message);
+      });
+
+      return; // No cleanup needed
+    }
 
     if (isEmbedded) {
       // In embedded mode: listen for PANX_AUTH postMessage
@@ -293,6 +379,8 @@ export function AuthProvider({ children }) {
     user,
     loading,
     isEmbedded,
+    isTelegram,
+    telegramUser,
     isInAppBrowser,
     isMobile,
     isPrivate,

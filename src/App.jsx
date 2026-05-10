@@ -36,7 +36,7 @@ const safeParseJSON = async (resp) => {
 };
 
 function App() {
-  const { user, loading, signOut, isEmbedded } = useAuth();
+  const { user, loading, signOut, isEmbedded, isTelegram } = useAuth();
 
   // Core selections
   const [selectedModel, setSelectedModel] = useState(MODEL_PRESETS[0]);
@@ -150,6 +150,32 @@ function App() {
   const [isPreviewingModel, setIsPreviewingModel] = useState(false);
   const [showModelPreviewSave, setShowModelPreviewSave] = useState(false);
   const [modelPreviewName, setModelPreviewName] = useState('');
+
+  // ═══ TELEGRAM BACK BUTTON ═══
+  // Show/hide Telegram's native back button based on app state
+  useEffect(() => {
+    if (!isTelegram) return;
+    const tg = window.Telegram?.WebApp;
+    if (!tg) return;
+
+    const backBtn = tg.BackButton;
+    // Show back button when user has generated content
+    if (generatedImage || photoshootImages.length > 0) {
+      backBtn.show();
+      const handler = () => {
+        if (photoshootImages.length > 0) {
+          setPhotoshootImages([]);
+        } else {
+          setGeneratedImage(null);
+          setImageHistory([]);
+        }
+      };
+      backBtn.onClick(handler);
+      return () => backBtn.offClick(handler);
+    } else {
+      backBtn.hide();
+    }
+  }, [isTelegram, generatedImage, photoshootImages]);
 
   // Load user data from Firestore (skip for guest users in embedded mode)
   useEffect(() => {

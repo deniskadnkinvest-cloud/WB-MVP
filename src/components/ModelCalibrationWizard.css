@@ -1,6 +1,6 @@
-/* ═══════════════════════════════════════════ */
+﻿/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
 /*  Model Calibration Wizard Styles            */
-/* ═══════════════════════════════════════════ */
+/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
 
 .calib-overlay {
   position: fixed;
@@ -17,7 +17,7 @@
 .calib-modal {
   background: var(--bg-secondary);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xl);
+  border-radius: var(--r-xl);
   padding: 28px 24px;
   max-width: 560px;
   width: 100%;
@@ -41,17 +41,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-fast);
+  transition: all var(--fast) ease;
   z-index: 10;
 }
 
 .calib-close:hover {
   color: var(--text-primary);
-  border-color: var(--accent-error);
-  background: rgba(248, 113, 113, 0.1);
+  border-color: var(--red);
+  background: rgba(255, 107, 107, 0.1);
 }
 
-/* ═══ PROGRESS BAR ═══ */
+/* в•ђв•ђв•ђ PROGRESS BAR в•ђв•ђв•ђ */
 .calib-progress {
   display: flex;
   align-items: center;
@@ -81,7 +81,7 @@
 }
 
 .calib-progress-step.active:not(:last-child)::after {
-  background: var(--gold-primary);
+  background: var(--gold);
 }
 
 .calib-progress-dot {
@@ -91,12 +91,12 @@
   background: var(--bg-glass);
   border: 2px solid var(--border-subtle);
   z-index: 1;
-  transition: all var(--transition-fast);
+  transition: all var(--fast) ease;
 }
 
 .calib-progress-step.active .calib-progress-dot {
-  background: var(--gold-primary);
-  border-color: var(--gold-primary);
+  background: var(--gold);
+  border-color: var(--gold);
   box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
 }
 
@@ -123,7 +123,7 @@
   color: var(--gold-light);
 }
 
-/* ═══ STEP CONTENT ═══ */
+/* в•ђв•ђв•ђ STEP CONTENT в•ђв•ђв•ђ */
 .calib-step {
   text-align: center;
 }
@@ -149,7 +149,7 @@
   font-size: 0.65rem;
   font-weight: 700;
   color: #0a0a0c;
-  background: var(--gold-primary);
+  background: var(--gold);
   padding: 2px 8px;
   border-radius: 10px;
   letter-spacing: 0.5px;
@@ -177,7 +177,7 @@
   color: var(--text-secondary);
 }
 
-/* ═══ INTRO ANGLES ═══ */
+/* в•ђв•ђв•ђ INTRO ANGLES в•ђв•ђв•ђ */
 .calib-angles-preview {
   display: flex;
   gap: 12px;
@@ -193,7 +193,7 @@
   padding: 16px 20px;
   background: var(--bg-glass);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--r-md);
   font-size: 0.75rem;
   color: var(--text-secondary);
   font-weight: 600;
@@ -204,7 +204,7 @@
   font-size: 1.8rem;
 }
 
-/* ═══ IMAGE AREA ═══ */
+/* в•ђв•ђв•ђ IMAGE AREA в•ђв•ђв•ђ */
 .calib-image-area {
   min-height: 200px;
   display: flex;
@@ -237,12 +237,12 @@
   opacity: 0.4;
 }
 
-/* ═══ SINGLE PORTRAIT ═══ */
+/* в•ђв•ђв•ђ SINGLE PORTRAIT в•ђв•ђв•ђ */
 .calib-portrait-wrap {
   display: inline-block;
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-lg);
   overflow: hidden;
-  border: 2px solid var(--gold-primary);
+  border: 2px solid var(--gold);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(212, 175, 55, 0.1);
 }
 
@@ -253,7 +253,7 @@
   width: 100%;
 }
 
-/* ═══ BATCH GRID (5 options) ═══ */
+/* в•ђв•ђв•ђ BATCH GRID (5 options) в•ђв•ђв•ђ */
 .calib-batch-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -264,10 +264,10 @@
 .calib-batch-item {
   position: relative;
   border: 2px solid var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--r-md);
   overflow: hidden;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--fast) ease;
   aspect-ratio: 1;
 }
 
@@ -277,8 +277,8 @@
 }
 
 .calib-batch-item.selected {
-  border-color: var(--gold-primary);
-  box-shadow: 0 0 16px rgba(212, 175, 55, 0.3);
+  border-color: var(--gold);
+  box-shadow: 0 0 16px rgba(212, 168, 67, 0.3);
 }
 
 .calib-batch-item.loading {
@@ -325,7 +325,7 @@
   padding: 20px;
 }
 
-/* ═══ REFERENCE STRIP ═══ */
+/* в•ђв•ђв•ђ REFERENCE STRIP в•ђв•ђв•ђ */
 .calib-ref-strip {
   display: flex;
   gap: 12px;
@@ -334,7 +334,7 @@
   padding: 10px;
   background: rgba(212, 175, 55, 0.05);
   border: 1px solid rgba(212, 175, 55, 0.15);
-  border-radius: var(--radius-md);
+  border-radius: var(--r-md);
 }
 
 .calib-ref-item {
@@ -349,7 +349,7 @@
   height: 52px;
   border-radius: 50%;
   object-fit: cover;
-  border: 2px solid var(--gold-primary);
+  border: 2px solid var(--gold);
 }
 
 .calib-ref-item span {
@@ -358,7 +358,7 @@
   font-weight: 600;
 }
 
-/* ═══ REVIEW GRID ═══ */
+/* в•ђв•ђв•ђ REVIEW GRID в•ђв•ђв•ђ */
 .calib-review-grid {
   display: flex;
   gap: 12px;
@@ -379,8 +379,8 @@
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
-  border-radius: var(--radius-md);
-  border: 2px solid var(--gold-primary);
+  border-radius: var(--r-md);
+  border: 2px solid var(--gold);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
@@ -395,7 +395,7 @@
   aspect-ratio: 1;
   background: var(--bg-glass);
   border: 1px dashed var(--border-subtle);
-  border-radius: var(--radius-md);
+  border-radius: var(--r-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -423,7 +423,7 @@
 }
 .calib-regen-single:hover:not(:disabled) {
   background: rgba(212, 175, 55, 0.3);
-  border-color: var(--gold-primary);
+  border-color: var(--gold);
   transform: rotate(90deg);
 }
 .calib-regen-single:disabled {
@@ -431,28 +431,28 @@
   cursor: not-allowed;
 }
 
-/* ═══ NAME INPUT ═══ */
+/* в•ђв•ђв•ђ NAME INPUT в•ђв•ђв•ђ */
 .calib-name-input {
   width: 100%;
   padding: 12px 16px;
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border-radius: var(--r-sm);
   color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.85rem;
   outline: none;
-  transition: border-color var(--transition-fast);
+  transition: border-color var(--fast) ease;
   box-sizing: border-box;
   text-align: center;
   margin: 12px 0;
 }
 
 .calib-name-input:focus {
-  border-color: var(--gold-primary);
+  border-color: var(--gold);
 }
 
-/* ═══ ACTIONS ═══ */
+/* в•ђв•ђв•ђ ACTIONS в•ђв•ђв•ђ */
 .calib-actions {
   display: flex;
   gap: 10px;
@@ -463,14 +463,14 @@
 .calib-btn-primary {
   padding: 12px 24px;
   border: none;
-  background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
-  color: #0a0a0c;
-  font-family: 'Inter', sans-serif;
+  background: linear-gradient(135deg, #FFE87C, #D4A843, #A08530);
+  color: var(--bg-void);
+  font-family: var(--font-display);
   font-weight: 700;
   font-size: 0.85rem;
-  border-radius: var(--radius-md);
+  border-radius: var(--r-full);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--normal) var(--ease);
 }
 
 .calib-btn-primary:hover:not(:disabled) {
@@ -488,18 +488,18 @@
   border: 1px solid var(--border-subtle);
   background: transparent;
   color: var(--text-secondary);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-weight: 600;
   font-size: 0.85rem;
-  border-radius: var(--radius-md);
+  border-radius: var(--r-full);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--normal) var(--ease);
 }
 
 .calib-btn-secondary:hover:not(:disabled) {
-  border-color: var(--gold-primary);
+  border-color: var(--gold);
   color: var(--gold-light);
-  background: var(--gold-glow);
+  background: var(--gold-dim);
 }
 
 .calib-btn-secondary:disabled {
@@ -507,19 +507,19 @@
   cursor: not-allowed;
 }
 
-/* ═══ ERROR ═══ */
+/* в•ђв•ђв•ђ ERROR в•ђв•ђв•ђ */
 .calib-error {
   margin-top: 12px;
   padding: 8px 14px;
   background: rgba(255, 59, 48, 0.08);
   border: 1px solid rgba(255, 59, 48, 0.2);
-  border-radius: var(--radius-sm);
-  color: var(--accent-error);
+  border-radius: var(--r-sm);
+  color: var(--red);
   font-size: 0.78rem;
   text-align: center;
 }
 
-/* ═══ GEN COUNT ═══ */
+/* в•ђв•ђв•ђ GEN COUNT в•ђв•ђв•ђ */
 .calib-gen-count {
   font-size: 0.68rem;
   color: var(--text-muted);
@@ -527,7 +527,7 @@
   opacity: 0.7;
 }
 
-/* ═══ MOBILE ═══ */
+/* в•ђв•ђв•ђ MOBILE в•ђв•ђв•ђ */
 @media (max-width: 480px) {
   .calib-modal {
     padding: 20px 16px;
@@ -565,7 +565,7 @@
   }
 }
 
-/* ═══ LONG-PRESS HINT ═══ */
+/* в•ђв•ђв•ђ LONG-PRESS HINT в•ђв•ђв•ђ */
 .calib-longpress-hint {
   font-size: 0.68rem;
   color: var(--text-muted);
@@ -580,7 +580,7 @@
   50% { opacity: 0.8; }
 }
 
-/* ═══ LIGHTBOX (fullscreen) ═══ */
+/* в•ђв•ђв•ђ LIGHTBOX (fullscreen) в•ђв•ђв•ђ */
 .calib-lightbox {
   position: fixed;
   inset: 0;
@@ -598,7 +598,7 @@
   max-width: 90vw;
   max-height: 90vh;
   object-fit: contain;
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-lg);
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
 }
 
@@ -617,7 +617,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-fast);
+  transition: all var(--fast) ease;
 }
 
 .calib-lightbox-close:hover {
@@ -625,7 +625,7 @@
   border-color: rgba(248, 113, 113, 0.5);
 }
 
-/* ═══ CLOSE CONFIRMATION DIALOG ═══ */
+/* в•ђв•ђв•ђ CLOSE CONFIRMATION DIALOG в•ђв•ђв•ђ */
 .calib-confirm-overlay {
   position: absolute;
   inset: 0;
@@ -635,13 +635,13 @@
   align-items: center;
   justify-content: center;
   z-index: 20;
-  border-radius: var(--radius-xl);
+  border-radius: var(--r-xl);
 }
 
 .calib-confirm-dialog {
   background: var(--bg-secondary);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
+  border-radius: var(--r-lg);
   padding: 28px 24px;
   max-width: 320px;
   width: 90%;
@@ -678,12 +678,12 @@
   border: none;
   background: linear-gradient(135deg, #ef4444, #dc2626);
   color: #fff;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-weight: 700;
   font-size: 0.82rem;
-  border-radius: var(--radius-md);
+  border-radius: var(--r-full);
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--normal) var(--ease);
 }
 
 .calib-btn-danger:hover {
