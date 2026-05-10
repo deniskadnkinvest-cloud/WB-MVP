@@ -378,7 +378,7 @@ function App() {
 
       const successImages = results
         .filter(d => d.success)
-        .map(d => `data:image/jpeg;base64,${d.imageBase64}`);
+        .map(d => d.imageBase64);
 
       if (successImages.length > 0) {
         setGeneratedImage(successImages[0]);
@@ -566,7 +566,7 @@ function App() {
       });
       const data = await safeParseJSON(resp);
       if (data.success) {
-        setModelPreviewSrc(`data:image/jpeg;base64,${data.imageBase64}`);
+        setModelPreviewSrc(data.imageBase64);
         setStatusText('Превью модели готово! Сохранить как новую?'); setStatusType('success');
       } else { setStatusText(`Ошибка: ${data.details||data.error}`); setStatusType('error'); }
     } catch (err) { setStatusText(`Ошибка: ${err.message}`); setStatusType('error'); }
@@ -674,7 +674,7 @@ function App() {
       clearInterval(iv);
       const data = await safeParseJSON(resp);
       if (data.success) {
-        const newImg = `data:image/jpeg;base64,${data.imageBase64}`;
+        const newImg = data.imageBase64;
         setGeneratedImage(newImg);
         const editLabel = shotModifier.trim() || 'Перегенерация';
         setImageHistory(prev => { const h = [...prev, { image: newImg, label: editLabel }]; setHistoryIndex(h.length - 1); return h; });
@@ -742,7 +742,7 @@ function App() {
           }),
         }).then(r => safeParseJSON(r)).then(data => {
           if (data.success) {
-            const imgData = `data:image/jpeg;base64,${data.imageBase64}`;
+            const imgData = data.imageBase64;
             const slotIdx = existingCount + idx;
             // Place at the correct offset position (existing photos + batch index)
             setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = imgData; return n; });
@@ -792,7 +792,7 @@ function App() {
       });
       const data = await safeParseJSON(resp);
       if (data.success) {
-        const editedImg = `data:image/jpeg;base64,${data.imageBase64}`;
+        const editedImg = data.imageBase64;
         // Update photoshootImages to show latest
         setPhotoshootImages(prev => {
           const n = [...prev]; n[idx] = editedImg; return n;
@@ -827,12 +827,12 @@ function App() {
         <p className="app-subtitle">ИИ-фотостудия для маркетплейсов Ozon, WB и других</p>
         <div style={{marginTop:8,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
           <span style={{fontSize:'0.75rem',color:'var(--text-muted)'}}>{user.displayName || user.email}</span>
-          {!isEmbedded && <button onClick={signOut} style={{fontSize:'0.7rem',color:'var(--text-muted)',background:'none',border:'1px solid var(--border-subtle)',borderRadius:4,padding:'3px 8px',cursor:'pointer',fontFamily:'Inter'}}>Выйти</button>}
+          {!isEmbedded && <button onClick={signOut} style={{fontSize:'0.7rem',color:'var(--text-muted)',background:'none',border:'1px solid var(--border-subtle)',borderRadius:'9999px',padding:'4px 14px',cursor:'pointer',fontFamily:'var(--font-body)',letterSpacing:'1px',textTransform:'uppercase'}}>Выйти</button>}
         </div>
       </header>
 
       {/* 1. МУЛЬТИЗАГРУЗКА */}
-      <motion.div className="section" initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.1}}>
+      <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.15,duration:0.5,ease:[0.16,1,0.3,1]}}>
         <div className="section-title"><span className="icon">📸</span> Загрузка вещей</div>
         {previewUrls.length > 0 ? (
           <div className="multi-preview-grid">
@@ -862,7 +862,7 @@ function App() {
       </motion.div>
 
       {/* 2. КАСТИНГ-РУМ */}
-      <motion.div className="section" initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.15}}>
+      <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.3,duration:0.5,ease:[0.16,1,0.3,1]}}>
         <div className="section-title"><span className="icon">👤</span> Кастинг-Рум — выбор модели</div>
         <div className="tabs-row">
           <button className={`tab-btn ${modelTab==='presets'?'active':''}`} onClick={()=>{setModelTab('presets');setSelectedSavedModelId(null);}}>🎭 Пресеты</button>
@@ -951,7 +951,7 @@ function App() {
       </motion.div>
 
       {/* 3. ПОЗА */}
-      <motion.div className="section" initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.2}}>
+      <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.45,duration:0.5,ease:[0.16,1,0.3,1]}}>
         <div className="section-title"><span className="icon">🧍</span> Поза модели</div>
         <div className="preset-grid">
           {POSE_PRESETS.map(p => (
@@ -968,7 +968,7 @@ function App() {
       </motion.div>
 
       {/* 4. РАКУРС КАМЕРЫ */}
-      <motion.div className="section" initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.25}}>
+      <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.6,duration:0.5,ease:[0.16,1,0.3,1]}}>
         <div className="section-title"><span className="icon">📷</span> Ракурс камеры</div>
         <div className="preset-grid">
           {CAMERA_ANGLES.map(c => (
@@ -980,7 +980,7 @@ function App() {
       </motion.div>
 
       {/* 5. ФОН */}
-      <motion.div className="section" initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.3}}>
+      <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.75,duration:0.5,ease:[0.16,1,0.3,1]}}>
         <div className="section-title"><span className="icon">🎨</span> Фон / Локация</div>
         <div className="tabs-row">
           <button className={`tab-btn ${bgTab==='presets'?'active':''}`} onClick={()=>{setBgTab('presets');setSelectedLocId(null);}}>🎨 Пресеты</button>
@@ -1038,7 +1038,7 @@ function App() {
       </motion.div>
 
       {/* 6. ФОРМАТ */}
-      <motion.div className="section" initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.35}}>
+      <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.9,duration:0.5,ease:[0.16,1,0.3,1]}}>
         <div className="section-title"><span className="icon">📐</span> Формат изображения</div>
         <div className="preset-grid">
           {ASPECT_RATIOS.map(r => (
@@ -1050,7 +1050,7 @@ function App() {
       </motion.div>
 
       {/* 7. ГЕНЕРАЦИЯ */}
-      <motion.div className="generate-section" initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.4}}>
+      <motion.div className="generate-section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:1.05,duration:0.5,ease:[0.16,1,0.3,1]}}>
         <div className="beauty-toggle">
           <label className={`beauty-switch ${isBeautyMode ? 'active' : ''}`}>
             <input type="checkbox" checked={isBeautyMode} onChange={e => setIsBeautyMode(e.target.checked)} />
