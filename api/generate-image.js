@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai';
+
 
 // ═══════════════════════════════════════════════════════════════════
 // SKIN ULTRA-REALISM SYSTEM PROMPT (применяется ГЛОБАЛЬНО)
@@ -99,6 +99,100 @@ ${SKIN_REALISM_PROMPT}
 </output_rules>`;
 };
 
+const KIE_API_KEY = process.env.KIE_API_KEY || process.env.GEMINI_API_KEY;
+const TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
+const GET_TASK_URL = 'https://api.kie.ai/api/v1/jobs/recordInfo?taskId=';
+
+async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana-2") {
+  const apiKey = process.env.KIE_API_KEY || process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error("API key missing. Set KIE_API_KEY in .env");
+
+  const reqBody = {
+    model: modelName,
+    input: {
+      prompt: prompt,
+      image_input: imageInputs,
+      aspect_ratio: "auto",
+      resolution: "1K",
+      output_format: "png"
+    }
+  };
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 sec timeout for creation
+  let response;
+  try {
+    response = await fetch(TASK_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(reqBody),
+      signal: controller.signal
+    });
+  } catch (err) {
+    throw new Error(`KIE.ai API network error: ${err.message}`);
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (!response.ok) {
+     const txt = await response.text();
+     throw new Error(`KIE.ai API error (${response.status}): ${txt}`);
+  }
+  
+  const data = await response.json();
+  if (data.code && data.code !== 200) {
+     throw new Error(`KIE.ai API returned code ${data.code}: ${data.msg || 'Unknown error'}`);
+  }
+  if (!data.data || !data.data.taskId) {
+     throw new Error(`KIE.ai failed to return taskId. Result: ${JSON.stringify(data)}`);
+  }
+  
+  const taskId = data.data.taskId;
+  console.log(`⏳ KIE.ai Task created. Model: ${modelName}. TaskID: ${taskId}. Polling...`);
+
+  for (let i = 0; i < 60; i++) { // Max 5 mins
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    const pollController = new AbortController();
+    const pollTimeout = setTimeout(() => pollController.abort(), 15000);
+    let pollResp;
+    try {
+      pollResp = await fetch(`${GET_TASK_URL}${taskId}`, {
+         headers: { 'Authorization': `Bearer ${apiKey}` },
+         signal: pollController.signal
+      });
+    } catch (err) {
+      console.warn(`   ⚠️ KIE poll network error: ${err.message}`);
+      continue;
+    } finally {
+      clearTimeout(pollTimeout);
+    }
+    
+    if (!pollResp.ok) continue;
+    const pollData = await pollResp.json();
+    
+    if (pollData?.data?.state === 'success') {
+       const resultStr = pollData.data.resultJson;
+       if (!resultStr) throw new Error("Task success but no resultJson");
+       let resultObj;
+       try { resultObj = JSON.parse(resultStr); } catch (e) { throw new Error("Failed to parse resultJson: " + resultStr); }
+       
+       const imageUrls = resultObj.resultUrls || resultObj.images || [];
+       if (imageUrls.length > 0) return imageUrls[0];
+       throw new Error("No image URLs in result: " + resultStr);
+    } else if (pollData?.data?.state === 'failed' || pollData?.data?.failCode) {
+       throw new Error(`Task failed: ${pollData.data.failMsg || pollData.data.failCode || 'Unknown error'}`);
+    } else {
+       console.log(`   ...Task ${taskId} state: ${pollData?.data?.state || 'unknown'} (poll ${i+1}/60)`);
+    }
+  }
+  
+  throw new Error("Task timed out after 5 minutes.");
+}
+
 const extractBase64 = (dataUrl) => {
   let mimeType = 'image/jpeg', base64str = dataUrl;
   const match = dataUrl.match(/^data:(image\/\w+);base64,/);
@@ -109,13 +203,20 @@ const extractBase64 = (dataUrl) => {
 // Download image from URL and return base64
 const downloadToBase64 = async (url) => {
   try {
-    const resp = await fetch(url);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 sec timeout
+    const resp = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
+    if (!resp.ok) {
+      throw new Error(`HTTP ${resp.status}`);
+    }
     const arrBuf = await resp.arrayBuffer();
     const b64 = Buffer.from(arrBuf).toString('base64');
     const contentType = resp.headers.get('content-type') || 'image/jpeg';
     return { mimeType: contentType, base64str: b64 };
   } catch (err) {
-    console.warn('⚠️ Failed to download image:', err.message);
+    console.warn(`⚠️ Failed to download image from ${url.substring(0, 50)}...:`, err.message);
     return null;
   }
 };
@@ -378,15 +479,10 @@ function enhanceBodyMetrics(preset, editCmd) {
 // Gaussian blur leaves low-frequency data (skull shape, jawline shadows)
 // that Gemini can reconstruct. Solid black box = total pixel destruction.
 // ═══════════════════════════════════════════════════════════════════
-async function sanitizeGarmentImage(imageBase64, ai, index) {
+async function sanitizeGarmentImage(imageBase64, index) {
   try {
     const { mimeType, base64str } = extractBase64(imageBase64);
-    const resp = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-image-preview',
-      contents: [{
-        role: 'user',
-        parts: [
-          { text: `Edit this photo: Draw a SOLID, OPAQUE BLACK rectangle over the person's ENTIRE HEAD, FACE, and HAIR. The black box must completely cover everything from the top of the head to the bottom of the chin, including ears and neck up to the collar line. It must be a flat, uniform #000000 black fill with NO transparency, NO gradients, NO shadows, and NO outlines of the original face visible through it.
+    const prompt = `Edit this photo: Draw a SOLID, OPAQUE BLACK rectangle over the person's ENTIRE HEAD, FACE, and HAIR. The black box must completely cover everything from the top of the head to the bottom of the chin, including ears and neck up to the collar line. It must be a flat, uniform #000000 black fill with NO transparency, NO gradients, NO shadows, and NO outlines of the original face visible through it.
 
 CRITICAL RULES:
 - The black box must COMPLETELY DESTROY all facial pixels — no trace of the original face, skull shape, or hair should remain.
@@ -395,21 +491,14 @@ CRITICAL RULES:
 - Do NOT redraw, regenerate, or modify ANY part of the clothing.
 - The ONLY change: the head/face area is now a solid black rectangle.
 - Keep the same image dimensions and composition.
-- Output ONLY the edited image, no text.` },
-          { inlineData: { data: base64str, mimeType } }
-        ]
-      }],
-      config: { responseModalities: ['IMAGE', 'TEXT'] },
-    });
-    if (resp.candidates?.[0]?.content?.parts) {
-      for (const part of resp.candidates[0].content.parts) {
-        if (part.inlineData?.mimeType?.startsWith('image/')) {
-          console.log(`   ✅ Garment ${index + 1} face destroyed (solid black box applied)`);
-          return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-        }
-      }
+- Output ONLY the edited image, no text.`;
+
+    const resultUrl = await executeKieTask(prompt, [`data:${mimeType};base64,${base64str}`], 'nano-banana-2');
+    const dl = await downloadToBase64(resultUrl);
+    if (dl) {
+      console.log(`   ✅ Garment ${index + 1} face destroyed (solid black box applied via KIE.ai)`);
+      return `data:${dl.mimeType};base64,${dl.base64str}`;
     }
-    console.warn(`   ⚠️ Garment ${index + 1}: sanitization failed, using original`);
     return imageBase64;
   } catch (err) {
     console.warn(`   ⚠️ Garment ${index + 1}: sanitization failed (${err.message}), using original`);
@@ -458,8 +547,6 @@ export default async function handler(req, res) {
     if (isPhotoEdit && editInstruction) {
       console.log(`✏️ [${new Date().toISOString()}] Photo Edit: "${editInstruction}"`);
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
         // Get source image data
         let sourceData = null;
         if (sourceImageUrl) {
@@ -492,31 +579,12 @@ ABSOLUTE REQUIREMENTS:
 
 Return ONLY the edited photograph.`;
 
-        const parts = [
-          { inlineData: { data: sourceData.base64str, mimeType: sourceData.mimeType } },
-          { text: editPrompt },
-        ];
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-3.1-flash-image-preview',
-          contents: [{ role: 'user', parts }],
-          config: { responseModalities: ['IMAGE', 'TEXT'], temperature: 0.1 },
-        });
-
-        let imageBase64 = null;
-        let textResponse = '';
-        if (response.candidates?.[0]?.content?.parts) {
-          for (const part of response.candidates[0].content.parts) {
-            if (part.inlineData?.mimeType?.startsWith('image/')) { imageBase64 = part.inlineData.data; break; }
-            if (part.text) { textResponse += part.text; }
-          }
-        }
-        if (!imageBase64) {
-          console.error(`❌ Photo edit failed. Text: ${textResponse.substring(0, 300)}`);
-          return res.status(200).json({ success: false, error: textResponse || 'Gemini не вернул отредактированное изображение.' });
-        }
+        const resultUrl = await executeKieTask(editPrompt, [`data:${sourceData.mimeType};base64,${sourceData.base64str}`], 'nano-banana-2');
+        const dl = await downloadToBase64(resultUrl);
+        if (!dl) throw new Error("Failed to download edited image");
+        
         console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Photo edit complete`);
-        return res.status(200).json({ success: true, imageBase64 });
+        return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}` });
       } catch (editError) {
         console.error(`❌ Photo edit error:`, editError.message);
         return res.status(200).json({ success: false, error: `Ошибка редактирования: ${editError.message}` });
@@ -560,48 +628,30 @@ Return ONLY the edited photograph.`;
 
     const enhancedActorProfile = enhanceBodyMetrics(modelPreset, editInstruction);
 
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
 
     if (isCalibration) {
       const calibPrompt = buildMasterPrompt({
         modelPreset: enhancedActorProfile, posePreset: customPoseText || posePreset, cameraAngle, backgroundPreset, aspectRatio,
         hasMultipleGarments: false, hasModelRef: !!(modelReferenceImages && modelReferenceImages.length), isCalibration: true
       });
-      const calibParts = [{ text: calibPrompt }];
+      let imageInputs = [];
       if (modelReferenceImages && Array.isArray(modelReferenceImages) && modelReferenceImages.length > 0) {
-        calibParts.push({ text: '\n\n[ACTOR IDENTITY LOCK: Match this person\'s face exactly.]\n\n' });
         for (const img of modelReferenceImages.slice(0, 5)) {
           if (!img) continue;
-          if (img.startsWith('data:')) {
-            const { mimeType, base64str } = extractBase64(img);
-            calibParts.push({ inlineData: { data: base64str, mimeType } });
-          } else if (img.startsWith('http')) {
-            const result = await downloadToBase64(img);
-            if (result) calibParts.push({ inlineData: { data: result.base64str, mimeType: result.mimeType } });
+          if (img.startsWith('data:')) { imageInputs.push(img); }
+          else if (img.startsWith('http')) { 
+            const dl = await downloadToBase64(img); 
+            if (dl) imageInputs.push(`data:${dl.mimeType};base64,${dl.base64str}`); 
           }
         }
       }
-      console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Отправляем калибровку в Gemini...`);
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-image-preview',
-        contents: [{ role: 'user', parts: calibParts }],
-        config: { responseModalities: ['IMAGE', 'TEXT'], temperature: 1.0 },
-      });
-      console.log(`⏱️ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Ответ от Gemini получен`);
-      let imageBase64 = null;
-      let textResponse = '';
-      if (response.candidates?.[0]?.content?.parts) {
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData?.mimeType?.startsWith('image/')) { imageBase64 = part.inlineData.data; break; }
-          if (part.text) { textResponse += part.text; }
-        }
-      }
-      if (!imageBase64) {
-        console.error(`❌ Нейросеть не вернула картинку. Текст: ${textResponse.substring(0, 300)}`);
-        throw new Error(textResponse ? `Nano Banano 2 отказал: ${textResponse.substring(0, 150)}` : 'Nano Banano 2 не сгенерировал изображение.');
-      }
+      console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Отправляем калибровку в KIE.ai...`);
+      const resultUrl = await executeKieTask(calibPrompt, imageInputs, 'nano-banana-2');
+      const dl = await downloadToBase64(resultUrl);
+      if (!dl) throw new Error("Failed to download generated image");
       console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Калибровка успешна`);
-      return res.status(200).json({ success: true, imageBase64 });
+      return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}` });
     }
 
     const isAdaptive = /amputee|prosthe|wheelchair|limb\s*(missing|difference)|adaptive\s*fashion/i.test(modelPreset);
@@ -625,14 +675,12 @@ Return ONLY the edited photograph.`;
     if (garmentImages.length > 0) {
       console.log(`🧹 [${((Date.now() - startTime) / 1000).toFixed(1)}s] Sanitizing ${garmentImages.length} garment image(s) (solid black box)...`);
       garmentImages = await Promise.all(
-        garmentImages.map((img, i) => sanitizeGarmentImage(img, ai, i))
+        garmentImages.map((img, i) => sanitizeGarmentImage(img, i))
       );
       console.log(`🧹 [${((Date.now() - startTime) / 1000).toFixed(1)}s] Sanitization complete`);
     }
 
-    const parts = [];
-
-    parts.push({ text: `<system_directive>
+    let promptText = `<system_directive>
 ROLE: Elite Commercial Fashion Photographer and CGI Compositing Specialist.
 TASK: Photorealistic Virtual Try-On (VTON) executing a flawless "Mannequin-to-Human" texture transfer.
 METHODOLOGY: Strict adherence to structured SCHEMA parameters.
@@ -640,15 +688,9 @@ METHODOLOGY: Strict adherence to structured SCHEMA parameters.
 ${adaptiveBlock}
 <input_modality_1>
 SOURCE GARMENT REFERENCE:
-Analyze the physical fabric, cut, color, and fit of the clothing in the following image(s).
-WARNING: Treat the entity currently wearing the clothing as an INVISIBLE, IRRELEVANT SCAFFOLD (Plastic Mannequin). Do NOT extract biometrics.` });
-
-    for (const img of garmentImages.slice(0, 9)) {
-      const { mimeType, base64str } = extractBase64(img);
-      parts.push({ inlineData: { data: base64str, mimeType } });
-    }
-
-    let recastText = `</input_modality_1>
+Analyze the physical fabric, cut, color, and fit of the clothing in the attached images.
+WARNING: Treat the entity currently wearing the clothing as an INVISIBLE, IRRELEVANT SCAFFOLD (Plastic Mannequin). Do NOT extract biometrics.
+</input_modality_1>
 
 <phase_1_semantic_masking>
 Perform explicit semantic masking on the source garment reference.
@@ -677,42 +719,37 @@ IMPERATIVE RULES FOR POSE EXECUTION:
 </phase_2_subject_recasting>
 `;
 
+    let imageInputs = [];
+    for (const img of garmentImages.slice(0, 9)) {
+       imageInputs.push(img.startsWith('data:') ? img : `data:image/jpeg;base64,${extractBase64(img).base64str}`);
+    }
+
     if (modelReferenceImages && Array.isArray(modelReferenceImages) && modelReferenceImages.length > 0) {
-      recastText += `\n<identity_reference>\nACTOR IDENTITY LOCK:\nThe generated person MUST closely resemble this REAL person. Match facial features, ethnicity, and skin tone.\n`;
-      parts.push({ text: recastText });
+      promptText += `\n<identity_reference>\nACTOR IDENTITY LOCK:\nThe generated person MUST closely resemble the REAL person in the attached reference photos. Match facial features, ethnicity, and skin tone.\n</identity_reference>\n`;
       for (const img of modelReferenceImages.slice(0, 5)) {
         if (!img) continue;
         if (img.startsWith('data:')) {
-          const { mimeType, base64str } = extractBase64(img);
-          parts.push({ inlineData: { data: base64str, mimeType } });
+          imageInputs.push(img);
         } else if (img.startsWith('http')) {
           const result = await downloadToBase64(img);
-          if (result) parts.push({ inlineData: { data: result.base64str, mimeType: result.mimeType } });
+          if (result) imageInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
         }
       }
-      recastText = `\n</identity_reference>\n`;
-    } else {
-      parts.push({ text: recastText });
-      recastText = '';
     }
 
     if (locationImages && Array.isArray(locationImages) && locationImages.length > 0) {
-      recastText += `\n<location_reference>\n`;
-      parts.push({ text: recastText });
+      promptText += `\n<location_reference>\nUse the attached location images as reference for the background.\n</location_reference>\n`;
       for (const img of locationImages.slice(0, 5)) {
         if (img.startsWith('data:')) {
-          const { mimeType, base64str } = extractBase64(img);
-          parts.push({ inlineData: { data: base64str, mimeType } });
+          imageInputs.push(img);
         } else if (img.startsWith('http')) {
           const result = await downloadToBase64(img);
-          if (result) parts.push({ inlineData: { data: result.base64str, mimeType: result.mimeType } });
+          if (result) imageInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
         }
       }
-      recastText = `\n</location_reference>\n`;
     }
 
-    // ═══ LAYER 6: SCHEMA + PROHIBITIONS + TRIGGER (recency bias — all at the END) ═══
-    const finalDirectives = recastText + `<schema_generation_directive>
+    promptText += `<schema_generation_directive>
 <style>High-end e-commerce editorial photography, hyper-realistic skin texture, 35mm film quality, razor-sharp focus on apparel.</style>
 <lighting>Three-point studio softbox lighting, 5600K key light, zero harsh shadows on the garment to preserve fabric details.</lighting>
 <environment>${backgroundPreset}</environment>
@@ -739,55 +776,30 @@ ${skinPrompt}
 <trigger>FINAL EXECUTION: Generate the photorealistic render based strictly on the SCHEMA. Execute now.</trigger>
 </schema_generation_directive>`;
 
-    parts.push({ text: finalDirectives });
-
-    console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Отправляем запрос в Gemini...`);
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.1-flash-image-preview',
-      contents: [{ role: 'user', parts }],
-      config: { responseModalities: ['IMAGE', 'TEXT'], temperature: 1.0 },
-    });
-
-    console.log(`⏱️ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Ответ от Gemini получен`);
-
-    let imageBase64 = null;
-    let textResponse = '';
-    if (response.candidates?.[0]?.content?.parts) {
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData?.mimeType?.startsWith('image/')) { imageBase64 = part.inlineData.data; break; }
-        if (part.text) { textResponse += part.text; }
-      }
-    }
-
-    // Log safety/block reasons
-    if (response.candidates?.[0]?.finishReason && response.candidates[0].finishReason !== 'STOP') {
-      console.warn(`⚠️ finishReason: ${response.candidates[0].finishReason}`);
-    }
-    if (response.promptFeedback?.blockReason) {
-      console.warn(`🚫 blockReason: ${response.promptFeedback.blockReason}`);
-    }
-
-    if (!imageBase64) {
-      console.error(`❌ Нейросеть не вернула картинку. Текстовый ответ: ${textResponse.substring(0, 300)}`);
-      const reason = textResponse
-        ? `Nano Banano 2 отказал: ${textResponse.substring(0, 150)}`
-        : 'Nano Banano 2 не сгенерировал изображение. Попробуйте другой промпт.';
-      throw new Error(reason);
-    }
-
+    console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Отправляем запрос в KIE.ai (nano-banana-2)...`);
+    
+    const resultUrl = await executeKieTask(promptText, imageInputs, 'nano-banana-2');
+    const dl = await downloadToBase64(resultUrl);
+    if (!dl) throw new Error("Failed to download final generated image from KIE.ai");
+    
     console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Картинка сгенерирована успешно`);
-    return res.status(200).json({ success: true, imageBase64 });
+    return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}` });
   } catch (error) {
     console.error(`❌ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Ошибка:`, error.message);
     
     // Detect quota/rate-limit errors and return friendly messages
     const msg = error.message || '';
-    if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota')) {
+    if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota') || msg.includes('rate')) {
       return res.status(200).json({ 
         success: false, 
         error: '⏳ Лимит запросов временно исчерпан. Подождите 1-2 минуты и попробуйте снова.',
         isQuotaError: true
+      });
+    }
+    if (msg.includes('422') || msg.includes('not supported')) {
+      return res.status(200).json({ 
+        success: false, 
+        error: '⚠️ Модель генерации временно недоступна. Попробуйте позже.'
       });
     }
     if (msg.includes('400') || msg.includes('INVALID_ARGUMENT')) {
