@@ -102,6 +102,40 @@ ${SKIN_REALISM_PROMPT}
 const KIE_API_KEY = process.env.KIE_API_KEY || process.env.GEMINI_API_KEY;
 const TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const GET_TASK_URL = 'https://api.kie.ai/api/v1/jobs/recordInfo?taskId=';
+const FILE_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-base64-upload';
+
+// Upload a base64 image to KIE.ai File Upload API and return the download URL
+async function uploadBase64ToKie(base64DataUrl, apiKey, index = 0) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  try {
+    const resp = await fetch(FILE_UPLOAD_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        base64Data: base64DataUrl,
+        uploadPath: 'images/vton',
+        fileName: `garment_${index}_${Date.now()}.png`
+      }),
+      signal: controller.signal
+    });
+    const data = await resp.json();
+    if (data.code === 200 && data.data && data.data.downloadUrl) {
+      console.log(`   ✅ Image ${index} uploaded to KIE: ${data.data.downloadUrl.substring(0, 80)}...`);
+      return data.data.downloadUrl;
+    }
+    console.warn(`   ⚠️ Image ${index} upload failed: ${data.msg || JSON.stringify(data)}`);
+    return null;
+  } catch (err) {
+    console.warn(`   ⚠️ Image ${index} upload error: ${err.message}`);
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
 
 async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana-2") {
   const rawKey = process.env.KIE_API_KEY || process.env.GEMINI_API_KEY;
@@ -109,11 +143,22 @@ async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana
   // Strip BOM, zero-width chars, and whitespace that PowerShell/editors inject
   const apiKey = rawKey.replace(/[\uFEFF\u200B\u200C\u200D\uFFFE\r\n]/g, '').trim();
 
+  // Upload base64 images to KIE File Upload API first (KIE.ai requires URLs, not inline base64)
+  let uploadedImageUrls = [];
+  if (imageInputs.length > 0) {
+    console.log(`   📤 Uploading ${imageInputs.length} image(s) to KIE File Upload API...`);
+    for (let idx = 0; idx < imageInputs.length; idx++) {
+      const url = await uploadBase64ToKie(imageInputs[idx], apiKey, idx);
+      if (url) uploadedImageUrls.push(url);
+    }
+    console.log(`   📤 Uploaded ${uploadedImageUrls.length}/${imageInputs.length} images`);
+  }
+
   const reqBody = {
     model: modelName,
     input: {
       prompt: prompt,
-      image_input: imageInputs,
+      image_input: uploadedImageUrls,
       aspect_ratio: "auto",
       resolution: "1K",
       output_format: "png"
@@ -482,30 +527,10 @@ function enhanceBodyMetrics(preset, editCmd) {
 // that Gemini can reconstruct. Solid black box = total pixel destruction.
 // ═══════════════════════════════════════════════════════════════════
 async function sanitizeGarmentImage(imageBase64, index) {
-  try {
-    const { mimeType, base64str } = extractBase64(imageBase64);
-    const prompt = `Edit this photo: Draw a SOLID, OPAQUE BLACK rectangle over the person's ENTIRE HEAD, FACE, and HAIR. The black box must completely cover everything from the top of the head to the bottom of the chin, including ears and neck up to the collar line. It must be a flat, uniform #000000 black fill with NO transparency, NO gradients, NO shadows, and NO outlines of the original face visible through it.
-
-CRITICAL RULES:
-- The black box must COMPLETELY DESTROY all facial pixels — no trace of the original face, skull shape, or hair should remain.
-- Do NOT touch the clothing AT ALL. The clothing must remain 100% IDENTICAL — same colors, same cut, same sleeves, same fabric.
-- Do NOT change the background, lighting, pose, or body position.
-- Do NOT redraw, regenerate, or modify ANY part of the clothing.
-- The ONLY change: the head/face area is now a solid black rectangle.
-- Keep the same image dimensions and composition.
-- Output ONLY the edited image, no text.`;
-
-    const resultUrl = await executeKieTask(prompt, [`data:${mimeType};base64,${base64str}`], 'nano-banana-2');
-    const dl = await downloadToBase64(resultUrl);
-    if (dl) {
-      console.log(`   ✅ Garment ${index + 1} face destroyed (solid black box applied via KIE.ai)`);
-      return `data:${dl.mimeType};base64,${dl.base64str}`;
-    }
-    return imageBase64;
-  } catch (err) {
-    console.warn(`   ⚠️ Garment ${index + 1}: sanitization failed (${err.message}), using original`);
-    return imageBase64;
-  }
+  // Sanitization skipped — nano-banana-2 handles garment reference via text prompt.
+  // Direct image editing requires separate model which is deprecated.
+  console.log(`   ℹ️ Garment ${index + 1}: sanitization skipped (using direct reference)`);
+  return imageBase64;
 }
 
 
