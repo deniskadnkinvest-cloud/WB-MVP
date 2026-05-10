@@ -104,8 +104,10 @@ const TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const GET_TASK_URL = 'https://api.kie.ai/api/v1/jobs/recordInfo?taskId=';
 
 async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana-2") {
-  const apiKey = process.env.KIE_API_KEY || process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error("API key missing. Set KIE_API_KEY in .env");
+  const rawKey = process.env.KIE_API_KEY || process.env.GEMINI_API_KEY;
+  if (!rawKey) throw new Error("API key missing. Set KIE_API_KEY in .env");
+  // Strip BOM, zero-width chars, and whitespace that PowerShell/editors inject
+  const apiKey = rawKey.replace(/[\uFEFF\u200B\u200C\u200D\uFFFE\r\n]/g, '').trim();
 
   const reqBody = {
     model: modelName,
