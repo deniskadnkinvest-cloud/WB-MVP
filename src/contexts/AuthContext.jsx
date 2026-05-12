@@ -10,6 +10,9 @@ import {
   signInWithCustomToken,
   signInAnonymously,
   sendPasswordResetEmail,
+  sendSignInLinkToEmail,
+  isSignInWithEmailLink,
+  signInWithEmailLink,
   onAuthStateChanged,
   browserLocalPersistence,
   setPersistence,
@@ -187,12 +190,30 @@ export function AuthProvider({ children }) {
     // Always set localStorage persistence (most reliable across all browsers)
     setPersistence(auth, browserLocalPersistence).catch(() => {});
 
-    // ═══ TELEGRAM MINI APP — use Firebase Auth (email + guest, NO Google) ═══
+    // ═══ COMPLETE MAGIC LINK SIGN-IN (if returning from email link) ═══
+    if (isSignInWithEmailLink(auth, window.location.href)) {
+      let email = window.localStorage.getItem('emailForSignIn');
+      if (!email) {
+        // User opened link on different device — ask for email
+        email = window.prompt('Введите email для подтверждения входа:');
+      }
+      if (email) {
+        signInWithEmailLink(auth, email, window.location.href)
+          .then(() => {
+            window.localStorage.removeItem('emailForSignIn');
+            // Clean URL from email link params
+            window.history.replaceState(null, '', window.location.origin);
+            console.log('✉️ Magic link sign-in successful');
+          })
+          .catch(err => console.error('Magic link error:', err));
+      }
+    }
+
+    // ═══ TELEGRAM MINI APP — use Firebase Auth (email + magic link + TG account, NO Google) ═══
     // Google OAuth is blocked in Telegram WebView (disallowed_useragent),
-    // but email/password and anonymous auth work fine.
-    // We show LoginPage with Google button hidden (isTelegram flag).
+    // but email/password, magic link, and anonymous auth work fine.
     if (isTelegram) {
-      console.log('📱 Telegram Mini App: showing login page (email + guest, no Google)');
+      console.log('📱 Telegram Mini App: auth options — Telegram account, magic link, email, guest');
       
       // Skip getRedirectResult — it crashes in Telegram WebView
       // ("missing initial state" error due to storage partitioning)
@@ -351,6 +372,48 @@ export function AuthProvider({ children }) {
     return result;
   };
 
+  // ═══════════════════════════════════════════
+  //  MAGIC LINK (Email Link / Passwordless)
+  //  Perfect for Telegram where Google OAuth is blocked
+  // ═══════════════════════════════════════════
+  const sendMagicLink = async (email) => {
+    const actionCodeSettings = {
+      url: window.location.origin, // redirect back to our app after click
+      handleCodeInApp: true,
+    };
+    await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+    // Save email in localStorage so we can complete sign-in when user returns
+    window.localStorage.setItem('emailForSignIn', email);
+  };
+
+  // ═══════════════════════════════════════════
+  //  SIGN IN WITH TELEGRAM ACCOUNT
+  //  Uses Firebase anonymous + Telegram identity
+  // ═══════════════════════════════════════════
+  const signInWithTelegramAccount = async () => {
+    if (!isTelegram && !telegramUser) {
+      throw new Error('Доступно только в Telegram');
+    }
+    const result = await signInAnonymously(auth);
+    const tgUser = telegramUser;
+    const displayName = tgUser
+      ? [tgUser.firstName, tgUser.lastName].filter(Boolean).join(' ')
+      : 'Telegram User';
+    
+    // Set user with merged Telegram + Firebase identity
+    setUser({
+      uid: result.user.uid,
+      displayName,
+      email: tgUser?.username ? `@${tgUser.username}` : null,
+      photoURL: tgUser?.photoUrl || null,
+      isAnonymous: true,
+      isTelegramUser: true,
+      telegramId: tgUser?.id,
+      telegramUsername: tgUser?.username,
+    });
+    return result;
+  };
+
   // Upgrade anonymous user to email account
   const upgradeGuestToEmail = async (email, password) => {
     if (!auth.currentUser?.isAnonymous) {
@@ -381,7 +444,9 @@ export function AuthProvider({ children }) {
     signInWithEmail,
     signUpWithEmail,
     resetPassword,
+    sendMagicLink,
     signInAsGuest,
+    signInWithTelegramAccount,
     upgradeGuestToEmail,
     signOut: handleSignOut,
   };

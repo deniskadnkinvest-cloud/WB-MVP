@@ -321,3 +321,37 @@
   .login-subtitle { font-size: 0.6rem; margin-bottom: 32px; }
   .inapp-banner { padding: 12px; gap: 10px; }
 }
+
+/* ═══ Telegram Button ═══ */
+.telegram-btn {
+  background: linear-gradient(135deg, #29B6F6, #0288D1) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 20px rgba(41, 182, 246, 0.3) !important;
+}
+
+.telegram-btn:hover:not(:disabled) {
+  box-shadow: 0 12px 40px rgba(41, 182, 246, 0.4) !important;
+}
+
+/* ═══ Magic Link Button ═══ */
+.magic-link-btn {
+  width: 100%;
+  padding: 13px 20px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--r-sm);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--normal) var(--ease);
+  margin-top: 12px;
+}
+
+.magic-link-btn:hover {
+  color: var(--gold-light);
+  border-color: var(--gold);
+  background: var(--gold-dim);
+  border-style: solid;
+}
