@@ -25,10 +25,25 @@ const AuthContext = createContext(null);
 // ═══════════════════════════════════════════
 
 // ═══ TELEGRAM MINI APP DETECTION ═══
-// Must be checked BEFORE isEmbedded, because Telegram also uses iframes
+// Two detection methods:
+// 1. SDK check — mobile Telegram injects window.Telegram.WebApp natively
+// 2. User-Agent check — Telegram Desktop WebView has "TDesktop" or "Telegram" in UA
 const isTelegram = (() => {
   try {
-    return !!(window.Telegram?.WebApp?.initData && window.Telegram.WebApp.initData.length > 0);
+    // Method 1: SDK injected by Telegram mobile
+    if (window.Telegram?.WebApp?.initData && window.Telegram.WebApp.initData.length > 0) {
+      return true;
+    }
+    // Method 2: User-Agent contains Telegram identifier
+    const ua = navigator.userAgent || '';
+    if (/Telegram/i.test(ua)) {
+      return true;
+    }
+    // Method 3: URL has tgWebAppData parameter (Telegram passes data via URL)
+    if (window.location.search.includes('tgWebAppData') || window.location.hash.includes('tgWebAppData')) {
+      return true;
+    }
+    return false;
   } catch { return false; }
 })();
 
