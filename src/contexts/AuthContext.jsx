@@ -187,43 +187,21 @@ export function AuthProvider({ children }) {
     // Always set localStorage persistence (most reliable across all browsers)
     setPersistence(auth, browserLocalPersistence).catch(() => {});
 
-    // ═══ TELEGRAM MINI APP — instant auto-login ═══
+    // ═══ TELEGRAM MINI APP — use Firebase Auth (email + guest, NO Google) ═══
+    // Google OAuth is blocked in Telegram WebView (disallowed_useragent),
+    // but email/password and anonymous auth work fine.
+    // We show LoginPage with Google button hidden (isTelegram flag).
     if (isTelegram) {
-      console.log('📱 Telegram auth: auto-login as guest with Telegram identity');
-      const tgUser = telegramUser;
-      const displayName = tgUser
-        ? [tgUser.firstName, tgUser.lastName].filter(Boolean).join(' ')
-        : 'Telegram User';
+      console.log('📱 Telegram Mini App: showing login page (email + guest, no Google)');
       
-      // Create a guest user with Telegram identity
-      // uid is prefixed to avoid collisions with Firebase UIDs
-      setUser({
-        uid: `tg-${tgUser?.id || 'unknown'}`,
-        displayName,
-        email: tgUser?.username ? `${tgUser.username}@telegram.user` : null,
-        photoURL: tgUser?.photoUrl || null,
-        isGuest: true,
-        isTelegramUser: true,
-        telegramId: tgUser?.id,
-        telegramUsername: tgUser?.username,
+      // Skip getRedirectResult — it crashes in Telegram WebView
+      // ("missing initial state" error due to storage partitioning)
+      
+      const unsub = onAuthStateChanged(auth, (u) => {
+        setUser(u);
+        setLoading(false);
       });
-      setLoading(false);
-
-      // Also try Firebase anonymous auth in background for Firestore access
-      signInAnonymously(auth).then((result) => {
-        // Merge Telegram identity with Firebase anonymous session
-        setUser(prev => ({
-          ...prev,
-          uid: result.user.uid, // Use Firebase UID for Firestore
-          firebaseUid: result.user.uid,
-          isAnonymous: true,
-        }));
-        console.log('📱 Telegram + Firebase anonymous session established');
-      }).catch(err => {
-        console.warn('📱 Firebase anonymous auth failed (still works as guest):', err.message);
-      });
-
-      return; // No cleanup needed
+      return unsub;
     }
 
     if (isEmbedded) {
