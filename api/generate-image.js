@@ -200,8 +200,8 @@ async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana
   const taskId = data.data.taskId;
   console.log(`⏳ KIE.ai Task created. Model: ${modelName}. TaskID: ${taskId}. Polling...`);
 
-  for (let i = 0; i < 60; i++) { // Max 5 mins
-    await new Promise(resolve => setTimeout(resolve, 5000));
+  for (let i = 0; i < 100; i++) { // Max 5 mins (100 * 3s)
+    await new Promise(resolve => setTimeout(resolve, i === 0 ? 2000 : 3000)); // First poll faster
     
     const pollController = new AbortController();
     const pollTimeout = setTimeout(() => pollController.abort(), 15000);
@@ -607,11 +607,11 @@ ABSOLUTE REQUIREMENTS:
 Return ONLY the edited photograph.`;
 
         const resultUrl = await executeKieTask(editPrompt, [`data:${sourceData.mimeType};base64,${sourceData.base64str}`], 'nano-banana-2');
+        console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Photo edit complete. Downloading result...`);
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error("Failed to download edited image");
         
-        console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Photo edit complete`);
-        return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}` });
+        return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl });
       } catch (editError) {
         console.error(`❌ Photo edit error:`, editError.message);
         return res.status(200).json({ success: false, error: `Ошибка редактирования: ${editError.message}` });
@@ -675,10 +675,10 @@ Return ONLY the edited photograph.`;
       }
       console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Отправляем калибровку в KIE.ai...`);
       const resultUrl = await executeKieTask(calibPrompt, imageInputs, 'nano-banana-2');
+      console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Калибровка успешна. Downloading result...`);
       const dl = await downloadToBase64(resultUrl);
       if (!dl) throw new Error("Failed to download generated image");
-      console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Калибровка успешна`);
-      return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}` });
+      return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl });
     }
 
     const isAdaptive = /amputee|prosthe|wheelchair|limb\s*(missing|difference)|adaptive\s*fashion/i.test(modelPreset);
@@ -806,11 +806,11 @@ ${skinPrompt}
     console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Отправляем запрос в KIE.ai (nano-banana-2)...`);
     
     const resultUrl = await executeKieTask(promptText, imageInputs, 'nano-banana-2');
+    console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Картинка сгенерирована. Downloading result...`);
     const dl = await downloadToBase64(resultUrl);
     if (!dl) throw new Error("Failed to download final generated image from KIE.ai");
     
-    console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Картинка сгенерирована успешно`);
-    return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}` });
+    return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl });
   } catch (error) {
     console.error(`❌ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Ошибка:`, error.message);
     

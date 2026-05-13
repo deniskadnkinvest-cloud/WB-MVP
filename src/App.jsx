@@ -404,7 +404,7 @@ function App() {
 
       const successImages = results
         .filter(d => d.success)
-        .map(d => d.imageBase64);
+        .map(d => d.imageUrl || d.imageBase64);
 
       if (successImages.length > 0) {
         setGeneratedImage(successImages[0]);
@@ -592,7 +592,7 @@ function App() {
       });
       const data = await safeParseJSON(resp);
       if (data.success) {
-        setModelPreviewSrc(data.imageBase64);
+        setModelPreviewSrc(data.imageUrl || data.imageBase64);
         setStatusText('Превью модели готово! Сохранить как новую?'); setStatusType('success');
       } else { setStatusText(`Ошибка: ${data.details||data.error}`); setStatusType('error'); }
     } catch (err) { setStatusText(`Ошибка: ${err.message}`); setStatusType('error'); }
@@ -700,7 +700,7 @@ function App() {
       clearInterval(iv);
       const data = await safeParseJSON(resp);
       if (data.success) {
-        const newImg = data.imageBase64;
+        const newImg = data.imageUrl || data.imageBase64;
         setGeneratedImage(newImg);
         const editLabel = shotModifier.trim() || 'Перегенерация';
         setImageHistory(prev => { const h = [...prev, { image: newImg, label: editLabel }]; setHistoryIndex(h.length - 1); return h; });
@@ -768,7 +768,7 @@ function App() {
           }),
         }).then(r => safeParseJSON(r)).then(data => {
           if (data.success) {
-            const imgData = data.imageBase64;
+            const imgData = data.imageUrl || data.imageBase64;
             const slotIdx = existingCount + idx;
             // Place at the correct offset position (existing photos + batch index)
             setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = imgData; return n; });
@@ -818,7 +818,7 @@ function App() {
       });
       const data = await safeParseJSON(resp);
       if (data.success) {
-        const editedImg = data.imageBase64;
+        const editedImg = data.imageUrl || data.imageBase64;
         // Update photoshootImages to show latest
         setPhotoshootImages(prev => {
           const n = [...prev]; n[idx] = editedImg; return n;

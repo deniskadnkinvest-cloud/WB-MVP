@@ -89,7 +89,7 @@ export default function ModelCalibrationWizard({
     }
 
     if (data.success) {
-      return data.imageBase64;
+      return data.imageUrl || data.imageBase64;
     }
     throw new Error(data.details || data.error || 'Ошибка генерации');
   }, [modelPrompt, modelRefImages]);
