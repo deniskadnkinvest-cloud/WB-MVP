@@ -93,6 +93,26 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   }
 
+  // ═══ Handle /start command ═══
+  if (update?.message?.text === '/start') {
+    const chatId = update.message.chat.id;
+    const firstName = update.message.from?.first_name || '';
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: `Привет${firstName ? ', ' + firstName : ''}! 👋\n\nДобро пожаловать в Селлер-Студию — ИИ-фотостудию для маркетплейсов.\n\n📸 Загрузите фото одежды → получите готовые кадры с моделью за 30 секунд.\n\nНажмите кнопку ниже, чтобы начать ↓`,
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '🚀 Открыть Студию', web_app: { url: 'https://vton-mvp-omega.vercel.app' } }
+          ]]
+        }
+      }),
+    });
+    return res.status(200).json({ ok: true });
+  }
+
   // Unknown update type — just acknowledge
   return res.status(200).json({ ok: true });
 }
