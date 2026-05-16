@@ -25,7 +25,7 @@ export const PLANS = {
     label: 'Тест-драйв',
     emoji: '🎯',
     credits: 15,
-    price: 500,
+    price: 390,
     period: null, // one-time
     canSaveModels: false,
     canSaveLocations: false,

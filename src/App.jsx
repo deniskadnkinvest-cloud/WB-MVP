@@ -940,7 +940,8 @@ function App() {
         onClose={() => setShowPricing(false)}
         currentPlan={subscription?.plan || 'none'}
         onSelectPlan={handleSelectPlan}
-        loading={pricingLoading}
+        uid={user?.uid}
+        isTelegram={isTelegram}
       />
 
       {/* 1. МУЛЬТИЗАГРУЗКА */}
