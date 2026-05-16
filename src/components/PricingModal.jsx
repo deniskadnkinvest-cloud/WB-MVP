@@ -3,68 +3,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PLANS } from '../lib/subscriptionService';
 import './PricingModal.css';
 
-// Stars prices per plan (1 Star ≈ $0.013)
-const STARS_PRICE = { trial: 9, base: 75, pro: 215 };
-
-export default function PricingModal({ isOpen, onClose, currentPlan, onSelectPlan, uid, isTelegram }) {
+export default function PricingModal({ isOpen, onClose, currentPlan, onSelectPlan, loading }) {
   const [selectedPlanId, setSelectedPlanId] = useState(null);
-  const [payLoading, setPayLoading] = useState(false);
-  const [payError, setPayError] = useState('');
 
   if (!isOpen) return null;
 
   const plans = [PLANS.trial, PLANS.base, PLANS.pro];
 
-  // ── Telegram Stars Payment ─────────────────────────────────────
-  const handleStarsPayment = async (planId) => {
-    setSelectedPlanId(planId);
-    setPayError('');
-    setPayLoading(true);
-    try {
-      const res = await fetch('/api/create-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planId, uid }),
-      });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.error || 'Ошибка создания счёта');
-
-      // Open invoice inside Telegram Mini App
-      if (window.Telegram?.WebApp?.openInvoice) {
-        window.Telegram.WebApp.openInvoice(data.invoiceLink, (status) => {
-          if (status === 'paid') {
-            // Payment confirmed by Telegram — webhook will activate in Firestore
-            // Optimistically refresh subscription after 2s
-            setTimeout(() => {
-              onSelectPlan(planId);
-              onClose();
-            }, 2000);
-          }
-        });
-      } else {
-        // Fallback: open invoice link in browser (for desktop testing)
-        window.open(data.invoiceLink, '_blank');
-      }
-    } catch (err) {
-      setPayError(err.message);
-    } finally {
-      setPayLoading(false);
-    }
-  };
-
-  // ── Test mode (no bot token yet): activate directly ───────────
-  const handleTestActivate = (planId) => {
+  const handleSelect = (planId) => {
     setSelectedPlanId(planId);
     onSelectPlan(planId);
-  };
-
-  const handleSelect = (planId) => {
-    if (isTelegram && uid) {
-      handleStarsPayment(planId);
-    } else {
-      // Desktop / no bot token → test activate
-      handleTestActivate(planId);
-    }
   };
 
   return (
@@ -92,19 +40,12 @@ export default function PricingModal({ isOpen, onClose, currentPlan, onSelectPla
               <button className="pricing-close" onClick={onClose}>✕</button>
             </div>
 
-            {payError && (
-              <div style={{ textAlign: 'center', color: 'var(--red)', fontSize: '0.78rem', marginBottom: 12 }}>
-                ⚠️ {payError}
-              </div>
-            )}
-
             {/* Plans Grid */}
             <div className="pricing-grid">
               {plans.map((plan, i) => {
                 const isActive = currentPlan === plan.id;
                 const isSelected = selectedPlanId === plan.id;
                 const isBest = plan.bestSeller;
-                const stars = STARS_PRICE[plan.id];
 
                 return (
                   <motion.div
@@ -126,11 +67,6 @@ export default function PricingModal({ isOpen, onClose, currentPlan, onSelectPla
                       <span className="pricing-price-currency"> ₽</span>
                       {plan.period === 'month' && <span className="pricing-price-period">/мес</span>}
                       {!plan.period && <span className="pricing-price-period">разово</span>}
-                    </div>
-
-                    {/* Stars price tag */}
-                    <div className="pricing-stars-price">
-                      ⭐ {stars} Stars в Telegram
                     </div>
 
                     <div className="pricing-credits">
@@ -158,13 +94,12 @@ export default function PricingModal({ isOpen, onClose, currentPlan, onSelectPla
                     <button
                       className={`pricing-btn ${isBest ? 'pricing-btn--best' : ''} ${isActive ? 'pricing-btn--active' : ''}`}
                       onClick={() => handleSelect(plan.id)}
-                      disabled={isActive || (payLoading && isSelected)}
+                      disabled={isActive || (loading && isSelected)}
                     >
-                      {payLoading && isSelected ? '⏳ Открываем счёт...'
+                      {loading && isSelected ? '⏳ Активация...'
                         : isActive ? '✓ Активен'
-                        : isBest ? '🚀 Подключить PRO'
-                        : isTelegram ? `⭐ Оплатить ${stars} Stars`
-                        : 'Активировать (тест)'}
+                        : isBest ? `🚀 Подключить PRO — ${plan.price.toLocaleString('ru-RU')} ₽`
+                        : `Подключить — ${plan.price.toLocaleString('ru-RU')} ₽`}
                     </button>
                   </motion.div>
                 );
@@ -173,9 +108,7 @@ export default function PricingModal({ isOpen, onClose, currentPlan, onSelectPla
 
             {/* Footer */}
             <p className="pricing-footer">
-              {isTelegram
-                ? '⭐ Оплата через Telegram Stars — безопасно и мгновенно'
-                : '🛠️ Тестовый режим — активация без оплаты'}
+              🛠️ Тестовый режим — активация без реальной оплаты
             </p>
           </motion.div>
         </motion.div>
