@@ -7,9 +7,12 @@ import LoraModal from './components/LoraModal';
 import ModelCalibrationWizard from './components/ModelCalibrationWizard';
 import TerminalOfMagic from './components/TerminalOfMagic';
 import LoginPage from './components/LoginPage';
+import PricingModal from './components/PricingModal';
+import SubscriptionBadge from './components/SubscriptionBadge';
 import { useAuth } from './contexts/AuthContext';
 import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt } from './lib/firestoreService';
 import { uploadBase64Image, compressImage, uploadImage, deleteImage } from './lib/storageService';
+import { getSubscription, useCredit, checkFeature, canGenerate, activatePlan } from './lib/subscriptionService';
 import './App.css';
 
 const MSGS = ['Анализируем текстуру ткани...','Выставляем студийный свет...','Строим 3D-модель фигуры...','Натягиваем одежду с учетом физики...','Рендерим финальный кадр...'];
@@ -37,6 +40,11 @@ const safeParseJSON = async (resp) => {
 
 function App() {
   const { user, loading, signOut, isEmbedded, isTelegram } = useAuth();
+
+  // Subscription state
+  const [subscription, setSubscription] = useState(null);
+  const [showPricing, setShowPricing] = useState(false);
+  const [pricingLoading, setPricingLoading] = useState(false);
 
   // Core selections
   const [selectedModel, setSelectedModel] = useState(MODEL_PRESETS[0]);
@@ -182,13 +190,40 @@ function App() {
     if (!user || user.isGuest || user.isAnonymous) return;
     const loadData = async () => {
       try {
-        const [models, locations] = await Promise.all([getModels(user.uid), getLocations(user.uid)]);
+        const [models, locations, sub] = await Promise.all([
+          getModels(user.uid),
+          getLocations(user.uid),
+          getSubscription(user.uid),
+        ]);
         setMyModels(models);
         setMyLocations(locations);
+        setSubscription(sub);
       } catch (err) { console.error('Ошибка загрузки данных:', err); }
     };
     loadData();
   }, [user]);
+
+  // Handle plan selection from PricingModal
+  const handleSelectPlan = async (planId) => {
+    if (!user) return;
+    setPricingLoading(true);
+    try {
+      // For test mode: activate immediately (real flow would go through Telegram Stars payment)
+      const result = await activatePlan(user.uid, planId, { method: 'test', note: 'Тестовая активация' });
+      setSubscription(await getSubscription(user.uid));
+      setShowPricing(false);
+      setStatusText(`✅ Тариф «${planId.toUpperCase()}» активирован! ${result.credits} кредитов`); setStatusType('success');
+    } catch (err) {
+      console.error('Ошибка активации тарифа:', err);
+      setStatusText('Ошибка активации тарифа'); setStatusType('error');
+    } finally { setPricingLoading(false); }
+  };
+
+  // Feature check helper
+  const canUseFeature = (feature) => {
+    if (!subscription) return false;
+    return checkFeature(subscription.plan, feature);
+  };
 
   // Reset model selection when gender changes
   useEffect(() => {
@@ -349,6 +384,30 @@ function App() {
 
   const handleGenerate = async () => {
     if (!imageFiles.length) return;
+
+    // ═══ SUBSCRIPTION CHECK ═══
+    if (!canGenerate(subscription)) {
+      setShowPricing(true);
+      setStatusText('⚡ Для генерации нужен активный тариф'); setStatusType('error');
+      return;
+    }
+
+    // Deduct 1 credit (2 variants = 1 credit)
+    try {
+      const result = await useCredit(user.uid, 1);
+      setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
+    } catch (err) {
+      if (err.message === 'NO_CREDITS') {
+        setShowPricing(true);
+        setStatusText('⚡ Кредиты закончились — выберите тариф'); setStatusType('error');
+        return;
+      }
+      if (err.message === 'NO_PLAN') {
+        setShowPricing(true);
+        return;
+      }
+    }
+
     setIsProcessing(true); setGeneratedImage(null); setStatusText('');
     let msgI = 0;
     const iv = setInterval(() => { setProcessingMsg(msgI < MSGS.length ? MSGS[msgI++] : 'Финальные штрихи...'); }, 8000);
@@ -633,6 +692,23 @@ function App() {
   // Re-generate with shot modifier (iterative editing)
   const handleRegenerate = async () => {
     if (!shotModifier.trim() || !imageFiles.length) return;
+
+    // ═══ SUBSCRIPTION CHECK ═══
+    if (!canGenerate(subscription)) {
+      setShowPricing(true);
+      return;
+    }
+    try {
+      const result = await useCredit(user.uid, 1);
+      setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
+    } catch (err) {
+      if (err.message === 'NO_CREDITS' || err.message === 'NO_PLAN') {
+        setShowPricing(true);
+        setStatusText('⚡ Кредиты закончились'); setStatusType('error');
+        return;
+      }
+    }
+
     setIsProcessing(true);
     // DON'T clear generatedImage here — preserve it in case of error
     setStatusText('');
@@ -851,11 +927,21 @@ function App() {
       <header className="app-header">
         <motion.h1 className="app-logo" initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} transition={{duration:0.6}}>Селлер-Студия</motion.h1>
         <p className="app-subtitle">ИИ-фотостудия для маркетплейсов Ozon, WB и других</p>
-        <div style={{marginTop:8,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+        <div style={{marginTop:8,display:'flex',alignItems:'center',justifyContent:'center',gap:8,flexWrap:'wrap'}}>
+          <SubscriptionBadge subscription={subscription} onClick={() => setShowPricing(true)} />
           <span style={{fontSize:'0.75rem',color:'var(--text-muted)'}}>{user.displayName || user.email}</span>
           {!isEmbedded && <button onClick={signOut} style={{fontSize:'0.7rem',color:'var(--text-muted)',background:'none',border:'1px solid var(--border-subtle)',borderRadius:'9999px',padding:'4px 14px',cursor:'pointer',fontFamily:'var(--font-body)',letterSpacing:'1px',textTransform:'uppercase'}}>Выйти</button>}
         </div>
       </header>
+
+      {/* ═══ PRICING MODAL ═══ */}
+      <PricingModal
+        isOpen={showPricing}
+        onClose={() => setShowPricing(false)}
+        currentPlan={subscription?.plan || 'none'}
+        onSelectPlan={handleSelectPlan}
+        loading={pricingLoading}
+      />
 
       {/* 1. МУЛЬТИЗАГРУЗКА */}
       <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.15,duration:0.5,ease:[0.16,1,0.3,1]}}>
