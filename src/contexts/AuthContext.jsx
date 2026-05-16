@@ -377,8 +377,11 @@ export function AuthProvider({ children }) {
   //  Perfect for Telegram where Google OAuth is blocked
   // ═══════════════════════════════════════════
   const sendMagicLink = async (email) => {
+    // Use hardcoded production URL — window.location.origin is unreliable in Telegram WebView
+    // (it may return t.me or be empty, causing Firebase to reject the sign-in link)
+    const appUrl = import.meta.env.VITE_APP_URL || 'https://vton-mvp-omega.vercel.app';
     const actionCodeSettings = {
-      url: window.location.origin, // redirect back to our app after click
+      url: appUrl,
       handleCodeInApp: true,
     };
     await sendSignInLinkToEmail(auth, email, actionCodeSettings);

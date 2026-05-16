@@ -188,9 +188,9 @@ export default function LoginPage() {
             {!showEmailForm ? (
               <button
                 className="magic-link-btn"
-                onClick={() => { setShowEmailForm(true); setMode('magiclink'); }}
+                onClick={() => { setShowEmailForm(true); setMode('login'); }}
               >
-                ✉️ Войти по email (без пароля)
+                ✉️ Войти по email
               </button>
             ) : (
               <>
@@ -242,14 +242,14 @@ export default function LoginPage() {
                   )}
                   {mode === 'login' && (
                     <>
-                      <p className="login-toggle" onClick={() => switchMode('magiclink')}>
-                        ← Войти <strong>без пароля</strong>
-                      </p>
                       <p className="login-toggle" onClick={() => switchMode('signup')}>
                         Нет аккаунта? <strong>Зарегистрироваться</strong>
                       </p>
-                      <p className="login-toggle login-toggle-secondary" onClick={() => switchMode('reset')}>
+                      <p className="login-toggle" onClick={() => switchMode('reset')}>
                         Забыли пароль?
+                      </p>
+                      <p className="login-toggle login-toggle-secondary" onClick={() => switchMode('magiclink')}>
+                        ← Войти <strong>без пароля</strong> (ссылка на email)
                       </p>
                     </>
                   )}
