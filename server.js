@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import generateImageHandler from './api/generate-image.js';
+import verifyPanxTokenHandler from './api/verify-panx-token.js';
 
 dotenv.config();
 
@@ -11,6 +12,10 @@ app.use(express.json({ limit: '50mb' }));
 
 app.post('/api/generate-image', async (req, res) => {
   return generateImageHandler(req, res);
+});
+
+app.post('/api/verify-panx-token', async (req, res) => {
+  return verifyPanxTokenHandler(req, res);
 });
 
 const PORT = 3001;

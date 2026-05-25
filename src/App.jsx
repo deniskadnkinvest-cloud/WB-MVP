@@ -208,16 +208,46 @@ function App() {
     if (!user) return;
     setPricingLoading(true);
     try {
-      // For test mode: activate immediately (real flow would go through Telegram Stars payment)
-      const result = await activatePlan(user.uid, planId, { method: 'test', note: 'Тестовая активация' });
+      // Wrap in a timeout — anonymous users or Firestore rules can cause infinite hang
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('TIMEOUT')), 8000)
+      );
+
+      let result;
+      try {
+        result = await Promise.race([
+          activatePlan(user.uid, planId, { method: 'test', note: 'Тестовая активация' }),
+          timeoutPromise,
+        ]);
+      } catch (firestoreErr) {
+        if (firestoreErr.message === 'TIMEOUT' || firestoreErr.code?.includes('permission')) {
+          // Firebase Rules blocked write (anonymous user) OR timed out.
+          // Activate locally in memory so the user can still test the app.
+          console.warn('⚠️ Firestore write blocked/timed out — activating plan locally (session only)');
+          const { PLANS } = await import('./lib/subscriptionService');
+          const plan = PLANS[planId];
+          setSubscription({ plan: planId, credits: plan.credits, creditsTotal: plan.credits, planActivatedAt: new Date(), local: true });
+          setShowPricing(false);
+          setStatusText(`✅ Тариф «${planId.toUpperCase()}» активирован (сессия)! ${plan.credits} кредитов`);
+          setStatusType('success');
+          return;
+        }
+        throw firestoreErr;
+      }
+
       setSubscription(await getSubscription(user.uid));
       setShowPricing(false);
-      setStatusText(`✅ Тариф «${planId.toUpperCase()}» активирован! ${result.credits} кредитов`); setStatusType('success');
+      setStatusText(`✅ Тариф «${planId.toUpperCase()}» активирован! ${result.credits} кредитов`);
+      setStatusType('success');
     } catch (err) {
       console.error('Ошибка активации тарифа:', err);
-      setStatusText('Ошибка активации тарифа'); setStatusType('error');
-    } finally { setPricingLoading(false); }
+      setStatusText('Ошибка активации тарифа. Попробуйте ещё раз.');
+      setStatusType('error');
+    } finally {
+      setPricingLoading(false);
+    }
   };
+
 
   // Feature check helper
   const canUseFeature = (feature) => {
@@ -796,6 +826,65 @@ function App() {
     }
   };
 
+  // Auto-Catalog integration
+  const handleAutoCatalog = async () => {
+    if (!garmentUrls.length) {
+      setStatusText('Сначала загрузите фото одежды'); setStatusType('error');
+      return;
+    }
+    
+    // ═══ SUBSCRIPTION CHECK ═══
+    if (!canGenerate(subscription)) {
+      setShowPricing(true);
+      return;
+    }
+    try {
+      // 3 credits for a batch run (discounted)
+      const result = await useCredit(user.uid, 3);
+      setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
+    } catch (err) {
+      if (err.message === 'NO_CREDITS' || err.message === 'NO_PLAN') {
+        setShowPricing(true);
+        setStatusText('⚡ Кредиты закончились'); setStatusType('error');
+        return;
+      }
+    }
+
+    setStatusText('Отправка батча в Auto-Catalog...'); setStatusType('');
+    
+    // Transform uploaded garment URLs into SKU items
+    const items = garmentUrls.map((url, i) => ({
+      skuId: `SKU-${Date.now()}-${i}`,
+      name: `Товар ${i + 1}`,
+      imageUrl: url
+    }));
+
+    try {
+      // NOTE: We point to the standalone auto-catalog server (port 3002)
+      // In production this would be unified or routed via Vercel Edge
+      const resp = await fetch('http://localhost:3002/api/auto-catalog/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items,
+          sellerId: user?.uid || 'test_seller_001',
+          vibe: customBgText.trim() || selectedBg.prompt
+        })
+      });
+      const data = await resp.json();
+      if (data.success) {
+        setStatusText(`✅ Auto-Catalog запущен! Батч отправлен на фоновую обработку.`);
+        setStatusType('success');
+      } else {
+        setStatusText(`❌ Ошибка: ${data.error}`);
+        setStatusType('error');
+      }
+    } catch (err) {
+      setStatusText(`❌ Ошибка сети: ${err.message}. Убедитесь что сервер на порту 3002 запущен.`);
+      setStatusType('error');
+    }
+  };
+
   // Photoshoot mode: 5 parallel generations
   const PHOTOSHOOT_ANGLES = [
     { pose: 'close-up portrait shot, looking directly at camera, confident expression', camera: 'close-up portrait' },
@@ -1170,7 +1259,12 @@ function App() {
           </label>
           <span className="beauty-hint">{isBeautyMode ? 'Журнальный глянец, идеальная кожа' : 'Натуральная кожа с текстурой'}</span>
         </div>
-        <button className="generate-btn" onClick={handleGenerate} onMouseEnter={() => { fetch('/api/generate-image', { method: 'OPTIONS', keepalive: true }).catch(() => {}); }} disabled={!garmentUrls.length||isProcessing||isUploading}>{isUploading ? '☁️ Загрузка в облако...' : '✨ Сгенерировать студийный кадр'}</button>
+        
+        <div style={{display: 'flex', gap: '10px', flexDirection: 'column'}}>
+          <button className="generate-btn" onClick={handleGenerate} onMouseEnter={() => { fetch('/api/generate-image', { method: 'OPTIONS', keepalive: true }).catch(() => {}); }} disabled={!garmentUrls.length||isProcessing||isUploading}>{isUploading ? '☁️ Загрузка в облако...' : '✨ Сгенерировать студийный кадр'}</button>
+          <button className="generate-btn" style={{background: 'linear-gradient(135deg, #8b5cf6, #d946ef)'}} onClick={handleAutoCatalog} disabled={!garmentUrls.length||isProcessing||isUploading}>{isUploading ? '☁️ Загрузка...' : '🏭 Отправить в Auto-Catalog (Batch)'}</button>
+        </div>
+
         <div className="status-bar">{statusText && <p className={`status-text ${statusType}`}>{statusText}</p>}</div>
       </motion.div>
 
