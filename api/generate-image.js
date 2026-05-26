@@ -533,6 +533,255 @@ async function sanitizeGarmentImage(imageBase64, index) {
   return imageBase64;
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// PRODUCT MODE — XML-тегированная система промптов для предметной съемки
+// Аналог Fashion Mode cognitive_override, но с ОБРАТНОЙ логикой:
+// "Исходный товар = Sacred Blueprint, заморозь его пиксели 1:1"
+// ═══════════════════════════════════════════════════════════════════
+
+const CATEGORY_CONFIGS = {
+  cosmetics: {
+    materials: `<material_rendering_directive>
+- SURFACES: High-fidelity separation between frosted glass, matte soft-touch plastics, and glossy acrylics.
+- VOLUMETRICS: Apply Subsurface Scattering (SSS) to semi-translucent creams, serums, and liquids for a natural, premium organic glow.
+- LABELS: Maintain crisp, perfectly flat typography and brand logos. Zero perspective warping or distortion on the text.
+- REFLECTIONS: Smooth, continuous specular highlights on cylindrical and curved edges.
+</material_rendering_directive>`,
+    lighting: `<lighting_protocol>
+- STYLE: High-end softbox beauty lighting.
+- SETUP: Large diffused overhead modifiers and strip-lights.
+- GOAL: Clean, luminous shadows. Fill lights must ensure the front label is perfectly lit and 100% legible. Zero harsh or distracting drop-shadows on the product face.
+</lighting_protocol>`
+  },
+
+  // 'fragrance' matches presets.js ID (Deep Think used 'perfume')
+  fragrance: {
+    materials: `<material_rendering_directive>
+- REFRACTION & OPTICS: Accurate Index of Refraction (IOR) for heavy crystal glass and perfume liquid. Generate realistic optical distortion and internal reflections.
+- METALS: Heavy polished metallic atomizers, collars, and caps must reflect the surrounding environment cleanly with high contrast.
+- FLUIDS: Simulate volumetric light transmission and subtle chromatic aberration through the liquid.
+</material_rendering_directive>`,
+    lighting: `<lighting_protocol>
+- STYLE: Luxury cinematic lighting.
+- SETUP: Strong directional backlighting or side-lighting to illuminate the liquid from within, making it glow.
+- FX: Intense, realistic glass and liquid caustics projected onto the resting surface.
+- LENS: Heavy, creamy cinematic bokeh (shallow depth of field) in the background to isolate the tack-sharp product in the foreground.
+</lighting_protocol>`
+  },
+
+  jewelry: {
+    materials: `<material_rendering_directive>
+- METALS: Flawless metallic surface rendering (Gold/Silver/Platinum/Rose Gold). Anisotropic reflections for brushed metals, pure mirror-like speculars for polished metals.
+- GEMSTONES: Physically accurate light dispersion (diamond fire), internal ray-traced refractions, multi-faceted brilliance, and prism effects.
+- MICRO-DETAILS: Extreme macro resolution. Hallmarks, intricate engravings, and prongs must have razor-sharp micro-contrast. Zero melting of small metal links.
+</material_rendering_directive>`,
+    lighting: `<lighting_protocol>
+- STYLE: Extreme macro dramatic studio lighting.
+- SETUP: Pinpoint LED spot lights directly aimed at gemstones to trigger maximum sparkle and sharp caustics.
+- GOAL: Use simulated black and white bounce reflection cards around the product to create deep, striking edge gradients on metal curves. Focus stacking simulation (entire piece is 100% sharp).
+</lighting_protocol>`
+  },
+
+  // ── Full CGI configs from Deep Think Parts 1-3 ──
+  supplements: {
+    materials: `<material_rendering_directive>
+- PLASTICS & SURFACES: Render medical-grade plastics with distinct PBR properties: high-gloss reflections for PET, light-absorbing soft-touch for matte HDPE bottles.
+- TYPOGRAPHY & LABELS: Extreme crispness protocol. Nutritional facts, barcodes, and logos must maintain razor-sharp vector-like precision with zero AI bleeding or distortion.
+- CONTENTS: If visible, apply realistic gelatin semi-translucency with Subsurface Scattering (SSS) for capsules, and dry, granular micro-textures for organic powders.
+- PURITY: Maintain absolute clinical hygiene. Flawless surface rendering with zero dust, smudges, or organic imperfections.
+</material_rendering_directive>`,
+    lighting: `<lighting_protocol>
+- STYLE: Clinical, trustworthy, high-key commercial studio lighting (5000K-5500K).
+- SETUP: Massive overhead diffusion panels and broad wrap-around fill light.
+- GOAL: Eliminate deep shadows. Establish a pure, airy, shadowless medical aesthetic that conveys premium health standards and safety.
+</lighting_protocol>`
+  },
+
+  decor_candles: {
+    materials: `<material_rendering_directive>
+- WAX VOLUMETRICS: Apply deep Subsurface Scattering (SSS) to soy, beeswax, or paraffin wax. The wax must exhibit organic depth and milky semi-translucency, absorbing and scattering light near the flame.
+- FLAME & WICK: Render charred micro-details on the braided cotton/wood wick. The flame must have a structurally accurate hot core with localized volumetric light emission.
+- VESSELS: High-fidelity IOR for heavy glass jars, organic micro-porosity for unglazed ceramics, and anisotropic reflections for brushed metal lids.
+- STRUCTURAL INTEGRITY: Maintain perfect circular geometry of the jar lip. Zero melting of the container's structural shape into the wax.
+</material_rendering_directive>`,
+    lighting: `<lighting_protocol>
+- STYLE: Intimate, moody, and cozy atmospheric ambient lighting.
+- COLOR TEMP: Warm incandescent and candlelight (2700K-3000K).
+- FX: Soft volumetric glow radiating from the flame, casting warm ambient bounce light onto surrounding textures. Soft, elongated drop-shadows with a natural warm fall-off.
+</lighting_protocol>`
+  },
+
+  electronics: {
+    materials: `<material_rendering_directive>
+- HARD SURFACE GEOMETRY: Strict hard surface CGI rendering. Absolute mathematical precision. Zero distortion, bending, or organic melting of parallel lines, bezels, and sharp geometric corners.
+- TEXTURES: High-resolution PBR micro-bump mapping for accessories (matte friction-grip silicone, porous full-grain leather, woven carbon fiber, or rugged polycarbonate).
+- REFLECTIONS: Perfect planar mirror-like reflection mapping on glossy glass screens. Smooth, continuous anisotropic gradients on machined aluminum or steel edges.
+- SCREENS & LENSES: If visible, render with perfect pixel-grid simulation, OLED backlight emission, zero UI glare, and perfectly circular, pristine camera lenses.
+</material_rendering_directive>`,
+    lighting: `<lighting_protocol>
+- STYLE: Premium, cool-toned futuristic tech studio lighting (5000K-6500K).
+- SETUP: Precision gradient light modifiers (long strip softboxes) casting smooth, continuous zebra-stripe reflections across flat surfaces and glossy panels.
+- EDGES: Intense, sharp accent rim lights to brilliantly define the product's silhouette, trace edge chamfers, and separate the device from the background.
+</lighting_protocol>`
+  },
+
+  pet_supplies: {
+    materials: `<material_rendering_directive>
+- TEXTURE & TACTILITY: High-fidelity micro-textures. Render plush fabrics with distinct soft fibers. Emphasize high-friction matte or glossy surfaces for rubber/silicone chew toys.
+- PACKAGING: Preserve ultra-clean, vibrant, and cheerful vector illustrations. Zero AI bleeding, smudging, or text distortion on packaging.
+- CONTENTS: If pet food/treats are visible, render realistic porous baked kibble micro-textures or natural organic meat grains. Zero plastic sheen on food.
+- PLASTICS: Safe, smooth, non-toxic pet-grade plastic rendering with clean specular highlights.
+</material_rendering_directive>`,
+    lighting: `<lighting_protocol>
+- STYLE: Cheerful, bright, uplifting commercial lifestyle lighting.
+- COLOR TEMP: Warm, friendly, and sunny daylight (4000K).
+- SETUP: Broad diffused softbox illumination with bright fill lights to eliminate harsh or dramatic shadows.
+- GOAL: Create a positive, safe, and approachable atmosphere.
+</lighting_protocol>`
+  },
+
+  stationery: {
+    materials: `<material_rendering_directive>
+- PAPER & CARDBOARD: Authentic paper fiber micro-grain. Differentiate paper thickness (GSM) and render precise, razor-sharp edges for layered pages.
+- LEATHER & BINDING: High-resolution bump mapping for full-grain or faux leather covers. Crisp, perfect geometric stitching and highly precise foil debossing/embossing.
+- HARDWARE: Physically accurate metallic reflections on binder rings, clips, and zippers (brushed brass, polished chrome, matte black).
+- INK & WRITING: Absolute vector-precision for printed lines, grids, and typography.
+</material_rendering_directive>`,
+    lighting: `<lighting_protocol>
+- STYLE: Clean, minimal, airy natural workspace daylight (Flat lay optimized).
+- COLOR TEMP: Pure overcast daylight (5500K).
+- SETUP: Large overhead softbox simulating massive window light.
+- GOAL: Extremely soft, short drop-shadows. Maintain even illumination across the flat lay without muddying the composition with deep contrast.
+</lighting_protocol>`
+  },
+
+  food: {
+    materials: `<material_rendering_directive>
+- FOOD STYLING PBR: Maximize appetite appeal. Render rich specular gloss for viscous liquids (honey/syrup), tempered satin sheen for chocolate, and organic porous roughness for nuts/baked goods.
+- FRESHNESS & FX: Apply photorealistic condensation droplets with accurate IOR on cold surfaces, and volumetric ray-traced steam/vapor for hot items.
+- PACKAGING: Distinct tactile fidelity for raw fibrous kraft paper, crinkly foil, transparent glass, or food-safe plastics.
+- HERO INGREDIENTS: Companion ingredients must look plump, vibrant, and organically fresh with natural subsurface scattering on fruits and leaves.
+</material_rendering_directive>`,
+    lighting: `<lighting_protocol>
+- STYLE: High-end commercial food styling lighting with a golden hour feel.
+- COLOR TEMP: Warm, appetizing, and inviting hero light (3500K-4000K).
+- SETUP: Strong directional backlight (kicker) to reveal translucency in liquids/leaves, enhance micro-textures, and naturally illuminate steam.
+- FILL: Bright simulated bounce cards from below to eliminate muddy "dead" shadows and maintain vibrant color purity.
+</lighting_protocol>`
+  },
+
+  sports: {
+    materials: `<material_rendering_directive>
+- TECHNICAL MATERIALS: Strict PBR rendering of athletic gear. Matte stretch porosity for neoprene, cellular macro-texture for EVA foam, and tight woven patterns for nylon straps.
+- GRIP & HARDWARE: Deep, mathematically perfect tactile friction patterns on rubber grips and treads. Anisotropic reflections on machined aluminum or brushed steel buckles.
+- STRUCTURAL INTEGRITY: Zero organic melting. Equipment must look highly tensioned, robust, and structurally sound. Perfect geometric cylinders for weights/bars.
+</material_rendering_directive>`,
+    lighting: `<lighting_protocol>
+- STYLE: High-contrast, dynamic, energetic athletic studio lighting.
+- COLOR TEMP: Cool, intense key light (5000K) paired with a contrasting warm fill or rim light.
+- SETUP: Hard directional edge/rim lighting (kickers) to deeply carve out grip textures, woven fabrics, and metallic edges. Dynamic angle.
+- GOAL: Dramatic, moody background falloff with sharp shadows to emphasize action, strength, and premium performance.
+</lighting_protocol>`
+  },
+
+  // Фолбэк для неизвестных категорий
+  default: {
+    materials: `<material_rendering_directive>
+- SURFACES: Physically accurate PBR materials based on the original image.
+- DETAILS: Maintain correct surface roughness, specularity, and exact color preservation.
+</material_rendering_directive>`,
+    lighting: `<lighting_protocol>
+- STYLE: Professional E-commerce Studio Lighting.
+- SETUP: Balanced softbox lighting. Clear shadows to ground the object, crisp highlights to define shape.
+</lighting_protocol>`
+  }
+};
+
+/**
+ * Собирает полный XML-промпт для предметной фотосъемки товаров
+ * Аналог buildMasterPrompt() для Fashion Mode, но с обратной логикой
+ */
+function buildProductPrompt({
+  categoryId,
+  productPrompt,
+  compositionPrompt,
+  bgPrompt,
+  effectPrompt = '',
+  aspectRatio = '1:1',
+  withHumanModel = false,
+  humanModelPrompt = '',
+  isBeautyMode = false
+}) {
+  const category = CATEGORY_CONFIGS[categoryId] || CATEGORY_CONFIGS.default;
+
+  // Блок модели-человека: когда продавец хочет показать товар вместе с живой моделью
+  const humanModelBlock = withHumanModel && humanModelPrompt ? `
+<human_model_integration>
+CRITICAL DUAL-SUBJECT PROTOCOL:
+This shot contains TWO subjects: the PRODUCT and a LIVING HUMAN MODEL.
+
+HUMAN MODEL PROFILE: "${humanModelPrompt}"
+- Generate a photorealistic living human model matching the profile above.
+- The model must naturally interact with the product: holding it, demonstrating it, using it, or presenting it.
+- The PRODUCT remains the HERO — the model is the SUPPORTING ACTOR. The product must be clearly visible, unobstructed, and prominently featured.
+- Do NOT let the model's hands, arms, or body obscure the product label, brand, or key visual features.
+
+${isBeautyMode ? SKIN_BEAUTY_PROMPT : SKIN_REALISM_PROMPT}
+
+INTERACTION STYLE:
+- For cosmetics/skincare: model applies or holds the product near the face/hands, showing glowing skin.
+- For electronics/cases: model holds the device naturally, showing the product in real-world context.
+- For food/beverages: model enjoys or presents the product, creating appetite appeal.
+- For sports gear: model demonstrates athletic use of the product in an active pose.
+- For jewelry: extreme close-up of the product ON the model's body (wrist, neck, ear, finger).
+- For supplements: model holds the container confidently, health-conscious lifestyle vibe.
+- Default: model holds and presents the product at chest level, making eye contact with camera.
+</human_model_integration>
+` : '';
+
+
+  return `<system_directive>
+ROLE: Elite Commercial Product Photographer, Master CGI Compositor & Material Specialist.
+TASK: ${withHumanModel ? '1:1 Product-to-Scene integration with a living human model demonstrating the product.' : '1:1 Product-to-Scene integration with photorealistic rendering.'}
+</system_directive>
+
+<product_identity_lock>
+CRITICAL PROTOCOL: The input image is the ABSOLUTE TRUTH ("Sacred Blueprint").
+- PRESERVE 1:1: Exact physical geometry, silhouette, scale, and physical proportions.
+- PRESERVE 1:1: Brand colors, label layout, typography, barcode, and logo placement.
+- PRODUCT DESCRIPTION: ${productPrompt}
+</product_identity_lock>
+
+<zero_invention_products>
+RESTRICTION PROTOCOL: ZERO INVENTION.
+- DO NOT hallucinate, morph, or invent new structural elements.
+- DO NOT add fake caps, nozzles, lids, ribbons, or dispensing mechanisms.
+- DO NOT hallucinate fake text, typos, or AI squiggles on labels.
+- ZERO morphing or blending between the product and the environment. The product is a solid, separate physical object.
+</zero_invention_products>
+
+${category.materials.trim()}
+
+${category.lighting.trim()}
+
+${humanModelBlock}
+
+<scene_composition>
+  - PLACEMENT & STAGING: ${compositionPrompt}
+  - ENVIRONMENT & BACKGROUND: ${bgPrompt}
+  - SPECIAL EFFECTS: ${effectPrompt || 'None'}
+  - ASPECT RATIO TARGET: ${aspectRatio}
+  - CAMERA LENS: 85mm-100mm macro/portrait lens. Commercial photography framing.
+  - INTEGRATION: Ground the product naturally onto the surface with accurate contact shadows, ambient occlusion, and bounced environmental light. Do NOT let the product float.
+</scene_composition>
+
+<output_rules>
+- The final image must be INDISTINGUISHABLE from a real professional product photograph.
+- No watermarks, no text overlays, no separate product shots.
+- OUTPUT FORMAT: You MUST output ONLY a generated IMAGE. Do NOT output text. Do NOT describe the image. Generate the photo directly as pixel data.
+</output_rules>`;
+}
+
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -566,6 +815,11 @@ export default async function handler(req, res) {
       attributes,
       isBeautyMode = false,
       biometricSeed,
+      isProductMode = false,
+      categoryId = 'default',
+      withHumanModel = false,
+      humanModelPrompt = '',
+      humanModelRefImages,
     } = req.body;
 
     // ═══ PHOTO EDIT MODE — precise, non-destructive editing ═══
@@ -678,6 +932,60 @@ Return ONLY the edited photograph.`;
       console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Калибровка успешна. Downloading result...`);
       const dl = await downloadToBase64(resultUrl);
       if (!dl) throw new Error("Failed to download generated image");
+      return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl });
+    }
+
+    // ═══ PRODUCT MODE — предметная съемка товаров ═══
+    // Использует buildProductPrompt() вместо fashion pipeline
+    if (isProductMode) {
+      console.log(`📦 [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product Mode: category=${categoryId}, images=${garmentImages.length}, withModel=${withHumanModel}`);
+      
+      const effectPrompt = customPoseText || '';
+      const productPromptText = buildProductPrompt({
+        categoryId,
+        productPrompt: modelPreset,
+        compositionPrompt: posePreset,
+        bgPrompt: backgroundPreset,
+        effectPrompt,
+        aspectRatio,
+        withHumanModel,
+        humanModelPrompt,
+        isBeautyMode
+      });
+
+      let imageInputs = [];
+      for (const img of garmentImages.slice(0, 9)) {
+        imageInputs.push(img.startsWith('data:') ? img : `data:image/jpeg;base64,${extractBase64(img).base64str}`);
+      }
+
+      // Референсы модели-человека
+      if (withHumanModel && humanModelRefImages && Array.isArray(humanModelRefImages) && humanModelRefImages.length > 0) {
+        for (const img of humanModelRefImages.slice(0, 5)) {
+          if (!img) continue;
+          if (img.startsWith('data:')) { imageInputs.push(img); }
+          else if (img.startsWith('http')) {
+            const result = await downloadToBase64(img);
+            if (result) imageInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
+          }
+        }
+      }
+
+      // Поддержка локаций для товаров
+      if (locationImages && Array.isArray(locationImages) && locationImages.length > 0) {
+        for (const img of locationImages.slice(0, 5)) {
+          if (img.startsWith('data:')) { imageInputs.push(img); }
+          else if (img.startsWith('http')) {
+            const result = await downloadToBase64(img);
+            if (result) imageInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
+          }
+        }
+      }
+
+      console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product Mode → KIE.ai (nano-banana-2), ${imageInputs.length} image(s), model=${withHumanModel}...`);
+      const resultUrl = await executeKieTask(productPromptText, imageInputs, 'nano-banana-2');
+      console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product shot ready. Downloading...`);
+      const dl = await downloadToBase64(resultUrl);
+      if (!dl) throw new Error("Failed to download product image from KIE.ai");
       return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl });
     }
 

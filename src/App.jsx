@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MODEL_PRESETS, POSE_PRESETS, BACKGROUND_PRESETS, ASPECT_RATIOS, CAMERA_ANGLES, getModelDetails } from './data/presets';
+import { MODEL_PRESETS, POSE_PRESETS, BACKGROUND_PRESETS, ASPECT_RATIOS, CAMERA_ANGLES, getModelDetails, PRODUCT_CATEGORIES, PRODUCT_COMPOSITIONS, PRODUCT_BACKGROUNDS, PRODUCT_EFFECTS } from './data/presets';
 import GenderToggle from './components/GenderToggle';
 import DetailPanel from './components/DetailPanel';
 import LoraModal from './components/LoraModal';
@@ -42,9 +42,32 @@ function App() {
   const { user, loading, signOut, isEmbedded, isTelegram } = useAuth();
 
   // Subscription state
-  const [subscription, setSubscription] = useState(null);
+  const [subscription, setSubscription] = useState({ plan: 'none', credits: 0, creditsTotal: 0 });
   const [showPricing, setShowPricing] = useState(false);
   const [pricingLoading, setPricingLoading] = useState(false);
+
+  // App mode: 'fashion' | 'product'
+  const [appMode, setAppMode] = useState('fashion');
+
+  // Product mode selections
+  const [selectedProductCategory, setSelectedProductCategory] = useState(PRODUCT_CATEGORIES[0]);
+  const [selectedProductComposition, setSelectedProductComposition] = useState(PRODUCT_COMPOSITIONS[0]);
+  const [selectedProductBg, setSelectedProductBg] = useState(PRODUCT_BACKGROUNDS[0]);
+  const [selectedProductEffect, setSelectedProductEffect] = useState(PRODUCT_EFFECTS[0]);
+
+  // Product mode: human model toggle
+  const [productWithModel, setProductWithModel] = useState(false);
+  const [productModelPreset, setProductModelPreset] = useState(MODEL_PRESETS[0]);
+  const [productModelGender, setProductModelGender] = useState('female');
+  const [productModelTab, setProductModelTab] = useState('presets'); // 'presets' | 'my_models'
+  const [productSavedModelId, setProductSavedModelId] = useState(null);
+  const [customProductModelPrompt, setCustomProductModelPrompt] = useState('');
+  const [productModelDetails, setProductModelDetails] = useState(initDetails);
+  const [showProductModelDetails, setShowProductModelDetails] = useState(false);
+
+  // Custom inputs for product mode
+  const [customProductPrompt, setCustomProductPrompt] = useState('');
+  const [customProductBg, setCustomProductBg] = useState('');
 
   // Core selections
   const [selectedModel, setSelectedModel] = useState(MODEL_PRESETS[0]);
@@ -198,7 +221,11 @@ function App() {
         setMyModels(models);
         setMyLocations(locations);
         setSubscription(sub);
-      } catch (err) { console.error('Ошибка загрузки данных:', err); }
+      } catch (err) {
+        console.error('Ошибка загрузки данных:', err);
+        // Fallback to default 'none' plan so the app doesn't hang in null state
+        setSubscription({ plan: 'none', credits: 0, creditsTotal: 0 });
+      }
     };
     loadData();
   }, [user]);
@@ -423,18 +450,22 @@ function App() {
     }
 
     // Deduct 1 credit (2 variants = 1 credit)
-    try {
-      const result = await useCredit(user.uid, 1);
-      setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
-    } catch (err) {
-      if (err.message === 'NO_CREDITS') {
-        setShowPricing(true);
-        setStatusText('⚡ Кредиты закончились — выберите тариф'); setStatusType('error');
-        return;
-      }
-      if (err.message === 'NO_PLAN') {
-        setShowPricing(true);
-        return;
+    if (subscription.local) {
+      setSubscription(prev => ({ ...prev, credits: Math.max(0, prev.credits - 1) }));
+    } else {
+      try {
+        const result = await useCredit(user.uid, 1);
+        setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
+      } catch (err) {
+        if (err.message === 'NO_CREDITS') {
+          setShowPricing(true);
+          setStatusText('⚡ Кредиты закончились — выберите тариф'); setStatusType('error');
+          return;
+        }
+        if (err.message === 'NO_PLAN') {
+          setShowPricing(true);
+          return;
+        }
       }
     }
 
@@ -444,29 +475,71 @@ function App() {
     try {
       setProcessingMsg('Подготавливаем исходники...');
 
-      let modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
+      let modelPrompt = '';
+      let posePrompt = '';
+      let bgPrompt = '';
       let modelRefImages = null;
-      if (selectedSavedModelId) {
-        const sm = myModels.find(m => m.id === selectedSavedModelId);
-        if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
-      }
-      // Append model modifier if present
-      if (modelModifier.trim()) modelPrompt += `. Additionally: ${modelModifier.trim()}`;
-
-      const posePrompt = customPoseText.trim() || selectedPose.prompt;
-      let bgPrompt = customBgText.trim() || selectedBg.prompt;
       let locImages = null;
-      if (selectedLocId) {
-        const loc = myLocations.find(l => l.id === selectedLocId);
-        if (loc) {
-          locImages = loc.imageUrls;
-          bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
+
+      if (appMode === 'product') {
+        // Режим предметной съемки товаров
+        modelPrompt = customProductPrompt.trim() || selectedProductCategory.defaultPrompt;
+        posePrompt = customPoseText.trim() || selectedProductComposition.prompt;
+        bgPrompt = customProductBg.trim() || selectedProductBg.prompt;
+        
+        if (selectedProductEffect && selectedProductEffect.prompt) {
+          bgPrompt += `. Additionally: ${selectedProductEffect.prompt}`;
         }
+        
+        // Модель-человек в предметной съёмке
+        if (productWithModel) {
+          let humanPrompt = customProductModelPrompt.trim() || productModelPreset.prompt;
+          if (productSavedModelId) {
+            const sm = myModels.find(m => m.id === productSavedModelId);
+            if (sm) { humanPrompt = sm.prompt || humanPrompt; modelRefImages = sm.imageUrls || []; }
+          }
+          // humanModelPrompt будет передан отдельно
+          modelPrompt = modelPrompt; // product description stays
+          // Сохраняем в отдельные переменные для передачи
+          window.__humanModelPrompt = humanPrompt;
+          window.__humanModelRefImages = modelRefImages;
+        } else {
+          window.__humanModelPrompt = null;
+          window.__humanModelRefImages = null;
+        }
+        
+        // Поддержка оцифрованных локаций для товаров
+        if (selectedLocId) {
+          const loc = myLocations.find(l => l.id === selectedLocId);
+          if (loc) {
+            locImages = loc.imageUrls;
+            bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
+            if (selectedProductEffect && selectedProductEffect.prompt) {
+              bgPrompt += `. Additionally: ${selectedProductEffect.prompt}`;
+            }
+          }
+        }
+      } else {
+        // Режим одежды (VTON)
+        modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
+        if (selectedSavedModelId) {
+          const sm = myModels.find(m => m.id === selectedSavedModelId);
+          if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
+        }
+        if (modelModifier.trim()) modelPrompt += `. Additionally: ${modelModifier.trim()}`;
+
+        posePrompt = customPoseText.trim() || selectedPose.prompt;
+        bgPrompt = customBgText.trim() || selectedBg.prompt;
+        if (selectedLocId) {
+          const loc = myLocations.find(l => l.id === selectedLocId);
+          if (loc) {
+            locImages = loc.imageUrls;
+            bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
+          }
+        }
+        if (locModifier.trim()) bgPrompt += `. Additionally: ${locModifier.trim()}`;
+        if (bgExtraText.trim() && !customBgText.trim()) bgPrompt += `. MANDATORY SCENE ADDITION (must be visible): ${bgExtraText.trim()}`;
       }
-      // Append location modifier if present
-      if (locModifier.trim()) bgPrompt += `. Additionally: ${locModifier.trim()}`;
-      // bg extra text COMBINES with preset as a mandatory addition
-      if (bgExtraText.trim() && !customBgText.trim()) bgPrompt += `. MANDATORY SCENE ADDITION (must be visible): ${bgExtraText.trim()}`;
 
       setProcessingMsg('🚀 Отправляем в Nano Banano 2...');
 
@@ -481,6 +554,11 @@ function App() {
         aspectRatio: selectedRatio.id, modelReferenceImages: modelRefImages,
         locationImages: locImages, customPoseText: customPoseText.trim() || undefined,
         attributes: modelDetails, isBeautyMode, biometricSeed: seed,
+        isProductMode: appMode === 'product',
+        categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
+        withHumanModel: appMode === 'product' && productWithModel,
+        humanModelPrompt: window.__humanModelPrompt || undefined,
+        humanModelRefImages: window.__humanModelRefImages || undefined,
       });
 
       const results = await Promise.all(seeds.map(seed =>
@@ -728,14 +806,18 @@ function App() {
       setShowPricing(true);
       return;
     }
-    try {
-      const result = await useCredit(user.uid, 1);
-      setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
-    } catch (err) {
-      if (err.message === 'NO_CREDITS' || err.message === 'NO_PLAN') {
-        setShowPricing(true);
-        setStatusText('⚡ Кредиты закончились'); setStatusType('error');
-        return;
+    if (subscription.local) {
+      setSubscription(prev => ({ ...prev, credits: Math.max(0, prev.credits - 1) }));
+    } else {
+      try {
+        const result = await useCredit(user.uid, 1);
+        setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
+      } catch (err) {
+        if (err.message === 'NO_CREDITS' || err.message === 'NO_PLAN') {
+          setShowPricing(true);
+          setStatusText('⚡ Кредиты закончились'); setStatusType('error');
+          return;
+        }
       }
     }
 
@@ -748,39 +830,69 @@ function App() {
     try {
       setProcessingMsg('Подготавливаем исходники...');
 
-      let modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
+      let modelPrompt = '';
+      let posePrompt = '';
+      let bgPrompt = '';
       let modelRefImages = null;
-      if (selectedSavedModelId) {
-        const sm = myModels.find(m => m.id === selectedSavedModelId);
-        if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
-      }
-
-      // Determine base pose
-      let posePrompt = customPoseText.trim() || selectedPose.prompt;
-
-      // Smart modifier injection: detect if modifier describes a pose/action
-      const mod = shotModifier.trim();
-      const poseKeywords = /(?:поз[аеуы]|сид(?:ит|я|еть)|стоит|лежит|идёт|идет|ходит|бежит|танцу|прыга|lotus|sitting|standing|lying|walking|running|dancing|crouching|leaning|kneeling|jumping|squat)/i;
-      if (poseKeywords.test(mod)) {
-        posePrompt = `${mod}. ${posePrompt}`;
-      }
-
-      let bgPrompt = customBgText.trim() || selectedBg.prompt;
       let locImages = null;
-      if (selectedLocId) {
-        const loc = myLocations.find(l => l.id === selectedLocId);
-        if (loc) {
-          locImages = loc.imageUrls;
-          bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
-        }
-      }
-      if (locModifier.trim()) bgPrompt += `. Additionally: ${locModifier.trim()}`;
-      if (bgExtraText.trim() && !customBgText.trim()) bgPrompt += `. MANDATORY SCENE ADDITION (must be visible): ${bgExtraText.trim()}`;
+      const mod = shotModifier.trim();
 
-      // Check if modifier mentions location/background keywords
-      const bgKeywords = /(?:фон|бали|пляж|улиц|город|парк|лес|горы|интерьер|студи|background|beach|street|city|park|forest|mountain|interior|studio)/i;
-      if (bgKeywords.test(mod)) {
-        bgPrompt += `. ${mod}`;
+      if (appMode === 'product') {
+        // Товарный режим
+        modelPrompt = customProductPrompt.trim() || selectedProductCategory.defaultPrompt;
+        posePrompt = customPoseText.trim() || selectedProductComposition.prompt;
+        bgPrompt = customProductBg.trim() || selectedProductBg.prompt;
+        
+        if (selectedProductEffect && selectedProductEffect.prompt) {
+          bgPrompt += `. Additionally: ${selectedProductEffect.prompt}`;
+        }
+        if (selectedLocId) {
+          const loc = myLocations.find(l => l.id === selectedLocId);
+          if (loc) {
+            locImages = loc.imageUrls;
+            bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
+            if (selectedProductEffect && selectedProductEffect.prompt) {
+              bgPrompt += `. Additionally: ${selectedProductEffect.prompt}`;
+            }
+          }
+        }
+        
+        // Применение правок пользователя к товару или фону
+        const bgKeywords = /(?:фон|задний|пляж|улиц|город|парк|лес|горы|интерьер|студи|background|beach|street|city|park|forest|mountain|interior|studio|wood|marble|table|desk|neon|droplets|splash|petals|glow)/i;
+        if (bgKeywords.test(mod)) {
+          bgPrompt += `. Additionally: ${mod}`;
+        } else {
+          modelPrompt += `. Additionally: ${mod}`;
+        }
+      } else {
+        // Режим одежды (VTON)
+        modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
+        if (selectedSavedModelId) {
+          const sm = myModels.find(m => m.id === selectedSavedModelId);
+          if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
+        }
+
+        posePrompt = customPoseText.trim() || selectedPose.prompt;
+        const poseKeywords = /(?:поз[аеуы]|сид(?:ит|я|еть)|стоит|лежит|идёт|идет|ходит|бежит|танцу|прыга|lotus|sitting|standing|lying|walking|running|dancing|crouching|leaning|kneeling|jumping|squat)/i;
+        if (poseKeywords.test(mod)) {
+          posePrompt = `${mod}. ${posePrompt}`;
+        }
+
+        bgPrompt = customBgText.trim() || selectedBg.prompt;
+        if (selectedLocId) {
+          const loc = myLocations.find(l => l.id === selectedLocId);
+          if (loc) {
+            locImages = loc.imageUrls;
+            bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
+          }
+        }
+        if (locModifier.trim()) bgPrompt += `. Additionally: ${locModifier.trim()}`;
+        if (bgExtraText.trim() && !customBgText.trim()) bgPrompt += `. MANDATORY SCENE ADDITION (must be visible): ${bgExtraText.trim()}`;
+
+        const bgKeywords = /(?:фон|бали|пляж|улиц|город|парк|лес|горы|интерьер|студи|background|beach|street|city|park|forest|mountain|interior|studio)/i;
+        if (bgKeywords.test(mod)) {
+          bgPrompt += `. ${mod}`;
+        }
       }
 
       setProcessingMsg('🚀 Отправляем в Nano Banano 2...');
@@ -801,6 +913,8 @@ function App() {
           locationImages: locImages,
           editInstruction: mod,
           attributes: modelDetails, isBeautyMode, biometricSeed,
+          isProductMode: appMode === 'product',
+          categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
         }),
       });
       clearInterval(iv);
@@ -838,15 +952,19 @@ function App() {
       setShowPricing(true);
       return;
     }
-    try {
-      // 3 credits for a batch run (discounted)
-      const result = await useCredit(user.uid, 3);
-      setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
-    } catch (err) {
-      if (err.message === 'NO_CREDITS' || err.message === 'NO_PLAN') {
-        setShowPricing(true);
-        setStatusText('⚡ Кредиты закончились'); setStatusType('error');
-        return;
+    if (subscription.local) {
+      setSubscription(prev => ({ ...prev, credits: Math.max(0, prev.credits - 3) }));
+    } else {
+      try {
+        // 3 credits for a batch run (discounted)
+        const result = await useCredit(user.uid, 3);
+        setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
+      } catch (err) {
+        if (err.message === 'NO_CREDITS' || err.message === 'NO_PLAN') {
+          setShowPricing(true);
+          setStatusText('⚡ Кредиты закончились'); setStatusType('error');
+          return;
+        }
       }
     }
 
@@ -894,29 +1012,72 @@ function App() {
     { pose: 'over-the-shoulder glance back at camera, dynamic fabric movement', camera: '3/4 back view' },
   ];
 
+  const PRODUCT_PHOTOSHOOT_ANGLES = [
+    { pose: 'front-facing centered still life shot, razor-sharp focus on the label, studio lighting', camera: 'front still life' },
+    { pose: 'extreme close-up macro shot, focus on branding and liquid droplets, shallow depth of field', camera: 'close-up macro' },
+    { pose: 'flat lay top-down perspective, arranged beautifully next to raw organic ingredients', camera: 'flat lay' },
+    { pose: 'dynamic 3/4 angled product shot, volumetric dramatic lighting, soft shadows', camera: '3/4 angle' },
+    { pose: 'a hand holding the product container in a cozy bright lifestyle setting', camera: 'held in hand' },
+  ];
+
   const handlePhotoshoot = async (count = 5) => {
     if (!imageFiles.length || isPhotoshooting) return;
     setIsPhotoshooting(true);
-    const angles = PHOTOSHOOT_ANGLES.slice(0, count);
+    
+    const angles = appMode === 'product'
+      ? PRODUCT_PHOTOSHOOT_ANGLES.slice(0, count)
+      : PHOTOSHOOT_ANGLES.slice(0, count);
+
     // APPEND: add null placeholders for new batch at the end of existing gallery
     const existingCount = photoshootImages.filter(Boolean).length;
     setPhotoshootImages(prev => [...prev.filter(Boolean), ...new Array(count).fill(null)]);
     setStatusText(`📸 Генерируем ещё ${count} кадров...`); setStatusType('');
     try {
-      let modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
+      let modelPrompt = '';
+      let bgPrompt = '';
       let modelRefImages = null;
-      if (selectedSavedModelId) {
-        const sm = myModels.find(m => m.id === selectedSavedModelId);
-        if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
-      }
-      // Identity lock: use saved model URLs (lightweight) for consistent photoshoot
-      // NOTE: Do NOT send generatedImage here — it's a raw base64 blob (~3-5 MB)
-      // that causes 413 Payload Too Large when combined with garment images.
-      let bgPrompt = customBgText.trim() || selectedBg.prompt;
       let locImages = null;
-      if (selectedLocId) {
-        const loc = myLocations.find(l => l.id === selectedLocId);
-        if (loc) { locImages = loc.imageUrls; bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos'; }
+
+      if (appMode === 'product') {
+        modelPrompt = customProductPrompt.trim() || selectedProductCategory.defaultPrompt;
+        bgPrompt = customProductBg.trim() || selectedProductBg.prompt;
+        if (selectedProductEffect && selectedProductEffect.prompt) {
+          bgPrompt += `. Additionally: ${selectedProductEffect.prompt}`;
+        }
+        // Модель-человек в фотосессии товаров
+        if (productWithModel) {
+          let humanPrompt = customProductModelPrompt.trim() || productModelPreset.prompt;
+          if (productSavedModelId) {
+            const sm = myModels.find(m => m.id === productSavedModelId);
+            if (sm) { humanPrompt = sm.prompt || humanPrompt; modelRefImages = sm.imageUrls || []; }
+          }
+          window.__humanModelPrompt = humanPrompt;
+          window.__humanModelRefImages = modelRefImages;
+        } else {
+          window.__humanModelPrompt = null;
+          window.__humanModelRefImages = null;
+        }
+        if (selectedLocId) {
+          const loc = myLocations.find(l => l.id === selectedLocId);
+          if (loc) {
+            locImages = loc.imageUrls;
+            bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
+            if (selectedProductEffect && selectedProductEffect.prompt) {
+              bgPrompt += `. Additionally: ${selectedProductEffect.prompt}`;
+            }
+          }
+        }
+      } else {
+        modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
+        if (selectedSavedModelId) {
+          const sm = myModels.find(m => m.id === selectedSavedModelId);
+          if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
+        }
+        bgPrompt = customBgText.trim() || selectedBg.prompt;
+        if (selectedLocId) {
+          const loc = myLocations.find(l => l.id === selectedLocId);
+          if (loc) { locImages = loc.imageUrls; bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos'; }
+        }
       }
 
       // PARALLEL generation — all shots fire simultaneously for speed
@@ -930,6 +1091,11 @@ function App() {
             backgroundPreset: bgPrompt, aspectRatio: selectedRatio.id,
             modelReferenceImages: modelRefImages, locationImages: locImages,
             attributes: modelDetails, isBeautyMode, biometricSeed,
+            isProductMode: appMode === 'product',
+            categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
+            withHumanModel: appMode === 'product' && productWithModel,
+            humanModelPrompt: window.__humanModelPrompt || undefined,
+            humanModelRefImages: window.__humanModelRefImages || undefined,
           }),
         }).then(r => safeParseJSON(r)).then(data => {
           if (data.success) {
@@ -1016,7 +1182,31 @@ function App() {
       <header className="app-header">
         <motion.h1 className="app-logo" initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} transition={{duration:0.6}}>Селлер-Студия</motion.h1>
         <p className="app-subtitle">ИИ-фотостудия для маркетплейсов Ozon, WB и других</p>
-        <div style={{marginTop:8,display:'flex',alignItems:'center',justifyContent:'center',gap:8,flexWrap:'wrap'}}>
+        
+        {/* Премиальный переключатель режимов */}
+        <div className="mode-selector-wrapper">
+          <div className="mode-selector-bg">
+            <motion.div
+              className="mode-selector-slider"
+              animate={{ x: appMode === 'product' ? '100%' : '0%' }}
+              transition={{ type: "spring", stiffness: 400, damping: 25, mass: 0.5 }}
+            />
+            <button
+              className={`mode-btn ${appMode === 'fashion' ? 'active' : ''}`}
+              onClick={() => setAppMode('fashion')}
+            >
+              👕 Одежда
+            </button>
+            <button
+              className={`mode-btn ${appMode === 'product' ? 'active' : ''}`}
+              onClick={() => setAppMode('product')}
+            >
+              📦 Товары (Предметка)
+            </button>
+          </div>
+        </div>
+
+        <div style={{marginTop:16,display:'flex',alignItems:'center',justifyContent:'center',gap:8,flexWrap:'wrap'}}>
           <SubscriptionBadge subscription={subscription} onClick={() => setShowPricing(true)} />
           <span style={{fontSize:'0.75rem',color:'var(--text-muted)'}}>{user.displayName || user.email}</span>
           {!isEmbedded && <button onClick={signOut} style={{fontSize:'0.7rem',color:'var(--text-muted)',background:'none',border:'1px solid var(--border-subtle)',borderRadius:'9999px',padding:'4px 14px',cursor:'pointer',fontFamily:'var(--font-body)',letterSpacing:'1px',textTransform:'uppercase'}}>Выйти</button>}
@@ -1034,12 +1224,15 @@ function App() {
 
       {/* 1. МУЛЬТИЗАГРУЗКА */}
       <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.15,duration:0.5,ease:[0.16,1,0.3,1]}}>
-        <div className="section-title"><span className="icon">📸</span> Загрузка вещей</div>
+        <div className="section-title">
+          <span className="icon">{appMode === 'product' ? '📦' : '📸'}</span> 
+          {appMode === 'product' ? ' Загрузка товаров' : ' Загрузка вещей'}
+        </div>
         {previewUrls.length > 0 ? (
           <div className="multi-preview-grid">
             {previewUrls.map((url, i) => (
               <div key={i} className="multi-preview-item">
-                <img src={url} alt={`Вещь ${i+1}`} />
+                <img src={url} alt={`Объект ${i+1}`} />
                 <button className="remove-btn" onClick={() => removeFile(i)}>✕</button>
               </div>
             ))}
@@ -1055,185 +1248,366 @@ function App() {
             onDragLeave={e => { e.preventDefault(); e.currentTarget.classList.remove('dragging'); }}
             onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('dragging'); if (e.dataTransfer.files?.length) handleFilesChange({ target: { files: e.dataTransfer.files } }); }}>
             <input type="file" accept="image/*" multiple ref={fileInputRef} style={{display:'none'}} onChange={handleFilesChange} />
-            <div className="upload-icon">👕</div>
-            <p className="upload-text">Загрузите фото одежды — раскладки или фото на модели</p>
-            <p className="upload-hint">JPG, PNG • Перетащите сюда или нажмите • Можно несколько: футболка + брюки + серьги = всё на модели</p>
+            <div className="upload-icon">{appMode === 'product' ? '🧴' : '👕'}</div>
+            <p className="upload-text">
+              {appMode === 'product' ? 'Загрузите фото вашего товара — флакон, баночку, аксессуар' : 'Загрузите фото одежды — раскладки или фото на модели'}
+            </p>
+            <p className="upload-hint">
+              {appMode === 'product' ? 'JPG, PNG • Перетащите сюда или нажмите • Постарайтесь сделать фото при хорошем свете' : 'JPG, PNG • Перетащите сюда или нажмите • Можно несколько: футболка + брюки + серьги = всё на модели'}
+            </p>
           </div>
         )}
       </motion.div>
 
-      {/* 2. КАСТИНГ-РУМ */}
-      <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.3,duration:0.5,ease:[0.16,1,0.3,1]}}>
-        <div className="section-title"><span className="icon">👤</span> Кастинг-Рум — выбор модели</div>
-        <div className="tabs-row">
-          <button className={`tab-btn ${modelTab==='presets'?'active':''}`} onClick={()=>{setModelTab('presets');setSelectedSavedModelId(null);}}>🎭 Пресеты</button>
-          <button className={`tab-btn ${modelTab==='my_models'?'active':''}`} onClick={()=>setModelTab('my_models')}>⭐ Мои Модели{myModels.length>0?` (${myModels.length})`:''}</button>
-        </div>
-        {modelTab === 'presets' ? (
-          <>
-            <GenderToggle gender={gender} setGender={setGender} />
-            <div className="preset-grid">
-              {filteredModels.map(m => (
-                <div key={m.id} className={`preset-card ${selectedModel.id===m.id&&!customModelPrompt&&!selectedSavedModelId?'active':''}`}
-                  onClick={() => { 
-                    if (selectedModel.id === m.id && showDetails && !customModelPrompt && !selectedSavedModelId) {
-                      setShowDetails(false);
-                    } else {
-                      setSelectedModel(m); setCustomModelPrompt(''); setSelectedSavedModelId(null); setShowDetails(true); 
-                    }
-                  }}>
-                  <span className="emoji">{m.emoji}</span><span className="label">{m.label}</span>
-                </div>
-              ))}
-            </div>
-            <DetailPanel modelDetails={modelDetails} setModelDetails={setModelDetails} visible={showDetails && !customModelPrompt && !selectedSavedModelId} gender={gender} extraPrompt={extraModelPrompt} setExtraPrompt={setExtraModelPrompt} />
-            <div className="custom-variant-row">
-              <input className="custom-variant-input" type="text" placeholder="Описать модель с нуля: «рыжая девушка 25 лет с веснушками»"
-                value={customModelPrompt} 
-                onFocus={() => { setShowDetails(false); setSelectedSavedModelId(null); }}
-                onChange={e => { setCustomModelPrompt(e.target.value); setSelectedSavedModelId(null); setShowDetails(false); }} />
-            </div>
-            {/тату|tattoo/i.test(customModelPrompt) && (
-              <div className="tattoo-warning">⚠️ Татуировка отлично получится на одиночном фото, но в серии (фотосессия) может искажаться. Для стабильной модели старайтесь не использовать тату.</div>
+      {/* 2. НАСТРОЙКА ОБЪЕКТА / КАСТИНГ-РУМ */}
+      {appMode === 'product' ? (
+        <>
+        <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.3,duration:0.5,ease:[0.16,1,0.3,1]}}>
+          <div className="section-title"><span className="icon">🧴</span> Категория товара</div>
+          <div className="preset-grid">
+            {PRODUCT_CATEGORIES.map(cat => (
+              <div key={cat.id} className={`preset-card ${selectedProductCategory.id===cat.id&&!customProductPrompt?'active':''}`}
+                onClick={() => { setSelectedProductCategory(cat); setCustomProductPrompt(''); }}>
+                <span className="emoji">{cat.emoji}</span><span className="label">{cat.label}</span>
+              </div>
+            ))}
+          </div>
+          <div className="custom-variant-row">
+            <input className="custom-variant-input" type="text" placeholder="Описать товар с нуля: «круглая баночка крема с золотой крышкой»"
+              value={customProductPrompt} 
+              onChange={e => setCustomProductPrompt(e.target.value)} />
+          </div>
+        </motion.div>
+
+        {/* ═══ МОДЕЛЬ-ЧЕЛОВЕК В ПРЕДМЕТНОЙ СЪЁМКЕ ═══ */}
+        <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.35,duration:0.5,ease:[0.16,1,0.3,1]}}>
+          <div className="section-title" style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+            <span><span className="icon">👤</span> Модель-человек</span>
+            {productWithModel && (
+              <motion.button 
+                initial={{opacity:0, scale:0.9}}
+                animate={{opacity:1, scale:1}}
+                className="remove-model-btn" 
+                onClick={() => setProductWithModel(false)}
+              >
+                ✕ Исключить модель
+              </motion.button>
             )}
-          </>
-        ) : (
-          <>
-            {myModels.length > 0 && (
-              <>
-                <div className="model-avatar-grid">
-                  {myModels.map(m => (
-                    <div key={m.id} className={`model-avatar ${selectedSavedModelId===m.id?'active':''}`}
-                      onClick={() => { setSelectedSavedModelId(m.id); setCustomModelPrompt(''); setShowDetails(false); }}>
-                      <img src={m.imageUrls?.[0] || ''} alt={m.name} />
-                      <div className="avatar-name">{m.name}</div>
-                      <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>✕</button>
+          </div>
+          <AnimatePresence mode="wait">
+            {!productWithModel ? (
+              <motion.div 
+                key="add-card"
+                className="add-model-card"
+                onClick={() => setProductWithModel(true)}
+                whileHover={{ scale: 1.012, y: -2 }}
+                whileTap={{ scale: 0.988 }}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 25, mass: 0.5 }}
+              >
+                <div className="add-model-card-content">
+                  <div className="add-model-icon">👤✨</div>
+                  <div className="add-model-info">
+                    <div className="add-model-title">Добавить модель-человека</div>
+                    <div className="add-model-desc">
+                      Сгенерировать живую модель, которая держит или демонстрирует ваш товар в кадре
                     </div>
-                  ))}
+                  </div>
                 </div>
-                {selectedSavedModelId && <div className="selected-model-indicator">⭐ Ваша модель выбрана</div>}
-                {selectedSavedModelId && (
-                  <div className="modifier-block">
-                    <button className="modifier-toggle" onClick={() => { setShowModelModifier(!showModelModifier); setModelPreviewSrc(null); }}>
-                      {showModelModifier ? '✖ Скрыть' : '✏️ Изменить модель'}
-                    </button>
-                    {showModelModifier && (
-                      <div className="modifier-content">
-                        <textarea className="modifier-input" rows={2} placeholder="Например: добавить татуировку на левую руку, сделать волосы рыжими, рост выше"
-                          value={modelModifier} onChange={e => setModelModifier(e.target.value)} />
-                        {/* Tattoo warning (text input) */}
-                        {/тату/i.test(modelModifier) && (
-                          <div className="tattoo-warning">⚠️ Татуировка отлично получится на одиночном фото, но в серии (фотосессия) может искажаться. Для стабильной модели старайтесь не использовать тату.</div>
-                        )}
-                        <button className="modifier-save-btn" onClick={handlePreviewModel} disabled={!modelModifier.trim() || isPreviewingModel}>
-                          {isPreviewingModel ? '⏳ Генерируем превью...' : '👁️ Предпросмотр'}
-                        </button>
-                        {modelPreviewSrc && (
-                          <div className="model-preview-block">
-                            <img src={modelPreviewSrc} alt="Превью модели" className="model-preview-img" onClick={() => setLightboxSrc(modelPreviewSrc)} />
-                            <input className="custom-variant-input" type="text" placeholder="Назовите новую модель" value={modelPreviewName} onChange={e => setModelPreviewName(e.target.value)} />
-                            <button className="modifier-save-btn" onClick={saveModelAsNew} disabled={!modelPreviewName.trim() || isSaving}>
-                              {isSaving ? '⏳ Сохраняем...' : '💾 Сохранить как новую модель'}
-                            </button>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="model-settings"
+                initial={{opacity:0,height:0}} animate={{opacity:1,height:'auto'}} exit={{opacity:0,height:0}}
+                transition={{type:'spring',stiffness:400,damping:25,mass:0.5}}
+                style={{overflow:'hidden'}}
+              >
+                <div className="tabs-row" style={{marginTop:8}}>
+                  <button className={`tab-btn ${productModelTab==='presets'?'active':''}`} onClick={()=>{setProductModelTab('presets');setProductSavedModelId(null);}}>🎭 Пресеты</button>
+                  <button className={`tab-btn ${productModelTab==='my_models'?'active':''}`} onClick={()=>setProductModelTab('my_models')}>⭐ Мои Модели{myModels.length>0?` (${myModels.length})`:''}</button>
+                </div>
+                {productModelTab === 'presets' ? (
+                  <>
+                    <GenderToggle gender={productModelGender} setGender={setProductModelGender} />
+                    <div className="preset-grid">
+                      {MODEL_PRESETS.filter(m => m.gender === productModelGender).map(m => (
+                        <div key={m.id} className={`preset-card ${productModelPreset.id===m.id&&!customProductModelPrompt&&!productSavedModelId?'active':''}`}
+                          onClick={() => { setProductModelPreset(m); setCustomProductModelPrompt(''); setProductSavedModelId(null); setShowProductModelDetails(true); }}>
+                          <span className="emoji">{m.emoji}</span><span className="label">{m.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <DetailPanel modelDetails={productModelDetails} setModelDetails={setProductModelDetails} visible={showProductModelDetails && !customProductModelPrompt && !productSavedModelId} gender={productModelGender} extraPrompt={''} setExtraPrompt={() => {}} />
+                    <div className="custom-variant-row">
+                      <input className="custom-variant-input" type="text" placeholder="Описать модель: «рыжая девушка 25 лет с веснушками держит товар»"
+                        value={customProductModelPrompt}
+                        onFocus={() => { setShowProductModelDetails(false); setProductSavedModelId(null); }}
+                        onChange={e => { setCustomProductModelPrompt(e.target.value); setProductSavedModelId(null); setShowProductModelDetails(false); }} />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {myModels.length > 0 && (
+                      <div className="model-avatar-grid">
+                        {myModels.map(m => (
+                          <div key={m.id} className={`model-avatar ${productSavedModelId===m.id?'active':''}`}
+                            onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
+                            <img src={m.imageUrls?.[0] || ''} alt={m.name} />
+                            <div className="avatar-name">{m.name}</div>
                           </div>
-                        )}
+                        ))}
                       </div>
                     )}
-                  </div>
+                    {myModels.length === 0 && (
+                      <p className="section-hint" style={{textAlign:'center',padding:'20px 0'}}>У вас пока нет сохранённых моделей. Создайте модель в режиме Одежда → Мои модели</p>
+                    )}
+                  </>
                 )}
-              </>
+              </motion.div>
             )}
-            <div className="add-location-card" style={{marginTop: myModels.length ? 12 : 0}} onClick={() => setShowLoraModal(true)}>
-              <span className="plus-icon">+</span>
-              <span>Добавить свою модель</span>
-            </div>
-          </>
-        )}
-      </motion.div>
+          </AnimatePresence>
+        </motion.div>
+        </>
+      ) : (
+        <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.3,duration:0.5,ease:[0.16,1,0.3,1]}}>
+          <div className="section-title"><span className="icon">👤</span> Кастинг-Рум — выбор модели</div>
+          <div className="tabs-row">
+            <button className={`tab-btn ${modelTab==='presets'?'active':''}`} onClick={()=>{setModelTab('presets');setSelectedSavedModelId(null);}}>🎭 Пресеты</button>
+            <button className={`tab-btn ${modelTab==='my_models'?'active':''}`} onClick={()=>setModelTab('my_models')}>⭐ Мои Модели{myModels.length>0?` (${myModels.length})`:''}</button>
+          </div>
+          {modelTab === 'presets' ? (
+            <>
+              <GenderToggle gender={gender} setGender={setGender} />
+              <div className="preset-grid">
+                {filteredModels.map(m => (
+                  <div key={m.id} className={`preset-card ${selectedModel.id===m.id&&!customModelPrompt&&!selectedSavedModelId?'active':''}`}
+                    onClick={() => { 
+                      if (selectedModel.id === m.id && showDetails && !customModelPrompt && !selectedSavedModelId) {
+                        setShowDetails(false);
+                      } else {
+                        setSelectedModel(m); setCustomModelPrompt(''); setSelectedSavedModelId(null); setShowDetails(true); 
+                      }
+                    }}>
+                    <span className="emoji">{m.emoji}</span><span className="label">{m.label}</span>
+                  </div>
+                ))}
+              </div>
+              <DetailPanel modelDetails={modelDetails} setModelDetails={setModelDetails} visible={showDetails && !customModelPrompt && !selectedSavedModelId} gender={gender} extraPrompt={extraModelPrompt} setExtraPrompt={setExtraModelPrompt} />
+              <div className="custom-variant-row">
+                <input className="custom-variant-input" type="text" placeholder="Описать модель с нуля: «рыжая девушка 25 лет с веснушками»"
+                  value={customModelPrompt} 
+                  onFocus={() => { setShowDetails(false); setSelectedSavedModelId(null); }}
+                  onChange={e => { setCustomModelPrompt(e.target.value); setSelectedSavedModelId(null); setShowDetails(false); }} />
+              </div>
+              {/тату|tattoo/i.test(customModelPrompt) && (
+                <div className="tattoo-warning">⚠️ Татуировка отлично получится на одиночном фото, но в серии (фотосессия) может искажаться. Для стабильной модели старайтесь не использовать тату.</div>
+              )}
+            </>
+          ) : (
+            <>
+              {myModels.length > 0 && (
+                <>
+                  <div className="model-avatar-grid">
+                    {myModels.map(m => (
+                      <div key={m.id} className={`model-avatar ${selectedSavedModelId===m.id?'active':''}`}
+                        onClick={() => { setSelectedSavedModelId(m.id); setCustomModelPrompt(''); setShowDetails(false); }}>
+                        <img src={m.imageUrls?.[0] || ''} alt={m.name} />
+                        <div className="avatar-name">{m.name}</div>
+                        <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                  {selectedSavedModelId && <div className="selected-model-indicator">⭐ Ваша модель выбрана</div>}
+                  {selectedSavedModelId && (
+                    <div className="modifier-block">
+                      <button className="modifier-toggle" onClick={() => { setShowModelModifier(!showModelModifier); setModelPreviewSrc(null); }}>
+                        {showModelModifier ? '✖ Скрыть' : '✏️ Изменить модель'}
+                      </button>
+                      {showModelModifier && (
+                        <div className="modifier-content">
+                          <textarea className="modifier-input" rows={2} placeholder="Например: добавить татуировку на левую руку, сделать волосы рыжими, рост выше"
+                            value={modelModifier} onChange={e => setModelModifier(e.target.value)} />
+                          {/* Tattoo warning (text input) */}
+                          {/тату/i.test(modelModifier) && (
+                            <div className="tattoo-warning">⚠️ Татуировка отлично получится на одиночном фото, но в серии (фотосессия) может искажаться. Для стабильной модели старайтесь не использовать тату.</div>
+                          )}
+                          <button className="modifier-save-btn" onClick={handlePreviewModel} disabled={!modelModifier.trim() || isPreviewingModel}>
+                            {isPreviewingModel ? '⏳ Генерируем превью...' : '👁️ Предпросмотр'}
+                          </button>
+                          {modelPreviewSrc && (
+                            <div className="model-preview-block">
+                              <img src={modelPreviewSrc} alt="Превью модели" className="model-preview-img" onClick={() => setLightboxSrc(modelPreviewSrc)} />
+                              <input className="custom-variant-input" type="text" placeholder="Назовите новую модель" value={modelPreviewName} onChange={e => setModelPreviewName(e.target.value)} />
+                              <button className="modifier-save-btn" onClick={saveModelAsNew} disabled={!modelPreviewName.trim() || isSaving}>
+                                {isSaving ? '⏳ Сохраняем...' : '💾 Сохранить как новую модель'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+              <div className="add-location-card" style={{marginTop: myModels.length ? 12 : 0}} onClick={() => setShowLoraModal(true)}>
+                <span className="plus-icon">+</span>
+                <span>Добавить свою модель</span>
+              </div>
+            </>
+          )}
+        </motion.div>
+      )}
 
-      {/* 3. ПОЗА */}
-      <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.45,duration:0.5,ease:[0.16,1,0.3,1]}}>
-        <div className="section-title"><span className="icon">🧍</span> Поза модели</div>
-        <div className="preset-grid">
-          {POSE_PRESETS.map(p => (
-            <div key={p.id} className={`preset-card ${selectedPose.id===p.id&&!customPoseText?'active':''}`}
-              onClick={() => { setSelectedPose(p); setCustomPoseText(''); }}>
-              <span className="emoji">{p.emoji}</span><span className="label">{p.label}</span>
-            </div>
-          ))}
-        </div>
-        <div className="custom-variant-row">
-          <input className="custom-variant-input" type="text" placeholder="Или опишите свою позу: Модель сидит на барном стуле, закинув ногу на ногу, правая рука касается ключицы"
-            value={customPoseText} onChange={e => setCustomPoseText(e.target.value)} />
-        </div>
-      </motion.div>
+      {/* 3. ПОЗА ИЛИ КОМПОЗИЦИЯ */}
+      {appMode === 'product' ? (
+        <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.45,duration:0.5,ease:[0.16,1,0.3,1]}}>
+          <div className="section-title"><span className="icon">📐</span> Композиция кадра</div>
+          <div className="preset-grid">
+            {PRODUCT_COMPOSITIONS.map(p => (
+              <div key={p.id} className={`preset-card ${selectedProductComposition.id===p.id&&!customPoseText?'active':''}`}
+                onClick={() => { setSelectedProductComposition(p); setCustomPoseText(''); }}>
+                <span className="emoji">{p.emoji}</span><span className="label">{p.label}</span>
+              </div>
+            ))}
+          </div>
+          <div className="custom-variant-row">
+            <input className="custom-variant-input" type="text" placeholder="Или опишите свою композицию: «Товар лежит на зеркальной поверхности под углом»"
+              value={customPoseText} onChange={e => setCustomPoseText(e.target.value)} />
+          </div>
+        </motion.div>
+      ) : (
+        <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.45,duration:0.5,ease:[0.16,1,0.3,1]}}>
+          <div className="section-title"><span className="icon">🧍</span> Поза модели</div>
+          <div className="preset-grid">
+            {POSE_PRESETS.map(p => (
+              <div key={p.id} className={`preset-card ${selectedPose.id===p.id&&!customPoseText?'active':''}`}
+                onClick={() => { setSelectedPose(p); setCustomPoseText(''); }}>
+                <span className="emoji">{p.emoji}</span><span className="label">{p.label}</span>
+              </div>
+            ))}
+          </div>
+          <div className="custom-variant-row">
+            <input className="custom-variant-input" type="text" placeholder="Или опишите свою позу: Модель сидит на барном стуле, закинув ногу на ногу, правая рука касается ключицы"
+              value={customPoseText} onChange={e => setCustomPoseText(e.target.value)} />
+          </div>
+        </motion.div>
+      )}
 
-      {/* 4. РАКУРС КАМЕРЫ */}
-      <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.6,duration:0.5,ease:[0.16,1,0.3,1]}}>
-        <div className="section-title"><span className="icon">📷</span> Ракурс камеры</div>
-        <div className="preset-grid">
-          {CAMERA_ANGLES.map(c => (
-            <div key={c.id} className={`preset-card ${selectedCamera.id===c.id?'active':''}`} onClick={() => setSelectedCamera(c)}>
-              <span className="label">{c.label}</span>
-            </div>
-          ))}
-        </div>
-      </motion.div>
+      {/* 4. РАКУРС КАМЕРЫ (Только в режиме одежды) */}
+      {appMode === 'fashion' && (
+        <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.6,duration:0.5,ease:[0.16,1,0.3,1]}}>
+          <div className="section-title"><span className="icon">📷</span> Ракурс камеры</div>
+          <div className="preset-grid">
+            {CAMERA_ANGLES.map(c => (
+              <div key={c.id} className={`preset-card ${selectedCamera.id===c.id?'active':''}`} onClick={() => setSelectedCamera(c)}>
+                <span className="label">{c.label}</span>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      )}
 
-      {/* 5. ФОН */}
+      {/* 5. ФОН / ЛОКАЦИЯ */}
       <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.75,duration:0.5,ease:[0.16,1,0.3,1]}}>
-        <div className="section-title"><span className="icon">🎨</span> Фон / Локация</div>
+        <div className="section-title"><span className="icon">🎨</span> {appMode === 'product' ? 'Сцена / Окружение' : 'Фон / Локация'}</div>
         <div className="tabs-row">
           <button className={`tab-btn ${bgTab==='presets'?'active':''}`} onClick={()=>{setBgTab('presets');setSelectedLocId(null);}}>🎨 Пресеты</button>
           <button className={`tab-btn ${bgTab==='my_locations'?'active':''}`} onClick={()=>setBgTab('my_locations')}>📍 Мои локации{myLocations.length>0?` (${myLocations.length})`:''}</button>
         </div>
         {bgTab === 'presets' ? (
           <>
-            <div className="preset-grid">
-              {BACKGROUND_PRESETS.map(b => (
-                <div key={b.id} className={`preset-card ${selectedBg.id===b.id&&!selectedLocId&&!customBgText?'active':''}`}
-                  onClick={() => { setSelectedBg(b); setSelectedLocId(null); setCustomBgText(''); }}>
-                  <span className="emoji">{b.emoji}</span><span className="label">{b.label}</span>
+            {appMode === 'product' ? (
+              <>
+                <div className="preset-grid">
+                  {PRODUCT_BACKGROUNDS.map(b => (
+                    <div key={b.id} className={`preset-card ${selectedProductBg.id===b.id&&!selectedLocId&&!customProductBg?'active':''}`}
+                      onClick={() => { setSelectedProductBg(b); setSelectedLocId(null); setCustomProductBg(''); }}>
+                      <span className="emoji">{b.emoji}</span><span className="label">{b.label}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div className="modifier-block" style={{marginTop:10}}>
-              <textarea className="modifier-input" rows={1} placeholder="Добавить к локации: «закат, мокрый асфальт, неоновые огни»"
-                value={bgExtraText} onChange={e => setBgExtraText(e.target.value)} />
-            </div>
-            <div className="custom-variant-row">
-              <input className="custom-variant-input" placeholder="Локация с нуля: «крыша небоскрёба на закате»"
-                value={customBgText} onChange={e => { setCustomBgText(e.target.value); setSelectedLocId(null); }} />
-            </div>
+                <div className="custom-variant-row" style={{marginTop: 12}}>
+                  <input className="custom-variant-input" placeholder="Локация с нуля: «деревянный стол в скандинавском стиле, на фоне размытое окно»"
+                    value={customProductBg} onChange={e => { setCustomProductBg(e.target.value); setSelectedLocId(null); }} />
+                </div>
+                <div className="section-subtitle-small" style={{marginTop: 18, marginBottom: 8, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                  <span>✨</span> Добавить спецэффект
+                </div>
+                <div className="preset-grid">
+                  {PRODUCT_EFFECTS.map(e => (
+                    <div key={e.id} className={`preset-card ${selectedProductEffect.id===e.id?'active':''}`}
+                      onClick={() => setSelectedProductEffect(e)}>
+                      <span className="emoji">{e.emoji}</span><span className="label">{e.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="preset-grid">
+                  {BACKGROUND_PRESETS.map(b => (
+                    <div key={b.id} className={`preset-card ${selectedBg.id===b.id&&!selectedLocId&&!customBgText?'active':''}`}
+                      onClick={() => { setSelectedBg(b); setSelectedLocId(null); setCustomBgText(''); }}>
+                      <span className="emoji">{b.emoji}</span><span className="label">{b.label}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="modifier-block" style={{marginTop:10}}>
+                  <textarea className="modifier-input" rows={1} placeholder="Добавить к локации: «закат, мокрый асфальт, неоновые огни»"
+                    value={bgExtraText} onChange={e => setBgExtraText(e.target.value)} />
+                </div>
+                <div className="custom-variant-row">
+                  <input className="custom-variant-input" placeholder="Локация с нуля: «крыша небоскрёба на закате»"
+                    value={customBgText} onChange={e => { setCustomBgText(e.target.value); setSelectedLocId(null); }} />
+                </div>
+              </>
+            )}
           </>
         ) : (
           <>
-          <div className="location-card-grid">
-            {myLocations.map(loc => (
-              <div key={loc.id} className={`location-card ${selectedLocId===loc.id?'active':''}`} onClick={() => setSelectedLocId(loc.id)}>
-                <img src={loc.thumbnail || loc.imageUrls?.[0] || ''} alt={loc.title || loc.name || ''} />
-                <div className="loc-name">{loc.title || loc.name || 'Без названия'}</div>
-                <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteLoc(loc.id); }}>✕</button>
-              </div>
-            ))}
-            <div className="add-location-card" onClick={() => setShowLocModal(true)}>
-              <span className="plus-icon">+</span><span>Оцифровать локацию</span>
-            </div>
-          </div>
-          {selectedLocId && (
-            <div className="modifier-block">
-              <button className="modifier-toggle" onClick={() => setShowLocModifier(!showLocModifier)}>
-                {showLocModifier ? '✖ Скрыть' : '✏️ Изменить локацию'}
-              </button>
-              {showLocModifier && (
-                <div className="modifier-content">
-                  <textarea className="modifier-input" rows={2} placeholder="Например: добавить закат, сделать стены кирпичными, неоновая вывеска"
-                    value={locModifier} onChange={e => setLocModifier(e.target.value)} />
-                  <button className="modifier-save-btn" onClick={saveLocMod} disabled={!locModifier.trim()}>💾 Сохранить в локацию</button>
+            <div className="location-card-grid">
+              {myLocations.map(loc => (
+                <div key={loc.id} className={`location-card ${selectedLocId===loc.id?'active':''}`} onClick={() => setSelectedLocId(loc.id)}>
+                  <img src={loc.thumbnail || loc.imageUrls?.[0] || ''} alt={loc.title || loc.name || ''} />
+                  <div className="loc-name">{loc.title || loc.name || 'Без названия'}</div>
+                  <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteLoc(loc.id); }}>✕</button>
                 </div>
-              )}
+              ))}
+              <div className="add-location-card" onClick={() => setShowLocModal(true)}>
+                <span className="plus-icon">+</span><span>Оцифровать локацию</span>
+              </div>
             </div>
-          )}
+            {selectedLocId && (
+              <div className="modifier-block">
+                <button className="modifier-toggle" onClick={() => setShowLocModifier(!showLocModifier)}>
+                  {showLocModifier ? '✖ Скрыть' : '✏️ Изменить локацию'}
+                </button>
+                {showLocModifier && (
+                  <div className="modifier-content">
+                    <textarea className="modifier-input" rows={2} placeholder="Например: добавить закат, сделать стены кирпичными, неоновая вывеска"
+                      value={locModifier} onChange={e => setLocModifier(e.target.value)} />
+                    <button className="modifier-save-btn" onClick={saveLocMod} disabled={!locModifier.trim()}>💾 Сохранить в локацию</button>
+                  </div>
+                )}
+              </div>
+            )}
+            {appMode === 'product' && (
+              <>
+                <div className="section-subtitle-small" style={{marginTop: 18, marginBottom: 8, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                  <span>✨</span> Добавить спецэффект
+                </div>
+                <div className="preset-grid">
+                  {PRODUCT_EFFECTS.map(e => (
+                    <div key={e.id} className={`preset-card ${selectedProductEffect.id===e.id?'active':''}`}
+                      onClick={() => setSelectedProductEffect(e)}>
+                      <span className="emoji">{e.emoji}</span><span className="label">{e.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </>
         )}
       </motion.div>
@@ -1257,7 +1631,11 @@ function App() {
             <input type="checkbox" checked={isBeautyMode} onChange={e => setIsBeautyMode(e.target.checked)} />
             <span className="beauty-label">{isBeautyMode ? '✨ Beauty-ретушь' : '📷 Реализм'}</span>
           </label>
-          <span className="beauty-hint">{isBeautyMode ? 'Журнальный глянец, идеальная кожа' : 'Натуральная кожа с текстурой'}</span>
+          <span className="beauty-hint">
+            {appMode === 'product' && !productWithModel
+              ? (isBeautyMode ? 'Коммерческий глянец, идеальные поверхности' : 'Натуральные текстуры и материалы')
+              : (isBeautyMode ? 'Журнальный глянец, идеальная кожа' : 'Натуральная кожа с текстурой')}
+          </span>
         </div>
         
         <div style={{display: 'flex', gap: '10px', flexDirection: 'column'}}>

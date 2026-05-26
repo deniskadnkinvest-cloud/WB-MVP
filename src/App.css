@@ -2742,3 +2742,260 @@ button[onclick*="signOut"],
     font-size: 0.6rem;
   }
 }
+
+/* ═══════════════════════════════════════════════════ */
+/*  PRODUCT MODE (ПРЕДМЕТКА) STYLING                   */
+/* ═══════════════════════════════════════════════════ */
+
+/* ═══ РЕЖИМНЫЙ ПЕРЕКЛЮЧАТЕЛЬ ═══ */
+.mode-selector-wrapper {
+  display: flex;
+  justify-content: center;
+  margin: 24px 0 8px;
+}
+
+.mode-selector-bg {
+  position: relative;
+  display: flex;
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--r-full);
+  padding: 4px;
+  width: 100%;
+  max-width: 380px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5), 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.mode-selector-slider {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: var(--r-full);
+  z-index: 1;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.mode-btn {
+  position: relative;
+  flex: 1;
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  z-index: 2;
+  transition: color var(--normal) var(--ease);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.mode-btn.active {
+  color: var(--text-primary);
+}
+
+.mode-btn:hover:not(.active) {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* ═══ ДОПОЛНИТЕЛЬНЫЙ ЭФФЕКТ СТИЛИ ═══ */
+.section-subtitle-small {
+  margin-top: 20px;
+  margin-bottom: 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 6px;
+}
+
+/* ═══ АДАПТАЦИЯ ДЛЯ ТОВАРОВ ═══ */
+/* Свечение карточек при выборе в режиме предметов: зеленый изумрудный неон */
+.app-wrapper:has(.mode-btn:nth-child(3).active) .preset-card.active {
+  border-color: var(--green) !important;
+  animation: productBreatheGlow 2.5s ease-in-out infinite !important;
+}
+
+.app-wrapper:has(.mode-btn:nth-child(3).active) .section {
+  border-left-color: rgba(68, 223, 170, 0.08);
+  animation: productSectionBorderPulse 6s ease-in-out infinite;
+}
+
+.app-wrapper:has(.mode-btn:nth-child(3).active) .section:hover {
+  border-left-color: var(--green) !important;
+  animation: none !important;
+}
+
+@keyframes productBreatheGlow {
+  0%, 100% { box-shadow: 0 0 0 1px var(--green), 0 4px 20px rgba(68, 223, 170, 0.1); }
+  50% { box-shadow: 0 0 0 1px var(--green), 0 8px 36px rgba(68, 223, 170, 0.25); }
+}
+
+@keyframes productSectionBorderPulse {
+  0%, 100% { border-left-color: rgba(68, 223, 170, 0.08); }
+  50% { border-left-color: rgba(68, 223, 170, 0.2); }
+}
+
+/* ═══ ДИНАМИЧЕСКИЙ РЕЗУЛЬТАТ СВЕЧЕНИЯ ДЛЯ ПРЕДМЕТОВ ═══ */
+.app-wrapper:has(.mode-btn:nth-child(3).active) .result-img:hover {
+  box-shadow: 0 24px 80px rgba(0,0,0,0.5), 0 0 60px rgba(68, 223, 170, 0.1) !important;
+}
+
+/* Свечение кнопки сгенерировать в режиме предметов */
+.app-wrapper:has(.mode-btn:nth-child(3).active) .generate-btn:not(:disabled) {
+  background: linear-gradient(135deg, #00f5a0 0%, #00d9f5 100%) !important;
+  color: #050508 !important;
+  box-shadow: 0 4px 24px rgba(0, 245, 160, 0.25) !important;
+  animation: productBtnGlow 3s ease-in-out infinite, btnShimmer 6s ease-in-out infinite !important;
+}
+
+.app-wrapper:has(.mode-btn:nth-child(3).active) .generate-btn:not(:disabled):hover {
+  box-shadow: 0 6px 30px rgba(0, 245, 160, 0.45) !important;
+  transform: translateY(-2px) !important;
+}
+
+@keyframes productBtnGlow {
+  0%, 100% { box-shadow: 0 4px 20px rgba(0, 245, 160, 0.2); }
+  50% { box-shadow: 0 8px 36px rgba(0, 245, 160, 0.45); }
+}
+
+/* Адаптивный цвет логотипа для предметов */
+.app-wrapper:has(.mode-btn:nth-child(3).active) .app-logo {
+  background: linear-gradient(135deg, #00f5a0 0%, #00d2ff 50%, #0072ff 100%) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  filter: drop-shadow(0 0 40px rgba(0, 245, 160, 0.15)) !important;
+}
+
+.app-wrapper:has(.mode-btn:nth-child(3).active) .upload-zone.dragging {
+  border-color: var(--green) !important;
+  background: rgba(68, 223, 170, 0.08) !important;
+  box-shadow: 0 0 20px rgba(68, 223, 170, 0.2) !important;
+}
+
+/* ═══ PRODUCT MODE: HUMAN MODEL REDESIGN (CARD + REMOVE) ═══ */
+.add-model-card {
+  cursor: pointer;
+  padding: 20px 24px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  margin-top: 8px;
+}
+
+.add-model-card:hover {
+  background: rgba(0, 245, 160, 0.03);
+  border-color: rgba(0, 245, 160, 0.4);
+  box-shadow: 0 12px 32px rgba(0, 245, 160, 0.04), inset 0 0 12px rgba(0, 245, 160, 0.02);
+}
+
+.add-model-card-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.add-model-icon {
+  font-size: 1.8rem;
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.add-model-card:hover .add-model-icon {
+  transform: scale(1.15) rotate(5deg);
+}
+
+.add-model-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+}
+
+.add-model-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  transition: color 0.3s ease;
+}
+
+.add-model-card:hover .add-model-title {
+  color: #00f5a0;
+}
+
+.add-model-desc {
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.45);
+  line-height: 1.4;
+}
+
+/* Button to remove model */
+.remove-model-btn {
+  background: rgba(255, 69, 58, 0.08);
+  border: 1px solid rgba(255, 69, 58, 0.2);
+  color: #ff453a;
+  padding: 5px 12px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.remove-model-btn:hover {
+  background: rgba(255, 69, 58, 0.16);
+  border-color: rgba(255, 69, 58, 0.4);
+  transform: translateY(-1px);
+}
+
+.remove-model-btn:active {
+  transform: translateY(0);
+}
+
+/* Section hint text */
+.section-hint {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.35);
+  line-height: 1.5;
+  margin: 8px 0 4px 0;
+}
+
+@media (max-width: 600px) {
+  .add-model-card {
+    padding: 16px;
+  }
+  .add-model-icon {
+    font-size: 1.5rem;
+  }
+  .add-model-title {
+    font-size: 0.85rem;
+  }
+  .add-model-desc {
+    font-size: 0.7rem;
+  }
+  .remove-model-btn {
+    padding: 4px 10px;
+    font-size: 0.68rem;
+  }
+}
+

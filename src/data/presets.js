@@ -216,5 +216,177 @@ export const CAMERA_ANGLES = [
   { id: 'full_body',  label: 'В полный рост',                  prompt: 'full body shot' },
   { id: 'waist_up',   label: 'По пояс',                        prompt: 'medium shot, waist up' },
   { id: 'close_up',   label: 'Крупно (деталь)',                 prompt: 'close-up detail shot of the garment on body' },
-  { id: 'portrait',   label: 'Портрет / Макро (Крупный план)',  prompt: 'extreme close-up beauty portrait shot, macro lens, shallow depth of field, focus on face and jewelry/accessory detail, skin texture visible' },
 ];
+
+// ═══════════════════════════════════════════
+//  ПРЕСЕТЫ ДЛЯ ПРЕДМЕТНОЙ СЪЕМКИ ТОВАРОВ
+// ═══════════════════════════════════════════
+
+export const PRODUCT_CATEGORIES = [
+  {
+    id: 'cosmetics',
+    label: 'Косметика и уход',
+    emoji: '🧴',
+    defaultPrompt: 'cosmetic bottle skincare container product packaging, glossy design, detailed'
+  },
+  {
+    id: 'supplements',
+    label: 'БАДы и витамины',
+    emoji: '💊',
+    defaultPrompt: 'supplement bottle capsule jar container, clean medical nutrition branding'
+  },
+  {
+    id: 'decor_candles',
+    label: 'Декор и свечи',
+    emoji: '🕯️',
+    defaultPrompt: 'scented wax candle in a glass jar, minimalist decor item'
+  },
+  {
+    id: 'electronics',
+    label: 'Электроника и чехлы',
+    emoji: '📱',
+    defaultPrompt: 'smartphone protective case premium tech accessory, perfect geometry'
+  },
+  {
+    id: 'pet_supplies',
+    label: 'Зоотовары',
+    emoji: '🧸',
+    defaultPrompt: 'pet toy organic cat dog product packaging pet accessory'
+  },
+  {
+    id: 'fragrance',
+    label: 'Парфюмерия',
+    emoji: '💨',
+    defaultPrompt: 'luxury perfume bottle fragrance container, elegant glass bottle with liquid inside, dramatic refraction, high-end'
+  },
+  {
+    id: 'stationery',
+    label: 'Канцелярия',
+    emoji: '📔',
+    defaultPrompt: 'elegant designer notebook diary, luxury planner journal on flat lay, premium paper texture'
+  },
+  {
+    id: 'jewelry',
+    label: 'Ювелирные изделия',
+    emoji: '💎',
+    defaultPrompt: 'fine diamond ring luxury jewelry, precious metal silver gold finish, sparkling gems close-up'
+  },
+  {
+    id: 'food',
+    label: 'Продукты питания',
+    emoji: '🍯',
+    defaultPrompt: 'premium organic food jar container, artisanal packaging, gourmet food ingredient'
+  },
+  {
+    id: 'sports',
+    label: 'Спортивные товары',
+    emoji: '🧘',
+    defaultPrompt: 'fitness yoga mat gym accessory product packaging, premium sports gear'
+  }
+];
+
+export const PRODUCT_COMPOSITIONS = [
+  {
+    id: 'still_life',
+    label: 'Натюрморт (Спереди)',
+    emoji: '🖼️',
+    prompt: 'front-facing product portrait, centered composition, eye-level camera, studio lighting'
+  },
+  {
+    id: 'flat_lay',
+    label: 'Flat Lay (Сверху)',
+    emoji: '📐',
+    prompt: 'flat lay overhead shot, top-down 90-degree perspective, geometrically aligned styling, clean layout'
+  },
+  {
+    id: 'macro',
+    label: 'Макро (Крупно)',
+    emoji: '🔍',
+    prompt: 'extreme close-up macro shot, shallow depth of field, razor-sharp focus on product details and labels, visible material texture'
+  },
+  {
+    id: 'angled',
+    label: 'Диагональ (3/4)',
+    emoji: '📐',
+    prompt: 'dynamic 3/4 perspective shot, angled side view, elegant volumetric lighting, dramatic depth of field'
+  },
+  {
+    id: 'in_hand',
+    label: 'Товар в руке',
+    emoji: '🫱',
+    prompt: 'a person\'s hand holding the product naturally, organic grip, showing product scale relative to hand, blurred cinematic background'
+  }
+];
+
+export const PRODUCT_BACKGROUNDS = [
+  {
+    id: 'clean_beauty',
+    label: 'Clean Beauty',
+    emoji: '⬜',
+    prompt: 'clean minimalist studio backdrop, elegant marble podium platform, pastel color palette, soft luxury studio lighting'
+  },
+  {
+    id: 'organic_eco',
+    label: 'Organic Eco',
+    emoji: '🌿',
+    prompt: 'natural organic environment, wet stones, green moss patches, eucalyptus leaves, morning dew, soft sunlight filtering through leaves'
+  },
+  {
+    id: 'cozy_scandi',
+    label: 'Скандинавский уют',
+    emoji: '🪵',
+    prompt: 'cozy Scandinavian home interior, textured knitted blanket on background, soft warm fireplace glow, rustic wooden table surface'
+  },
+  {
+    id: 'urban_tech',
+    label: 'Urban Tech',
+    emoji: '🏙️',
+    prompt: 'sleek cyber tech environment, dark concrete texture backdrop, subtle purple and cyan neon accent lighting, anodized metal pedestal'
+  },
+  {
+    id: 'minimalist_desk',
+    label: 'Рабочий стол',
+    emoji: '💻',
+    prompt: 'modern clean workspace desk, soft natural light, blurred computer keyboard and succulents on the background, light oak wood surface'
+  }
+];
+
+export const PRODUCT_EFFECTS = [
+  {
+    id: 'none',
+    label: 'Без эффектов',
+    emoji: '❌',
+    prompt: ''
+  },
+  {
+    id: 'water_splash',
+    label: 'Брызги воды',
+    emoji: '💦',
+    prompt: 'crisp water droplets and elegant dynamic water splashes colliding around the product, refractive light, clean commercial look'
+  },
+  {
+    id: 'cream_swatch',
+    label: 'Мазок крема',
+    emoji: '🧴',
+    prompt: 'elegant smooth textured cosmetic cream swatch smear and dollop next to the product, rich thick cream texture'
+  },
+  {
+    id: 'candle_flame',
+    label: 'Пламя и свечение',
+    emoji: '🔥',
+    prompt: 'flickering physical candle flame with a warm volumetric glow, casting gentle halo effect and cozy highlights on the product'
+  },
+  {
+    id: 'flower_petals',
+    label: 'Лепестки цветов',
+    emoji: '🌸',
+    prompt: 'delicate floating flower petals falling around the product, elegant soft focus, romantic commercial look'
+  },
+  {
+    id: 'capsules',
+    label: 'Капсулы рядом',
+    emoji: '💊',
+    prompt: 'a few scattered natural supplement capsules and tablets neatly placed next to the container, showing product content'
+  }
+];
+
