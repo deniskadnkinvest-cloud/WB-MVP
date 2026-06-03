@@ -13,28 +13,28 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 // 9900 RUB ≈ ~109$ → ~8380 Stars → 299 Stars (промо тест)
 const PLAN_CONFIG = {
   trial: {
-    title: '🎯 Тест-драйв — 15 кадров',
-    description: 'Полный доступ к генерации на 15 кадров. Без сохранения модели и локации.',
+    title: '🎯 Тест-драйв — 25 кадров',
+    description: 'Полный доступ к генерации на 25 кадров. Без сохранения модели и локации.',
     payload: 'plan_trial',
     currency: 'XTR', // Telegram Stars currency code
-    prices: [{ label: 'Тест-драйв (15 кадров)', amount: 9 }], // 9 Stars ≈ тест
-    priceRub: 390,
+    prices: [{ label: 'Тест-драйв (25 кадров)', amount: 15 }], // 15 Stars
+    priceRub: 500,
   },
   base: {
-    title: '🥉 База — 100 кадров/мес',
-    description: '100 кадров в месяц. Встроенные пресеты без создания своих моделей.',
+    title: '⚡ Про — 100 кадров/мес',
+    description: '100 кадров в месяц. Свои локации, сохранение моделей, пакетная генерация.',
     payload: 'plan_base',
     currency: 'XTR',
-    prices: [{ label: 'База (100 кадров/мес)', amount: 75 }], // 75 Stars
-    priceRub: 3500,
+    prices: [{ label: 'Про (100 кадров/мес)', amount: 120 }], // 120 Stars
+    priceRub: 4990,
   },
   pro: {
-    title: '🥈 PRO — 350 кадров/мес',
-    description: '350 кадров/мес. Identity Preservation, свои локации, пакетная генерация.',
+    title: '🚀 Бизнес — Безлимит/мес',
+    description: 'Безлимит генераций (fair use 1000 кадров/мес). Полный доступ, Identity Preservation.',
     payload: 'plan_pro',
     currency: 'XTR',
-    prices: [{ label: 'PRO (350 кадров/мес)', amount: 215 }], // 215 Stars
-    priceRub: 9900,
+    prices: [{ label: 'Бизнес (Безлимит/мес)', amount: 350 }], // 350 Stars
+    priceRub: 15990,
   },
 };
 

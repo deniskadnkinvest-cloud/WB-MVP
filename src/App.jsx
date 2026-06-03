@@ -1271,9 +1271,16 @@ function App() {
                 <span className="emoji">{cat.emoji}</span><span className="label">{cat.label}</span>
               </div>
             ))}
+            <div className={`preset-card ${selectedProductCategory.id==='other'&&!customProductPrompt?'active':''}`}
+              onClick={() => { setSelectedProductCategory({ id: 'other', label: 'Другое', emoji: '📋', defaultPrompt: 'product item, commercial product photography' }); setCustomProductPrompt(''); }}>
+              <span className="emoji">📋</span><span className="label">Другое</span>
+            </div>
           </div>
+          {selectedProductCategory.id === 'other' && !customProductPrompt && (
+            <p className="section-hint" style={{fontSize:'0.78rem',color:'var(--text-muted)',marginTop:6,textAlign:'center'}}>☝️ Опишите ваш товар в поле ниже — это улучшит качество генерации</p>
+          )}
           <div className="custom-variant-row">
-            <input className="custom-variant-input" type="text" placeholder="Описать товар с нуля: «круглая баночка крема с золотой крышкой»"
+            <input className="custom-variant-input" type="text" placeholder={selectedProductCategory.id === 'other' ? 'Опишите ваш товар: «набор кистей для макияжа в чехле»' : 'Описать товар с нуля: «круглая баночка крема с золотой крышкой»'}
               value={customProductPrompt} 
               onChange={e => setCustomProductPrompt(e.target.value)} />
           </div>
@@ -1681,19 +1688,37 @@ function App() {
             <p className="touch-zoom-hint">👆 Нажмите на фото для увеличения</p>
             <div className="result-actions">
               <button className="download-btn" onClick={handleDownload}>⬇️ Скачать</button>
-              <button className="save-model-btn" onClick={() => openCalibration('save')}>🎯 Сохранить модель (калибровка)</button>
-              <button
-                className="redress-btn has-tooltip"
-                onClick={handleGenerate}
-                disabled={isProcessing}
-                data-tooltip="Вернуть одежду в исходный вид"
-              >👗 Переодеть модель</button>
+              {/* Калибровка и «Переодеть» — только когда есть человек-модель */}
+              {(appMode === 'fashion' || (appMode === 'product' && productWithModel)) && (
+                <button className="save-model-btn" onClick={() => openCalibration('save')}>🎯 Сохранить модель (калибровка)</button>
+              )}
+              {appMode === 'fashion' ? (
+                <button
+                  className="redress-btn has-tooltip"
+                  onClick={handleGenerate}
+                  disabled={isProcessing}
+                  data-tooltip="Вернуть одежду в исходный вид"
+                >👗 Переодеть модель</button>
+              ) : (
+                <button
+                  className="redress-btn has-tooltip"
+                  onClick={handleGenerate}
+                  disabled={isProcessing}
+                  data-tooltip="Перегенерировать с текущими настройками"
+                >🔄 Новый вариант</button>
+              )}
             </div>
 
             {/* Iterative editing */}
             <div className="shot-modifier-block">
-              <div className="shot-modifier-label">✏️ Хотите что-то изменить в кадре?</div>
-              <textarea className="modifier-input" rows={2} placeholder="Например: сделать модель выше, изменить цвет волос, добавить очки, убрать тени"
+              <div className="shot-modifier-label">
+                {appMode === 'product' ? '✏️ Хотите что-то изменить в кадре?' : '✏️ Хотите что-то изменить в кадре?'}
+              </div>
+              <textarea className="modifier-input" rows={2} placeholder={
+                appMode === 'product'
+                  ? 'Например: сделать фон темнее, добавить блики, убрать тени, повернуть товар'
+                  : 'Например: сделать модель выше, изменить цвет волос, добавить очки, убрать тени'
+              }
                 value={shotModifier} onChange={e => setShotModifier(e.target.value)} />
               <button className="modifier-regen-btn" onClick={handleRegenerate} disabled={!shotModifier.trim() || isProcessing}>
                 🔄 Внести изменения
@@ -1702,14 +1727,20 @@ function App() {
 
             {/* Photoshoot */}
             <div className="photoshoot-block">
-              <div className="photoshoot-label">📸 Сделать фотосессию</div>
-              <p className="photoshoot-hint">Генерация нескольких фото с разных ракурсов</p>
+              <div className="photoshoot-label">{appMode === 'product' ? '📸 Сделать раскадровку' : '📸 Сделать фотосессию'}</div>
+              <p className="photoshoot-hint">
+                {appMode === 'product'
+                  ? 'Генерация нескольких фото товара с разных ракурсов и композиций'
+                  : 'Генерация нескольких фото с разных ракурсов'}
+              </p>
               <p className="photoshoot-hint" style={{fontSize:'0.72rem', opacity:0.6, marginTop:2}}>
-                👕 Одежда берётся из загруженных вами фото, не из сгенерированного кадра
+                {appMode === 'product'
+                  ? '📦 Фото товара берётся из загруженных вами фото, не из сгенерированного кадра'
+                  : '👕 Одежда берётся из загруженных вами фото, не из сгенерированного кадра'}
               </p>
 
-              {/* Calibration prompt */}
-              {!selectedSavedModelId && (
+              {/* Calibration prompt — только если есть человек-модель */}
+              {(appMode === 'fashion' || (appMode === 'product' && productWithModel)) && !selectedSavedModelId && !(appMode === 'product' && !productWithModel) && (
                 <div className="calibration-prompt">
                   <p className="calibration-prompt-text">💡 Для максимальной консистентности лица рекомендуем сначала <strong>откалибровать модель</strong></p>
                   <button className="calib-prompt-btn" onClick={() => openCalibration('photoshoot')}>
@@ -1919,13 +1950,18 @@ function App() {
                 <p className="photo-editor-hint">Опишите, что изменить в этом кадре:</p>
                 <textarea
                   className="photo-editor-input"
-                  placeholder="Убери татуировку, добавь очки, смени цвет волос..."
+                  placeholder={appMode === 'product'
+                    ? 'Сделай фон темнее, добавь блики, убери тени, поверни товар...'
+                    : 'Убери татуировку, добавь очки, смени цвет волос...'}
                   value={photoEditText}
                   onChange={e => setPhotoEditText(e.target.value)}
                   rows={3}
                 />
                 <div className="photo-editor-quick-tags">
-                  {['Убрать татуировку', 'Добавить очки', 'Сменить фон', 'Убрать пирсинг', 'Другая причёска', 'Добавить улыбку'].map(tag => (
+                  {(appMode === 'product'
+                    ? ['Убрать тени', 'Ярче свет', 'Темнее фон', 'Добавить блики', 'Добавить текстуру', 'Другой ракурс']
+                    : ['Убрать татуировку', 'Добавить очки', 'Сменить фон', 'Убрать пирсинг', 'Другая причёска', 'Добавить улыбку']
+                  ).map(tag => (
                     <button key={tag} className="photo-editor-tag" onClick={() => setPhotoEditText(prev => prev ? `${prev}, ${tag.toLowerCase()}` : tag.toLowerCase())}>{tag}</button>
                   ))}
                 </div>

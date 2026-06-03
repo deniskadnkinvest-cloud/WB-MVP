@@ -70,7 +70,13 @@ export default function PricingModal({ isOpen, onClose, currentPlan, onSelectPla
                     </div>
 
                     <div className="pricing-credits">
-                      <span className="pricing-credits-num">{plan.credits}</span> кадров
+                      {plan.id === 'pro' ? (
+                        <span className="pricing-credits-num">Безлимит</span>
+                      ) : (
+                        <>
+                          <span className="pricing-credits-num">{plan.credits}</span> кадров
+                        </>
+                      )}
                     </div>
 
                     <ul className="pricing-features">
@@ -98,8 +104,8 @@ export default function PricingModal({ isOpen, onClose, currentPlan, onSelectPla
                     >
                       {loading && isSelected ? '⏳ Активация...'
                         : isActive ? '✓ Активен'
-                        : isBest ? `🚀 Подключить PRO — ${plan.price.toLocaleString('ru-RU')} ₽`
-                        : `Подключить — ${plan.price.toLocaleString('ru-RU')} ₽`}
+                        : isBest ? `🚀 Подключить ${plan.label.toUpperCase()} — ${plan.price.toLocaleString('ru-RU')} ₽`
+                        : `Подключить ${plan.label} — ${plan.price.toLocaleString('ru-RU')} ₽`}
                     </button>
                   </motion.div>
                 );

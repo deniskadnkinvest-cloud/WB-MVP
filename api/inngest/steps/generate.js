@@ -3,13 +3,13 @@
 //  Переиспользует логику из generate-image.js
 // ═══════════════════════════════════════════════════════════════
 
-const KIE_API_KEY_RAW = process.env.KIE_API_KEY || process.env.GEMINI_API_KEY;
+const KIE_API_KEY_RAW = process.env.KIE_API_KEY;
 const TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const GET_TASK_URL = 'https://api.kie.ai/api/v1/jobs/recordInfo?taskId=';
 const FILE_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-base64-upload';
 
 function getApiKey() {
-  const raw = process.env.KIE_API_KEY || process.env.GEMINI_API_KEY;
+  const raw = process.env.KIE_API_KEY;
   if (!raw) throw new Error('KIE_API_KEY not set in .env');
   return raw.replace(/[\uFEFF\u200B\u200C\u200D\uFFFE\r\n]/g, '').trim();
 }

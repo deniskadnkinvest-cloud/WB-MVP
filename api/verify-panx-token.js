@@ -1,19 +1,8 @@
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { ensureFirebaseAdmin } from './_firebase-admin.js';
 import { getAuth } from 'firebase-admin/auth';
 
-// Initialize Firebase Admin (only once)
-if (!getApps().length) {
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
-    ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-    : null;
-
-  if (serviceAccount) {
-    initializeApp({ credential: cert(serviceAccount) });
-  } else {
-    // Fallback: initialize without service account (limited functionality)
-    initializeApp({ projectId: 'lord-f842d' });
-  }
-}
+// Initialize Firebase Admin (once, via shared module)
+ensureFirebaseAdmin();
 
 export default async function handler(req, res) {
   // CORS headers

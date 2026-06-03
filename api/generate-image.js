@@ -99,7 +99,7 @@ ${SKIN_REALISM_PROMPT}
 </output_rules>`;
 };
 
-const KIE_API_KEY = process.env.KIE_API_KEY || process.env.GEMINI_API_KEY;
+const KIE_API_KEY = process.env.KIE_API_KEY;
 const TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const GET_TASK_URL = 'https://api.kie.ai/api/v1/jobs/recordInfo?taskId=';
 const FILE_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-base64-upload';
@@ -138,7 +138,7 @@ async function uploadBase64ToKie(base64DataUrl, apiKey, index = 0) {
 }
 
 async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana-2") {
-  const rawKey = process.env.KIE_API_KEY || process.env.GEMINI_API_KEY;
+  const rawKey = process.env.KIE_API_KEY;
   if (!rawKey) throw new Error("API key missing. Set KIE_API_KEY in .env");
   // Strip BOM, zero-width chars, and whitespace that PowerShell/editors inject
   const apiKey = rawKey.replace(/[\uFEFF\u200B\u200C\u200D\uFFFE\r\n]/g, '').trim();

@@ -22,7 +22,11 @@ export default function SubscriptionBadge({ subscription, onClick }) {
         <>
           <span className="sub-badge-plan">{plan.emoji} {plan.label}</span>
           <span className="sub-badge-credits">
-            ⚡ {subscription.credits}/{subscription.creditsTotal}
+            {subscription.plan === 'pro' ? (
+              '⚡ Безлимит'
+            ) : (
+              `⚡ ${subscription.credits}/${subscription.creditsTotal}`
+            )}
           </span>
         </>
       )}

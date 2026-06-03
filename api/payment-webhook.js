@@ -4,19 +4,11 @@
 // Telegram шлёт сюда successful_payment события
 // ═══════════════════════════════════════════════════════════════
 
-import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { ensureFirebaseAdmin } from './_firebase-admin.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
-// Init Firebase Admin (once)
-if (!getApps().length) {
-  initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  });
-}
+// Init Firebase Admin (once, via shared module)
+ensureFirebaseAdmin();
 
 const db = getFirestore();
 
@@ -24,9 +16,9 @@ const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 // Plan credits by plan ID
 const PLAN_CREDITS = {
-  trial: 15,
+  trial: 25,
   base: 100,
-  pro: 350,
+  pro: 1000,
 };
 
 export default async function handler(req, res) {

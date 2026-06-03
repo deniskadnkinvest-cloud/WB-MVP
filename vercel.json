@@ -8,6 +8,12 @@
     },
     "api/verify-panx-token.js": {
       "maxDuration": 10
+    },
+    "api/payment-webhook.js": {
+      "maxDuration": 30
+    },
+    "api/create-payment.js": {
+      "maxDuration": 10
     }
   },
   "headers": [
@@ -22,6 +28,8 @@
   "rewrites": [
     { "source": "/api/generate-image", "destination": "/api/generate-image" },
     { "source": "/api/verify-panx-token", "destination": "/api/verify-panx-token" },
+    { "source": "/api/payment-webhook", "destination": "/api/payment-webhook" },
+    { "source": "/api/create-payment", "destination": "/api/create-payment" },
     { "source": "/__/auth/:path*", "destination": "https://lord-f842d.firebaseapp.com/__/auth/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
