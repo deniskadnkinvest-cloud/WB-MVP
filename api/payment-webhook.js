@@ -6,6 +6,16 @@
 
 import { ensureFirebaseAdmin } from './_firebase-admin.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { alertOnPayment, alertOnError } from './_admin-alerts.js';
+
+const APP_URL = process.env.VITE_APP_URL || 'https://vton-mvp-omega.vercel.app';
+
+// Whitelist Telegram ID для доступа к админке
+const getAdminIds = () => {
+  const raw = process.env.ADMIN_TELEGRAM_IDS || '';
+  return raw.split(',').map(s => s.trim()).filter(Boolean).map(Number);
+};
+
 
 // Init Firebase Admin (once, via shared module)
 ensureFirebaseAdmin();
@@ -78,10 +88,47 @@ export default async function handler(req, res) {
       }, { merge: true });
 
       console.log(`✅ Plan activated: ${planId} for user ${uid}, credits: ${credits}`);
+
+      // ═══ ADMIN ALERT — уведомление о новой оплате ═══
+      alertOnPayment(planId, uid, payment.total_amount).catch(() => {});
     } catch (err) {
       console.error('Firestore write error:', err);
+      // ═══ ADMIN ALERT — критическая ошибка записи оплаты ═══
+      alertOnError(err, `payment-webhook Firestore write [${planId}:${uid}]`).catch(() => {});
     }
 
+    return res.status(200).json({ ok: true });
+  }
+
+  // ═══ Handle /admin command ═══
+  if (update?.message?.text === '/admin') {
+    const chatId = update.message.chat.id;
+    const fromId = update.message.from?.id;
+    const adminIds = getAdminIds();
+
+    // Тихо игнорируем не-админов (не даём понять что команда существует)
+    if (!adminIds.length || !adminIds.includes(Number(fromId))) {
+      return res.status(200).json({ ok: true });
+    }
+
+    const adminKey = process.env.ADMIN_ACCESS_KEY || '';
+    const firstName = update.message.from?.first_name || '';
+    await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: `👋 ${firstName ? firstName + ', ' : ''}добро пожаловать в Command Center!\n\n📊 Здесь ты видишь статистику, платежи и управляешь пользователями.`,
+        reply_markup: {
+          inline_keyboard: [[
+            {
+              text: '🎛 Открыть Command Center',
+              web_app: { url: `${APP_URL.replace(/\/$/, '')}/?mode=admin&key=${adminKey}` }
+            }
+          ]]
+        }
+      }),
+    });
     return res.status(200).json({ ok: true });
   }
 
