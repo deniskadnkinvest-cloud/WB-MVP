@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Payments from './pages/Payments';
 import Errors from './pages/Errors';
+import PlaceholderPage from './pages/PlaceholderPage';
 
 // ═══════════════════════════════════════════
 //  Admin Context — accessKey для API запросов
@@ -83,8 +84,16 @@ export default function AdminApp() {
 
   const pages = {
     dashboard: <Dashboard />,
+    overview: <Dashboard />, // redirect
     users: <Users />,
+    generations: <PlaceholderPage title="Генерации" />,
+    complaints: <PlaceholderPage title="Жалобы" />,
+    reviews: <PlaceholderPage title="Отзывы" />,
     payments: <Payments />,
+    payment_analytics: <PlaceholderPage title="Аналитика оплат" />,
+    templates: <PlaceholderPage title="Шаблоны" />,
+    prompts: <PlaceholderPage title="GPT Промпты" />,
+    broadcasts: <PlaceholderPage title="Рассылки" />,
     errors: <Errors />,
   };
 

@@ -1,153 +1,115 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const TABS = [
-  { id: 'dashboard', icon: '📊', label: 'Обзор' },
-  { id: 'users',     icon: '👤', label: 'Юзеры' },
-  { id: 'payments',  icon: '⭐', label: 'Оплаты' },
-  { id: 'errors',    icon: '⚙', label: 'Система' },
-];
+import Sidebar from './Sidebar';
 
 export default function AdminLayout({ children, activePage, onNavigate }) {
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
     <div style={{
-      minHeight: '100vh',
-      background: '#0a0a0f',
       display: 'flex',
-      flexDirection: 'column',
-      fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-      color: '#e8e8ed',
-      position: 'relative',
-      overflow: 'hidden',
+      minHeight: '100vh',
+      background: '#0a0a0a',
+      fontFamily: "'Inter', -apple-system, sans-serif",
+      color: '#e5e7eb',
+      overflow: 'hidden'
     }}>
-      {/* ── Subtle gradient orbs ── */}
-      <div style={{
-        position: 'fixed', top: '-120px', right: '-80px',
-        width: '300px', height: '300px',
-        background: 'radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%)',
-        pointerEvents: 'none', zIndex: 0,
-      }} />
-      <div style={{
-        position: 'fixed', bottom: '100px', left: '-60px',
-        width: '250px', height: '250px',
-        background: 'radial-gradient(circle, rgba(14,165,233,0.06) 0%, transparent 70%)',
-        pointerEvents: 'none', zIndex: 0,
-      }} />
+      {/* ── Sidebar ── */}
+      <Sidebar 
+        activePage={activePage} 
+        onNavigate={onNavigate} 
+        isMobile={isMobile} 
+        isOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)} 
+      />
 
-      <div style={{ position: 'relative', zIndex: 10, flex: 1, display: 'flex', flexDirection: 'column', paddingBottom: '80px' }}>
-        
+      {/* ── Main Content Area ── */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100vh',
+        position: 'relative',
+        overflow: 'hidden',
+        background: '#0a0a0a' // Тёмный фон контента
+      }}>
+        {/* Subtle background glow */}
+        <div style={{
+          position: 'absolute', top: '-10%', left: '50%', transform: 'translateX(-50%)',
+          width: '600px', height: '600px',
+          background: 'radial-gradient(circle, rgba(251, 146, 60, 0.03) 0%, transparent 60%)',
+          pointerEvents: 'none', zIndex: 0
+        }} />
+
         {/* ── Header ── */}
-        <motion.header 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.4 }}
-          style={{
-            padding: '14px 20px',
-            borderBottom: '1px solid rgba(255,255,255,0.04)',
-            background: 'rgba(10,10,15,0.8)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            position: 'sticky', top: 0, zIndex: 100,
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{
-              width: '28px', height: '28px',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, #6366f1, #0ea5e9)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '13px', fontWeight: 800, color: '#fff',
-              letterSpacing: '-0.5px',
-            }}>
-              SS
-            </div>
-            <div>
-              <h1 style={{ margin: 0, fontSize: '15px', fontWeight: 700, letterSpacing: '-0.3px', color: '#fff' }}>
-                Seller Studio
-              </h1>
-              <p style={{ margin: 0, fontSize: '10px', color: 'rgba(255,255,255,0.3)', letterSpacing: '0.5px' }}>
-                Панель управления
-              </p>
+        <header style={{
+          height: '64px',
+          padding: '0 24px',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+          background: 'rgba(10,10,10,0.8)',
+          backdropFilter: 'blur(20px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          position: 'relative', zIndex: 10
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {isMobile && (
+              <button 
+                onClick={() => setIsSidebarOpen(true)}
+                style={{
+                  background: 'none', border: 'none', color: '#d1d5db',
+                  fontSize: '24px', cursor: 'pointer', padding: '0 8px 0 0', display: 'flex'
+                }}
+              >
+                ☰
+              </button>
+            )}
+            
+            {/* Page Title & Breadcrumb logic could go here */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#9ca3af' }}>
+              <span>{activePage.charAt(0).toUpperCase() + activePage.slice(1)}</span>
             </div>
           </div>
-          <div style={{
-            width: '6px', height: '6px', borderRadius: '50%',
-            background: '#22c55e', boxShadow: '0 0 6px rgba(34,197,94,0.5)',
-          }} />
-        </motion.header>
 
-        {/* ── Content ── */}
-        <main style={{ flex: 1, padding: '16px', overflowX: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {/* Admin Profile Mockup */}
+            <div style={{
+              width: '32px', height: '32px', borderRadius: '50%',
+              background: '#fb923c', color: '#000',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontWeight: 700, fontSize: '13px'
+            }}>
+              A
+            </div>
+          </div>
+        </header>
+
+        {/* ── Page Content ── */}
+        <main style={{
+          flex: 1,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          padding: '24px',
+          position: 'relative', zIndex: 1,
+        }}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activePage}
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
             >
               {children}
             </motion.div>
           </AnimatePresence>
         </main>
-
-        {/* ── Tab Bar ── */}
-        <nav style={{
-          position: 'fixed',
-          bottom: 0, left: 0, right: 0,
-          background: 'rgba(10,10,15,0.92)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          borderTop: '1px solid rgba(255,255,255,0.06)',
-          display: 'flex',
-          justifyContent: 'space-around',
-          padding: '6px 0 calc(6px + env(safe-area-inset-bottom))',
-          zIndex: 100,
-        }}>
-          {TABS.map(tab => {
-            const isActive = activePage === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => onNavigate(tab.id)}
-                style={{
-                  position: 'relative',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center',
-                  gap: '2px', padding: '8px 18px',
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  outline: 'none', WebkitTapHighlightColor: 'transparent',
-                }}
-              >
-                <span style={{ 
-                  fontSize: '18px', lineHeight: 1,
-                  opacity: isActive ? 1 : 0.3,
-                  transition: 'opacity 0.2s',
-                }}>
-                  {tab.icon}
-                </span>
-                <span style={{
-                  fontSize: '10px', fontWeight: isActive ? 600 : 400,
-                  color: isActive ? '#818cf8' : 'rgba(255,255,255,0.3)',
-                  transition: 'color 0.2s',
-                }}>
-                  {tab.label}
-                </span>
-                {isActive && (
-                  <motion.div
-                    layoutId="tabIndicator"
-                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                    style={{
-                      position: 'absolute', top: '-1px', left: '25%', right: '25%',
-                      height: '2px', borderRadius: '2px',
-                      background: '#818cf8',
-                    }}
-                  />
-                )}
-              </button>
-            );
-          })}
-        </nav>
       </div>
     </div>
   );
