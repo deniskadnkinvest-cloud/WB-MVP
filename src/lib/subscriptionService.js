@@ -1,5 +1,5 @@
 import {
-  doc, getDoc, setDoc, updateDoc, increment, serverTimestamp, arrayUnion,
+  doc, getDoc, setDoc, updateDoc, increment, serverTimestamp, arrayUnion, deleteDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
 
@@ -85,19 +85,71 @@ const DEFAULT_SUB = {
 //  GET SUBSCRIPTION
 // ═══════════════════════════════════════════
 
-export const getSubscription = async (uid) => {
+export const getSubscription = async (uid, email = null) => {
   const ref = doc(db, 'users', uid, 'subscription', 'current');
   const snap = await getDoc(ref);
-  if (!snap.exists()) return { ...DEFAULT_SUB };
-  const data = snap.data();
+  let data = snap.exists() ? snap.data() : { ...DEFAULT_SUB };
 
-  // Check expiration for monthly plans. If auto-renew is enabled,
-  // the backend cron/webhook owns the final subscription status.
+  // Check expiration for monthly plans (only if auto-renew is not enabled)
   if (data.planExpiresAt && data.planExpiresAt.toDate() < new Date()) {
     if (!data.autoRenew) {
       // Plan expired — downgrade to none, keep remaining credits at 0
       await updateDoc(ref, { plan: 'none', credits: 0 });
-      return { ...data, plan: 'none', credits: 0 };
+      data = { ...data, plan: 'none', credits: 0 };
+    }
+  }
+
+  // Если подписки нет (none), проверяем наличие предварительно выданного доступа по email
+  if (data.plan === 'none' && email && email.includes('@')) {
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      const pendingRef = doc(db, 'pending_grants', cleanEmail);
+      const pendingSnap = await getDoc(pendingRef);
+      
+      if (pendingSnap.exists()) {
+        const pendingData = pendingSnap.data();
+        console.log(`[SubscriptionService] Активируем предварительный доступ для ${cleanEmail}:`, pendingData);
+        
+        const planId = pendingData.plan === 'custom' ? 'trial' : pendingData.plan;
+        const credits = pendingData.credits;
+        
+        const grantPayment = {
+          planId: pendingData.plan,
+          amount: credits,
+          currency: 'RUB',
+          date: new Date().toISOString(),
+          method: 'admin_grant',
+          note: pendingData.note || 'Авто-активация по email при регистрации',
+          grantedBy: pendingData.grantedBy || 'admin',
+          grantedByName: pendingData.grantedByName || 'Admin',
+          isGranted: true,
+          providerChargeId: 'ADMIN_GRANT',
+        };
+
+        const newSub = {
+          plan: planId,
+          credits: credits,
+          creditsTotal: credits,
+          planActivatedAt: serverTimestamp(),
+          planExpiresAt: null,
+          payments: [grantPayment],
+          grantedByAdmin: true,
+          email: cleanEmail,
+        };
+
+        await setDoc(ref, newSub);
+        
+        // Удаляем временный документ
+        try {
+          await deleteDoc(pendingRef);
+        } catch (delErr) {
+          console.warn('[SubscriptionService] Не удалось удалить pending grant:', delErr);
+        }
+        
+        return newSub;
+      }
+    } catch (err) {
+      console.error('[SubscriptionService] Ошибка проверки pending_grants:', err);
     }
   }
 

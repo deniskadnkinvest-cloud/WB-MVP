@@ -43,17 +43,23 @@ async function resolveUid(identifier) {
 
   // 1. Email — содержит @
   if (clean.includes('@') && clean.includes('.')) {
+    const lowerEmail = clean.toLowerCase();
     try {
-      const userRecord = await getAuth().getUserByEmail(clean);
+      const userRecord = await getAuth().getUserByEmail(lowerEmail);
       return {
         uid: userRecord.uid,
         resolvedFrom: 'email',
-        displayInfo: `${clean} → ${userRecord.uid}`,
-        email: clean,
+        displayInfo: `${lowerEmail} → ${userRecord.uid}`,
+        email: lowerEmail,
       };
     } catch (err) {
       if (err.code === 'auth/user-not-found') {
-        throw new Error(`Пользователь с email "${clean}" не найден в Firebase Auth`);
+        return {
+          uid: null,
+          resolvedFrom: 'email_pending',
+          displayInfo: `${lowerEmail} (ожидает регистрации)`,
+          email: lowerEmail,
+        };
       }
       throw new Error(`Ошибка поиска по email: ${err.message}`);
     }
@@ -120,6 +126,38 @@ export default async function handler(req, res) {
     creditsToGrant = PLAN_CREDITS[plan];
     if (!creditsToGrant) {
       return res.status(400).json({ ok: false, error: 'Неверный тариф. Допустимые: trial, base, pro, custom' });
+    }
+  }
+
+  // Если пользователь не найден по email, создаем "предварительный доступ"
+  if (resolvedFrom === 'email_pending') {
+    try {
+      const now = new Date().toISOString();
+      const pendingRef = db.doc(`pending_grants/${email}`);
+      await pendingRef.set({
+        email,
+        plan,
+        credits: creditsToGrant,
+        note: note || '',
+        grantedBy: adminAuth.user?.id || 'admin',
+        grantedByName: adminAuth.user?.firstName || 'Admin',
+        date: now,
+      });
+
+      console.log(`✅ [admin/grant] СОЗДАН PENDING GRANT для ${email}, план: ${plan}, кредитов: ${creditsToGrant}. Выдал: ${adminAuth.user?.firstName}`);
+
+      return res.status(200).json({
+        ok: true,
+        action: 'pending',
+        resolvedFrom,
+        displayInfo,
+        plan,
+        creditsGranted: creditsToGrant,
+        newCredits: creditsToGrant,
+      });
+    } catch (err) {
+      console.error('[admin/grant] Ошибка при создании pending grant:', err);
+      return res.status(500).json({ ok: false, error: err.message });
     }
   }
 

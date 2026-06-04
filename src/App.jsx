@@ -217,7 +217,7 @@ function App() {
         const [models, locations, sub] = await Promise.all([
           getModels(user.uid),
           getLocations(user.uid),
-          getSubscription(user.uid),
+          getSubscription(user.uid, user.email),
         ]);
         setMyModels(models);
         setMyLocations(locations);
@@ -249,7 +249,7 @@ function App() {
         const interval = setInterval(async () => {
           attempts++;
           try {
-            const sub = await getSubscription(user.uid);
+            const sub = await getSubscription(user.uid, user.email);
             if (sub && sub.plan === plan) {
               setSubscription(sub);
               setStatusText(`✅ Тариф «${plan.toUpperCase()}» успешно активирован! Начислено ${sub.credits} кадров.`);

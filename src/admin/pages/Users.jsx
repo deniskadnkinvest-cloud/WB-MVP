@@ -151,9 +151,9 @@ function GrantAccessForm({ onSuccess, authHeaders }) {
               <div style={{ fontSize: '13px', fontWeight: 700, color: c.green, marginBottom: '4px' }}>✓ Доступ выдан</div>
               <div style={{ fontSize: '12px', color: c.text2, lineHeight: 1.5 }}>
                 {result.displayInfo && <div style={{ fontSize: '10px', color: c.text3, marginBottom: '3px', fontFamily: 'monospace' }}>{result.displayInfo}</div>}
-                {result.action === 'created'
-                  ? `Новый пользователь создан. Выдано ${result.creditsGranted} генераций.`
-                  : `Пополнено +${result.creditsGranted}. Баланс: ${result.newCredits}.`}
+                {result.action === 'created' && `Новый пользователь создан. Выдано ${result.creditsGranted} генераций.`}
+                {result.action === 'topup' && `Пополнено +${result.creditsGranted}. Баланс: ${result.newCredits}.`}
+                {result.action === 'pending' && `Доступ успешно зарезервирован! Пользователь получит ${result.creditsGranted} генераций сразу после регистрации по этой почте.`}
               </div>
             </div>
           ) : (
