@@ -2,199 +2,152 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const TABS = [
-  { id: 'dashboard', icon: '🎛', label: 'Пульс' },
-  { id: 'users',     icon: '👥', label: 'Юзеры' },
-  { id: 'payments',  icon: '💰', label: 'Платежи' },
-  { id: 'errors',    icon: '🚨', label: 'Ошибки' },
+  { id: 'dashboard', icon: '📊', label: 'Обзор' },
+  { id: 'users',     icon: '👤', label: 'Юзеры' },
+  { id: 'payments',  icon: '⭐', label: 'Оплаты' },
+  { id: 'errors',    icon: '⚙', label: 'Система' },
 ];
 
 export default function AdminLayout({ children, activePage, onNavigate }) {
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#030305',
+      background: '#0a0a0f',
       display: 'flex',
       flexDirection: 'column',
       fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
-      color: '#fff',
+      color: '#e8e8ed',
       position: 'relative',
-      overflow: 'hidden', // to contain the background
+      overflow: 'hidden',
     }}>
-      {/* ── Background Layer (Nano Banana Asset) ── */}
+      {/* ── Subtle gradient orbs ── */}
       <div style={{
-        position: 'fixed',
-        top: 0, left: 0, right: 0, bottom: 0,
-        backgroundImage: "url('/assets/admin_bg_neon.png')",
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        opacity: 0.6,
-        filter: 'blur(30px) saturate(1.5)',
-        zIndex: 0,
-        pointerEvents: 'none',
+        position: 'fixed', top: '-120px', right: '-80px',
+        width: '300px', height: '300px',
+        background: 'radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%)',
+        pointerEvents: 'none', zIndex: 0,
+      }} />
+      <div style={{
+        position: 'fixed', bottom: '100px', left: '-60px',
+        width: '250px', height: '250px',
+        background: 'radial-gradient(circle, rgba(14,165,233,0.06) 0%, transparent 70%)',
+        pointerEvents: 'none', zIndex: 0,
       }} />
 
-      {/* ── Additional Dark Gradient Overlay ── */}
-      <div style={{
-        position: 'fixed',
-        top: 0, left: 0, right: 0, bottom: 0,
-        background: 'linear-gradient(180deg, rgba(3,3,5,0.7) 0%, rgba(3,3,5,0.95) 100%)',
-        zIndex: 1,
-        pointerEvents: 'none',
-      }} />
-
-      {/* ── Content Container ── */}
-      <div style={{ position: 'relative', zIndex: 10, flex: 1, display: 'flex', flexDirection: 'column', paddingBottom: '90px' }}>
+      <div style={{ position: 'relative', zIndex: 10, flex: 1, display: 'flex', flexDirection: 'column', paddingBottom: '80px' }}>
         
         {/* ── Header ── */}
         <motion.header 
-          initial={{ y: -50, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.4 }}
           style={{
-            padding: '16px 20px 12px',
+            padding: '14px 20px',
             borderBottom: '1px solid rgba(255,255,255,0.04)',
-            background: 'rgba(255,255,255,0.01)',
-            backdropFilter: 'blur(40px)',
-            WebkitBackdropFilter: 'blur(40px)',
-            position: 'sticky',
-            top: 0,
-            zIndex: 100,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between'
+            background: 'rgba(10,10,15,0.8)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            position: 'sticky', top: 0, zIndex: 100,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <motion.div 
-              whileHover={{ rotate: 180, scale: 1.1 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 10 }}
-              style={{
-                width: '36px', height: '36px',
-                borderRadius: '12px',
-                background: 'linear-gradient(135deg, #8b5cf6, #06b6d4)',
-                boxShadow: '0 0 20px rgba(139, 92, 246, 0.4)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '18px',
-              }}
-            >
-              ✧
-            </motion.div>
+            <div style={{
+              width: '28px', height: '28px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #6366f1, #0ea5e9)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '13px', fontWeight: 800, color: '#fff',
+              letterSpacing: '-0.5px',
+            }}>
+              SS
+            </div>
             <div>
-              <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 800, letterSpacing: '-0.5px', background: 'linear-gradient(90deg, #fff, #a78bfa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                Command Center
-              </h1>
-              <p style={{ margin: 0, fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginTop: '2px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+              <h1 style={{ margin: 0, fontSize: '15px', fontWeight: 700, letterSpacing: '-0.3px', color: '#fff' }}>
                 Seller Studio
+              </h1>
+              <p style={{ margin: 0, fontSize: '10px', color: 'rgba(255,255,255,0.3)', letterSpacing: '0.5px' }}>
+                Панель управления
               </p>
             </div>
           </div>
+          <div style={{
+            width: '6px', height: '6px', borderRadius: '50%',
+            background: '#22c55e', boxShadow: '0 0 6px rgba(34,197,94,0.5)',
+          }} />
         </motion.header>
 
-        {/* ── Page content with AnimatePresence ── */}
-        <main style={{ flex: 1, padding: '20px 16px 0', overflowX: 'hidden' }}>
+        {/* ── Content ── */}
+        <main style={{ flex: 1, padding: '16px', overflowX: 'hidden' }}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activePage}
-              initial={{ opacity: 0, y: 20, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.98 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              style={{ height: '100%' }}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
             >
               {children}
             </motion.div>
           </AnimatePresence>
         </main>
 
-        {/* ── Bottom Tab Bar (Floating) ── */}
-        <motion.nav 
-          initial={{ y: 100 }}
-          animate={{ y: 0 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 25, delay: 0.1 }}
-          style={{
-            position: 'fixed',
-            bottom: 'env(safe-area-inset-bottom, 16px)', 
-            left: '16px', right: '16px',
-            background: 'rgba(255,255,255,0.03)',
-            backdropFilter: 'blur(30px)',
-            WebkitBackdropFilter: 'blur(30px)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            boxShadow: '0 20px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)',
-            borderRadius: '24px',
-            display: 'flex',
-            justifyContent: 'space-around',
-            padding: '10px 8px',
-            zIndex: 100,
-          }}
-        >
+        {/* ── Tab Bar ── */}
+        <nav style={{
+          position: 'fixed',
+          bottom: 0, left: 0, right: 0,
+          background: 'rgba(10,10,15,0.92)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+          display: 'flex',
+          justifyContent: 'space-around',
+          padding: '6px 0 calc(6px + env(safe-area-inset-bottom))',
+          zIndex: 100,
+        }}>
           {TABS.map(tab => {
             const isActive = activePage === tab.id;
             return (
-              <motion.button
+              <button
                 key={tab.id}
                 onClick={() => onNavigate(tab.id)}
-                whileTap={{ scale: 0.9 }}
                 style={{
                   position: 'relative',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '8px 16px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  borderRadius: '16px',
-                  outline: 'none',
-                  WebkitTapHighlightColor: 'transparent',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center',
+                  gap: '2px', padding: '8px 18px',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  outline: 'none', WebkitTapHighlightColor: 'transparent',
                 }}
               >
+                <span style={{ 
+                  fontSize: '18px', lineHeight: 1,
+                  opacity: isActive ? 1 : 0.3,
+                  transition: 'opacity 0.2s',
+                }}>
+                  {tab.icon}
+                </span>
+                <span style={{
+                  fontSize: '10px', fontWeight: isActive ? 600 : 400,
+                  color: isActive ? '#818cf8' : 'rgba(255,255,255,0.3)',
+                  transition: 'color 0.2s',
+                }}>
+                  {tab.label}
+                </span>
                 {isActive && (
                   <motion.div
-                    layoutId="activeTabBg"
-                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                    layoutId="tabIndicator"
+                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                     style={{
-                      position: 'absolute',
-                      top: 0, left: 0, right: 0, bottom: 0,
-                      background: 'rgba(139, 92, 246, 0.15)',
-                      borderRadius: '16px',
-                      border: '1px solid rgba(139, 92, 246, 0.3)',
+                      position: 'absolute', top: '-1px', left: '25%', right: '25%',
+                      height: '2px', borderRadius: '2px',
+                      background: '#818cf8',
                     }}
                   />
                 )}
-                
-                <motion.span 
-                  animate={{ scale: isActive ? 1.2 : 1, y: isActive ? -2 : 0 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-                  style={{ 
-                    fontSize: '22px', 
-                    lineHeight: 1,
-                    position: 'relative',
-                    zIndex: 2,
-                    filter: isActive ? 'drop-shadow(0 0 8px rgba(139,92,246,0.8))' : 'none',
-                    opacity: isActive ? 1 : 0.4
-                  }}
-                >
-                  {tab.icon}
-                </motion.span>
-                
-                <motion.span 
-                  animate={{ opacity: isActive ? 1 : 0.4 }}
-                  style={{
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    color: isActive ? '#d8b4fe' : '#fff',
-                    letterSpacing: '0.5px',
-                    position: 'relative',
-                    zIndex: 2,
-                  }}
-                >
-                  {tab.label}
-                </motion.span>
-              </motion.button>
+              </button>
             );
           })}
-        </motion.nav>
+        </nav>
       </div>
     </div>
   );

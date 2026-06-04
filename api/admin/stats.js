@@ -84,7 +84,11 @@ export default async function handler(req, res) {
                 method: p.method || 'telegram_stars',
                 telegramChargeId: p.telegramChargeId || null,
                 providerChargeId: p.providerChargeId || null,
-                isTest: p.isTest === true,
+                // Платёж считается тестовым если:
+                // 1. Явно помечен isTest: true (новые платежи)
+                // 2. Нет providerChargeId (старые тестовые через Telegram Stars)
+                // 3. providerChargeId начинается с '_' (тестовый Telegram)
+                isTest: p.isTest === true || !p.providerChargeId || p.providerChargeId === '' || (typeof p.providerChargeId === 'string' && p.providerChargeId.startsWith('_')),
               };
               allPayments.push(entry);
               if (entry.isTest) testPayments.push(entry);
