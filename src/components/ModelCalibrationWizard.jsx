@@ -5,47 +5,94 @@ import './ModelCalibrationWizard.css';
 /**
  * ModelCalibrationWizard — пошаговый визард калибровки ИИ-модели.
  * 
- * Генерирует 3 референсных фото (анфас, 3/4 слева, 3/4 справа)
- * для максимально консистентного результата при фотосессиях.
- *
- * Flow:
- *  1. Intro → пользователь соглашается
- *  2. Step FRONT → генерация анфас, фиксация лица
- *  3. Step LEFT34 → генерация 3/4 слева (batch 5), выбор лучшего
- *  4. Step RIGHT34 → генерация 3/4 справа (batch 5), выбор лучшего
- *  5. Review → финальный просмотр 3 фото + имя модели → сохранение
+ * Генерирует 4 референсных фото для максимально консистентного результата:
+ *   1. Анфас (1:1) — фиксируем лицо
+ *   2. 3/4 Слева (1:1) — профиль
+ *   3. 3/4 Справа (1:1) — профиль
+ *   4. Полный рост (3:4) — главный кадр карточки
+ * 
+ * Финальный экран — Comp Card в стиле модельного агентства:
+ *   - Левая колонка: 4 миниатюры 2×2
+ *   - Правая колонка: большое фото полного роста
  */
 
 const STEPS = [
   { id: 'intro', label: 'Начало' },
-  { id: 'front', label: 'Анфас', icon: '👤', angle: 'front', posePrompt: 'standing straight, facing the camera DIRECTLY with BOTH eyes equally visible, looking STRAIGHT into the lens, symmetrical front-facing portrait, neutral expression', cameraPrompt: 'close-up portrait, head and shoulders, camera DIRECTLY in front of the face, perfectly centered symmetrical framing' },
-  { id: 'left34', label: '3/4 слева', icon: '◀️', angle: 'left34', posePrompt: 'CRITICAL DIRECTION: The model\'s face and body are rotated so the LEFT CHEEK is more visible to the camera. The nose tip points toward the LEFT edge of the image. The RIGHT ear should be partially hidden. The LEFT ear is fully visible. This is a classic 3/4 view showing the LEFT side of the face. Chin slightly up, elegant posing', cameraPrompt: 'portrait shot, camera is positioned to the RIGHT of the model (shooting from the model\'s right), capturing the model\'s LEFT facial profile at exactly 3/4 angle (~45 degrees). Head and shoulders framing' },
-  { id: 'right34', label: '3/4 справа', icon: '▶️', angle: 'right34', posePrompt: 'CRITICAL DIRECTION: The model\'s face and body are rotated so the RIGHT CHEEK is more visible to the camera. The nose tip points toward the RIGHT edge of the image. The LEFT ear should be partially hidden. The RIGHT ear is fully visible. This is a classic 3/4 view showing the RIGHT side of the face. Chin slightly up, elegant posing', cameraPrompt: 'portrait shot, camera is positioned to the LEFT of the model (shooting from the model\'s left), capturing the model\'s RIGHT facial profile at exactly 3/4 angle (~45 degrees). Head and shoulders framing' },
-  { id: 'review', label: 'Обзор' },
+  {
+    id: 'front',
+    label: 'Анфас',
+    icon: '👤',
+    angle: 'front',
+    aspectRatio: '1:1',
+    posePrompt: 'standing straight, facing the camera DIRECTLY with BOTH eyes equally visible, looking STRAIGHT into the lens, symmetrical front-facing portrait, neutral expression',
+    cameraPrompt: 'close-up portrait, head and shoulders, camera DIRECTLY in front of the face, perfectly centered symmetrical framing',
+  },
+  {
+    id: 'left34',
+    label: '3/4 Слева',
+    icon: '◀️',
+    angle: 'left34',
+    aspectRatio: '1:1',
+    posePrompt: "CRITICAL DIRECTION: The model's face and body are rotated so the LEFT CHEEK is more visible to the camera. The nose tip points toward the LEFT edge of the image. The RIGHT ear should be partially hidden. The LEFT ear is fully visible. This is a classic 3/4 view showing the LEFT side of the face. Chin slightly up, elegant posing",
+    cameraPrompt: "portrait shot, camera is positioned to the RIGHT of the model (shooting from the model's right), capturing the model's LEFT facial profile at exactly 3/4 angle (~45 degrees). Head and shoulders framing",
+  },
+  {
+    id: 'right34',
+    label: '3/4 Справа',
+    icon: '▶️',
+    angle: 'right34',
+    aspectRatio: '1:1',
+    posePrompt: "CRITICAL DIRECTION: The model's face and body are rotated so the RIGHT CHEEK is more visible to the camera. The nose tip points toward the RIGHT edge of the image. The LEFT ear should be partially hidden. The RIGHT ear is fully visible. This is a classic 3/4 view showing the RIGHT side of the face. Chin slightly up, elegant posing",
+    cameraPrompt: "portrait shot, camera is positioned to the LEFT of the model (shooting from the model's left), capturing the model's RIGHT facial profile at exactly 3/4 angle (~45 degrees). Head and shoulders framing",
+  },
+  {
+    id: 'fullbody',
+    label: 'Полный рост',
+    icon: '🧍',
+    angle: 'fullbody',
+    aspectRatio: '3:4',
+    posePrompt: 'Standing in a full-body straight-on pose, feet slightly apart, arms relaxed naturally at sides. Complete body from head to toe fully visible. Professional runway stance. Ultra-realistic human proportions. CRITICAL: The face must be highly detailed and identical to the provided reference photos.',
+    cameraPrompt: 'Full-body fashion catalog shot. Camera at medium distance, head-to-toe framing with natural negative space at the top and bottom. 85mm equivalent lens, clean perspective, professional e-commerce lighting.',
+  },
+  { id: 'review', label: 'Comp Card' },
 ];
 
 const BATCH_SIZE = 3;
+
+// Cinematic status messages shown during generation
+const STATUS_MESSAGES = [
+  'Анализируем биометрические данные...',
+  'Синтезируем уникальный облик...',
+  'Рассчитываем световые паттерны...',
+  'Рендерим детали кожи...',
+  'Финальная ретушь...',
+];
 
 export default function ModelCalibrationWizard({
   show,
   onClose,
   onSave,
-  modelPrompt,       // текущий промпт модели (из выбранного пресета + детали)
-  modelRefImages,     // существующие референсные изображения (если есть)
+  modelPrompt,
+  modelRefImages,
   userId,
 }) {
-  const [step, setStep] = useState(0); // index in STEPS
-  const [lockedImages, setLockedImages] = useState({ front: null, left34: null, right34: null });
-  const [currentImage, setCurrentImage] = useState(null);
+  const [step, setStep] = useState(0);
+  const [lockedImages, setLockedImages] = useState({
+    front: null,
+    left34: null,
+    right34: null,
+    fullbody: null,
+  });
   const [batchImages, setBatchImages] = useState([]);
   const [selectedBatchIdx, setSelectedBatchIdx] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('');
   const [generationCount, setGenerationCount] = useState(0);
   const [modelName, setModelName] = useState('');
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  // Lightbox (long-press fullscreen)
+  // Lightbox
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const longPressTimer = useRef(null);
   const isLongPress = useRef(false);
@@ -55,20 +102,46 @@ export default function ModelCalibrationWizard({
 
   const currentStep = STEPS[step];
 
-  // ═══════════════════════════════════════════
-  //  GENERATE SINGLE PORTRAIT
-  // ═══════════════════════════════════════════
+  // ═══════════════════════════════════════
+  //  STATUS MESSAGE ROTATOR
+  // ═══════════════════════════════════════
+  const statusIntervalRef = useRef(null);
+
+  const startStatusRotation = () => {
+    let idx = 0;
+    setStatusMsg(STATUS_MESSAGES[0]);
+    statusIntervalRef.current = setInterval(() => {
+      idx = (idx + 1) % STATUS_MESSAGES.length;
+      setStatusMsg(STATUS_MESSAGES[idx]);
+    }, 2200);
+  };
+
+  const stopStatusRotation = () => {
+    if (statusIntervalRef.current) {
+      clearInterval(statusIntervalRef.current);
+      statusIntervalRef.current = null;
+    }
+    setStatusMsg('');
+  };
+
+  // ═══════════════════════════════════════
+  //  GENERATE PORTRAIT
+  // ═══════════════════════════════════════
   const generatePortrait = useCallback(async (stepDef, existingRefs = []) => {
     const body = {
       userId: userId || null,
       isCalibration: true,
       garmentImagesBase64: [],
-      modelPreset: modelPrompt + '. Generate an ultra-realistic fashion model portrait wearing a plain white t-shirt. The portrait MUST have photographic-level skin detail: visible pores, natural skin texture variations, micro-imperfections, authentic asymmetry, and zero AI smoothing or plastic artifacts. Render as if captured by a Canon EOS R5 with an 85mm f/1.4 lens.',
+      modelPreset:
+        modelPrompt +
+        '. Generate an ultra-realistic fashion model portrait wearing a plain white t-shirt. The portrait MUST have photographic-level skin detail: visible pores, natural skin texture variations, micro-imperfections, authentic asymmetry, and zero AI smoothing or plastic artifacts. Render as if captured by a Canon EOS R5 with an 85mm f/1.4 lens.',
       posePreset: stepDef.posePrompt,
       cameraAngle: stepDef.cameraPrompt,
-      backgroundPreset: 'clean soft grey studio background, professional fashion photography lighting with subtle rim light',
-      aspectRatio: '1:1',
-      modelReferenceImages: existingRefs.length > 0 ? existingRefs : (modelRefImages || []),
+      backgroundPreset:
+        'clean soft grey studio background, professional fashion photography lighting with subtle rim light',
+      aspectRatio: stepDef.aspectRatio || '1:1',
+      modelReferenceImages:
+        existingRefs.length > 0 ? existingRefs : modelRefImages || [],
     };
 
     const resp = await fetch('/api/generate-image', {
@@ -77,14 +150,16 @@ export default function ModelCalibrationWizard({
       body: JSON.stringify(body),
     });
 
-    // Safe parse: Vercel may return HTML on timeout instead of JSON
     let data;
     const rawText = await resp.text();
     try {
       data = JSON.parse(rawText);
     } catch {
       console.error('⚠️ Non-JSON response:', rawText.substring(0, 200));
-      if (rawText.includes('FUNCTION_INVOCATION_TIMEOUT') || rawText.includes('An error occurred')) {
+      if (
+        rawText.includes('FUNCTION_INVOCATION_TIMEOUT') ||
+        rawText.includes('An error occurred')
+      ) {
         throw new Error('Сервер не успел ответить (таймаут). Попробуйте ещё раз.');
       }
       throw new Error('Сервер вернул некорректный ответ. Попробуйте позже.');
@@ -94,80 +169,96 @@ export default function ModelCalibrationWizard({
       return data.imageUrl || data.imageBase64;
     }
     throw new Error(data.details || data.error || 'Ошибка генерации');
-  }, [modelPrompt, modelRefImages]);
+  }, [modelPrompt, modelRefImages, userId]);
 
-  // handleGenerateSingle removed — front now uses batch mode too
-
-  // ═══════════════════════════════════════════
-  //  GENERATE BATCH (for LEFT34 / RIGHT34 steps)
-  // ═══════════════════════════════════════════
+  // ═══════════════════════════════════════
+  //  GENERATE BATCH
+  // ═══════════════════════════════════════
   const handleGenerateBatch = async () => {
     setIsGenerating(true);
     setError('');
     setBatchImages([]);
     setSelectedBatchIdx(null);
+    startStatusRotation();
 
-    // For left34/right34, use locked front as reference
+    // Build references from already locked images
     const refs = [];
     if (lockedImages.front) refs.push(lockedImages.front);
-    if (currentStep.id === 'right34' && lockedImages.left34) refs.push(lockedImages.left34);
+    if (currentStep.id === 'right34' && lockedImages.left34)
+      refs.push(lockedImages.left34);
+    // For fullbody — use all 3 face refs for maximum identity consistency
+    if (currentStep.id === 'fullbody') {
+      if (lockedImages.front) refs.push(lockedImages.front);
+      if (lockedImages.left34) refs.push(lockedImages.left34);
+      if (lockedImages.right34) refs.push(lockedImages.right34);
+    }
 
-    // Also include original model refs
+    // Original user refs
     if (modelRefImages) refs.push(...modelRefImages);
+
+    // Deduplicate
+    const uniqueRefs = [...new Set(refs)];
 
     const results = new Array(BATCH_SIZE).fill(null);
 
     try {
-      // Generate in parallel
       const promises = Array.from({ length: BATCH_SIZE }, async (_, i) => {
         try {
-          const img = await generatePortrait(currentStep, refs);
+          const img = await generatePortrait(currentStep, uniqueRefs);
           results[i] = img;
           setBatchImages([...results]);
         } catch (err) {
           results[i] = null;
-          throw err; // Re-throw to be caught by Promise.all
+          throw err;
         }
       });
 
       await Promise.all(promises);
       setBatchImages([...results]);
-      setGenerationCount(prev => prev + BATCH_SIZE);
+      setGenerationCount((prev) => prev + BATCH_SIZE);
     } catch (err) {
-      setError(err.message || 'Произошла ошибка при генерации варианта.');
-      setBatchImages([]); // Reset so it doesn't show infinite spinners
+      setError(err.message || 'Произошла ошибка при генерации.');
+      setBatchImages([]);
     } finally {
+      stopStatusRotation();
       setIsGenerating(false);
     }
   };
 
-  // ═══════════════════════════════════════════
-  //  LOCK CURRENT IMAGE
-  // ═══════════════════════════════════════════
-
+  // ═══════════════════════════════════════
+  //  LOCK SELECTED IMAGE
+  // ═══════════════════════════════════════
   const handleLockBatch = () => {
     if (selectedBatchIdx === null || !batchImages[selectedBatchIdx]) return;
-    const angle = currentStep.id; // 'front', 'left34' or 'right34'
+    const angle = currentStep.id; // 'front' | 'left34' | 'right34' | 'fullbody'
     const newLocked = { ...lockedImages, [angle]: batchImages[selectedBatchIdx] };
     setLockedImages(newLocked);
     setBatchImages([]);
     setSelectedBatchIdx(null);
 
-    // If all 3 angles are now locked (re-gen from review), go back to review
-    if (newLocked.front && newLocked.left34 && newLocked.right34) {
-      setStep(4); // → review
+    // Navigation logic
+    if (
+      newLocked.front &&
+      newLocked.left34 &&
+      newLocked.right34 &&
+      newLocked.fullbody
+    ) {
+      // All 4 locked (re-gen from review) → back to review
+      setStep(5);
     } else if (angle === 'front') {
       setStep(2); // → left34
     } else if (angle === 'left34') {
       setStep(3); // → right34
-    } else {
-      setStep(4); // → review
+    } else if (angle === 'right34') {
+      setStep(4); // → fullbody
+    } else if (angle === 'fullbody') {
+      setStep(5); // → review (Comp Card)
     }
   };
 
-  // ═══════════════════════════════════════════
+  // ═══════════════════════════════════════
   //  SAVE MODEL
-  // ═══════════════════════════════════════════
+  // ═══════════════════════════════════════
   const handleSave = async () => {
     if (!modelName.trim()) {
       setError('Введите имя модели');
@@ -182,6 +273,7 @@ export default function ModelCalibrationWizard({
       front: lockedImages.front,
       left34: lockedImages.left34,
       right34: lockedImages.right34,
+      fullbody: lockedImages.fullbody,
     };
 
     setIsSaving(true);
@@ -196,13 +288,13 @@ export default function ModelCalibrationWizard({
     }
   };
 
-  // ═══════════════════════════════════════════
-  //  RESET
-  // ═══════════════════════════════════════════
+  // ═══════════════════════════════════════
+  //  RESET & CLOSE
+  // ═══════════════════════════════════════
   const handleClose = () => {
+    stopStatusRotation();
     setStep(0);
-    setLockedImages({ front: null, left34: null, right34: null });
-    setCurrentImage(null);
+    setLockedImages({ front: null, left34: null, right34: null, fullbody: null });
     setBatchImages([]);
     setSelectedBatchIdx(null);
     setGenerationCount(0);
@@ -213,18 +305,17 @@ export default function ModelCalibrationWizard({
     onClose();
   };
 
-  // Close with confirmation (only when progress exists)
   const handleAttemptClose = () => {
     if (step === 0) {
-      handleClose(); // No progress yet, close immediately
+      handleClose();
     } else {
       setShowCloseConfirm(true);
     }
   };
 
-  // ═══════════════════════════════════════════
+  // ═══════════════════════════════════════
   //  LONG PRESS → LIGHTBOX
-  // ═══════════════════════════════════════════
+  // ═══════════════════════════════════════
   const handlePointerDown = (imgSrc) => {
     isLongPress.current = false;
     longPressTimer.current = setTimeout(() => {
@@ -250,13 +341,229 @@ export default function ModelCalibrationWizard({
   const handleBatchClick = (img, i) => {
     if (isLongPress.current) {
       isLongPress.current = false;
-      return; // Don't select — it was a long press
+      return;
     }
     if (img) setSelectedBatchIdx(i);
   };
 
   if (!show) return null;
 
+  // ═══════════════════════════════════════
+  //  HELPERS — shared batch UI
+  // ═══════════════════════════════════════
+  const renderBatchGrid = () => (
+    <div className="calib-image-area">
+      {isGenerating && batchImages.filter(Boolean).length === 0 && (
+        <div className="calib-generating">
+          <div className="processing-spinner" />
+          <p className="calib-status-msg">{statusMsg}</p>
+        </div>
+      )}
+      {batchImages.length > 0 && (
+        <div className={`calib-batch-grid ${currentStep.id === 'fullbody' ? 'calib-batch-grid--tall' : ''}`}>
+          {batchImages.map((img, i) => (
+            <div
+              key={i}
+              className={`calib-batch-item ${selectedBatchIdx === i ? 'selected' : ''} ${!img ? 'loading' : ''} ${currentStep.id === 'fullbody' ? 'calib-batch-item--tall' : ''}`}
+              onClick={() => handleBatchClick(img, i)}
+              onPointerDown={() => img && handlePointerDown(img)}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerCancel}
+              onContextMenu={(e) => e.preventDefault()}
+            >
+              {img ? (
+                <>
+                  <img src={img} alt={`Вариант ${i + 1}`} draggable={false} />
+                  <span className="calib-batch-num">{i + 1}</span>
+                  {selectedBatchIdx === i && (
+                    <div className="calib-batch-check">✅</div>
+                  )}
+                </>
+              ) : (
+                <div className="calib-batch-loading">
+                  <div className="processing-spinner" style={{ width: 20, height: 20 }} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {!isGenerating && batchImages.length === 0 && (
+        <div className="calib-placeholder">
+          <span>{currentStep.icon}</span>
+          <p>Нажмите «Сгенерировать {BATCH_SIZE} варианта»</p>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderBatchActions = (lockLabel) => (
+    <>
+      {batchImages.filter(Boolean).length > 0 && (
+        <p className="calib-longpress-hint">💡 Зажмите фото для полноэкранного просмотра</p>
+      )}
+      <div className="calib-actions">
+        <button
+          className="calib-btn-secondary"
+          onClick={handleGenerateBatch}
+          disabled={isGenerating}
+        >
+          {batchImages.length > 0
+            ? `🔄 Перегенерировать ${BATCH_SIZE}`
+            : `✨ Сгенерировать ${BATCH_SIZE} варианта`}
+        </button>
+        {selectedBatchIdx !== null && batchImages[selectedBatchIdx] && (
+          <button className="calib-btn-primary" onClick={handleLockBatch}>
+            {lockLabel}
+          </button>
+        )}
+      </div>
+    </>
+  );
+
+  // ═══════════════════════════════════════
+  //  COMP CARD — финальный экран
+  // ═══════════════════════════════════════
+  const thumbAngles = [
+    { key: 'front', label: '👤 Анфас' },
+    { key: 'left34', label: '◀️ 3/4 L' },
+    { key: 'right34', label: '▶️ 3/4 R' },
+    { key: 'fullbody', label: '🧍 Рост' },
+  ];
+
+  const renderCompCard = () => (
+    <div className="calib-step">
+      <div className="comp-card-header">
+        <div className="comp-card-badge">COMP CARD</div>
+        <h2 className="calib-title">🎭 Карточка модели готова!</h2>
+        <p className="calib-desc">
+          Нажмите 🔄 на любой ячейке, чтобы перегенерировать только этот ракурс.
+          <br />
+          Дайте имя модели и сохраните.
+        </p>
+      </div>
+
+      <div className="comp-card-layout">
+        {/* Левая колонка — 4 миниатюры 2×2 */}
+        <div className="comp-card-thumbs">
+          <div className="comp-card-grid">
+            {thumbAngles.map(({ key, label }) => {
+              const stepIdx = STEPS.findIndex((s) => s.id === key);
+              return (
+                <div key={key} className="comp-card-thumb-wrap">
+                  {lockedImages[key] ? (
+                    <div className="comp-card-thumb">
+                      <img
+                        src={lockedImages[key]}
+                        alt={label}
+                        onPointerDown={() => handlePointerDown(lockedImages[key])}
+                        onPointerUp={handlePointerUp}
+                        onPointerCancel={handlePointerCancel}
+                        onContextMenu={(e) => e.preventDefault()}
+                        draggable={false}
+                      />
+                      <button
+                        className="calib-regen-single"
+                        disabled={isGenerating}
+                        title={`Перегенерировать: ${label}`}
+                        onClick={() => {
+                          if (stepIdx >= 0) {
+                            setBatchImages([]);
+                            setSelectedBatchIdx(null);
+                            setStep(stepIdx);
+                          }
+                        }}
+                      >
+                        🔄
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="comp-card-thumb comp-card-thumb--empty">
+                      <span>?</span>
+                    </div>
+                  )}
+                  <span className="comp-card-label">{label}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Поле имени */}
+          <input
+            className="calib-name-input"
+            placeholder="Имя модели (напр. Миа, Дима)"
+            value={modelName}
+            onChange={(e) => setModelName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+          />
+        </div>
+
+        {/* Правая колонка — большое фото полного роста */}
+        <div className="comp-card-main">
+          {lockedImages.fullbody ? (
+            <div className="comp-card-main-photo-wrap">
+              <img
+                src={lockedImages.fullbody}
+                alt="Полный рост"
+                className="comp-card-main-photo"
+                onPointerDown={() => handlePointerDown(lockedImages.fullbody)}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerCancel}
+                onContextMenu={(e) => e.preventDefault()}
+                draggable={false}
+              />
+              <button
+                className="calib-regen-single calib-regen-single--main"
+                disabled={isGenerating}
+                title="Перегенерировать полный рост"
+                onClick={() => {
+                  setBatchImages([]);
+                  setSelectedBatchIdx(null);
+                  setStep(4); // → fullbody
+                }}
+              >
+                🔄
+              </button>
+              <div className="comp-card-main-label">FULL BODY</div>
+            </div>
+          ) : (
+            <div className="comp-card-main-empty">
+              <span>🧍</span>
+              <p>Нет фото полного роста</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Hint */}
+      <p className="calib-longpress-hint" style={{ marginTop: 8 }}>
+        💡 Зажмите любое фото для полноэкранного просмотра
+      </p>
+
+      <div className="calib-actions">
+        <button
+          className="calib-btn-secondary"
+          onClick={() => {
+            setStep(1);
+            setLockedImages({ front: null, left34: null, right34: null, fullbody: null });
+          }}
+        >
+          🔄 Начать заново
+        </button>
+        <button
+          className="calib-btn-primary"
+          onClick={handleSave}
+          disabled={!modelName.trim() || !lockedImages.front || isSaving}
+        >
+          {isSaving ? '⏳ Сохраняю...' : '✅ Approve & Save'}
+        </button>
+      </div>
+    </div>
+  );
+
+  // ═══════════════════════════════════════
+  //  RENDER
+  // ═══════════════════════════════════════
   return (
     <motion.div
       className="calib-overlay"
@@ -269,25 +576,30 @@ export default function ModelCalibrationWizard({
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* ═══ PROGRESS BAR ═══ */}
         <div className="calib-progress">
           {STEPS.map((s, i) => (
-            <div key={s.id} className={`calib-progress-step ${i <= step ? 'active' : ''} ${i === step ? 'current' : ''}`}>
+            <div
+              key={s.id}
+              className={`calib-progress-step ${i <= step ? 'active' : ''} ${i === step ? 'current' : ''}`}
+            >
               <div className="calib-progress-dot" />
               <span className="calib-progress-label">{s.label}</span>
             </div>
           ))}
         </div>
 
-        {/* ═══ STEP: INTRO ═══ */}
+        {/* ═══ INTRO ═══ */}
         {currentStep.id === 'intro' && (
           <div className="calib-step">
             <div className="calib-step-icon">🎯</div>
             <h2 className="calib-title">Калибровка модели</h2>
             <p className="calib-desc">
-              Для <strong>максимально реалистичной фотосессии</strong> нам нужно зафиксировать внешность модели с трёх ракурсов:
+              Для <strong>профессиональной фотосессии</strong> нам нужно
+              зафиксировать внешность модели с четырёх ракурсов и создать
+              официальную карточку (Comp Card):
             </p>
             <div className="calib-angles-preview">
               <div className="calib-angle-card">
@@ -296,251 +608,142 @@ export default function ModelCalibrationWizard({
               </div>
               <div className="calib-angle-card">
                 <span className="calib-angle-icon">◀️</span>
-                <span>3/4 слева</span>
+                <span>3/4 Слева</span>
               </div>
               <div className="calib-angle-card">
                 <span className="calib-angle-icon">▶️</span>
-                <span>3/4 справа</span>
+                <span>3/4 Справа</span>
+              </div>
+              <div className="calib-angle-card calib-angle-card--highlight">
+                <span className="calib-angle-icon">🧍</span>
+                <span>Полный рост</span>
               </div>
             </div>
             <p className="calib-hint">
-              Это займёт ~2-3 минуты, но в результате все фотографии будут показывать <strong>одного и того же человека</strong>.
+              Займёт ~3-5 минут. В результате — официальная карточка модели
+              с <strong>5 фотографиями</strong>, как в настоящем модельном агентстве.
             </p>
             <div className="calib-actions">
-              <button className="calib-btn-secondary" onClick={handleClose}>Отмена</button>
+              <button className="calib-btn-secondary" onClick={handleClose}>
+                Отмена
+              </button>
               <button className="calib-btn-primary" onClick={() => setStep(1)}>
-                🚀 Начать калибровку
+                🚀 Начать кастинг
               </button>
             </div>
           </div>
         )}
 
-        {/* ═══ STEP: FRONT (batch mode, same as left34/right34) ═══ */}
+        {/* ═══ STEP: FRONT ═══ */}
         {currentStep.id === 'front' && (
           <div className="calib-step">
             <h2 className="calib-title">
-              <span className="calib-step-badge">1/3</span>
-              👤 Анфас — фиксируем лицо
+              <span className="calib-step-badge">1/4</span>
+              {currentStep.icon} Анфас — фиксируем лицо
             </h2>
             <p className="calib-desc">
-              Сгенерируем {BATCH_SIZE} вариантов анфас. Выберите тот, который вас <strong>устраивает больше всего</strong>.
+              Сгенерируем {BATCH_SIZE} варианта анфас. Выберите тот, который{' '}
+              <strong>нравится больше всего</strong> — это лицо станет основой
+              для всей карточки.
             </p>
-
-            {/* Batch images */}
-            <div className="calib-image-area">
-              {isGenerating && batchImages.filter(Boolean).length === 0 && (
-                <div className="calib-generating">
-                  <div className="processing-spinner" />
-                  <p>Генерируем {BATCH_SIZE} вариантов анфас...</p>
-                </div>
-              )}
-              {batchImages.length > 0 && (
-                <div className="calib-batch-grid">
-                  {batchImages.map((img, i) => (
-                    <div
-                      key={i}
-                      className={`calib-batch-item ${selectedBatchIdx === i ? 'selected' : ''} ${!img ? 'loading' : ''}`}
-                      onClick={() => handleBatchClick(img, i)}
-                      onPointerDown={() => img && handlePointerDown(img)}
-                      onPointerUp={handlePointerUp}
-                      onPointerCancel={handlePointerCancel}
-                      onContextMenu={e => e.preventDefault()}
-                    >
-                      {img ? (
-                        <>
-                          <img src={img} alt={`Вариант ${i + 1}`} draggable={false} />
-                          <span className="calib-batch-num">{i + 1}</span>
-                          {selectedBatchIdx === i && <div className="calib-batch-check">✅</div>}
-                        </>
-                      ) : (
-                        <div className="calib-batch-loading">
-                          <div className="processing-spinner" style={{ width: 20, height: 20 }} />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {!isGenerating && batchImages.length === 0 && (
-                <div className="calib-placeholder">
-                  <span>👤</span>
-                  <p>Нажмите «Сгенерировать {BATCH_SIZE} вариантов»</p>
-                </div>
-              )}
-            </div>
-            {batchImages.filter(Boolean).length > 0 && (
-              <p className="calib-longpress-hint">💡 Зажмите фото для просмотра во весь экран</p>
-            )}
-
-            <div className="calib-actions">
-              <button
-                className="calib-btn-secondary"
-                onClick={handleGenerateBatch}
-                disabled={isGenerating}
-              >
-                {batchImages.length > 0 ? `🔄 Перегенерировать ${BATCH_SIZE}` : `✨ Сгенерировать ${BATCH_SIZE} вариантов`}
-              </button>
-
-              {selectedBatchIdx !== null && batchImages[selectedBatchIdx] && (
-                <button className="calib-btn-primary" onClick={handleLockBatch}>
-                  ✅ Фиксируем лицо (вариант {selectedBatchIdx + 1})
-                </button>
-              )}
-            </div>
+            {renderBatchGrid()}
+            {renderBatchActions(`✅ Фиксируем лицо (вариант ${(selectedBatchIdx ?? 0) + 1})`)}
           </div>
         )}
 
-        {/* ═══ STEP: LEFT34 / RIGHT34 (batch mode) ═══ */}
-        {(currentStep.id === 'left34' || currentStep.id === 'right34') && !isNaN(step) && (
+        {/* ═══ STEP: LEFT34 ═══ */}
+        {currentStep.id === 'left34' && (
           <div className="calib-step">
             <h2 className="calib-title">
-              <span className="calib-step-badge">{currentStep.id === 'left34' ? '2/3' : '3/3'}</span>
+              <span className="calib-step-badge">2/4</span>
               {currentStep.icon} {currentStep.label}
             </h2>
             <p className="calib-desc">
-              Сгенерируем {BATCH_SIZE} вариантов. Выберите тот, который <strong>максимально похож</strong> на зафиксированное лицо.
+              Сгенерируем {BATCH_SIZE} варианта. Выберите тот, который{' '}
+              <strong>максимально похож</strong> на зафиксированное лицо.
             </p>
-
-            {/* Locked front reference */}
-            <div className="calib-ref-strip">
-              <div className="calib-ref-item">
-                <img src={lockedImages.front} alt="Зафиксированный анфас" />
-                <span>Анфас ✅</span>
-              </div>
-              {currentStep.id === 'right34' && lockedImages.left34 && (
+            {lockedImages.front && (
+              <div className="calib-ref-strip">
                 <div className="calib-ref-item">
-                  <img src={lockedImages.left34} alt="3/4 слева" />
-                  <span>3/4 слева ✅</span>
+                  <img src={lockedImages.front} alt="Анфас" />
+                  <span>Анфас ✅</span>
                 </div>
-              )}
-            </div>
-
-            {/* Batch images */}
-            <div className="calib-image-area">
-              {isGenerating && batchImages.filter(Boolean).length === 0 && (
-                <div className="calib-generating">
-                  <div className="processing-spinner" />
-                  <p>Генерируем {BATCH_SIZE} вариантов {currentStep.label}...</p>
-                </div>
-              )}
-              {batchImages.length > 0 && (
-                <div className="calib-batch-grid">
-                  {batchImages.map((img, i) => (
-                    <div
-                      key={i}
-                      className={`calib-batch-item ${selectedBatchIdx === i ? 'selected' : ''} ${!img ? 'loading' : ''}`}
-                      onClick={() => handleBatchClick(img, i)}
-                      onPointerDown={() => img && handlePointerDown(img)}
-                      onPointerUp={handlePointerUp}
-                      onPointerCancel={handlePointerCancel}
-                      onContextMenu={e => e.preventDefault()}
-                    >
-                      {img ? (
-                        <>
-                          <img src={img} alt={`Вариант ${i + 1}`} draggable={false} />
-                          <span className="calib-batch-num">{i + 1}</span>
-                          {selectedBatchIdx === i && <div className="calib-batch-check">✅</div>}
-                        </>
-                      ) : (
-                        <div className="calib-batch-loading">
-                          <div className="processing-spinner" style={{ width: 20, height: 20 }} />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {!isGenerating && batchImages.length === 0 && (
-                <div className="calib-placeholder">
-                  <span>{currentStep.icon}</span>
-                  <p>Нажмите «Сгенерировать {BATCH_SIZE} вариантов»</p>
-                </div>
-              )}
-            </div>
-            {batchImages.filter(Boolean).length > 0 && (
-              <p className="calib-longpress-hint">💡 Зажмите фото для просмотра во весь экран</p>
+              </div>
             )}
+            {renderBatchGrid()}
+            {renderBatchActions(`✅ Выбрать вариант ${(selectedBatchIdx ?? 0) + 1}`)}
+          </div>
+        )}
 
-            <div className="calib-actions">
-              <button
-                className="calib-btn-secondary"
-                onClick={handleGenerateBatch}
-                disabled={isGenerating}
-              >
-                {batchImages.length > 0 ? `🔄 Перегенерировать ${BATCH_SIZE}` : `✨ Сгенерировать ${BATCH_SIZE} вариантов`}
-              </button>
-
-              {selectedBatchIdx !== null && batchImages[selectedBatchIdx] && (
-                <button className="calib-btn-primary" onClick={handleLockBatch}>
-                  ✅ Выбрать вариант {selectedBatchIdx + 1}
-                </button>
+        {/* ═══ STEP: RIGHT34 ═══ */}
+        {currentStep.id === 'right34' && (
+          <div className="calib-step">
+            <h2 className="calib-title">
+              <span className="calib-step-badge">3/4</span>
+              {currentStep.icon} {currentStep.label}
+            </h2>
+            <p className="calib-desc">
+              Сгенерируем {BATCH_SIZE} варианта. Выберите максимально похожий на
+              зафиксированное лицо.
+            </p>
+            <div className="calib-ref-strip">
+              {lockedImages.front && (
+                <div className="calib-ref-item">
+                  <img src={lockedImages.front} alt="Анфас" />
+                  <span>Анфас ✅</span>
+                </div>
+              )}
+              {lockedImages.left34 && (
+                <div className="calib-ref-item">
+                  <img src={lockedImages.left34} alt="3/4 L" />
+                  <span>3/4 L ✅</span>
+                </div>
               )}
             </div>
+            {renderBatchGrid()}
+            {renderBatchActions(`✅ Выбрать вариант ${(selectedBatchIdx ?? 0) + 1}`)}
           </div>
         )}
 
-        {/* ═══ STEP: REVIEW ═══ */}
-        {currentStep.id === 'review' && (
+        {/* ═══ STEP: FULLBODY ═══ */}
+        {currentStep.id === 'fullbody' && (
           <div className="calib-step">
-            <h2 className="calib-title">🎉 Калибровка завершена!</h2>
+            <h2 className="calib-title">
+              <span className="calib-step-badge">4/4</span>
+              {currentStep.icon} Полный рост — главный кадр
+            </h2>
             <p className="calib-desc">
-              Нажмите 🔄 на любом кадре, чтобы перегенерировать только его.
+              Финальный шаг. Синтезируем <strong>полный рост модели</strong> на
+              основе всех трёх зафиксированных ракурсов. Это будет главное фото
+              карточки.
             </p>
-
-            <div className="calib-review-grid">
-              {['front', 'left34', 'right34'].map(angle => {
-                const stepDef = STEPS.find(s => s.id === angle);
-                const labels = { front: '👤 Анфас', left34: '◀️ 3/4 слева', right34: '▶️ 3/4 справа' };
-                return (
-                  <div key={angle} className="calib-review-item">
-                    {lockedImages[angle] ? (
-                      <div style={{position:'relative'}}>
-                        <img src={lockedImages[angle]} alt={angle} />
-                        <button
-                          className="calib-regen-single"
-                          disabled={isGenerating}
-                          title="Перегенерировать этот ракурс"
-                          onClick={() => {
-                            // Jump to that step to regenerate just this angle
-                            const stepIdx = STEPS.findIndex(s => s.id === angle);
-                            if (stepIdx >= 0) {
-                              setBatchImages([]);
-                              setSelectedBatchIdx(null);
-                              setStep(stepIdx);
-                            }
-                          }}
-                        >🔄</button>
-                      </div>
-                    ) : (
-                      <div className="calib-review-empty">—</div>
-                    )}
-                    <span>{labels[angle]}</span>
-                  </div>
-                );
-              })}
+            <div className="calib-ref-strip">
+              {lockedImages.front && (
+                <div className="calib-ref-item">
+                  <img src={lockedImages.front} alt="Анфас" />
+                  <span>Анфас ✅</span>
+                </div>
+              )}
+              {lockedImages.left34 && (
+                <div className="calib-ref-item">
+                  <img src={lockedImages.left34} alt="3/4 L" />
+                  <span>3/4 L ✅</span>
+                </div>
+              )}
+              {lockedImages.right34 && (
+                <div className="calib-ref-item">
+                  <img src={lockedImages.right34} alt="3/4 R" />
+                  <span>3/4 R ✅</span>
+                </div>
+              )}
             </div>
-
-            <input
-              className="calib-name-input"
-              placeholder="Имя модели (напр. Алина, Дмитрий)"
-              value={modelName}
-              onChange={e => setModelName(e.target.value)}
-            />
-
-            <div className="calib-actions">
-              <button className="calib-btn-secondary" onClick={() => { setStep(1); setLockedImages({ front: null, left34: null, right34: null }); }}>
-                🔄 Начать заново
-              </button>
-              <button
-                className="calib-btn-primary"
-                onClick={handleSave}
-                disabled={!modelName.trim() || !lockedImages.front || isSaving}
-              >
-                {isSaving ? '⏳ Сохраняю...' : '💾 Сохранить модель'}
-              </button>
-            </div>
+            {renderBatchGrid()}
+            {renderBatchActions(`✅ Выбрать вариант ${(selectedBatchIdx ?? 0) + 1}`)}
           </div>
         )}
+
+        {/* ═══ REVIEW: COMP CARD ═══ */}
+        {currentStep.id === 'review' && renderCompCard()}
 
         {/* ═══ ERROR ═══ */}
         <AnimatePresence>
@@ -557,9 +760,11 @@ export default function ModelCalibrationWizard({
         </AnimatePresence>
 
         {/* ═══ CLOSE BUTTON ═══ */}
-        <button className="calib-close" onClick={handleAttemptClose}>✕</button>
+        <button className="calib-close" onClick={handleAttemptClose}>
+          ✕
+        </button>
 
-        {/* ═══ CLOSE CONFIRMATION DIALOG ═══ */}
+        {/* ═══ CLOSE CONFIRMATION ═══ */}
         <AnimatePresence>
           {showCloseConfirm && (
             <motion.div
@@ -574,14 +779,21 @@ export default function ModelCalibrationWizard({
                 initial={{ scale: 0.85, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.85, opacity: 0 }}
-                onClick={e => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
               >
                 <div className="calib-confirm-icon">⚠️</div>
-                <h3>Закрыть калибровку?</h3>
-                <p>Весь прогресс будет потерян. Вы уверены?</p>
+                <h3>Закрыть кастинг?</h3>
+                <p>Весь прогресс калибровки будет потерян. Вы уверены?</p>
                 <div className="calib-confirm-actions">
-                  <button className="calib-btn-secondary" onClick={() => setShowCloseConfirm(false)}>Отмена</button>
-                  <button className="calib-btn-danger" onClick={handleClose}>Да, закрыть</button>
+                  <button
+                    className="calib-btn-secondary"
+                    onClick={() => setShowCloseConfirm(false)}
+                  >
+                    Отмена
+                  </button>
+                  <button className="calib-btn-danger" onClick={handleClose}>
+                    Да, выйти
+                  </button>
                 </div>
               </motion.div>
             </motion.div>
@@ -589,7 +801,7 @@ export default function ModelCalibrationWizard({
         </AnimatePresence>
       </motion.div>
 
-      {/* ═══ LIGHTBOX (fullscreen preview) ═══ */}
+      {/* ═══ LIGHTBOX ═══ */}
       <AnimatePresence>
         {lightboxSrc && (
           <motion.div
@@ -600,7 +812,12 @@ export default function ModelCalibrationWizard({
             onClick={() => setLightboxSrc(null)}
           >
             <img src={lightboxSrc} alt="Полноэкранный просмотр" />
-            <button className="calib-lightbox-close" onClick={() => setLightboxSrc(null)}>✕</button>
+            <button
+              className="calib-lightbox-close"
+              onClick={() => setLightboxSrc(null)}
+            >
+              ✕
+            </button>
           </motion.div>
         )}
       </AnimatePresence>

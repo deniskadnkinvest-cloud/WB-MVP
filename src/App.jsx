@@ -731,17 +731,25 @@ function App() {
     try {
       console.log('📦 Saving calibrated model:', name, 'photos:', Object.keys(photos).filter(k => photos[k]));
       const photoEntries = Object.entries(photos).filter(([, v]) => v);
-      const uploads = await Promise.all(photoEntries.map(async ([, base64]) => {
-        return uploadBase64Image(user.uid, base64, 'models');
-      }));
-      const imageUrls = uploads.map(u => u.url);
-      const storagePaths = uploads.map(u => u.path);
+      // Upload all photos and track which key maps to which URL
+      const uploadResults = await Promise.all(
+        photoEntries.map(async ([key, base64]) => {
+          const result = await uploadBase64Image(user.uid, base64, 'models');
+          return { key, ...result };
+        })
+      );
+      const imageUrls = uploadResults.map(u => u.url);
+      const storagePaths = uploadResults.map(u => u.path);
+      // fullbodyUrl — отдельное поле для удобного отображения превью в галерее
+      const fullbodyEntry = uploadResults.find(u => u.key === 'fullbody');
+      const fullbodyUrl = fullbodyEntry?.url || null;
       await saveModel(user.uid, {
         name,
         type: 'calibrated',
         imageUrls,
         storagePaths,
         prompt: prompt || '',
+        ...(fullbodyUrl ? { fullbodyUrl } : {}),
       });
       const models = await getModels(user.uid);
       setMyModels(models);
