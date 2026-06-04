@@ -23,6 +23,27 @@
     },
     "api/admin/broadcasts.js": {
       "maxDuration": 10
+    },
+    "api/admin/stats.js": {
+      "maxDuration": 30
+    },
+    "api/admin/grant-access.js": {
+      "maxDuration": 20
+    },
+    "api/admin/refund.js": {
+      "maxDuration": 10
+    },
+    "api/admin/verify.js": {
+      "maxDuration": 15
+    },
+    "api/admin/generations.js": {
+      "maxDuration": 15
+    },
+    "api/admin/users.js": {
+      "maxDuration": 20
+    },
+    "api/inngest.js": {
+      "maxDuration": 300
     }
   },
   "headers": [
@@ -40,8 +61,8 @@
     { "source": "/api/payment-webhook", "destination": "/api/payment-webhook" },
     { "source": "/api/payment-webhook-yookassa", "destination": "/api/payment-webhook-yookassa" },
     { "source": "/api/create-payment", "destination": "/api/create-payment" },
-    { "source": "/api/admin/broadcast", "destination": "/api/admin/broadcast" },
-    { "source": "/api/admin/broadcasts", "destination": "/api/admin/broadcasts" },
+    { "source": "/api/inngest", "destination": "/api/inngest" },
+    { "source": "/api/admin/:path*", "destination": "/api/admin/:path*" },
     { "source": "/__/auth/:path*", "destination": "https://lord-f842d.firebaseapp.com/__/auth/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]

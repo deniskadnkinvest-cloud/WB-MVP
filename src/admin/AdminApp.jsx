@@ -5,6 +5,7 @@ import Users from './pages/Users';
 import Payments from './pages/Payments';
 import Errors from './pages/Errors';
 import Broadcasts from './pages/Broadcasts';
+import Generations from './pages/Generations';
 import PlaceholderPage from './pages/PlaceholderPage';
 
 // ═══════════════════════════════════════════
@@ -89,7 +90,7 @@ export default function AdminApp() {
     docs: <PlaceholderPage title="Документация" />,
     overview: <Dashboard />, // redirect
     users: <Users />,
-    generations: <PlaceholderPage title="Генерации" />,
+    generations: <Generations />,
     complaints: <PlaceholderPage title="Жалобы" />,
     reviews: <PlaceholderPage title="Отзывы" />,
     payments: <Payments />,

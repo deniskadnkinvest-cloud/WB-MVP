@@ -209,12 +209,14 @@ export default function Dashboard() {
     realPaymentsCount = 0, testPaymentsCount = 0, adminGrantsCount = 0, grantedCreditsTotal = 0,
     recentPayments = [], recentTestPayments = [], recentAdminGrants = [],
     generationsTotal = 0, generationsToday = 0, generationsFromCredits = 0,
+    generationsLogCount = 0,
     generationsByMode = {},
+    botStatus = 'not_configured', botUsername = null,
     botActivations = 0, botActivationsToday = 0,
     generatedAt,
   } = data || {};
 
-  const gens = generationsTotal || generationsFromCredits;
+  const gens = generationsLogCount || generationsTotal || generationsFromCredits;
   const syncTime = generatedAt ? new Date(generatedAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
 
   return (
@@ -224,13 +226,15 @@ export default function Dashboard() {
       <motion.div variants={fadeUp} style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '10px 16px', borderRadius: '12px',
-        background: 'rgba(52,211,153,0.04)', border: '1px solid rgba(52,211,153,0.1)',
+        background: botStatus === 'error' ? 'rgba(248,113,113,0.04)' : 'rgba(52,211,153,0.04)',
+        border: botStatus === 'error' ? '1px solid rgba(248,113,113,0.15)' : '1px solid rgba(52,211,153,0.1)',
       }}>
         <div style={{ display: 'flex', gap: '14px', flexWrap: 'wrap' }}>
           <HealthDot ok={true} label="Vercel" />
           <HealthDot ok={true} label="Firebase" />
           <HealthDot ok={true} label="Inngest" />
           <HealthDot ok={true} label="KIE.ai" />
+          <HealthDot ok={botStatus === 'active'} label={botStatus === 'active' ? `@${botUsername}` : botStatus === 'not_configured' ? 'Бот: нет API токена' : 'Бот: ошибка ключа'} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {loadTime && <span style={{ fontSize: '9px', color: c.text3, fontFamily: 'monospace' }}>{loadTime}ms</span>}
@@ -241,10 +245,21 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
+      {/* Warning if bot token is broken */}
+      {botStatus === 'error' && (
+        <motion.div variants={fadeUp} style={{
+          padding: '12px 16px', borderRadius: '12px',
+          background: 'rgba(248,113,113,0.08)', border: '1px solid rgba(248,113,113,0.2)',
+          color: c.red, fontSize: '13px', fontWeight: 600
+        }}>
+          ⚠️ Внимание: TELEGRAM_BOT_TOKEN невалиден или не настроен. Рассылки не будут отправляться.
+        </motion.div>
+      )}
+
       {/* ── Top Metrics 2×2 ── */}
       <motion.div variants={fadeUp} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
         <Section>
-          <Metric label="Генерации" value={gens} sub={generationsToday > 0 ? `+${generationsToday} сегодня` : 'всего'} color={c.accent} />
+          <Metric label="Генерации" value={gens} sub={generationsToday > 0 ? `+${generationsToday} сегодня` : `всего (логов: ${generationsLogCount})`} color={c.accent} />
         </Section>
         <Section>
           <Metric label="Пользователи" value={totalUsers} sub={`${activeUsers} активных · ${conversionRate}%`} />

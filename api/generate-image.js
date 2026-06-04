@@ -22,6 +22,36 @@ async function incrementGlobalCounter(field) {
   }
 }
 
+// Записывает подробный лог генерации в Firestore
+async function saveGenerationLog({ userId, success, imageUrl, error, reqBody, durationMs }) {
+  try {
+    const generationId = `gen_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const now = new Date().toISOString();
+    
+    const docData = {
+      id: generationId,
+      userId: userId || 'anonymous',
+      success,
+      createdAt: now,
+      durationMs,
+      type: reqBody?.isProductMode ? 'product' : reqBody?.isCalibration ? 'calibration' : 'fashion',
+      aspectRatio: reqBody?.aspectRatio || '3:4',
+      garmentUrls: reqBody?.garmentImageUrls || [],
+      modelPreset: reqBody?.modelPreset || '',
+      posePreset: reqBody?.posePreset || '',
+      backgroundPreset: reqBody?.backgroundPreset || '',
+    };
+    
+    if (imageUrl) docData.imageUrl = imageUrl;
+    if (error) docData.error = error;
+    
+    await _db.collection('generations').doc(generationId).set(docData);
+    console.log(`📊 [stats] Logged generation ${generationId} for user ${userId || 'anonymous'} (${success ? 'success' : 'failed'})`);
+  } catch (e) {
+    console.warn('[stats log] Failed to write generation log:', e.message);
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // SKIN ULTRA-REALISM SYSTEM PROMPT (применяется ГЛОБАЛЬНО)
 // ═══════════════════════════════════════════════════════════════════
@@ -1145,11 +1175,29 @@ ${skinPrompt}
     incrementGlobalCounter('generationsTotal').catch(() => {});
     incrementGlobalCounter(mode).catch(() => {});
 
+    // Записываем детальный лог успешной генерации
+    saveGenerationLog({
+      userId: req.body?.userId,
+      success: true,
+      imageUrl: resultUrl,
+      reqBody: req.body,
+      durationMs: Date.now() - startTime
+    }).catch(() => {});
+
     return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl });
   } catch (error) {
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     console.error(`❌ [${elapsed}s] Ошибка:`, error.message);
     
+    // Записываем детальный лог ошибки генерации
+    saveGenerationLog({
+      userId: req.body?.userId,
+      success: false,
+      error: error.message,
+      reqBody: req.body,
+      durationMs: Date.now() - startTime
+    }).catch(() => {});
+
     // ═══ ADMIN ALERT — отправка в Telegram (фоновая, не блокирует ответ) ═══
     const mode = req.body?.isProductMode ? 'product' : req.body?.isCalibration ? 'calibration' : req.body?.isPhotoEdit ? 'photo_edit' : 'fashion';
     alertOnError(error, `generate-image [${mode}] ${elapsed}s`).catch(() => {});

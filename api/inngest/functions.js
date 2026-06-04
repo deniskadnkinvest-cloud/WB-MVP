@@ -130,7 +130,59 @@ export const processSku = inngest.createFunction(
       console.log(`   💾 Step 5: Saving results...`);
       console.log(`   📊 Result: ${acceptedPhotos.length}/${targetCount} accepted photos after ${attempts} attempts`);
       
-      // TODO: Сохранить в Firestore BatchItems/{batchId}/items/{skuId}
+      const db = getFirestore();
+      
+      // Сохраняем элемент батча
+      const batchItemDoc = {
+        skuId,
+        name,
+        status: acceptedPhotos.length >= targetCount ? 'completed' : 'partial',
+        photos: acceptedPhotos,
+        attempts,
+        classification,
+        vibe,
+        batchId,
+        sellerId: event.data.sellerId || 'seller_bot',
+        updatedAt: new Date().toISOString()
+      };
+      
+      await db.collection('batches').doc(batchId).collection('items').doc(skuId).set(batchItemDoc, { merge: true });
+      
+      // Сохраняем каждую принятую фотографию в общую коллекцию generations
+      for (let i = 0; i < acceptedPhotos.length; i++) {
+        const photo = acceptedPhotos[i];
+        const genId = `gen_${batchId}_${skuId}_${i}`;
+        const genDoc = {
+          id: genId,
+          userId: event.data.sellerId || 'seller_bot',
+          batchId,
+          skuId,
+          success: true,
+          imageUrl: photo.url,
+          score: photo.score,
+          reason: photo.reason,
+          createdAt: new Date().toISOString(),
+          type: 'autocatalog',
+          aspectRatio: '3:4',
+          garmentUrls: [imageUrl],
+          modelPreset: params.model || vibe,
+          posePreset: params.pose || '',
+          backgroundPreset: params.background || ''
+        };
+        await db.collection('generations').doc(genId).set(genDoc);
+      }
+      
+      // Инкрементируем глобальные счетчики
+      const today = new Date().toISOString().slice(0, 10);
+      await db.doc('_stats/global').set({
+        generationsTotal: FV.increment(acceptedPhotos.length),
+        generationsProduct: FV.increment(acceptedPhotos.length),
+      }, { merge: true });
+      await db.doc(`_stats/daily/${today}/counts`).set({
+        generationsTotal: FV.increment(acceptedPhotos.length),
+        generationsProduct: FV.increment(acceptedPhotos.length),
+      }, { merge: true });
+
       return {
         skuId,
         name,

@@ -580,6 +580,7 @@ function App() {
         Math.random().toString(36).substring(2, 10).toUpperCase(),
       ];
       const buildBody = (seed) => JSON.stringify({
+        userId: user?.uid || null,
         garmentImageUrls: garmentUrls, modelPreset: modelPrompt, posePreset: posePrompt,
         cameraAngle: selectedCamera.prompt, backgroundPreset: bgPrompt,
         aspectRatio: selectedRatio.id, modelReferenceImages: modelRefImages,
@@ -780,6 +781,7 @@ function App() {
       const resp = await fetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          userId: user?.uid || null,
           garmentImageUrls: garmentUrlsForPreview,
           previewMode: garmentUrlsForPreview.length === 0,
           modelPreset: prompt + '. Generate a fashion model portrait wearing simple casual clothing.',
@@ -938,6 +940,7 @@ function App() {
       const resp = await fetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          userId: user?.uid || null,
           garmentImageUrls: garmentUrls, modelPreset: modelPrompt, posePreset: posePrompt,
           cameraAngle: selectedCamera.prompt, backgroundPreset: bgPrompt,
           aspectRatio: selectedRatio.id, modelReferenceImages: editRefImages.length > 0 ? editRefImages : null,
@@ -1117,6 +1120,7 @@ function App() {
         return fetch('/api/generate-image', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            userId: user?.uid || null,
             garmentImageUrls: garmentUrls, modelPreset: modelPrompt,
             posePreset: angle.pose, cameraAngle: angle.camera,
             backgroundPreset: bgPrompt, aspectRatio: selectedRatio.id,
@@ -1173,6 +1177,7 @@ function App() {
       const resp = await fetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          userId: user?.uid || null,
           isPhotoEdit: true,
           sourceImageUrl: sourceUrl,
           editInstruction: instruction,
@@ -2014,6 +2019,7 @@ function App() {
           onSave={saveCalibratedModel}
           modelPrompt={getCurrentModelPrompt()}
           modelRefImages={getCurrentModelRefs()}
+          userId={user?.uid}
         />
       </AnimatePresence>
     </div>

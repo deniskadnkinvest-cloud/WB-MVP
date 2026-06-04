@@ -1,6 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { serve } from 'inngest/express';
+import { inngest } from './api/inngest/client.js';
+import { functions } from './api/inngest/functions.js';
+
 import generateImageHandler from './api/generate-image.js';
 import verifyPanxTokenHandler from './api/verify-panx-token.js';
 import createPaymentHandler from './api/create-payment.js';
@@ -12,6 +16,9 @@ dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+
+// Inngest Dev Server Bridge
+app.use('/api/inngest', serve({ client: inngest, functions }));
 
 app.post('/api/generate-image', async (req, res) => {
   return generateImageHandler(req, res);
@@ -33,9 +40,23 @@ app.post('/api/payment-webhook', async (req, res) => {
   return paymentWebhookHandler(req, res);
 });
 
+// Dynamic Admin API Routing for Local Dev
+app.all('/api/admin/:endpoint', async (req, res) => {
+  const { endpoint } = req.params;
+  try {
+    const handler = await import(`./api/admin/${endpoint}.js`);
+    return handler.default(req, res);
+  } catch (err) {
+    console.error(`Local dev error handling admin ${endpoint}:`, err);
+    return res.status(404).json({ error: 'Not Found', details: err.message });
+  }
+});
+
 const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`\n🔥 PAN.X VTON Backend (KIE.ai) → http://localhost:${PORT}`);
+  console.log(`   Inngest Endpoint: http://localhost:${PORT}/api/inngest`);
+  console.log(`   Admin Panel APIs: http://localhost:${PORT}/api/admin/*`);
   console.log('   Подключена ЮKassa: /api/create-payment & /api/payment-webhook-yookassa');
   console.log('   Ожидаю запросы от фронтенда...\n');
 });

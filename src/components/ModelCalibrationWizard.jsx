@@ -32,6 +32,7 @@ export default function ModelCalibrationWizard({
   onSave,
   modelPrompt,       // текущий промпт модели (из выбранного пресета + детали)
   modelRefImages,     // существующие референсные изображения (если есть)
+  userId,
 }) {
   const [step, setStep] = useState(0); // index in STEPS
   const [lockedImages, setLockedImages] = useState({ front: null, left34: null, right34: null });
@@ -59,6 +60,7 @@ export default function ModelCalibrationWizard({
   // ═══════════════════════════════════════════
   const generatePortrait = useCallback(async (stepDef, existingRefs = []) => {
     const body = {
+      userId: userId || null,
       isCalibration: true,
       garmentImagesBase64: [],
       modelPreset: modelPrompt + '. Generate an ultra-realistic fashion model portrait wearing a plain white t-shirt. The portrait MUST have photographic-level skin detail: visible pores, natural skin texture variations, micro-imperfections, authentic asymmetry, and zero AI smoothing or plastic artifacts. Render as if captured by a Canon EOS R5 with an 85mm f/1.4 lens.',

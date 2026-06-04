@@ -194,33 +194,73 @@ function UserRow({ user, onRefund }) {
     setRefunding(true);
     try {
       const res = await onRefund(user.uid);
-      if (res.ok) { setCredits(res.newCredits); setRefunded(true); setTimeout(() => setRefunded(false), 3000); }
-    } finally { setRefunding(false); }
+      if (res.ok) { 
+        setCredits(res.newCredits); 
+        setRefunded(true); 
+        setTimeout(() => setRefunded(false), 3000); 
+      }
+    } finally { 
+      setRefunding(false); 
+    }
   };
 
-  const activated = user.planActivatedAt ? new Date(user.planActivatedAt).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—';
+  const activated = user.planActivatedAt 
+    ? (user.planActivatedAt.seconds 
+        ? new Date(user.planActivatedAt.seconds * 1000).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' })
+        : new Date(user.planActivatedAt).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' })
+      )
+    : '—';
+
+  // Определяем тип пользователя по UID
+  const isTelegram = /^\d+$/.test(String(user.uid));
+  const userTypeBadge = isTelegram ? 'TG' : 'Email';
 
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '12px 0', borderBottom: `1px solid ${c.border}`, gap: '10px',
+      padding: '14px 0', borderBottom: `1px solid ${c.border}`, gap: '10px',
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
           <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: PLAN_COLORS[user.plan] || '#555', flexShrink: 0 }} />
-          <span style={{ fontSize: '12px', fontWeight: 600, color: PLAN_COLORS[user.plan] || c.text2, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: PLAN_COLORS[user.plan] || c.text2, textTransform: 'uppercase', letterSpacing: '0.3px' }}>
             {PLAN_LABELS[user.plan] || user.plan}
+          </span>
+          <span style={{ 
+            fontSize: '9px', 
+            padding: '1px 5px', 
+            borderRadius: '4px', 
+            background: isTelegram ? 'rgba(56, 189, 248, 0.1)' : 'rgba(167, 139, 250, 0.1)', 
+            border: `1px solid ${isTelegram ? 'rgba(56, 189, 248, 0.2)' : 'rgba(167, 139, 250, 0.2)'}`, 
+            color: isTelegram ? '#38bdf8' : c.purple, 
+            fontWeight: 800 
+          }}>
+            {userTypeBadge}
           </span>
           {user.grantedByAdmin && (
             <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.2)', color: c.green, fontWeight: 700 }}>admin</span>
           )}
+          {user.ltv > 0 && (
+            <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(251, 146, 60, 0.1)', border: '1px solid rgba(251, 146, 60, 0.2)', color: c.accent, fontWeight: 800 }}>
+              ★ {user.ltv} RUB
+            </span>
+          )}
         </div>
+
+        {/* Имя и Username */}
+        {(user.firstName || user.username) && (
+          <div style={{ fontSize: '13px', fontWeight: 600, color: c.text1, marginBottom: '2px', display: 'flex', gap: '6px', alignItems: 'center' }}>
+            {user.firstName && <span>{user.firstName}</span>}
+            {user.username && <span style={{ color: c.accent, fontSize: '12px' }}>@{user.username}</span>}
+          </div>
+        )}
+
         <div style={{ fontFamily: 'monospace', fontSize: '10px', color: c.text3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {user.uid}
         </div>
         <div style={{ display: 'flex', gap: '10px', marginTop: '4px', fontSize: '11px' }}>
           <span style={{ color: c.text2 }}>{credits}/{user.creditsTotal} кред.</span>
-          <span style={{ color: c.text3 }}>{activated}</span>
+          <span style={{ color: c.text3 }}>Акт: {activated}</span>
         </div>
       </div>
 
@@ -251,16 +291,29 @@ export default function Users() {
   const [filter, setFilter] = useState('all');
   const [tab, setTab] = useState('users');
 
-  const load = () => {
+  const load = (searchQuery = '') => {
     setLoading(true);
-    fetch('/api/admin/stats', { headers: { ...authHeaders } })
+    let url = '/api/admin/users?limit=100';
+    if (searchQuery.trim()) {
+      url += `&search=${encodeURIComponent(searchQuery.trim())}`;
+    }
+    fetch(url, { headers: { ...authHeaders } })
       .then(r => r.json())
-      .then(res => res.ok ? setUsers(res.data.activeUsersList || []) : setError(res.error))
+      .then(res => {
+        if (res.ok) {
+          setUsers(res.users || []);
+          setError(null);
+        } else {
+          setError(res.error || 'Ошибка загрузки');
+        }
+      })
       .catch(() => setError('Ошибка загрузки'))
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   const handleRefund = async (uid) => {
     const res = await fetch('/api/admin/refund', {
@@ -270,8 +323,12 @@ export default function Users() {
     return res.json();
   };
 
+  const handleSearchSubmit = (e) => {
+    e.preventDefault();
+    load(search);
+  };
+
   const filtered = users.filter(u => {
-    if (search && !u.uid.toLowerCase().includes(search.toLowerCase())) return false;
     if (filter !== 'all' && u.plan !== filter) return false;
     return true;
   });
@@ -309,9 +366,20 @@ export default function Users() {
         <>
           {/* Search */}
           <motion.div variants={fadeUp}>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Поиск по UID…"
-              style={{ width: '100%', padding: '10px 14px', borderRadius: '12px', fontSize: '13px', background: c.surface, border: `1px solid ${c.border}`, color: c.text1, outline: 'none', boxSizing: 'border-box' }}
-            />
+            <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '8px' }}>
+              <input 
+                value={search} 
+                onChange={e => setSearch(e.target.value)} 
+                placeholder="Поиск по UID, Username или Email…"
+                style={{ flex: 1, padding: '10px 14px', borderRadius: '12px', fontSize: '13px', background: c.surface, border: `1px solid ${c.border}`, color: c.text1, outline: 'none', boxSizing: 'border-box' }}
+              />
+              <button 
+                type="submit" 
+                style={{ background: c.accent, border: 'none', borderRadius: '12px', color: '#000', padding: '10px 20px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' }}
+              >
+                Найти
+              </button>
+            </form>
           </motion.div>
 
           {/* Plan filter */}
@@ -336,13 +404,13 @@ export default function Users() {
           ) : error ? (
             <Section style={{ textAlign: 'center' }}>
               <p style={{ color: c.text2, fontSize: '13px' }}>{error}</p>
-              <button onClick={load} style={{ marginTop: '8px', padding: '6px 16px', borderRadius: '8px', background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.3)', color: c.accent, cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>Повторить</button>
+              <button onClick={() => load(search)} style={{ marginTop: '8px', padding: '6px 16px', borderRadius: '8px', background: 'rgba(129,140,248,0.1)', border: '1px solid rgba(129,140,248,0.3)', color: c.accent, cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>Повторить</button>
             </Section>
           ) : (
             <Section style={{ padding: '4px 20px' }}>
               <div style={{ padding: '12px 0 8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '11px', color: c.text3, fontWeight: 500 }}>{filtered.length} из {users.length}</span>
-                <button onClick={load} style={{ padding: '4px 8px', borderRadius: '6px', background: 'transparent', border: `1px solid ${c.border}`, color: c.text3, cursor: 'pointer', fontSize: '12px' }}>↻</button>
+                <span style={{ fontSize: '11px', color: c.text3, fontWeight: 500 }}>Показано {filtered.length} пользователей</span>
+                <button onClick={() => load(search)} style={{ padding: '4px 8px', borderRadius: '6px', background: 'transparent', border: `1px solid ${c.border}`, color: c.text3, cursor: 'pointer', fontSize: '12px' }}>↻</button>
               </div>
               {filtered.length === 0 ? (
                 <p style={{ textAlign: 'center', color: c.text3, padding: '24px 0', fontSize: '13px' }}>Нет результатов</p>

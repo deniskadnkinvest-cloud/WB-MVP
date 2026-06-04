@@ -47,11 +47,12 @@ async function fetchStats() {
   const today = new Date().toISOString().slice(0, 10);
 
   // ── Параллельные запросы ──
-  const [globalSnap, dailySnap, subSnaps, userRefs] = await Promise.all([
+  const [globalSnap, dailySnap, subSnaps, userRefs, generationsLogSnap] = await Promise.all([
     db.doc('_stats/global').get(),
     db.doc(`_stats/daily/${today}/counts`).get(),
     db.collectionGroup('subscription').get(),
     db.collection('users').listDocuments(),
+    db.collection('generations').count().get().catch(() => null),
   ]);
 
   const g = globalSnap.exists ? globalSnap.data() : {};
@@ -149,6 +150,30 @@ async function fetchStats() {
 
   // ── Генерации ──
   const generationsFromCredits = activeUsersList.reduce((s, u) => s + u.creditsUsed, 0);
+  const generationsLogCount = generationsLogSnap ? generationsLogSnap.data().count : 0;
+
+  // ── Проверка Telegram-бота ──
+  let botStatus = 'not_configured';
+  let botUsername = null;
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (botToken) {
+    try {
+      const botMeResp = await fetch(`https://api.telegram.org/bot${botToken}/getMe`, { signal: AbortSignal.timeout(3000) });
+      if (botMeResp.ok) {
+        const botMe = await botMeResp.json();
+        if (botMe.ok) {
+          botStatus = 'active';
+          botUsername = botMe.result.username;
+        } else {
+          botStatus = 'error';
+        }
+      } else {
+        botStatus = 'error';
+      }
+    } catch (e) {
+      botStatus = 'error';
+    }
+  }
 
   const result = {
     // Пользователи
@@ -164,13 +189,19 @@ async function fetchStats() {
     generationsCalibration: g.generationsCalibration || 0,
     generationsToday: d.generationsTotal || 0,
     generationsFromCredits,
+    generationsLogCount,
     generationsByMode: {
       fashion: g.generationsFashion || 0,
       product: g.generationsProduct || 0,
       calibration: g.generationsCalibration || 0,
+      autocatalog: generationsLogCount - (g.generationsFashion || 0) - (g.generationsProduct || 0) > 0 
+        ? generationsLogCount - (g.generationsFashion || 0) - (g.generationsProduct || 0) 
+        : 0
     },
 
     // Бот
+    botStatus,
+    botUsername,
     botActivations: g.botActivations || 0,
     botActivationsToday: d.botActivations || 0,
 
