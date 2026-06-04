@@ -1441,7 +1441,7 @@ function App() {
                         {myModels.map(m => (
                           <div key={m.id} className={`model-avatar ${productSavedModelId===m.id?'active':''}`}
                             onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
-                            <img src={m.imageUrls?.[0] || ''} alt={m.name} />
+                            <img src={m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                             <div className="avatar-name">{m.name}</div>
                           </div>
                         ))}
@@ -1500,7 +1500,7 @@ function App() {
                     {myModels.map(m => (
                       <div key={m.id} className={`model-avatar ${selectedSavedModelId===m.id?'active':''}`}
                         onClick={() => { setSelectedSavedModelId(m.id); setCustomModelPrompt(''); setShowDetails(false); }}>
-                        <img src={m.imageUrls?.[0] || ''} alt={m.name} />
+                        <img src={m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                         <div className="avatar-name">{m.name}</div>
                         <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>✕</button>
                       </div>
