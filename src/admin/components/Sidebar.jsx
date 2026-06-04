@@ -7,6 +7,8 @@ const MENU_GROUPS = [
     title: null,
     items: [
       { id: 'dashboard', icon: '🏠', label: 'Инфопанель' },
+      { id: 'changelog', icon: '📋', label: 'История изменений' },
+      { id: 'docs', icon: '📄', label: 'Документация' },
     ]
   },
   {
@@ -26,6 +28,9 @@ const MENU_GROUPS = [
     items: [
       { id: 'payments', icon: '💳', label: 'Платежи' },
       { id: 'payment_analytics', icon: '📈', label: 'Аналитика оплат' },
+      { id: 'certificates', icon: '🎁', label: 'Сертификаты' },
+      { id: 'certificate_occasions', icon: '🎉', label: 'Поводы сертификатов' },
+      { id: 'limit_history', icon: '🔄', label: 'История лимитов' },
     ]
   },
   {
@@ -34,6 +39,7 @@ const MENU_GROUPS = [
     items: [
       { id: 'templates', icon: '🎵', label: 'Шаблоны' },
       { id: 'prompts', icon: '🤖', label: 'GPT Промпты' },
+      { id: 'categories', icon: '📁', label: 'Категории' },
     ]
   },
   {
@@ -41,13 +47,19 @@ const MENU_GROUPS = [
     title: 'Маркетинг',
     items: [
       { id: 'broadcasts', icon: '📢', label: 'Рассылки' },
+      { id: 'funnels', icon: '⏳', label: 'Воронки' },
+      { id: 'referrals', icon: '🔗', label: 'Рефералка' },
     ]
   },
   {
     id: 'system',
     title: 'Настройки',
     items: [
-      { id: 'errors', icon: '⚙️', label: 'Система' },
+      { id: 'ai_limits', icon: '⚖️', label: 'AI Лимиты' },
+      { id: 'api_logs', icon: '📡', label: 'API Логи' },
+      { id: 'ai_report', icon: '🧠', label: 'AI Отчёт' },
+      { id: 'settings', icon: '⚙️', label: 'Системные настройки' },
+      { id: 'errors', icon: '🐛', label: 'Ошибки системы' },
     ]
   }
 ];

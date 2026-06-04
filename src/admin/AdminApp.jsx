@@ -84,6 +84,8 @@ export default function AdminApp() {
 
   const pages = {
     dashboard: <Dashboard />,
+    changelog: <PlaceholderPage title="История изменений" />,
+    docs: <PlaceholderPage title="Документация" />,
     overview: <Dashboard />, // redirect
     users: <Users />,
     generations: <PlaceholderPage title="Генерации" />,
@@ -91,9 +93,19 @@ export default function AdminApp() {
     reviews: <PlaceholderPage title="Отзывы" />,
     payments: <Payments />,
     payment_analytics: <PlaceholderPage title="Аналитика оплат" />,
+    certificates: <PlaceholderPage title="Сертификаты" />,
+    certificate_occasions: <PlaceholderPage title="Поводы сертификатов" />,
+    limit_history: <PlaceholderPage title="История лимитов" />,
     templates: <PlaceholderPage title="Шаблоны" />,
     prompts: <PlaceholderPage title="GPT Промпты" />,
+    categories: <PlaceholderPage title="Категории" />,
     broadcasts: <PlaceholderPage title="Рассылки" />,
+    funnels: <PlaceholderPage title="Воронки" />,
+    referrals: <PlaceholderPage title="Рефералка" />,
+    ai_limits: <PlaceholderPage title="AI Лимиты" />,
+    api_logs: <PlaceholderPage title="API Логи" />,
+    ai_report: <PlaceholderPage title="AI Отчёт" />,
+    settings: <PlaceholderPage title="Системные настройки" />,
     errors: <Errors />,
   };
 
