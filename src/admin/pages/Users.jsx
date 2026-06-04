@@ -46,7 +46,7 @@ const PLANS = [
 const PLAN_BTN_COLORS = { trial: '#fbbf24', base: '#0ea5e9', pro: '#818cf8', custom: '#34d399' };
 
 function GrantAccessForm({ onSuccess, authHeaders }) {
-  const [uid, setUid] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [plan, setPlan] = useState('trial');
   const [customCredits, setCustomCredits] = useState('');
   const [note, setNote] = useState('');
@@ -55,12 +55,12 @@ function GrantAccessForm({ onSuccess, authHeaders }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!uid.trim()) return;
+    if (!identifier.trim()) return;
     setLoading(true);
     setResult(null);
 
     try {
-      const body = { uid: uid.trim(), plan, note };
+      const body = { identifier: identifier.trim(), plan, note };
       if (plan === 'custom') body.credits = parseInt(customCredits, 10);
 
       const res = await fetch('/api/admin/grant-access', {
@@ -71,7 +71,7 @@ function GrantAccessForm({ onSuccess, authHeaders }) {
       const data = await res.json();
       setResult(data);
       if (data.ok) {
-        setUid('');
+        setIdentifier('');
         setNote('');
         setCustomCredits('');
         if (onSuccess) onSuccess();
@@ -87,16 +87,16 @@ function GrantAccessForm({ onSuccess, authHeaders }) {
 
   return (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* UID */}
+      {/* Identifier — TG ID / Email / UID */}
       <div>
         <label style={{ fontSize: '11px', color: c.text3, fontWeight: 600, letterSpacing: '0.8px', textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
-          Telegram ID пользователя
+          Telegram ID / Email / UID
         </label>
-        <input value={uid} onChange={e => setUid(e.target.value)} placeholder="Например: 123456789" required
+        <input value={identifier} onChange={e => setIdentifier(e.target.value)} placeholder="123456789 или user@mail.ru" required
           style={{ width: '100%', padding: '12px 14px', borderRadius: '12px', fontSize: '14px', background: 'rgba(255,255,255,0.04)', border: `1px solid ${c.border}`, color: c.text1, outline: 'none', boxSizing: 'border-box', fontFamily: 'monospace' }}
         />
         <div style={{ fontSize: '10px', color: c.text3, marginTop: '6px', lineHeight: 1.5 }}>
-          Как узнать ID: попроси пользователя написать боту <span style={{ color: c.text2, fontWeight: 600 }}>@userinfobot</span> в Telegram — бот ответит числовым ID. Либо посмотри в разделе «Юзеры» ниже.
+          <span style={{ color: c.text2, fontWeight: 600 }}>Telegram ID</span> — попроси написать боту @userinfobot · <span style={{ color: c.text2, fontWeight: 600 }}>Email</span> — если зарегистрировались через почту
         </div>
       </div>
 
@@ -150,6 +150,7 @@ function GrantAccessForm({ onSuccess, authHeaders }) {
             <div>
               <div style={{ fontSize: '13px', fontWeight: 700, color: c.green, marginBottom: '4px' }}>✓ Доступ выдан</div>
               <div style={{ fontSize: '12px', color: c.text2, lineHeight: 1.5 }}>
+                {result.displayInfo && <div style={{ fontSize: '10px', color: c.text3, marginBottom: '3px', fontFamily: 'monospace' }}>{result.displayInfo}</div>}
                 {result.action === 'created'
                   ? `Новый пользователь создан. Выдано ${result.creditsGranted} генераций.`
                   : `Пополнено +${result.creditsGranted}. Баланс: ${result.newCredits}.`}
@@ -165,12 +166,12 @@ function GrantAccessForm({ onSuccess, authHeaders }) {
       )}
 
       {/* Submit */}
-      <button type="submit" disabled={loading || !uid.trim()} style={{
+      <button type="submit" disabled={loading || !identifier.trim()} style={{
         padding: '14px', borderRadius: '14px', fontSize: '14px', fontWeight: 700,
-        background: loading || !uid.trim() ? 'rgba(255,255,255,0.04)' : `linear-gradient(135deg, ${PLAN_BTN_COLORS[plan]}30, ${PLAN_BTN_COLORS[plan]}15)`,
-        border: `1px solid ${loading || !uid.trim() ? c.border : PLAN_BTN_COLORS[plan] + '40'}`,
-        color: loading || !uid.trim() ? c.text3 : PLAN_BTN_COLORS[plan],
-        cursor: loading || !uid.trim() ? 'default' : 'pointer',
+        background: loading || !identifier.trim() ? 'rgba(255,255,255,0.04)' : `linear-gradient(135deg, ${PLAN_BTN_COLORS[plan]}30, ${PLAN_BTN_COLORS[plan]}15)`,
+        border: `1px solid ${loading || !identifier.trim() ? c.border : PLAN_BTN_COLORS[plan] + '40'}`,
+        color: loading || !identifier.trim() ? c.text3 : PLAN_BTN_COLORS[plan],
+        cursor: loading || !identifier.trim() ? 'default' : 'pointer',
       }}>
         {loading ? 'Выдаём доступ...' : `${selectedPlan?.icon || ''} Выдать ${selectedPlan?.label || ''}`}
         {!loading && plan !== 'custom' && selectedPlan?.credits ? ` — ${selectedPlan.credits} ген.` : ''}

@@ -1,39 +1,83 @@
 // ═══════════════════════════════════════════════════════════════
 // POST /api/admin/grant-access
-// Выдаёт бесплатный доступ пользователю по Telegram UID
+// Выдаёт бесплатный доступ пользователю
+//
+// Поддерживает идентификацию по:
+//   - Telegram ID (числовой)
+//   - Email (Firebase Auth)
+//   - Firebase UID (строка)
 //
 // Body:
-//   uid        string  — Telegram user ID (числовой)
+//   identifier string  — Telegram ID, email или Firebase UID
 //   plan       string  — 'trial' | 'base' | 'pro' | 'custom'
 //   credits    number  — если plan === 'custom', кол-во кредитов
-//   note       string  — комментарий (зачем выдали, опционально)
+//   note       string  — комментарий (опционально)
 //
 // Поведение:
+//   - По email: ищет пользователя в Firebase Auth → получает UID
 //   - Если у пользователя нет подписки — создаёт новую
-//   - Если есть — добавляет кредиты к текущему балансу (merge)
-//   - Всегда помечает grant как isGranted: true (не тестовый, не оплаченный)
+//   - Если есть — добавляет кредиты к текущему балансу
 // ═══════════════════════════════════════════════════════════════
 
 import { ensureFirebaseAdmin } from '../_firebase-admin.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import { checkAdminAuth } from './verify.js';
 
 ensureFirebaseAdmin();
 const db = getFirestore();
 
-// Кредиты по тарифу (зеркало из payment-webhook.js)
+// Кредиты по тарифу
 const PLAN_CREDITS = {
   trial: 25,
   base: 100,
   pro: 1000,
 };
 
-const PLAN_LABELS = {
-  trial: 'Старт (25 кред.)',
-  base: 'Про (100 кред.)',
-  pro: 'Бизнес (1000 кред.)',
-  custom: 'Ручной',
-};
+/**
+ * Определяет тип идентификатора и возвращает Firebase UID
+ */
+async function resolveUid(identifier) {
+  const clean = String(identifier).trim();
+  if (!clean) throw new Error('Идентификатор пустой');
+
+  // 1. Email — содержит @
+  if (clean.includes('@') && clean.includes('.')) {
+    try {
+      const userRecord = await getAuth().getUserByEmail(clean);
+      return {
+        uid: userRecord.uid,
+        resolvedFrom: 'email',
+        displayInfo: `${clean} → ${userRecord.uid}`,
+        email: clean,
+      };
+    } catch (err) {
+      if (err.code === 'auth/user-not-found') {
+        throw new Error(`Пользователь с email "${clean}" не найден в Firebase Auth`);
+      }
+      throw new Error(`Ошибка поиска по email: ${err.message}`);
+    }
+  }
+
+  // 2. Чисто числовой — Telegram ID
+  const numericOnly = clean.replace(/\D/g, '');
+  if (numericOnly && numericOnly === clean) {
+    return {
+      uid: numericOnly,
+      resolvedFrom: 'telegram_id',
+      displayInfo: `TG ID ${numericOnly}`,
+      email: null,
+    };
+  }
+
+  // 3. Всё остальное — Firebase UID (строка)
+  return {
+    uid: clean,
+    resolvedFrom: 'firebase_uid',
+    displayInfo: `UID ${clean}`,
+    email: null,
+  };
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -43,24 +87,29 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
   // ── Проверка прав доступа ──
-  const auth = checkAdminAuth(req);
-  if (!auth.ok) {
+  const adminAuth = checkAdminAuth(req);
+  if (!adminAuth.ok) {
     return res.status(403).json({ ok: false, error: 'Нет доступа' });
   }
 
-  const { uid, plan = 'trial', credits: customCredits, note = '' } = req.body || {};
+  const { identifier, uid: legacyUid, plan = 'trial', credits: customCredits, note = '' } = req.body || {};
+  const rawIdentifier = identifier || legacyUid; // обратная совместимость с полем uid
 
-  if (!uid) {
-    return res.status(400).json({ ok: false, error: 'uid обязателен' });
+  if (!rawIdentifier) {
+    return res.status(400).json({ ok: false, error: 'Укажите Telegram ID, email или UID пользователя' });
   }
 
-  // Нормализуем uid — убираем пробелы, @ и всё лишнее
-  const cleanUid = String(uid).trim().replace('@', '').replace(/\D/g, '');
-  if (!cleanUid || isNaN(Number(cleanUid))) {
-    return res.status(400).json({ ok: false, error: 'uid должен быть числовым Telegram ID' });
+  // ── Резолвим идентификатор в UID ──
+  let resolved;
+  try {
+    resolved = await resolveUid(rawIdentifier);
+  } catch (err) {
+    return res.status(400).json({ ok: false, error: err.message });
   }
 
-  // Кол-во кредитов
+  const { uid: resolvedUid, resolvedFrom, displayInfo, email } = resolved;
+
+  // ── Кол-во кредитов ──
   let creditsToGrant;
   if (plan === 'custom') {
     creditsToGrant = parseInt(customCredits, 10);
@@ -75,47 +124,50 @@ export default async function handler(req, res) {
   }
 
   try {
-    const ref = db.doc(`users/${cleanUid}/subscription/current`);
+    const ref = db.doc(`users/${resolvedUid}/subscription/current`);
     const snap = await ref.get();
     const now = new Date().toISOString();
 
     const grantEntry = {
       planId: plan,
       method: 'admin_grant',
-      grantedBy: auth.user?.id || 'admin',
-      grantedByName: auth.user?.firstName || 'Admin',
+      grantedBy: adminAuth.user?.id || 'admin',
+      grantedByName: adminAuth.user?.firstName || 'Admin',
       amount: creditsToGrant,
       date: now,
       note: note || '',
-      isGranted: true,       // бесплатная выдача
-      isTest: false,         // считается как реальный доступ
-      providerChargeId: 'ADMIN_GRANT', // не пустой → не считается тестовым
+      resolvedFrom,         // как нашли юзера: email, telegram_id, firebase_uid
+      originalIdentifier: rawIdentifier,
+      isGranted: true,
+      isTest: false,
+      providerChargeId: 'ADMIN_GRANT',
     };
 
     if (!snap.exists) {
-      // Пользователь не существует в системе — создаём запись
       await ref.set({
         plan: plan === 'custom' ? 'trial' : plan,
         credits: creditsToGrant,
         creditsTotal: creditsToGrant,
         planActivatedAt: FieldValue.serverTimestamp(),
-        planExpiresAt: null,       // бесплатный доступ — без срока
+        planExpiresAt: null,
         payments: [grantEntry],
         grantedByAdmin: true,
+        ...(email && { email }),
       });
 
-      console.log(`✅ [admin/grant] СОЗДАН новый пользователь ${cleanUid}, план: ${plan}, кредитов: ${creditsToGrant}. Выдал: ${auth.user?.firstName}`);
+      console.log(`✅ [admin/grant] СОЗДАН ${displayInfo}, план: ${plan}, кредитов: ${creditsToGrant}. Выдал: ${adminAuth.user?.firstName}`);
 
       return res.status(200).json({
         ok: true,
         action: 'created',
-        uid: cleanUid,
+        uid: resolvedUid,
+        resolvedFrom,
+        displayInfo,
         plan,
         creditsGranted: creditsToGrant,
         newCredits: creditsToGrant,
       });
     } else {
-      // Пользователь уже есть — добавляем кредиты поверх текущего баланса
       const existing = snap.data();
       const currentCredits = existing.credits || 0;
 
@@ -127,12 +179,14 @@ export default async function handler(req, res) {
       });
 
       const newCredits = currentCredits + creditsToGrant;
-      console.log(`✅ [admin/grant] +${creditsToGrant} кред. → пользователь ${cleanUid} (было: ${currentCredits}, стало: ${newCredits}). Выдал: ${auth.user?.firstName}`);
+      console.log(`✅ [admin/grant] +${creditsToGrant} кред. → ${displayInfo} (было: ${currentCredits}, стало: ${newCredits}). Выдал: ${adminAuth.user?.firstName}`);
 
       return res.status(200).json({
         ok: true,
         action: 'topup',
-        uid: cleanUid,
+        uid: resolvedUid,
+        resolvedFrom,
+        displayInfo,
         plan,
         creditsGranted: creditsToGrant,
         previousCredits: currentCredits,

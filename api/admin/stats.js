@@ -50,7 +50,7 @@ async function fetchStats() {
   const [globalSnap, dailySnap, subSnaps, userRefs] = await Promise.all([
     db.doc('_stats/global').get(),
     db.doc(`_stats/daily/${today}/counts`).get(),
-    db.collectionGroup('subscription').where('__name__', '>=', '').get(), // все subscription/current
+    db.collectionGroup('subscription').get(),
     db.collection('users').listDocuments(),
   ]);
 
