@@ -1,40 +1,36 @@
 // ═══════════════════════════════════════════════════════════════
 // POST /api/create-payment
-// Создаёт инвойс Telegram Stars для покупки тарифа
+// Создаёт платеж в ЮKassa для покупки тарифа
 // Body: { planId: 'trial' | 'base' | 'pro', uid: string }
-// Returns: { ok: true, invoiceLink: string }
+// Returns: { ok: true, invoiceLink: string } (confirmation_url)
 // ═══════════════════════════════════════════════════════════════
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+import crypto from 'crypto';
+import { alertOnError } from './_admin-alerts.js';
 
-// Цены в Telegram Stars (1 Star ≈ 0.013 $)
-// 390 RUB ≈ ~4.3$ → ~330 Stars (используем 330)
-// 3500 RUB ≈ ~38.5$ → ~2960 Stars → 99 Stars (промо тест)
-// 9900 RUB ≈ ~109$ → ~8380 Stars → 299 Stars (промо тест)
+const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID || '1373290';
+const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY;
+const VITE_APP_URL = process.env.VITE_APP_URL || 'https://vton-mvp-omega.vercel.app';
+
+// Цены тарифов в рублях (согласно финансовому плану)
 const PLAN_CONFIG = {
   trial: {
-    title: '🎯 Тест-драйв — 25 кадров',
-    description: 'Полный доступ к генерации на 25 кадров. Без сохранения модели и локации.',
+    title: '🎯 Селлер-Студия: Тариф «Старт» — 25 кадров',
+    description: 'Полный доступ к генерации на 25 кадров.',
     payload: 'plan_trial',
-    currency: 'XTR', // Telegram Stars currency code
-    prices: [{ label: 'Тест-драйв (25 кадров)', amount: 15 }], // 15 Stars
     priceRub: 500,
   },
   base: {
-    title: '⚡ Про — 100 кадров/мес',
-    description: '100 кадров в месяц. Свои локации, сохранение моделей, пакетная генерация.',
+    title: '⚡ Селлер-Студия: Тариф «Про» — 100 кадров/мес',
+    description: '100 кадров в месяц, свои локации, сохранение моделей.',
     payload: 'plan_base',
-    currency: 'XTR',
-    prices: [{ label: 'Про (100 кадров/мес)', amount: 120 }], // 120 Stars
-    priceRub: 4990,
+    priceRub: 3000,
   },
   pro: {
-    title: '🚀 Бизнес — Безлимит/мес',
-    description: 'Безлимит генераций (fair use 1000 кадров/мес). Полный доступ, Identity Preservation.',
+    title: '🚀 Селлер-Студия: Тариф «Бизнес» — Безлимит/мес',
+    description: 'Безлимит генераций (до 1000 кадров/мес), полный доступ.',
     payload: 'plan_pro',
-    currency: 'XTR',
-    prices: [{ label: 'Бизнес (Безлимит/мес)', amount: 350 }], // 350 Stars
-    priceRub: 15990,
+    priceRub: 10000,
   },
 };
 
@@ -49,11 +45,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
-  if (!BOT_TOKEN) {
-    return res.status(500).json({ ok: false, error: 'Bot token not configured' });
+  if (!YOOKASSA_SECRET_KEY) {
+    return res.status(500).json({ ok: false, error: 'Yookassa secret key not configured' });
   }
 
-  const { planId, uid, chatId } = req.body || {};
+  const { planId, uid } = req.body || {};
 
   if (!planId || !uid) {
     return res.status(400).json({ ok: false, error: 'planId and uid are required' });
@@ -65,40 +61,59 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Create invoice link via Telegram Bot API
-    const tgRes = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/createInvoiceLink`, {
+    const idempotencyKey = crypto.randomUUID();
+    const authHeader = 'Basic ' + Buffer.from(`${YOOKASSA_SHOP_ID}:${YOOKASSA_SECRET_KEY}`).toString('base64');
+
+    // Делаем запрос к API ЮKassa для создания платежа
+    const ykRes = await fetch('https://api.yookassa.ru/v3/payments', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': authHeader,
+        'Idempotency-Key': idempotencyKey,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
-        title: plan.title,
-        description: plan.description,
-        payload: `${plan.payload}:${uid}`, // uid encoded so webhook knows who paid
-        currency: plan.currency,
-        prices: plan.prices,
-        // Optional: photo for invoice
-        // photo_url: 'https://vton-mvp-omega.vercel.app/og-image.png',
+        amount: {
+          value: plan.priceRub.toFixed(2),
+          currency: 'RUB',
+        },
+        capture: true, // Автоматическое списание денег после успешной авторизации карты
+        confirmation: {
+          type: 'redirect',
+          return_url: `${VITE_APP_URL}/?payment=success&plan=${planId}`,
+        },
+        description: plan.title,
+        metadata: {
+          uid: uid,
+          planId: planId,
+        },
       }),
     });
 
-    const tgData = await tgRes.json();
+    const ykData = await ykRes.json();
 
-    if (!tgData.ok) {
-      console.error('Telegram API error:', tgData);
+    if (ykRes.status !== 200) {
+      console.error('Yookassa API error:', ykData);
+      alertOnError(
+        { message: ykData.description || 'Yookassa API error', status: ykRes.status },
+        `create-payment Yookassa API [${planId}:${uid}]`
+      ).catch(() => {});
       return res.status(500).json({
         ok: false,
-        error: tgData.description || 'Telegram API error',
+        error: ykData.description || 'Yookassa API error',
       });
     }
 
+    // Возвращаем confirmation_url под ключом invoiceLink для совместимости с фронтом
     return res.status(200).json({
       ok: true,
-      invoiceLink: tgData.result,
+      invoiceLink: ykData.confirmation.confirmation_url,
       planId,
       priceRub: plan.priceRub,
-      priceStars: plan.prices[0].amount,
     });
   } catch (err) {
     console.error('create-payment error:', err);
+    alertOnError(err, `create-payment [${req.body?.planId}:${req.body?.uid}]`).catch(() => {});
     return res.status(500).json({ ok: false, error: err.message });
   }
 }

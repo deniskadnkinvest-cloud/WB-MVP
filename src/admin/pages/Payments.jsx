@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAdmin } from '../AdminApp';
 
-const PLAN_LABELS = { trial: '🎯 Тест-драйв', base: '⚡ Про', pro: '🚀 Бизнес' };
+const PLAN_LABELS = { trial: '🎯 Старт', base: '⚡ Про', pro: '🚀 Бизнес' };
 const PLAN_COLORS = { trial: '#f59e0b', base: '#3b82f6', pro: '#8b5cf6' };
-const PLAN_PRICES = { trial: 500, base: 4990, pro: 15990 };
 
 function Card({ children, style = {} }) {
   return (
@@ -26,18 +25,22 @@ function PaymentRow({ p }) {
     + ' ' + date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
     : '—';
 
+  const isTest = p.isTest === true;
+  const planColor = PLAN_COLORS[p.planId] || '#6b7280';
+
   return (
     <div style={{
       display: 'flex', alignItems: 'center',
       padding: '11px 0',
       borderBottom: '1px solid rgba(255,255,255,0.05)',
       gap: '10px',
+      opacity: isTest ? 0.5 : 1,
     }}>
       {/* Plan badge */}
       <div style={{
         width: '36px', height: '36px', borderRadius: '10px',
-        background: `${PLAN_COLORS[p.planId]}22`,
-        border: `1px solid ${PLAN_COLORS[p.planId]}44`,
+        background: `${planColor}22`,
+        border: `1px solid ${planColor}44`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: '15px', flexShrink: 0,
       }}>
@@ -46,8 +49,15 @@ function PaymentRow({ p }) {
 
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff', marginBottom: '2px' }}>
+        <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
           {PLAN_LABELS[p.planId] || p.planId}
+          {isTest && (
+            <span style={{
+              fontSize: '9px', padding: '1px 5px', borderRadius: '4px',
+              background: 'rgba(245,158,11,0.2)', color: '#f59e0b',
+              textTransform: 'uppercase', fontWeight: 700,
+            }}>тест</span>
+          )}
         </div>
         <div style={{
           fontFamily: 'monospace', fontSize: '10px',
@@ -57,15 +67,20 @@ function PaymentRow({ p }) {
           {p.uid}
         </div>
         <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '2px' }}>
-          {dateStr} · {p.method === 'telegram_stars' ? '⭐ Stars' : p.method || 'Stars'}
+          {dateStr} · {p.method === 'telegram_stars' ? '⭐ Stars' : p.method === 'yookassa' ? '💳 ЮKassa' : p.method || '⭐ Stars'}
         </div>
       </div>
 
-      {/* Amount */}
+      {/* Amount — реальные Stars */}
       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <div style={{ fontSize: '15px', fontWeight: 700, color: '#4ade80' }}>
-          +{(PLAN_PRICES[p.planId] || 0).toLocaleString('ru-RU')} ₽
+        <div style={{ fontSize: '15px', fontWeight: 700, color: isTest ? 'rgba(255,255,255,0.3)' : '#4ade80' }}>
+          {p.stars ? `${p.stars} ⭐` : '—'}
         </div>
+        {p.currency && p.currency !== 'XTR' && (
+          <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)' }}>
+            {p.currency}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -73,10 +88,12 @@ function PaymentRow({ p }) {
 
 export default function Payments() {
   const { authHeaders } = useAdmin();
-  const [payments, setPayments] = useState([]);
+  const [realPayments, setRealPayments] = useState([]);
+  const [testPayments, setTestPayments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filterPlan, setFilterPlan] = useState('all');
+  const [showMode, setShowMode] = useState('real'); // 'real' | 'test' | 'all'
 
   const [totals, setTotals] = useState({ total: 0, week: 0, today: 0 });
 
@@ -88,11 +105,12 @@ export default function Payments() {
       .then(r => r.json())
       .then(res => {
         if (res.ok) {
-          setPayments(res.data.recentPayments || []);
+          setRealPayments(res.data.recentPayments || []);
+          setTestPayments(res.data.recentTestPayments || []);
           setTotals({
-            total: res.data.revenueTotal,
-            week: res.data.revenueWeek,
-            today: res.data.revenueToday,
+            total: res.data.starsTotal || 0,
+            week: res.data.starsWeek || 0,
+            today: res.data.starsToday || 0,
           });
         } else {
           setError(res.error);
@@ -104,20 +122,23 @@ export default function Payments() {
 
   useEffect(() => { load(); }, []);
 
-  const filtered = payments.filter(p =>
+  // Собираем платежи по режиму отображения
+  let displayPayments = [];
+  if (showMode === 'real') displayPayments = realPayments;
+  else if (showMode === 'test') displayPayments = testPayments;
+  else displayPayments = [...realPayments, ...testPayments].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  const filtered = displayPayments.filter(p =>
     filterPlan === 'all' || p.planId === filterPlan
   );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '8px' }}>
 
-      {/* Revenue summary */}
-      <div style={{
-        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
-        gap: '8px',
-      }}>
+      {/* Revenue summary — только реальные Stars */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
         {[
-          { label: 'Всего', value: totals.total, color: '#4ade80' },
+          { label: 'Всего Stars', value: totals.total, color: '#4ade80' },
           { label: 'Неделя', value: totals.week, color: '#a78bfa' },
           { label: 'Сегодня', value: totals.today, color: '#38bdf8' },
         ].map(item => (
@@ -131,33 +152,38 @@ export default function Payments() {
               {item.label}
             </div>
             <div style={{ fontSize: '15px', fontWeight: 700, color: item.color }}>
-              {item.value.toLocaleString('ru-RU')} ₽
+              {item.value} ⭐
             </div>
           </div>
         ))}
       </div>
 
-      {/* Filter */}
+      {/* Mode: Real / Test / All */}
       <div style={{ display: 'flex', gap: '6px' }}>
         {[
+          { id: 'real', label: `Реальные (${realPayments.length})` },
+          { id: 'test', label: `Тестовые (${testPayments.length})` },
           { id: 'all', label: 'Все' },
-          { id: 'trial', label: '🎯 Тест' },
-          { id: 'base', label: '⚡ Про' },
-          { id: 'pro', label: '🚀 Бизнес' },
-        ].map(f => (
+        ].map(m => (
           <button
-            key={f.id}
-            onClick={() => setFilterPlan(f.id)}
+            key={m.id}
+            onClick={() => setShowMode(m.id)}
             style={{
-              padding: '6px 12px', borderRadius: '8px', fontSize: '12px',
-              fontWeight: filterPlan === f.id ? 600 : 400,
-              background: filterPlan === f.id ? 'rgba(139,92,246,0.2)' : 'rgba(255,255,255,0.04)',
-              border: `1px solid ${filterPlan === f.id ? 'rgba(139,92,246,0.5)' : 'rgba(255,255,255,0.08)'}`,
-              color: filterPlan === f.id ? '#a78bfa' : 'rgba(255,255,255,0.5)',
+              padding: '6px 12px', borderRadius: '8px', fontSize: '11px',
+              fontWeight: showMode === m.id ? 600 : 400,
+              background: showMode === m.id
+                ? (m.id === 'test' ? 'rgba(245,158,11,0.15)' : 'rgba(139,92,246,0.2)')
+                : 'rgba(255,255,255,0.04)',
+              border: `1px solid ${showMode === m.id
+                ? (m.id === 'test' ? 'rgba(245,158,11,0.4)' : 'rgba(139,92,246,0.5)')
+                : 'rgba(255,255,255,0.08)'}`,
+              color: showMode === m.id
+                ? (m.id === 'test' ? '#f59e0b' : '#a78bfa')
+                : 'rgba(255,255,255,0.5)',
               cursor: 'pointer', transition: 'all 0.15s',
             }}
           >
-            {f.label}
+            {m.label}
           </button>
         ))}
         <button onClick={load} style={{
@@ -165,6 +191,31 @@ export default function Payments() {
           background: 'transparent', border: '1px solid rgba(255,255,255,0.1)',
           color: 'rgba(255,255,255,0.4)', cursor: 'pointer',
         }}>↻</button>
+      </div>
+
+      {/* Filter by plan */}
+      <div style={{ display: 'flex', gap: '6px' }}>
+        {[
+          { id: 'all', label: 'Все тарифы' },
+          { id: 'trial', label: '🎯 Старт' },
+          { id: 'base', label: '⚡ Про' },
+          { id: 'pro', label: '🚀 Бизнес' },
+        ].map(f => (
+          <button
+            key={f.id}
+            onClick={() => setFilterPlan(f.id)}
+            style={{
+              padding: '5px 10px', borderRadius: '8px', fontSize: '11px',
+              fontWeight: filterPlan === f.id ? 600 : 400,
+              background: filterPlan === f.id ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${filterPlan === f.id ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.06)'}`,
+              color: filterPlan === f.id ? '#818cf8' : 'rgba(255,255,255,0.4)',
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -183,12 +234,14 @@ export default function Payments() {
         </Card>
       ) : filtered.length === 0 ? (
         <Card style={{ textAlign: 'center', padding: '32px 16px' }}>
-          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '13px' }}>Платежей нет</p>
+          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '13px' }}>
+            {showMode === 'real' ? 'Реальных платежей пока нет' : showMode === 'test' ? 'Тестовых платежей нет' : 'Платежей нет'}
+          </p>
         </Card>
       ) : (
         <Card style={{ padding: '0 16px' }}>
           <div style={{ padding: '10px 0 6px', fontSize: '12px', color: 'rgba(255,255,255,0.35)' }}>
-            {filtered.length} платежей (последние 20)
+            {filtered.length} {showMode === 'test' ? 'тестовых' : showMode === 'real' ? 'реальных' : ''} платежей
           </div>
           {filtered.map((p, i) => <PaymentRow key={i} p={p} />)}
         </Card>

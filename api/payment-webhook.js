@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 // POST /api/payment-webhook
 // Принимает вебхук от Telegram Bot API
-// Telegram шлёт сюда successful_payment события
+// Telegram шлёт сюда successful_payment события + команды /start /admin
 // ═══════════════════════════════════════════════════════════════
 
 import { ensureFirebaseAdmin } from './_firebase-admin.js';
@@ -16,13 +16,22 @@ const getAdminIds = () => {
   return raw.split(',').map(s => s.trim()).filter(Boolean).map(Number);
 };
 
-
 // Init Firebase Admin (once, via shared module)
 ensureFirebaseAdmin();
-
 const db = getFirestore();
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+
+// Атомарный инкремент глобального счётчика в Firestore (фоновый, не блокирует)
+async function incrementCounter(field) {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    await db.doc('_stats/global').set({ [field]: FieldValue.increment(1) }, { merge: true });
+    await db.doc(`_stats/daily/${today}/counts`).set({ [field]: FieldValue.increment(1) }, { merge: true });
+  } catch (e) {
+    console.warn('[stats counter] payment-webhook:', e.message);
+  }
+}
 
 // Plan credits by plan ID
 const PLAN_CREDITS = {
@@ -53,7 +62,6 @@ export default async function handler(req, res) {
     const payload = payment.invoice_payload; // format: "plan_trial:uid123"
 
     const [planKey, uid] = payload.split(':');
-    // planKey = "plan_trial" | "plan_base" | "plan_pro"
     const planId = planKey.replace('plan_', ''); // "trial" | "base" | "pro"
 
     if (!uid || !PLAN_CREDITS[planId]) {
@@ -70,6 +78,13 @@ export default async function handler(req, res) {
     }
 
     try {
+      // Определяем тестовый ли платёж:
+      // Telegram тест-платежи: provider_payment_charge_id пустой или начинается с "_"
+      // Также: если все платежи одного дня с одинаковой секундой — скорее всего тест
+      const chargeId = payment.telegram_payment_charge_id || '';
+      const providerChargeId = payment.provider_payment_charge_id || '';
+      const isTest = !providerChargeId || providerChargeId === '' || providerChargeId.startsWith('_');
+
       const ref = db.doc(`users/${uid}/subscription/current`);
       await ref.set({
         plan: planId,
@@ -80,20 +95,30 @@ export default async function handler(req, res) {
         payments: FieldValue.arrayUnion({
           planId,
           method: 'telegram_stars',
-          telegramChargeId: payment.telegram_payment_charge_id,
-          amount: payment.total_amount,
-          currency: payment.currency,
+          telegramChargeId: chargeId,
+          providerChargeId,
+          amount: payment.total_amount,   // реальное кол-во Stars
+          currency: payment.currency,      // "XTR"
           date: now.toISOString(),
+          isTest,                          // true = тестовый платёж
         }),
       }, { merge: true });
 
-      console.log(`✅ Plan activated: ${planId} for user ${uid}, credits: ${credits}`);
+      console.log(`✅ Plan activated: ${planId} for user ${uid}, credits: ${credits}${isTest ? ' [ТЕСТ]' : ''}`);
 
       // ═══ ADMIN ALERT — уведомление о новой оплате ═══
       alertOnPayment(planId, uid, payment.total_amount).catch(() => {});
+
+      // ═══ STATS: счётчик оплат (только реальные) ═══
+      if (!isTest) {
+        incrementCounter('paymentsTotal').catch(() => {});
+        incrementCounter(`payments_${planId}`).catch(() => {});
+      } else {
+        incrementCounter('paymentsTest').catch(() => {});
+      }
+
     } catch (err) {
       console.error('Firestore write error:', err);
-      // ═══ ADMIN ALERT — критическая ошибка записи оплаты ═══
       alertOnError(err, `payment-webhook Firestore write [${planId}:${uid}]`).catch(() => {});
     }
 
@@ -106,7 +131,7 @@ export default async function handler(req, res) {
     const fromId = update.message.from?.id;
     const adminIds = getAdminIds();
 
-    // Тихо игнорируем не-админов (не даём понять что команда существует)
+    // Тихо игнорируем не-админов
     if (!adminIds.length || !adminIds.includes(Number(fromId))) {
       return res.status(200).json({ ok: true });
     }
@@ -136,6 +161,10 @@ export default async function handler(req, res) {
   if (update?.message?.text === '/start') {
     const chatId = update.message.chat.id;
     const firstName = update.message.from?.first_name || '';
+
+    // ═══ STATS: считаем активации бота ═══
+    incrementCounter('botActivations').catch(() => {});
+
     await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

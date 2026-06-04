@@ -1,4 +1,26 @@
 
+import { alertOnError } from './_admin-alerts.js';
+import { ensureFirebaseAdmin } from './_firebase-admin.js';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+
+ensureFirebaseAdmin();
+const _db = getFirestore();
+
+// Атомарно инкрементирует глобальный счётчик в Firestore
+async function incrementGlobalCounter(field) {
+  try {
+    const today = new Date().toISOString().slice(0, 10); // "2026-06-04"
+    await _db.doc('_stats/global').set({
+      [field]: FieldValue.increment(1),
+    }, { merge: true });
+    await _db.doc(`_stats/daily/${today}/counts`).set({
+      [field]: FieldValue.increment(1),
+    }, { merge: true });
+  } catch (e) {
+    // Не ломаем основной флоу — тихо пишем в лог
+    console.warn('[stats counter] Failed:', e.message);
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // SKIN ULTRA-REALISM SYSTEM PROMPT (применяется ГЛОБАЛЬНО)
@@ -1117,10 +1139,20 @@ ${skinPrompt}
     console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Картинка сгенерирована. Downloading result...`);
     const dl = await downloadToBase64(resultUrl);
     if (!dl) throw new Error("Failed to download final generated image from KIE.ai");
-    
+
+    // ═══ STATS: атомарно инкрементируем счётчик генераций ═══
+    const mode = req.body?.isProductMode ? 'generationsProduct' : req.body?.isCalibration ? 'generationsCalibration' : 'generationsFashion';
+    incrementGlobalCounter('generationsTotal').catch(() => {});
+    incrementGlobalCounter(mode).catch(() => {});
+
     return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl });
   } catch (error) {
-    console.error(`❌ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Ошибка:`, error.message);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.error(`❌ [${elapsed}s] Ошибка:`, error.message);
+    
+    // ═══ ADMIN ALERT — отправка в Telegram (фоновая, не блокирует ответ) ═══
+    const mode = req.body?.isProductMode ? 'product' : req.body?.isCalibration ? 'calibration' : req.body?.isPhotoEdit ? 'photo_edit' : 'fashion';
+    alertOnError(error, `generate-image [${mode}] ${elapsed}s`).catch(() => {});
     
     // Detect quota/rate-limit errors and return friendly messages
     const msg = error.message || '';

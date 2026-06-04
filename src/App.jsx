@@ -230,109 +230,77 @@ function App() {
     loadData();
   }, [user]);
 
+  // Проверка успешной оплаты ЮKassa при возврате на сайт (return_url)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment') === 'success') {
+      const plan = params.get('plan') || '';
+      setStatusText(`⏳ Платеж обрабатывается. Ваш тариф «${plan.toUpperCase()}» активируется...`);
+      setStatusType('success');
+
+      // Очищаем параметры из адресной строки без перезагрузки
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, document.title, newUrl);
+
+      // Запускаем поллинг подписки в течение 12 секунд
+      if (user && user.uid) {
+        let attempts = 0;
+        const interval = setInterval(async () => {
+          attempts++;
+          try {
+            const sub = await getSubscription(user.uid);
+            if (sub && sub.plan === plan) {
+              setSubscription(sub);
+              setStatusText(`✅ Тариф «${plan.toUpperCase()}» успешно активирован! Начислено ${sub.credits} кадров.`);
+              setStatusType('success');
+              clearInterval(interval);
+            }
+          } catch (e) {
+            console.error('Error polling subscription:', e);
+          }
+          if (attempts >= 8) {
+            clearInterval(interval);
+          }
+        }, 1500);
+      }
+    }
+  }, [user]);
+
   // Handle plan selection from PricingModal
   const handleSelectPlan = async (planId) => {
     if (!user) return;
     setPricingLoading(true);
     try {
-      // ═══ TELEGRAM STARS PAYMENT FLOW ═══
-      // В Telegram: создаём инвойс → openInvoice → webhook записывает в Firestore
-      // Вне Telegram: fallback на прямую активацию (тестовый режим)
-      if (isTelegram && window.Telegram?.WebApp?.openInvoice) {
-        // Шаг 1: Создаём инвойс через API
-        const invoiceResp = await fetch('/api/create-payment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ planId, uid: user.uid }),
-        });
-        const invoiceData = await invoiceResp.json();
+      // Шаг 1: Создаём платёжную сессию ЮKassa на бэкенде
+      const invoiceResp = await fetch('/api/create-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ planId, uid: user.uid }),
+      });
+      const invoiceData = await invoiceResp.json();
 
-        if (!invoiceData.ok || !invoiceData.invoiceLink) {
-          throw new Error(invoiceData.error || 'Не удалось создать счёт');
-        }
+      if (!invoiceData.ok || !invoiceData.invoiceLink) {
+        throw new Error(invoiceData.error || 'Не удалось создать платеж');
+      }
 
-        // Шаг 2: Открываем нативное окно оплаты Telegram Stars
-        await new Promise((resolve, reject) => {
-          window.Telegram.WebApp.openInvoice(invoiceData.invoiceLink, (status) => {
-            if (status === 'paid') {
-              resolve();
-            } else if (status === 'cancelled') {
-              reject(new Error('CANCELLED'));
-            } else {
-              reject(new Error(`Оплата не прошла: ${status}`));
-            }
-          });
-        });
+      // Шаг 2: Перенаправляем пользователя на форму оплаты ЮKassa
+      const paymentUrl = invoiceData.invoiceLink;
+      
+      setShowPricing(false);
+      setStatusText('⏳ Перенаправляем на защищенную страницу оплаты ЮKassa...');
+      setStatusType('success');
 
-        // Шаг 3: Ждём пока webhook запишет подписку в Firestore (до 5 секунд)
-        let sub = null;
-        for (let i = 0; i < 10; i++) {
-          await new Promise(r => setTimeout(r, 500));
-          sub = await getSubscription(user.uid);
-          if (sub.plan === planId) break;
-        }
-
-        if (sub && sub.plan === planId) {
-          setSubscription(sub);
-          setShowPricing(false);
-          setStatusText(`✅ Тариф «${planId.toUpperCase()}» оплачен! ${sub.credits} кредитов`);
-          setStatusType('success');
-        } else {
-          // Webhook ещё не дошёл — показываем промежуточный статус
-          setShowPricing(false);
-          setStatusText('⏳ Оплата принята, активация через несколько секунд...');
-          setStatusType('success');
-          // Попробуем ещё раз через 5 секунд
-          setTimeout(async () => {
-            const freshSub = await getSubscription(user.uid);
-            setSubscription(freshSub);
-            if (freshSub.plan === planId) {
-              setStatusText(`✅ Тариф «${planId.toUpperCase()}» активирован! ${freshSub.credits} кредитов`);
-            }
-          }, 5000);
-        }
-        return;
-
+      if (window.Telegram?.WebApp?.openLink) {
+        // Открываем платежный шлюз прямо в Telegram
+        window.Telegram.WebApp.openLink(paymentUrl);
       } else {
-        // ═══ FALLBACK: Прямая активация (вне Telegram / тестовый режим) ═══
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('TIMEOUT')), 8000)
-        );
-
-        let result;
-        try {
-          result = await Promise.race([
-            activatePlan(user.uid, planId, { method: 'direct', note: 'Активация вне Telegram' }),
-            timeoutPromise,
-          ]);
-        } catch (firestoreErr) {
-          if (firestoreErr.message === 'TIMEOUT' || firestoreErr.code?.includes('permission')) {
-            console.warn('⚠️ Firestore write blocked/timed out — activating plan locally (session only)');
-            const { PLANS } = await import('./lib/subscriptionService');
-            const plan = PLANS[planId];
-            setSubscription({ plan: planId, credits: plan.credits, creditsTotal: plan.credits, planActivatedAt: new Date(), local: true });
-            setShowPricing(false);
-            setStatusText(`✅ Тариф «${planId.toUpperCase()}» активирован (сессия)! ${plan.credits} кредитов`);
-            setStatusType('success');
-            return;
-          }
-          throw firestoreErr;
-        }
-
-        setSubscription(await getSubscription(user.uid));
-        setShowPricing(false);
-        setStatusText(`✅ Тариф «${planId.toUpperCase()}» активирован! ${result.credits} кредитов`);
-        setStatusType('success');
+        // Fallback для обычного веб-интерфейса
+        window.location.href = paymentUrl;
       }
     } catch (err) {
-      if (err.message === 'CANCELLED') {
-        setStatusText('Оплата отменена');
-        setStatusType('');
-      } else {
-        console.error('Ошибка оплаты:', err);
-        setStatusText(`Ошибка: ${err.message}`);
-        setStatusType('error');
-      }
+      console.error('Ошибка оплаты:', err);
+      setStatusText(`Ошибка: ${err.message}`);
+      setStatusType('error');
     } finally {
       setPricingLoading(false);
     }
