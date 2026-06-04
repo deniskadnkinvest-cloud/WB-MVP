@@ -65,38 +65,48 @@ export function isAdminId(telegramId) {
   return adminIds.includes(Number(telegramId));
 }
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).end();
+/**
+ * Универсальная проверка авторизации админа по заголовкам или параметрам
+ */
+export function checkAdminAuth(req) {
+  const key = req.headers['x-admin-key'] || req.body?.accessKey;
+  const initData = req.headers['x-admin-init-data'] || req.body?.initData;
+  const ADMIN_ACCESS_KEY = process.env.ADMIN_ACCESS_KEY;
 
-  const { initData, accessKey } = req.body || {};
+  // 1. Проверяем по ключу доступа (Telegram Desktop / fallback)
+  if (key && ADMIN_ACCESS_KEY && key === ADMIN_ACCESS_KEY) {
+    return { ok: true, user: { id: 0, firstName: 'Admin', lastName: '', username: 'admin' } };
+  }
 
-  // ═══ Способ 1: HMAC-SHA256 initData (мобильный Telegram) ═══
+  // 2. Проверяем по Telegram initData (мобильный)
   if (initData && BOT_TOKEN) {
     const user = verifyTelegramInitData(initData);
     if (user && isAdminId(user.id)) {
-      return res.status(200).json({
+      return {
         ok: true,
         user: {
           id: user.id,
           firstName: user.first_name || '',
           lastName: user.last_name || '',
           username: user.username || '',
-        },
-      });
+        }
+      };
     }
   }
 
-  // ═══ Способ 2: Admin access key (Telegram Desktop) ═══
-  // Ключ передаётся в URL ботом, который уже проверил Telegram ID
-  if (accessKey && ADMIN_ACCESS_KEY && accessKey === ADMIN_ACCESS_KEY) {
-    return res.status(200).json({
-      ok: true,
-      user: { id: 0, firstName: 'Admin', lastName: '', username: '' },
-    });
+  return { ok: false };
+}
+
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Key, X-Admin-Init-Data');
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).end();
+
+  const auth = checkAdminAuth(req);
+  if (auth.ok) {
+    return res.status(200).json({ ok: true, user: auth.user });
   }
 
   return res.status(403).json({ ok: false, error: 'Access denied' });

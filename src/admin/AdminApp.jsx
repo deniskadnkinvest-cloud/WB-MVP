@@ -88,8 +88,13 @@ export default function AdminApp() {
     errors: <Errors />,
   };
 
+  const authHeaders = {
+    'X-Admin-Key': accessKey || '',
+    'X-Admin-Init-Data': initData || '',
+  };
+
   return (
-    <AdminContext.Provider value={{ adminUser, accessKey }}>
+    <AdminContext.Provider value={{ adminUser, accessKey, authHeaders }}>
       <AdminLayout activePage={activePage} onNavigate={setActivePage}>
         {pages[activePage] || pages.dashboard}
       </AdminLayout>

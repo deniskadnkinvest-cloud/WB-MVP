@@ -6,7 +6,7 @@
 
 import { ensureFirebaseAdmin } from '../_firebase-admin.js';
 import { getFirestore } from 'firebase-admin/firestore';
-import { verifyTelegramInitData, isAdminId } from './verify.js';
+import { checkAdminAuth } from './verify.js';
 
 ensureFirebaseAdmin();
 const db = getFirestore();
@@ -14,14 +14,13 @@ const db = getFirestore();
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Key');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Admin-Key, X-Admin-Init-Data');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'GET') return res.status(405).end();
 
-  // Проверка прав через admin access key
-  const key = req.headers['x-admin-key'];
-  const ADMIN_ACCESS_KEY = process.env.ADMIN_ACCESS_KEY;
-  if (!key || !ADMIN_ACCESS_KEY || key !== ADMIN_ACCESS_KEY) {
+  // Проверка прав (универсальная)
+  const auth = checkAdminAuth(req);
+  if (!auth.ok) {
     return res.status(403).json({ ok: false, error: 'Access denied' });
   }
 
