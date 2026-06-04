@@ -40,16 +40,11 @@ app.post('/api/payment-webhook', async (req, res) => {
   return paymentWebhookHandler(req, res);
 });
 
-// Dynamic Admin API Routing for Local Dev
-app.all('/api/admin/:endpoint', async (req, res) => {
-  const { endpoint } = req.params;
-  try {
-    const handler = await import(`./api/admin/${endpoint}.js`);
-    return handler.default(req, res);
-  } catch (err) {
-    console.error(`Local dev error handling admin ${endpoint}:`, err);
-    return res.status(404).json({ error: 'Not Found', details: err.message });
-  }
+import adminHandler from './api/admin.js';
+
+// Dynamic Admin API Routing using unified router
+app.all('/api/admin*', async (req, res) => {
+  return adminHandler(req, res);
 });
 
 const PORT = 3001;
