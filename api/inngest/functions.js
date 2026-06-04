@@ -152,4 +152,138 @@ export const processSku = inngest.createFunction(
 );
 
 // Экспортируем все функции для регистрации в Inngest
-export const functions = [catalogStarted, processSku];
+export const functions = [catalogStarted, processSku, broadcastSend];
+
+// ─────────────────────────────────────────────────────────────
+//  3. BROADCAST WORKER — Telegram рассылка по всей аудитории
+//     Батчами по 30 юзеров с паузой 1сек (обход 429 Telegram)
+// ─────────────────────────────────────────────────────────────
+import { getFirestore, FieldValue as FV } from 'firebase-admin/firestore';
+
+export const broadcastSend = inngest.createFunction(
+  {
+    id: 'broadcast-send',
+    name: 'Telegram Broadcast Sender',
+    triggers: [{ event: 'broadcast/send' }],
+    concurrency: { limit: 1 }, // Только 1 рассылка одновременно
+    retries: 1,
+  },
+  async ({ event, step }) => {
+    const { broadcastId, text, imageUrl, buttonText, buttonUrl, userIds } = event.data;
+    const db = getFirestore();
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const BATCH_SIZE = 30; // Telegram лимит: 30 сообщений/сек
+
+    console.log(`📢 [broadcast] Старт: ${broadcastId}, юзеров: ${userIds.length}`);
+
+    // Обновляем статус на "running"
+    await step.run('mark-running', async () => {
+      await db.collection('broadcasts').doc(broadcastId).update({
+        status: 'running',
+        startedAt: new Date().toISOString(),
+      });
+    });
+
+    // Создаём клавиатуру если задана кнопка
+    const replyMarkup = buttonText && buttonUrl
+      ? JSON.stringify({ inline_keyboard: [[{ text: buttonText, url: buttonUrl }]] })
+      : undefined;
+
+    let sentCount = 0;
+    let failedCount = 0;
+
+    // Отправка батчами
+    const batches = [];
+    for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
+      batches.push(userIds.slice(i, i + BATCH_SIZE));
+    }
+
+    for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+      const batch = batches[batchIdx];
+
+      const batchResult = await step.run(`send-batch-${batchIdx}`, async () => {
+        let batchSent = 0;
+        let batchFailed = 0;
+
+        for (const chatId of batch) {
+          try {
+            let url, body;
+
+            if (imageUrl) {
+              // Отправляем фото с подписью
+              url = `https://api.telegram.org/bot${botToken}/sendPhoto`;
+              body = {
+                chat_id: chatId,
+                photo: imageUrl,
+                caption: text,
+                parse_mode: 'HTML',
+                ...(replyMarkup && { reply_markup: replyMarkup }),
+              };
+            } else {
+              // Только текст
+              url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+              body = {
+                chat_id: chatId,
+                text,
+                parse_mode: 'HTML',
+                ...(replyMarkup && { reply_markup: replyMarkup }),
+              };
+            }
+
+            const resp = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+
+            if (resp.ok) {
+              batchSent++;
+            } else {
+              const err = await resp.json().catch(() => ({}));
+              console.warn(`[broadcast] Ошибка chatId=${chatId}: ${err.description || resp.status}`);
+              batchFailed++;
+            }
+          } catch (e) {
+            console.error(`[broadcast] Exception chatId=${chatId}:`, e.message);
+            batchFailed++;
+          }
+
+          // 33мс пауза между сообщениями (≈30 msg/сек max)
+          await new Promise(r => setTimeout(r, 33));
+        }
+
+        return { batchSent, batchFailed };
+      });
+
+      sentCount += batchResult.batchSent;
+      failedCount += batchResult.batchFailed;
+
+      // Обновляем прогресс в Firestore
+      await step.run(`update-progress-${batchIdx}`, async () => {
+        await db.collection('broadcasts').doc(broadcastId).update({
+          sentCount,
+          failedCount,
+        });
+      });
+
+      // Пауза 1 сек между батчами
+      if (batchIdx < batches.length - 1) {
+        await step.sleep(`batch-cooldown-${batchIdx}`, '1s');
+      }
+    }
+
+    // Завершаем рассылку
+    await step.run('mark-completed', async () => {
+      await db.collection('broadcasts').doc(broadcastId).update({
+        status: failedCount === userIds.length ? 'failed' : 'completed',
+        sentCount,
+        failedCount,
+        completedAt: new Date().toISOString(),
+      });
+    });
+
+    console.log(`✅ [broadcast] ${broadcastId} завершён: отправлено ${sentCount}, ошибок ${failedCount}`);
+    return { broadcastId, sentCount, failedCount };
+  }
+);
+

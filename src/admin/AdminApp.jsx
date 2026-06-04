@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Payments from './pages/Payments';
 import Errors from './pages/Errors';
+import Broadcasts from './pages/Broadcasts';
 import PlaceholderPage from './pages/PlaceholderPage';
 
 // ═══════════════════════════════════════════
@@ -99,7 +100,7 @@ export default function AdminApp() {
     templates: <PlaceholderPage title="Шаблоны" />,
     prompts: <PlaceholderPage title="GPT Промпты" />,
     categories: <PlaceholderPage title="Категории" />,
-    broadcasts: <PlaceholderPage title="Рассылки" />,
+    broadcasts: <Broadcasts />,
     funnels: <PlaceholderPage title="Воронки" />,
     referrals: <PlaceholderPage title="Рефералка" />,
     ai_limits: <PlaceholderPage title="AI Лимиты" />,
