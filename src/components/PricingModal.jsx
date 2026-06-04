@@ -3,12 +3,32 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PLANS } from '../lib/subscriptionService';
 import './PricingModal.css';
 
-export default function PricingModal({ isOpen, onClose, currentPlan, onSelectPlan, loading }) {
+const formatExpiryDate = (value) => {
+  if (!value) return null;
+  const date = typeof value.toDate === 'function'
+    ? value.toDate()
+    : new Date(value.seconds ? value.seconds * 1000 : value);
+
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString('ru-RU');
+};
+
+export default function PricingModal({
+  isOpen,
+  onClose,
+  currentPlan,
+  onSelectPlan,
+  loading,
+  subscription,
+  onCancelAutoRenew,
+  canceling,
+}) {
   const [selectedPlanId, setSelectedPlanId] = useState(null);
 
   if (!isOpen) return null;
 
   const plans = [PLANS.trial, PLANS.base, PLANS.pro];
+  const expiryDate = formatExpiryDate(subscription?.planExpiresAt);
 
   const handleSelect = (planId) => {
     setSelectedPlanId(planId);
@@ -112,9 +132,36 @@ export default function PricingModal({ isOpen, onClose, currentPlan, onSelectPla
               })}
             </div>
 
+            {subscription && subscription.plan !== 'none' && subscription.plan !== 'trial' && (
+              <div className="subscription-info-box">
+                <div className="subscription-info-text">
+                  <span>
+                    Статус: <b>{subscription.autoRenew
+                      ? '🔄 Автопродление активно'
+                      : '📅 Подписка действует, автопродление выключено'}</b>
+                  </span>
+                  {expiryDate && (
+                    <span className="subscription-expiry-date">
+                      Действует до: {expiryDate}
+                    </span>
+                  )}
+                </div>
+                {subscription.autoRenew && (
+                  <button
+                    className="cancel-auto-renew-btn"
+                    onClick={onCancelAutoRenew}
+                    disabled={canceling}
+                  >
+                    {canceling ? '⏳ Отмена...' : 'Отключить автопродление'}
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Footer */}
             <p className="pricing-footer">
-              🛠️ Тестовый режим — активация без реальной оплаты
+              Оплачивая тариф, вы соглашаетесь с{' '}
+              <a href="/offer" target="_blank" rel="noreferrer">условиями оферты</a>
             </p>
           </motion.div>
         </motion.div>

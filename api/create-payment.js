@@ -24,13 +24,13 @@ const PLAN_CONFIG = {
     title: '⚡ Селлер-Студия: Тариф «Про» — 100 кадров/мес',
     description: '100 кадров в месяц, свои локации, сохранение моделей.',
     payload: 'plan_base',
-    priceRub: 3000,
+    priceRub: 5000,
   },
   pro: {
     title: '🚀 Селлер-Студия: Тариф «Бизнес» — Безлимит/мес',
     description: 'Безлимит генераций (до 1000 кадров/мес), полный доступ.',
     payload: 'plan_pro',
-    priceRub: 10000,
+    priceRub: 14990,
   },
 };
 
@@ -78,6 +78,7 @@ export default async function handler(req, res) {
           currency: 'RUB',
         },
         capture: true, // Автоматическое списание денег после успешной авторизации карты
+        save_payment_method: planId !== 'trial', // Сохраняем карту только для месячных тарифов Про и Бизнес
         confirmation: {
           type: 'redirect',
           return_url: `${VITE_APP_URL}/?payment=success&plan=${planId}`,

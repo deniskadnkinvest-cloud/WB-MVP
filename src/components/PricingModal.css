@@ -300,6 +300,16 @@
   letter-spacing: 0.5px;
 }
 
+.pricing-footer a {
+  color: var(--gold-light);
+  text-decoration: none;
+}
+
+.pricing-footer a:hover {
+  color: var(--gold-bright);
+  text-decoration: underline;
+}
+
 /* ═══ Subscription Badge ═══ */
 .sub-badge {
   display: inline-flex;
@@ -388,4 +398,66 @@
 .upgrade-banner-text strong {
   color: var(--gold);
   font-weight: 700;
+}
+
+/* Subscription status */
+.subscription-info-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  padding: 16px 24px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-dim);
+  border-radius: var(--r-lg);
+  margin-top: 24px;
+  text-align: left;
+}
+
+.subscription-info-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.subscription-expiry-date {
+  font-size: 0.72rem;
+  color: var(--text-ghost);
+}
+
+.cancel-auto-renew-btn {
+  padding: 8px 16px;
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(255, 107, 107, 0.2);
+  background: rgba(255, 107, 107, 0.04);
+  color: #ff6b6b;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cancel-auto-renew-btn:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.1);
+  border-color: #ff6b6b;
+}
+
+.cancel-auto-renew-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+  .subscription-info-box {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .cancel-auto-renew-btn {
+    text-align: center;
+  }
 }

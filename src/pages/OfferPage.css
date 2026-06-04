@@ -1,0 +1,118 @@
+.offer-page {
+  min-height: 100vh;
+  padding: 32px 20px 72px;
+}
+
+.offer-page__nav {
+  max-width: 920px;
+  margin: 0 auto 20px;
+}
+
+.offer-page__back {
+  display: inline-flex;
+  align-items: center;
+  color: var(--gold-light);
+  font-size: 0.86rem;
+  text-decoration: none;
+  letter-spacing: 0.2px;
+}
+
+.offer-page__back:hover {
+  color: var(--gold-bright);
+}
+
+.offer-document {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 44px;
+  background: rgba(14, 14, 24, 0.72);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-lg);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+}
+
+.offer-document h1,
+.offer-document h2,
+.offer-document h3,
+.offer-document p {
+  margin: 0;
+}
+
+.offer-document h1 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  line-height: 1.1;
+  color: var(--gold-bright);
+  margin-bottom: 10px;
+}
+
+.offer-document h2 {
+  font-size: 1.15rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+  margin-bottom: 18px;
+}
+
+.offer-document h3 {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1.4;
+  color: var(--gold-light);
+  margin: 6px 0 14px;
+}
+
+.offer-document p {
+  font-size: 1rem;
+  line-height: 1.72;
+  color: var(--text-primary);
+}
+
+.offer-document strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.offer-document hr {
+  height: 1px;
+  border: 0;
+  background: var(--border-subtle);
+  margin: 24px 0;
+}
+
+.offer-document__spacer {
+  height: 10px;
+}
+
+.offer-document__bullet {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 8px;
+}
+
+.offer-document__bullet span:first-child {
+  color: var(--gold);
+}
+
+@media (max-width: 640px) {
+  .offer-page {
+    padding: 20px 12px 48px;
+  }
+
+  .offer-document {
+    padding: 24px 18px;
+    border-radius: var(--r-md);
+  }
+
+  .offer-document h1 {
+    font-size: 1.55rem;
+  }
+
+  .offer-document h2 {
+    font-size: 1rem;
+  }
+
+  .offer-document p {
+    font-size: 0.9rem;
+    line-height: 1.62;
+  }
+}

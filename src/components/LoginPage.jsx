@@ -349,6 +349,10 @@ export default function LoginPage() {
           </button>
           <p className="guest-hint">Гостевой режим — ограниченный функционал</p>
         </div>
+
+        <footer className="login-footer">
+          <a href="/offer" target="_blank" rel="noreferrer">Публичная оферта</a>
+        </footer>
       </motion.div>
     </div>
   );

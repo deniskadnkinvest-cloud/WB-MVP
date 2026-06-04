@@ -10,6 +10,7 @@ import verifyPanxTokenHandler from './api/verify-panx-token.js';
 import createPaymentHandler from './api/create-payment.js';
 import paymentWebhookYookassaHandler from './api/payment-webhook-yookassa.js';
 import paymentWebhookHandler from './api/payment-webhook.js';
+import cancelSubscriptionHandler from './api/cancel-subscription.js';
 
 dotenv.config();
 
@@ -30,6 +31,10 @@ app.post('/api/verify-panx-token', async (req, res) => {
 
 app.post('/api/create-payment', async (req, res) => {
   return createPaymentHandler(req, res);
+});
+
+app.post('/api/cancel-subscription', async (req, res) => {
+  return cancelSubscriptionHandler(req, res);
 });
 
 app.post('/api/payment-webhook-yookassa', async (req, res) => {

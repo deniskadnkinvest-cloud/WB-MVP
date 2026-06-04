@@ -45,6 +45,7 @@ function App() {
   const [subscription, setSubscription] = useState({ plan: 'none', credits: 0, creditsTotal: 0 });
   const [showPricing, setShowPricing] = useState(false);
   const [pricingLoading, setPricingLoading] = useState(false);
+  const [cancelingSubscription, setCancelingSubscription] = useState(false);
 
   // App mode: 'fashion' | 'product'
   const [appMode, setAppMode] = useState('fashion');
@@ -303,6 +304,38 @@ function App() {
       setStatusType('error');
     } finally {
       setPricingLoading(false);
+    }
+  };
+
+  // Disable subscription auto-renew while keeping the paid period active.
+  const handleCancelAutoRenew = async () => {
+    if (!user) return;
+    if (!window.confirm('Вы действительно хотите отключить автопродление вашей подписки?')) return;
+
+    setCancelingSubscription(true);
+    try {
+      const idToken = await user.getIdToken();
+      const resp = await fetch('/api/cancel-subscription', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ uid: user.uid }),
+      });
+      const data = await resp.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || 'Не удалось отключить автопродление');
+      }
+
+      setSubscription(prev => ({ ...prev, autoRenew: false }));
+      alert('Автопродление подписки отключено. Тариф продолжит действовать до конца оплаченного периода.');
+    } catch (err) {
+      console.error('Failed to cancel auto-renew:', err);
+      alert(err.message || 'Произошла ошибка при отмене автопродления');
+    } finally {
+      setCancelingSubscription(false);
     }
   };
 
@@ -1256,6 +1289,9 @@ function App() {
         currentPlan={subscription?.plan || 'none'}
         onSelectPlan={handleSelectPlan}
         loading={pricingLoading}
+        subscription={subscription}
+        onCancelAutoRenew={handleCancelAutoRenew}
+        canceling={cancelingSubscription}
       />
 
       {/* 1. МУЛЬТИЗАГРУЗКА */}
@@ -1882,6 +1918,10 @@ function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <footer className="app-footer">
+        <a href="/offer" target="_blank" rel="noreferrer">Публичная оферта</a>
+      </footer>
 
       {/* OVERLAYS */}
       <AnimatePresence>

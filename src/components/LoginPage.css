@@ -274,6 +274,21 @@
   letter-spacing: 0.5px;
 }
 
+.login-footer {
+  margin-top: 22px;
+  text-align: center;
+  font-size: 0.68rem;
+}
+
+.login-footer a {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.login-footer a:hover {
+  color: var(--gold-light);
+}
+
 /* ═══ In-App Warning ═══ */
 .inapp-banner {
   display: flex;

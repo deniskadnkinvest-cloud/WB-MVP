@@ -39,7 +39,7 @@ export const PLANS = {
     label: 'Про',
     emoji: '⚡',
     credits: 100,
-    price: 3000,
+    price: 5000,
     period: 'month',
     canSaveModels: true,
     canSaveLocations: true,
@@ -54,7 +54,7 @@ export const PLANS = {
     label: 'Бизнес',
     emoji: '🚀',
     credits: 1000,
-    price: 10000,
+    price: 14990,
     period: 'month',
     canSaveModels: true,
     canSaveLocations: true,
@@ -75,6 +75,9 @@ const DEFAULT_SUB = {
   creditsTotal: 0,
   planActivatedAt: null,
   planExpiresAt: null,
+  subscriptionStatus: 'inactive',
+  autoRenew: false,
+  yookassaPaymentMethodId: null,
   payments: [],
 };
 
@@ -88,11 +91,14 @@ export const getSubscription = async (uid) => {
   if (!snap.exists()) return { ...DEFAULT_SUB };
   const data = snap.data();
 
-  // Check expiration for monthly plans
+  // Check expiration for monthly plans. If auto-renew is enabled,
+  // the backend cron/webhook owns the final subscription status.
   if (data.planExpiresAt && data.planExpiresAt.toDate() < new Date()) {
-    // Plan expired — downgrade to none, keep remaining credits at 0
-    await updateDoc(ref, { plan: 'none', credits: 0 });
-    return { ...data, plan: 'none', credits: 0 };
+    if (!data.autoRenew) {
+      // Plan expired — downgrade to none, keep remaining credits at 0
+      await updateDoc(ref, { plan: 'none', credits: 0 });
+      return { ...data, plan: 'none', credits: 0 };
+    }
   }
 
   return data;

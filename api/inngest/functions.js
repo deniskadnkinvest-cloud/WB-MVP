@@ -7,6 +7,7 @@ import { classifyGarment } from './steps/classify.js';
 import { mapParameters } from './steps/mapper.js';
 import { generateWithKie } from './steps/generate.js';
 import { scoreQuality } from './steps/quality.js';
+import crypto from 'crypto';
 
 // ─────────────────────────────────────────────────────────────
 //  1. MASTER WORKER — запускает Fan-Out
@@ -203,9 +204,6 @@ export const processSku = inngest.createFunction(
   }
 );
 
-// Экспортируем все функции для регистрации в Inngest
-export const functions = [catalogStarted, processSku, broadcastSend];
-
 // ─────────────────────────────────────────────────────────────
 //  3. BROADCAST WORKER — Telegram рассылка по всей аудитории
 //     Батчами по 30 юзеров с паузой 1сек (обход 429 Telegram)
@@ -338,4 +336,160 @@ export const broadcastSend = inngest.createFunction(
     return { broadcastId, sentCount, failedCount };
   }
 );
+
+// ─────────────────────────────────────────────────────────────
+//  4. SUBSCRIPTION AUTO RENEW — ежедневное автопродление
+// ─────────────────────────────────────────────────────────────
+const PLAN_PRICES = {
+  base: 5000,
+  pro: 14990,
+};
+
+const PLAN_TITLES = {
+  base: '⚡ Селлер-Студия: Тариф «Про» — 100 кадров/мес',
+  pro: '🚀 Селлер-Студия: Тариф «Бизнес» — Безлимит/мес',
+};
+
+export const subscriptionAutoRenew = inngest.createFunction(
+  {
+    id: 'subscription-auto-renew',
+    name: 'Subscription Auto Renew Checker',
+    triggers: [{ cron: '0 3 * * *' }],
+  },
+  async ({ step }) => {
+    const db = getFirestore();
+    const shopId = process.env.YOOKASSA_SHOP_ID || '1373290';
+    const secretKey = process.env.YOOKASSA_SECRET_KEY;
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+
+    if (!secretKey) {
+      console.error('[Auto Renew] YOOKASSA_SECRET_KEY not configured');
+      return { status: 'error', error: 'Secret key not configured' };
+    }
+
+    const activeSubscriptions = await step.run('fetch-active-subscriptions', async () => {
+      const snapshot = await db.collectionGroup('subscription')
+        .where('autoRenew', '==', true)
+        .where('subscriptionStatus', '==', 'active')
+        .get();
+
+      const list = [];
+      const now = new Date();
+
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (!data.planExpiresAt || !data.yookassaPaymentMethodId) return;
+
+        const expiresDate = data.planExpiresAt.toDate();
+        const diffMs = expiresDate.getTime() - now.getTime();
+        const diffHours = diffMs / (1000 * 60 * 60);
+
+        if (diffHours <= 24) {
+          const uid = doc.ref.parent.parent.id;
+          list.push({
+            uid,
+            plan: data.plan,
+            paymentMethodId: data.yookassaPaymentMethodId,
+            expiresAt: expiresDate.toISOString(),
+          });
+        }
+      });
+
+      return list;
+    });
+
+    console.log(`[Auto Renew] Found ${activeSubscriptions.length} subscriptions to renew.`);
+
+    const results = [];
+
+    for (let i = 0; i < activeSubscriptions.length; i++) {
+      const sub = activeSubscriptions[i];
+      const planPrice = PLAN_PRICES[sub.plan];
+      const planTitle = PLAN_TITLES[sub.plan];
+
+      if (!planPrice) {
+        console.warn(`[Auto Renew] Unknown price for plan ${sub.plan} for user ${sub.uid}`);
+        continue;
+      }
+
+      const renewResult = await step.run(`renew-${sub.uid}-${sub.plan}`, async () => {
+        console.log(`[Auto Renew] Trying to charge user ${sub.uid} for ${sub.plan} (${planPrice} RUB)`);
+
+        try {
+          const authHeader = 'Basic ' + Buffer.from(`${shopId}:${secretKey}`).toString('base64');
+          const response = await fetch('https://api.yookassa.ru/v3/payments', {
+            method: 'POST',
+            headers: {
+              'Authorization': authHeader,
+              'Idempotency-Key': crypto.randomUUID(),
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              amount: {
+                value: planPrice.toFixed(2),
+                currency: 'RUB',
+              },
+              capture: true,
+              payment_method_id: sub.paymentMethodId,
+              description: `Автопродление тарифа: ${planTitle}`,
+              metadata: {
+                uid: sub.uid,
+                planId: sub.plan,
+                isAutoRenew: true,
+              },
+            }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            console.error(`[Auto Renew] Failed to charge user ${sub.uid}:`, data);
+            throw new Error(data.description || 'Yookassa payment request failed');
+          }
+
+          if (data.status !== 'succeeded') {
+            console.warn(`[Auto Renew] Payment status is ${data.status} for user ${sub.uid}`);
+            throw new Error(`Payment status is ${data.status}`);
+          }
+
+          console.log(`[Auto Renew] Charge successful for user ${sub.uid}`);
+          return { uid: sub.uid, plan: sub.plan, success: true, paymentId: data.id };
+        } catch (err) {
+          console.error(`[Auto Renew] Error renewing user ${sub.uid}:`, err.message);
+
+          const ref = db.doc(`users/${sub.uid}/subscription/current`);
+          await ref.set({
+            subscriptionStatus: 'past_due',
+            autoRenew: false,
+          }, { merge: true });
+
+          if (botToken) {
+            try {
+              await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chat_id: sub.uid,
+                  text: `⚠️ <b>Ошибка автопродления подписки</b>\n\nНе удалось списать оплату за тариф <b>"${sub.plan === 'base' ? 'Про' : 'Бизнес'}"</b> (${planPrice} ₽) с вашей привязанной карты.\n\nПожалуйста, проверьте баланс карты или оплатите тариф заново. Подписка временно приостановлена.`,
+                  parse_mode: 'HTML',
+                }),
+              });
+            } catch (tgErr) {
+              console.error(`[Auto Renew] Failed to send Telegram alert to ${sub.uid}:`, tgErr.message);
+            }
+          }
+
+          return { uid: sub.uid, plan: sub.plan, success: false, error: err.message };
+        }
+      });
+
+      results.push(renewResult);
+    }
+
+    return { processed: activeSubscriptions.length, results };
+  }
+);
+
+// Экспортируем все функции для регистрации в Inngest
+export const functions = [catalogStarted, processSku, broadcastSend, subscriptionAutoRenew];
 

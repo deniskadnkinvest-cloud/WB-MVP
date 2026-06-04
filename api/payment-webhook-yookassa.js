@@ -71,6 +71,10 @@ export default async function handler(req, res) {
 
   try {
     const ref = db.doc(`users/${uid}/subscription/current`);
+    const isSubscription = planId !== 'trial';
+    const paymentMethodId = (isSubscription && object.payment_method?.saved)
+      ? object.payment_method.id
+      : null;
     
     // Записываем/обновляем подписку в Firebase Firestore
     await ref.set({
@@ -79,6 +83,14 @@ export default async function handler(req, res) {
       creditsTotal: credits,
       planActivatedAt: FieldValue.serverTimestamp(),
       planExpiresAt: expiresAt,
+      subscriptionStatus: 'active',
+      ...(isSubscription ? {
+        autoRenew: true,
+        yookassaPaymentMethodId: paymentMethodId || FieldValue.delete(),
+      } : {
+        autoRenew: false,
+        yookassaPaymentMethodId: FieldValue.delete(),
+      }),
       payments: FieldValue.arrayUnion({
         planId,
         method: 'yookassa',
