@@ -1,16 +1,36 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1, delayChildren: 0.1 }
+  }
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 15, scale: 0.98 },
+  show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 400, damping: 25 } }
+};
 
 function Card({ children, style = {} }) {
   return (
-    <div style={{
-      background: 'rgba(255,255,255,0.02)',
-      border: '1px solid rgba(255,255,255,0.08)',
-      borderRadius: '16px',
-      padding: '16px',
-      ...style,
-    }}>
+    <motion.div 
+      variants={itemVariants}
+      style={{
+        background: 'linear-gradient(145deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
+        border: '1px solid rgba(255,255,255,0.06)',
+        borderRadius: '24px',
+        padding: '20px',
+        backdropFilter: 'blur(40px)',
+        WebkitBackdropFilter: 'blur(40px)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.05)',
+        ...style,
+      }}
+    >
       {children}
-    </div>
+    </motion.div>
   );
 }
 
@@ -34,7 +54,7 @@ const LINKS = [
     title: 'Inngest Dashboard',
     desc: 'Очередь задач, статусы воркеров, ретраи. Главный инструмент дебага генераций.',
     url: 'https://app.inngest.com',
-    color: '#6366f1',
+    color: '#8b5cf6',
   },
   {
     icon: '🤖',
@@ -49,107 +69,123 @@ const COMING_SOON = [
   { icon: '📊', text: 'Live Error Rate — % ошибок за час (нужен Supabase)' },
   { icon: '💸', text: 'Waste Analytics — $$ сожжённые на таймаутах' },
   { icon: '🧠', text: 'AI QA Board — фото с низким quality score' },
-  { icon: '⚡', text: 'Auto-alerts — Inngest Cron в Telegram при спайке ошибок' },
+  { icon: '🚨', text: 'Auto-alerts — Inngest Cron в Telegram при спайке ошибок' },
 ];
 
 export default function Errors() {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', paddingBottom: '8px' }}>
-
-      {/* Status banner */}
-      <div style={{
-        background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(6,182,212,0.08))',
-        border: '1px solid rgba(99,102,241,0.25)',
-        borderRadius: '16px', padding: '16px',
-        display: 'flex', alignItems: 'flex-start', gap: '12px',
-      }}>
-        <div style={{ fontSize: '28px', lineHeight: 1, flexShrink: 0 }}>🗺</div>
+    <motion.div 
+      variants={containerVariants}
+      initial="hidden"
+      animate="show"
+      style={{ display: 'flex', flexDirection: 'column', gap: '16px', paddingBottom: '20px' }}
+    >
+      {/* ── Status banner ── */}
+      <motion.div 
+        variants={itemVariants}
+        style={{
+          background: 'linear-gradient(135deg, rgba(99,102,241,0.15), rgba(6,182,212,0.1))',
+          border: '1px solid rgba(99,102,241,0.3)',
+          boxShadow: '0 10px 30px rgba(99,102,241,0.2), inset 0 1px 0 rgba(255,255,255,0.1)',
+          borderRadius: '24px', padding: '24px',
+          display: 'flex', alignItems: 'flex-start', gap: '16px',
+        }}
+      >
+        <div style={{ fontSize: '32px', lineHeight: 1, flexShrink: 0, filter: 'drop-shadow(0 0 10px rgba(99,102,241,0.8))' }}>🗺</div>
         <div>
-          <h3 style={{ margin: '0 0 6px', fontSize: '15px', fontWeight: 700, color: '#fff' }}>
+          <h3 style={{ margin: '0 0 8px', fontSize: '16px', fontWeight: 800, color: '#fff', letterSpacing: '-0.5px' }}>
             Phase 1: Sentry + Supabase
           </h3>
-          <p style={{ margin: 0, fontSize: '12px', color: 'rgba(255,255,255,0.5)', lineHeight: '1.5' }}>
+          <p style={{ margin: 0, fontSize: '13px', color: 'rgba(255,255,255,0.6)', lineHeight: '1.6', fontWeight: 500 }}>
             Полноценная трассировка ошибок появится после подключения Supabase (лог генераций)
             и Sentry (crash analytics). Сейчас используй ссылки ниже.
           </p>
         </div>
-      </div>
+      </motion.div>
 
-      {/* Quick links */}
+      {/* ── Quick links ── */}
       <Card>
-        <p style={{ margin: '0 0 12px', fontSize: '11px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          Мониторинг сейчас
+        <p style={{ margin: '0 0 16px', fontSize: '11px', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 600 }}>
+          Live Monitoring
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {LINKS.map(link => (
-            <a
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {LINKS.map((link, i) => (
+            <motion.a
               key={link.url}
+              whileHover={{ scale: 1.02, x: 5, backgroundColor: `${link.color}11`, borderColor: `${link.color}44` }}
+              whileTap={{ scale: 0.98 }}
               href={link.url}
               target="_blank"
               rel="noreferrer"
               style={{
-                display: 'flex', alignItems: 'center', gap: '12px',
-                padding: '12px',
-                borderRadius: '12px',
-                background: `${link.color}0a`,
+                display: 'flex', alignItems: 'center', gap: '16px',
+                padding: '16px',
+                borderRadius: '16px',
+                background: `linear-gradient(145deg, ${link.color}0a, rgba(255,255,255,0.01))`,
                 border: `1px solid ${link.color}22`,
                 textDecoration: 'none',
-                transition: 'background 0.2s',
+                transition: 'border 0.2s, background 0.2s',
               }}
             >
               <div style={{
-                width: '40px', height: '40px', borderRadius: '10px',
-                background: `${link.color}18`,
-                border: `1px solid ${link.color}33`,
+                width: '48px', height: '48px', borderRadius: '14px',
+                background: `linear-gradient(135deg, ${link.color}22, ${link.color}11)`,
+                border: `1px solid ${link.color}44`,
+                boxShadow: `inset 0 0 10px ${link.color}22`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '18px', flexShrink: 0,
+                fontSize: '20px', flexShrink: 0,
               }}>
                 {link.icon}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: '#fff', marginBottom: '2px' }}>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#fff', marginBottom: '4px' }}>
                   {link.title}
                 </div>
-                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', lineHeight: '1.4' }}>
+                <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', lineHeight: '1.5', fontWeight: 500 }}>
                   {link.desc}
                 </div>
               </div>
-              <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: '14px', flexShrink: 0 }}>↗</span>
-            </a>
+              <span style={{ color: link.color, fontSize: '18px', flexShrink: 0, opacity: 0.5 }}>↗</span>
+            </motion.a>
           ))}
         </div>
       </Card>
 
-      {/* Roadmap */}
-      <Card>
-        <p style={{ margin: '0 0 12px', fontSize: '11px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          В разработке (Phase 2)
+      {/* ── Roadmap ── */}
+      <Card style={{ opacity: 0.8 }}>
+        <p style={{ margin: '0 0 16px', fontSize: '11px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 600 }}>
+          Phase 2 Roadmap
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {COMING_SOON.map((item, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: '10px',
-              padding: '10px 12px',
-              borderRadius: '10px',
-              background: 'rgba(255,255,255,0.03)',
-              border: '1px solid rgba(255,255,255,0.06)',
-              opacity: 0.7,
-            }}>
-              <span style={{ fontSize: '16px' }}>{item.icon}</span>
-              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.55)', lineHeight: '1.4' }}>
+            <motion.div 
+              key={i} 
+              whileHover={{ backgroundColor: 'rgba(255,255,255,0.04)' }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '12px',
+                padding: '12px 16px',
+                borderRadius: '12px',
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px dashed rgba(255,255,255,0.1)',
+                opacity: 0.7,
+              }}
+            >
+              <span style={{ fontSize: '18px' }}>{item.icon}</span>
+              <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', lineHeight: '1.4', fontWeight: 500 }}>
                 {item.text}
               </span>
               <span style={{
-                marginLeft: 'auto', fontSize: '10px', padding: '2px 7px',
+                marginLeft: 'auto', fontSize: '9px', padding: '4px 8px',
                 borderRadius: '99px', background: 'rgba(139,92,246,0.15)',
-                color: '#8b5cf6', flexShrink: 0,
+                border: '1px solid rgba(139,92,246,0.3)',
+                color: '#d8b4fe', flexShrink: 0, fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase'
               }}>
                 Soon
               </span>
-            </div>
+            </motion.div>
           ))}
         </div>
       </Card>
-    </div>
+    </motion.div>
   );
 }
