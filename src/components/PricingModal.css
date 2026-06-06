@@ -403,61 +403,154 @@
 /* Subscription status */
 .subscription-info-box {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
+  flex-direction: column;
+  gap: 16px;
   width: 100%;
-  padding: 16px 24px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid var(--border-dim);
-  border-radius: var(--r-lg);
-  margin-top: 24px;
-  text-align: left;
+  padding: 22px 26px;
+  border-radius: var(--r-xl);
+  margin-top: 28px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: all 0.3s ease;
 }
 
-.subscription-info-text {
+.subscription-info-box.auto-renew-on {
+  background: rgba(212, 168, 67, 0.02);
+  border: 1px solid rgba(212, 168, 67, 0.15);
+  box-shadow: 0 8px 32px rgba(212, 168, 67, 0.04);
+}
+
+.subscription-info-box.auto-renew-off {
+  background: rgba(68, 223, 170, 0.02);
+  border: 1px solid rgba(68, 223, 170, 0.18);
+  box-shadow: 0 8px 32px rgba(68, 223, 170, 0.05);
+}
+
+.subscription-status-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.subscription-status-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+.subscription-status-body {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 0.8rem;
-  color: var(--text-secondary);
+  gap: 6px;
 }
 
-.subscription-expiry-date {
-  font-size: 0.72rem;
-  color: var(--text-ghost);
+.subscription-status-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+}
+
+.auto-renew-on .subscription-status-title {
+  color: #FFE87C;
+}
+
+.auto-renew-off .subscription-status-title {
+  color: #44DFAA;
+}
+
+.subscription-status-sub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.subscription-status-hint {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-top: 6px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.015);
+  border-radius: var(--r-md);
+}
+
+.auto-renew-on .subscription-status-hint {
+  border-left: 2px solid rgba(212, 168, 67, 0.4);
+}
+
+.auto-renew-off .subscription-status-hint {
+  border-left: 2px solid rgba(68, 223, 170, 0.5);
+  color: var(--text-primary);
 }
 
 .cancel-auto-renew-btn {
-  padding: 8px 16px;
-  border-radius: var(--r-sm);
-  border: 1px solid rgba(255, 107, 107, 0.2);
-  background: rgba(255, 107, 107, 0.04);
+  width: 100%;
+  padding: 13px 20px;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(255, 107, 107, 0.25);
+  background: rgba(255, 107, 107, 0.05);
   color: #ff6b6b;
-  font-size: 0.72rem;
-  font-weight: 600;
+  font-size: 0.85rem;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  letter-spacing: 0.03em;
+  font-family: var(--font-body);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .cancel-auto-renew-btn:hover:not(:disabled) {
-  background: rgba(255, 107, 107, 0.1);
-  border-color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.12);
+  border-color: rgba(255, 107, 107, 0.5);
+  color: #ff8787;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(255, 107, 107, 0.15);
 }
 
 .cancel-auto-renew-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
 @media (max-width: 600px) {
   .subscription-info-box {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
+    padding: 16px;
   }
+}
 
-  .cancel-auto-renew-btn {
-    text-align: center;
-  }
+/* ЮКасса-обязательный дисклеймер под кнопкой тарифа */
+.pricing-cancel-hint {
+  margin-top: 10px;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  opacity: 0.9;
+  font-weight: 500;
+  transition: opacity 0.2s ease;
+}
+
+.pricing-cancel-hint span {
+  font-size: 0.85rem;
+}
+
+/* Информационное сообщение в блоке управления подпиской */
+.subscription-cancel-note {
+  font-size: 0.68rem;
+  color: var(--text-ghost);
+  line-height: 1.5;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--r-sm);
+  border-left: 2px solid rgba(100, 180, 255, 0.25);
+  margin-top: 4px;
 }

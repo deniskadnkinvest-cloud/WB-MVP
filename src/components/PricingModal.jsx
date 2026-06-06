@@ -127,24 +127,41 @@ export default function PricingModal({
                         : isBest ? `🚀 Подключить ${plan.label.toUpperCase()} — ${plan.price.toLocaleString('ru-RU')} ₽`
                         : `Подключить ${plan.label} — ${plan.price.toLocaleString('ru-RU')} ₽`}
                     </button>
+
+                    {/* Обязательное уведомление ЮКасса: возможность отмены */}
+                    {plan.period === 'month' && !isActive && (
+                      <p className="pricing-cancel-hint">
+                        <span>🛡️</span> Отмена подписки в 1 клик в любое время
+                      </p>
+                    )}
                   </motion.div>
                 );
               })}
             </div>
 
+            {/* Управление текущей подпиской */}
             {subscription && subscription.plan !== 'none' && subscription.plan !== 'trial' && (
-              <div className="subscription-info-box">
-                <div className="subscription-info-text">
-                  <span>
-                    Статус: <b>{subscription.autoRenew
-                      ? '🔄 Автопродление активно'
-                      : '📅 Подписка действует, автопродление выключено'}</b>
-                  </span>
-                  {expiryDate && (
-                    <span className="subscription-expiry-date">
-                      Действует до: {expiryDate}
-                    </span>
-                  )}
+              <div className={`subscription-info-box ${subscription.autoRenew ? 'auto-renew-on' : 'auto-renew-off'}`}>
+                <div className="subscription-status-row">
+                  <div className="subscription-status-icon">
+                    {subscription.autoRenew ? '🔄' : '🛡️'}
+                  </div>
+                  <div className="subscription-status-body">
+                    <div className="subscription-status-title">
+                      {subscription.autoRenew ? 'Подписка активна · Автопродление включено' : 'Подписка активна · Автопродление выключено'}
+                    </div>
+                    {expiryDate && (
+                      <div className="subscription-status-sub">
+                        {subscription.autoRenew ? 'Следующий платеж' : 'Доступ открыт'} до {expiryDate}
+                      </div>
+                    )}
+                    <div className="subscription-status-hint">
+                      {subscription.autoRenew 
+                        ? 'Вы можете отменить подписку в любой момент. Доступ сохранится до конца оплаченного периода, а карта будет мгновенно отвязана.'
+                        : 'Карта успешно отвязана. Автоматических списаний больше не будет. Доступ автоматически закроется по истечении срока.'
+                      }
+                    </div>
+                  </div>
                 </div>
                 {subscription.autoRenew && (
                   <button
@@ -152,7 +169,7 @@ export default function PricingModal({
                     onClick={onCancelAutoRenew}
                     disabled={canceling}
                   >
-                    {canceling ? '⏳ Отмена...' : 'Отключить автопродление'}
+                    {canceling ? '⏳ Отменяем подписку...' : '✕ Отписаться и отвязать карту'}
                   </button>
                 )}
               </div>
@@ -169,3 +186,4 @@ export default function PricingModal({
     </AnimatePresence>
   );
 }
+

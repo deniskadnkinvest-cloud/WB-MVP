@@ -55,6 +55,7 @@ function App() {
   const [selectedProductComposition, setSelectedProductComposition] = useState(PRODUCT_COMPOSITIONS[0]);
   const [selectedProductBg, setSelectedProductBg] = useState(PRODUCT_BACKGROUNDS[0]);
   const [selectedProductEffect, setSelectedProductEffect] = useState(PRODUCT_EFFECTS[0]);
+  const [customProductEffectText, setCustomProductEffectText] = useState('');
 
   // Product mode: human model toggle
   const [productWithModel, setProductWithModel] = useState(false);
@@ -136,6 +137,9 @@ function App() {
   // Beauty mode toggle
   const [isBeautyMode, setIsBeautyMode] = useState(false);
 
+  // Variant count (how many generations user wants)
+  const [variantCount, setVariantCount] = useState(2);
+
   // Extra free-text for preset bg/location
   const [bgExtraText, setBgExtraText] = useState('');
 
@@ -163,6 +167,18 @@ function App() {
   const [photoViewIdx, setPhotoViewIdx] = useState({});
   // Download menu open state
   const [downloadMenuIdx, setDownloadMenuIdx] = useState(null);
+
+  // ═══ CARD DESIGNER (marketplace card) ═══
+  const [cardDesignStyle, setCardDesignStyle] = useState('natural'); // 'natural' | 'epic'
+  const [isCardGenerating, setIsCardGenerating] = useState(false);
+  const [cardResult, setCardResult] = useState(null);
+  const [showCardExamples, setShowCardExamples] = useState(false);
+  const [cardVariantCount, setCardVariantCount] = useState(1);
+  const [showCardCountModal, setShowCardCountModal] = useState(false);
+  const [customCardCount, setCustomCardCount] = useState('');
+  // Quick mode states
+  const [quickCardStyle, setQuickCardStyle] = useState('natural');
+  const [quickWithModel, setQuickWithModel] = useState(false);
 
   // Lightbox (gallery mode)
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -212,23 +228,32 @@ function App() {
   // Load user data from Firestore (skip for guest users in embedded mode)
   useEffect(() => {
     if (!user || user.isGuest || user.isAnonymous) return;
-    const loadData = async () => {
-      try {
-        const [models, locations, sub] = await Promise.all([
-          getModels(user.uid),
-          getLocations(user.uid),
-          getSubscription(user.uid, user.email),
-        ]);
-        setMyModels(models);
-        setMyLocations(locations);
-        setSubscription(sub);
-      } catch (err) {
-        console.error('Ошибка загрузки данных:', err);
+    
+    // Загружаем данные параллельно и асинхронно, не блокируя отрисовку интерфейса
+    getModels(user.uid)
+      .then((models) => {
+        console.log('📦 Models loaded:', models?.length || 0);
+        setMyModels(models || []);
+      })
+      .catch((err) => console.error('Ошибка загрузки моделей:', err));
+
+    getLocations(user.uid)
+      .then((locations) => {
+        console.log('📍 Locations loaded:', locations?.length || 0);
+        setMyLocations(locations || []);
+      })
+      .catch((err) => console.error('Ошибка загрузки локаций:', err));
+
+    getSubscription(user.uid, user.email)
+      .then((sub) => {
+        console.log('🔑 Subscription loaded:', sub?.plan || 'none');
+        if (sub) setSubscription(sub);
+      })
+      .catch((err) => {
+        console.error('Ошибка загрузки подписки:', err);
         // Fallback to default 'none' plan so the app doesn't hang in null state
         setSubscription({ plan: 'none', credits: 0, creditsTotal: 0 });
-      }
-    };
-    loadData();
+      });
   }, [user]);
 
   // Проверка успешной оплаты ЮKassa при возврате на сайт (return_url)
@@ -475,9 +500,10 @@ function App() {
   };
 
   // Build detail string (supports arrays for multi-select fields like tattoo)
-  const buildDetailString = () => {
+  const buildDetailString = (detailsOverride) => {
     const parts = [];
-    Object.entries(modelDetails).forEach(([k, v]) => {
+    const details = detailsOverride || modelDetails;
+    Object.entries(details).forEach(([k, v]) => {
       // EXPLICIT NEGATIVE CONSTRAINTS — when "Нет" is selected, add hard prohibition
       if (v === 'Нет' || (Array.isArray(v) && v.length === 1 && v[0] === 'Нет')) {
         if (k === 'tattoo') {
@@ -512,25 +538,9 @@ function App() {
       setStatusText('⚡ Для генерации нужен активный тариф'); setStatusType('error');
       return;
     }
-
-    // Deduct 1 credit (2 variants = 1 credit)
-    if (subscription.local) {
-      setSubscription(prev => ({ ...prev, credits: Math.max(0, prev.credits - 1) }));
-    } else {
-      try {
-        const result = await useCredit(user.uid, 1);
-        setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
-      } catch (err) {
-        if (err.message === 'NO_CREDITS') {
-          setShowPricing(true);
-          setStatusText('⚡ Кредиты закончились — выберите тариф'); setStatusType('error');
-          return;
-        }
-        if (err.message === 'NO_PLAN') {
-          setShowPricing(true);
-          return;
-        }
-      }
+    if ((subscription.credits || 0) < variantCount) {
+      setStatusText(`⚡ Недостаточно кредитов: нужно ${variantCount}, доступно ${subscription.credits || 0}`); setStatusType('error');
+      return;
     }
 
     setIsProcessing(true); setGeneratedImage(null); setStatusText('');
@@ -551,11 +561,12 @@ function App() {
         posePrompt = customPoseText.trim() || selectedProductComposition.prompt;
         bgPrompt = customProductBg.trim() || selectedProductBg.prompt;
         
-        if (selectedProductEffect && selectedProductEffect.prompt) {
-          bgPrompt += `. Additionally: ${selectedProductEffect.prompt}`;
+        if (selectedProductEffect && selectedProductEffect.id !== 'none') {
+          const effectPrompt = selectedProductEffect.id === 'custom'
+            ? customProductEffectText.trim()
+            : selectedProductEffect.prompt;
+          if (effectPrompt) bgPrompt += `. Additionally: ${effectPrompt}`;
         }
-        
-        // Модель-человек в предметной съёмке
         if (productWithModel) {
           let humanPrompt = customProductModelPrompt.trim() || productModelPreset.prompt;
           if (productSavedModelId) {
@@ -578,8 +589,11 @@ function App() {
           if (loc) {
             locImages = loc.imageUrls;
             bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
-            if (selectedProductEffect && selectedProductEffect.prompt) {
-              bgPrompt += `. Additionally: ${selectedProductEffect.prompt}`;
+            if (selectedProductEffect && selectedProductEffect.id !== 'none') {
+              const effectPrompt = selectedProductEffect.id === 'custom'
+                ? customProductEffectText.trim()
+                : selectedProductEffect.prompt;
+              if (effectPrompt) bgPrompt += `. Additionally: ${effectPrompt}`;
             }
           }
         }
@@ -607,11 +621,10 @@ function App() {
 
       setProcessingMsg('🚀 Отправляем в Nano Banano 2...');
 
-      // Generate 2 variants in parallel for user choice
-      const seeds = [
-        Math.random().toString(36).substring(2, 10).toUpperCase(),
-        Math.random().toString(36).substring(2, 10).toUpperCase(),
-      ];
+      // Generate N variants in parallel based on user choice
+      const seeds = Array.from({ length: variantCount }, () =>
+        Math.random().toString(36).substring(2, 10).toUpperCase()
+      );
       const buildBody = (seed) => JSON.stringify({
         userId: user?.uid || null,
         garmentImageUrls: garmentUrls, modelPreset: modelPrompt, posePreset: posePrompt,
@@ -639,13 +652,28 @@ function App() {
         .map(d => d.imageUrl || d.imageBase64);
 
       if (successImages.length > 0) {
+        // Списание кредитов по факту успешной генерации (1 кредит = 1 успешный вариант)
+        const creditsToCharge = successImages.length;
+        if (subscription.local) {
+          setSubscription(prev => ({ ...prev, credits: Math.max(0, prev.credits - creditsToCharge) }));
+        } else {
+          try {
+            const result = await useCredit(user.uid, creditsToCharge);
+            setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
+          } catch (err) {
+            console.error('Ошибка списания кредитов:', err);
+          }
+        }
+
+        const VARIANT_LABELS = ['A', 'B', 'C', 'D'];
         setGeneratedImage(successImages[0]);
         setImageHistory(prev => {
-          const h = [...prev, ...successImages.map((img, i) => ({ image: img, label: i === 0 ? '🎨 Вариант A' : '🎨 Вариант B' }))];
+          const h = [...prev, ...successImages.map((img, i) => ({ image: img, label: `🎨 Вариант ${VARIANT_LABELS[i] || (i + 1)}` }))];
           setHistoryIndex(h.length - successImages.length);
           return h;
         });
-        setStatusText(`Готово! ${successImages.length} вариант${successImages.length > 1 ? 'а — листайте ◀▶' : ''}`); setStatusType('success');
+        const pluralForm = successImages.length === 1 ? '' : (successImages.length < 5 ? 'а — листайте ◀▶' : ' — листайте ◀▶');
+        setStatusText(`Готово! ${successImages.length} вариант${pluralForm}`); setStatusType('success');
       }
       else { setStatusText(`Ошибка: ${results[0]?.details||results[0]?.error||'unknown'}`); setStatusType('error'); }
     } catch (err) { setStatusText(`Ошибка: ${err.message}`); setStatusType('error'); clearInterval(iv);
@@ -775,6 +803,18 @@ function App() {
 
   // Get current model prompt for calibration
   const getCurrentModelPrompt = () => {
+    if (appMode === 'product') {
+      // Product mode: use human model settings, not product settings
+      if (customProductModelPrompt?.trim()) return customProductModelPrompt.trim();
+      if (productSavedModelId) {
+        const sm = myModels.find(m => m.id === productSavedModelId);
+        if (sm?.prompt) return sm.prompt;
+      }
+      // Include detail panel settings (hair color, build, emotion, etc.)
+      const basePrompt = productModelPreset?.prompt || MODEL_PRESETS[0].prompt;
+      return basePrompt + buildDetailString(productModelDetails);
+    }
+    // Fashion mode
     if (customModelPrompt.trim()) return customModelPrompt.trim();
     if (selectedSavedModelId) {
       const sm = myModels.find(m => m.id === selectedSavedModelId);
@@ -784,16 +824,22 @@ function App() {
   };
 
   // Get current model ref images for calibration
-  // CRITICAL: Include generatedImage as PRIMARY reference so calibration
-  // generates the SAME person that's currently on screen, not a new one.
+  // CRITICAL: Do NOT include generatedImage — it may contain product objects (cups, bottles etc.)
+  // Only include clean model reference photos from saved models.
   const getCurrentModelRefs = () => {
     const refs = [];
-    // The generated render IS the person we want to calibrate
-    if (generatedImage) refs.push(generatedImage);
-    // Also include saved model refs if any
-    if (selectedSavedModelId) {
-      const sm = myModels.find(m => m.id === selectedSavedModelId);
-      if (sm?.imageUrls) refs.push(...sm.imageUrls);
+    if (appMode === 'product') {
+      // Product mode: use product model's saved refs
+      if (productSavedModelId) {
+        const sm = myModels.find(m => m.id === productSavedModelId);
+        if (sm?.imageUrls) refs.push(...sm.imageUrls);
+      }
+    } else {
+      // Fashion mode: use fashion model's saved refs
+      if (selectedSavedModelId) {
+        const sm = myModels.find(m => m.id === selectedSavedModelId);
+        if (sm?.imageUrls) refs.push(...sm.imageUrls);
+      }
     }
     return refs;
   };
@@ -878,21 +924,8 @@ function App() {
     // ═══ SUBSCRIPTION CHECK ═══
     if (!canGenerate(subscription)) {
       setShowPricing(true);
+      setStatusText('⚡ Для генерации нужен активный тариф'); setStatusType('error');
       return;
-    }
-    if (subscription.local) {
-      setSubscription(prev => ({ ...prev, credits: Math.max(0, prev.credits - 1) }));
-    } else {
-      try {
-        const result = await useCredit(user.uid, 1);
-        setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
-      } catch (err) {
-        if (err.message === 'NO_CREDITS' || err.message === 'NO_PLAN') {
-          setShowPricing(true);
-          setStatusText('⚡ Кредиты закончились'); setStatusType('error');
-          return;
-        }
-      }
     }
 
     setIsProcessing(true);
@@ -917,16 +950,22 @@ function App() {
         posePrompt = customPoseText.trim() || selectedProductComposition.prompt;
         bgPrompt = customProductBg.trim() || selectedProductBg.prompt;
         
-        if (selectedProductEffect && selectedProductEffect.prompt) {
-          bgPrompt += `. Additionally: ${selectedProductEffect.prompt}`;
+        if (selectedProductEffect && selectedProductEffect.id !== 'none') {
+          const effectPrompt = selectedProductEffect.id === 'custom'
+            ? customProductEffectText.trim()
+            : selectedProductEffect.prompt;
+          if (effectPrompt) bgPrompt += `. Additionally: ${effectPrompt}`;
         }
         if (selectedLocId) {
           const loc = myLocations.find(l => l.id === selectedLocId);
           if (loc) {
             locImages = loc.imageUrls;
             bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
-            if (selectedProductEffect && selectedProductEffect.prompt) {
-              bgPrompt += `. Additionally: ${selectedProductEffect.prompt}`;
+            if (selectedProductEffect && selectedProductEffect.id !== 'none') {
+              const effectPrompt2 = selectedProductEffect.id === 'custom'
+                ? customProductEffectText.trim()
+                : selectedProductEffect.prompt;
+              if (effectPrompt2) bgPrompt += `. Additionally: ${effectPrompt2}`;
             }
           }
         }
@@ -995,6 +1034,18 @@ function App() {
       clearInterval(iv);
       const data = await safeParseJSON(resp);
       if (data.success) {
+        // Списание 1 кредита по факту успешной перегенерации
+        if (subscription.local) {
+          setSubscription(prev => ({ ...prev, credits: Math.max(0, prev.credits - 1) }));
+        } else {
+          try {
+            const result = await useCredit(user.uid, 1);
+            setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
+          } catch (err) {
+            console.error('Ошибка списания кредита:', err);
+          }
+        }
+
         const newImg = data.imageUrl || data.imageBase64;
         setGeneratedImage(newImg);
         const editLabel = shotModifier.trim() || 'Перегенерация';
@@ -1015,6 +1066,168 @@ function App() {
     }
   };
 
+  // ═══ CARD DESIGN — show count modal first ═══
+  const handleCardDesignClick = () => {
+    if (!generatedImage) return;
+    setShowCardCountModal(true);
+    setCustomCardCount('');
+  };
+
+  const startCardGeneration = async (count) => {
+    setShowCardCountModal(false);
+    if (!generatedImage) return;
+    
+    const totalCredits = count;
+    // Credit check
+    const creditsAvailable = subscription?.credits || 0;
+    if (creditsAvailable < totalCredits && !subscription?.local) {
+      setShowPricing(true);
+      setStatusText(`⚡ Для ${count} карточек нужно ${totalCredits} кредитов`); setStatusType('error');
+      return;
+    }
+    if (subscription?.local && creditsAvailable < totalCredits) {
+      setStatusText(`⚡ Для ${count} карточек нужно ${totalCredits} кредитов`); setStatusType('error');
+      return;
+    }
+
+    setIsCardGenerating(true);
+    setCardResult(null);
+    setStatusText(`🎴 Создаём ${count > 1 ? count + ' карточек' : 'карточку'}...`);
+    setStatusType('processing');
+
+    const progressSteps = ['🎴 Анализируем товар...', '🎨 Подбираем стиль...', '✍️ Генерируем типографику...', '📐 Компонуем макет...', '✨ Финальная полировка...'];
+    let stepIdx = 0;
+    const iv = setInterval(() => {
+      stepIdx = (stepIdx + 1) % progressSteps.length;
+      setStatusText(progressSteps[stepIdx]);
+    }, 8000);
+
+    try {
+      // Run N parallel card generation requests
+      const promises = Array.from({ length: count }, () =>
+        fetch('/api/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.uid,
+            isCardDesign: true,
+            cardStyle: cardDesignStyle,
+            sourceImageUrl: generatedImage,
+          }),
+        }).then(r => r.json())
+      );
+      
+      const results = await Promise.all(promises);
+      clearInterval(iv);
+      
+      const successCards = results.filter(d => d.success).map(d => d.imageUrl);
+      
+      if (successCards.length > 0) {
+        // Deduct credits
+        if (!subscription?.local) {
+          try {
+            const result = await useCredit(user.uid, successCards.length);
+            setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
+          } catch (err) {
+            console.error('Ошибка списания кредита:', err);
+          }
+        }
+        setCardResult(successCards);
+        setStatusText(`🎴 Готово! ${successCards.length} ${successCards.length === 1 ? 'карточка' : 'карточек'}`);
+        setStatusType('success');
+      } else {
+        const firstError = results.find(d => !d.success);
+        setStatusText(`Ошибка: ${firstError?.error || 'Не удалось создать карточку'}`);
+        setStatusType('error');
+      }
+    } catch (err) {
+      clearInterval(iv);
+      setStatusText(`Ошибка: ${err.message}`);
+      setStatusType('error');
+    } finally {
+      setIsCardGenerating(false);
+    }
+  };
+
+  // ═══ QUICK MODE — two-click card generation ═══
+  const handleQuickGenerate = async () => {
+    if (!garmentUrls.length) {
+      setStatusText('Сначала загрузите фото товара'); setStatusType('error');
+      return;
+    }
+    // Credit check (2 credits)
+    const creditsAvailable = subscription?.credits || 0;
+    if (creditsAvailable < 2 && !subscription?.local) {
+      setShowPricing(true);
+      setStatusText('⚡ Для режима «В два клика» нужно 2 кредита'); setStatusType('error');
+      return;
+    }
+    if (subscription?.local && creditsAvailable < 2) {
+      setStatusText('⚡ Для режима «В два клика» нужно 2 кредита'); setStatusType('error');
+      return;
+    }
+
+    setIsProcessing(true);
+    setGeneratedImage(null);
+    setCardResult(null);
+    setStatusText('⚡ Шаг 1/2 — Генерируем фото товара...');
+    setStatusType('processing');
+
+    const progressSteps = ['📦 Обрабатываем фото товара...', '📸 Создаём студийный кадр...', '🎴 Переходим к оформлению карточки...', '🎨 Подбираем стиль...', '✍️ Генерируем текст и иконки...', '📐 Компонуем макет...', '✨ Финальная полировка...'];
+    let stepIdx = 0;
+    const iv = setInterval(() => {
+      stepIdx = (stepIdx + 1) % progressSteps.length;
+      setStatusText(progressSteps[stepIdx]);
+    }, 7000);
+
+    try {
+      const resp = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.uid,
+          isQuickMode: true,
+          cardStyle: quickCardStyle,
+          garmentImageUrls: garmentUrls,
+          withHumanModel: quickWithModel,
+          humanModelPrompt: quickWithModel ? (getCurrentModelPrompt() || 'professional model in their 20s') : '',
+          categoryId: selectedProductCategory?.id || 'default',
+        }),
+      });
+      clearInterval(iv);
+      const data = await resp.json();
+      if (data.success) {
+        // Deduct 2 credits
+        if (!subscription?.local) {
+          try {
+            const result = await useCredit(user.uid, 2);
+            setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
+          } catch (err) {
+            console.error('Ошибка списания кредитов:', err);
+          }
+        }
+        // Show both product image and card
+        if (data.productImageUrl) {
+          setGeneratedImage(data.productImageUrl);
+          setImageHistory([{ image: data.productImageUrl, label: '⚡ Фото товара' }]);
+          setHistoryIndex(0);
+        }
+        setCardResult(data.imageUrl);
+        setStatusText('⚡ Готово! Карточка и фото товара созданы');
+        setStatusType('success');
+      } else {
+        setStatusText(`Ошибка: ${data.error || 'Не удалось создать карточку'}`);
+        setStatusType('error');
+      }
+    } catch (err) {
+      clearInterval(iv);
+      setStatusText(`Ошибка: ${err.message}`);
+      setStatusType('error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // Auto-Catalog integration
   const handleAutoCatalog = async () => {
     if (!garmentUrls.length) {
@@ -1022,25 +1235,16 @@ function App() {
       return;
     }
     
-    // ═══ SUBSCRIPTION CHECK ═══
-    if (!canGenerate(subscription)) {
+    // ═══ SUBSCRIPTION CHECK (requires 3 credits) ═══
+    const creditsAvailable = subscription?.credits || 0;
+    if (creditsAvailable < 3 && !subscription?.local) {
       setShowPricing(true);
+      setStatusText('⚡ Для автокаталога требуется минимум 3 кредита'); setStatusType('error');
       return;
     }
-    if (subscription.local) {
-      setSubscription(prev => ({ ...prev, credits: Math.max(0, prev.credits - 3) }));
-    } else {
-      try {
-        // 3 credits for a batch run (discounted)
-        const result = await useCredit(user.uid, 3);
-        setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
-      } catch (err) {
-        if (err.message === 'NO_CREDITS' || err.message === 'NO_PLAN') {
-          setShowPricing(true);
-          setStatusText('⚡ Кредиты закончились'); setStatusType('error');
-          return;
-        }
-      }
+    if (subscription?.local && (subscription.credits || 0) < 3) {
+      setStatusText('⚡ Для автокаталога требуется минимум 3 кредита'); setStatusType('error');
+      return;
     }
 
     setStatusText('Отправка батча в Auto-Catalog...'); setStatusType('');
@@ -1066,6 +1270,18 @@ function App() {
       });
       const data = await resp.json();
       if (data.success) {
+        // Списание 3 кредитов по факту успешного запуска автокаталога
+        if (subscription.local) {
+          setSubscription(prev => ({ ...prev, credits: Math.max(0, prev.credits - 3) }));
+        } else {
+          try {
+            const result = await useCredit(user.uid, 3);
+            setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
+          } catch (err) {
+            console.error('Ошибка списания кредитов:', err);
+          }
+        }
+
         setStatusText(`✅ Auto-Catalog запущен! Батч отправлен на фоновую обработку.`);
         setStatusType('success');
       } else {
@@ -1116,8 +1332,11 @@ function App() {
       if (appMode === 'product') {
         modelPrompt = customProductPrompt.trim() || selectedProductCategory.defaultPrompt;
         bgPrompt = customProductBg.trim() || selectedProductBg.prompt;
-        if (selectedProductEffect && selectedProductEffect.prompt) {
-          bgPrompt += `. Additionally: ${selectedProductEffect.prompt}`;
+        if (selectedProductEffect && selectedProductEffect.id !== 'none') {
+          const effectPrompt = selectedProductEffect.id === 'custom'
+            ? customProductEffectText.trim()
+            : selectedProductEffect.prompt;
+          if (effectPrompt) bgPrompt += `. Additionally: ${effectPrompt}`;
         }
         // Модель-человек в фотосессии товаров
         if (productWithModel) {
@@ -1137,8 +1356,11 @@ function App() {
           if (loc) {
             locImages = loc.imageUrls;
             bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
-            if (selectedProductEffect && selectedProductEffect.prompt) {
-              bgPrompt += `. Additionally: ${selectedProductEffect.prompt}`;
+            if (selectedProductEffect && selectedProductEffect.id !== 'none') {
+              const effectPromptLoc = selectedProductEffect.id === 'custom'
+                ? customProductEffectText.trim()
+                : selectedProductEffect.prompt;
+              if (effectPromptLoc) bgPrompt += `. Additionally: ${effectPromptLoc}`;
             }
           }
         }
@@ -1262,10 +1484,10 @@ function App() {
         
         {/* Премиальный переключатель режимов */}
         <div className="mode-selector-wrapper">
-          <div className="mode-selector-bg">
+          <div className="mode-selector-bg mode-selector-3">
             <motion.div
               className="mode-selector-slider"
-              animate={{ x: appMode === 'product' ? '100%' : '0%' }}
+              animate={{ x: appMode === 'product' ? '100%' : appMode === 'quick' ? '200%' : '0%' }}
               transition={{ type: "spring", stiffness: 400, damping: 25, mass: 0.5 }}
             />
             <button
@@ -1278,7 +1500,13 @@ function App() {
               className={`mode-btn ${appMode === 'product' ? 'active' : ''}`}
               onClick={() => setAppMode('product')}
             >
-              📦 Товары (Предметка)
+              📦 Предметка
+            </button>
+            <button
+              className={`mode-btn ${appMode === 'quick' ? 'active' : ''}`}
+              onClick={() => setAppMode('quick')}
+            >
+              ⚡ В два клика
             </button>
           </div>
         </div>
@@ -1302,8 +1530,90 @@ function App() {
         canceling={cancelingSubscription}
       />
 
+      {/* ═══ QUICK MODE PANEL ═══ */}
+      {appMode === 'quick' && (
+        <motion.div className="section quick-mode-panel" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.1,duration:0.5,ease:[0.16,1,0.3,1]}}>
+          <div className="section-title">
+            <span className="icon">⚡</span> В два клика
+          </div>
+          <p className="quick-mode-subtitle">Загрузите фото товара — получите готовую карточку для маркетплейса</p>
+
+          {/* Upload zone — reuse garmentUrls */}
+          <div className="quick-upload-zone">
+            {previewUrls.length > 0 ? (
+              <div className="multi-preview-grid">
+                {previewUrls.map((url, i) => (
+                  <div key={i} className="multi-preview-item">
+                    <img src={url} alt={`Товар ${i+1}`} />
+                    <button className="remove-preview" onClick={() => removeFile(i)}>✕</button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <label className="drop-zone compact" htmlFor="quick-upload">
+                <span className="dz-emoji">📷</span>
+                <span className="dz-text">Загрузите фото товара</span>
+                <input id="quick-upload" type="file" accept="image/*" multiple onChange={handleFilesChange} style={{display:'none'}} />
+              </label>
+            )}
+          </div>
+
+          {/* Model toggle */}
+          <div className="quick-model-toggle">
+            <label className="quick-toggle-label">
+              <input
+                type="checkbox"
+                checked={quickWithModel}
+                onChange={e => setQuickWithModel(e.target.checked)}
+              />
+              <span className="quick-toggle-text">👤 Добавить модель-человека</span>
+            </label>
+          </div>
+
+          {/* Card style picker */}
+          <div className="card-style-picker">
+            <div className="card-style-label">Стиль карточки:</div>
+            <div className="card-style-options">
+              <button
+                className={`card-style-btn ${quickCardStyle === 'natural' ? 'active' : ''}`}
+                onClick={() => setQuickCardStyle('natural')}
+              >
+                <span className="card-style-icon">🌿</span>
+                <span className="card-style-name">Естественная</span>
+                <span className="card-style-desc">Элегантная, минимализм, чистый дизайн</span>
+              </button>
+              <button
+                className={`card-style-btn ${quickCardStyle === 'epic' ? 'active' : ''}`}
+                onClick={() => setQuickCardStyle('epic')}
+              >
+                <span className="card-style-icon">🔥</span>
+                <span className="card-style-name">Эпичная</span>
+                <span className="card-style-desc">Кинематограф, драма, wow-эффект</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Examples button */}
+          <button className="card-examples-btn" onClick={() => setShowCardExamples(true)}>
+            👁 Посмотреть примеры до/после
+          </button>
+
+          {/* Generate button */}
+          <div className="quick-generate-row">
+            <button
+              className="generate-btn quick-generate-btn"
+              onClick={handleQuickGenerate}
+              disabled={isProcessing || !garmentUrls.length}
+            >
+              {isProcessing ? '⏳ Создаём...' : '⚡ Создать карточку'}
+            </button>
+            <span className="quick-credits-hint">2 кредита</span>
+          </div>
+        </motion.div>
+      )}
+
       {/* 1. МУЛЬТИЗАГРУЗКА */}
-      <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.15,duration:0.5,ease:[0.16,1,0.3,1]}}>
+      {appMode !== 'quick' && <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.15,duration:0.5,ease:[0.16,1,0.3,1]}}>
         <div className="section-title">
           <span className="icon">{appMode === 'product' ? '📦' : '📸'}</span> 
           {appMode === 'product' ? ' Загрузка товаров' : ' Загрузка вещей'}
@@ -1337,10 +1647,10 @@ function App() {
             </p>
           </div>
         )}
-      </motion.div>
+      </motion.div>}
 
       {/* 2. НАСТРОЙКА ОБЪЕКТА / КАСТИНГ-РУМ */}
-      {appMode === 'product' ? (
+      {appMode !== 'quick' && (appMode === 'product' ? (
         <>
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.3,duration:0.5,ease:[0.16,1,0.3,1]}}>
           <div className="section-title"><span className="icon">🧴</span> Категория товара</div>
@@ -1545,10 +1855,10 @@ function App() {
             </>
           )}
         </motion.div>
-      )}
+      ))}
 
       {/* 3. ПОЗА ИЛИ КОМПОЗИЦИЯ */}
-      {appMode === 'product' ? (
+      {appMode !== 'quick' && (appMode === 'product' ? (
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.45,duration:0.5,ease:[0.16,1,0.3,1]}}>
           <div className="section-title"><span className="icon">📐</span> Композиция кадра</div>
           <div className="preset-grid">
@@ -1580,7 +1890,7 @@ function App() {
               value={customPoseText} onChange={e => setCustomPoseText(e.target.value)} />
           </div>
         </motion.div>
-      )}
+      ))}
 
       {/* 4. РАКУРС КАМЕРЫ (Только в режиме одежды) */}
       {appMode === 'fashion' && (
@@ -1597,7 +1907,7 @@ function App() {
       )}
 
       {/* 5. ФОН / ЛОКАЦИЯ */}
-      <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.75,duration:0.5,ease:[0.16,1,0.3,1]}}>
+      {appMode !== 'quick' && <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.75,duration:0.5,ease:[0.16,1,0.3,1]}}>
         <div className="section-title"><span className="icon">🎨</span> {appMode === 'product' ? 'Сцена / Окружение' : 'Фон / Локация'}</div>
         <div className="tabs-row">
           <button className={`tab-btn ${bgTab==='presets'?'active':''}`} onClick={()=>{setBgTab('presets');setSelectedLocId(null);}}>🎨 Пресеты</button>
@@ -1630,6 +1940,16 @@ function App() {
                     </div>
                   ))}
                 </div>
+                {selectedProductEffect.id === 'custom' && (
+                  <div className="custom-variant-row" style={{marginTop:10}}>
+                    <input
+                      className="custom-variant-input"
+                      placeholder="Опишите ваш спецэффект: «взрыв конфетти, снежинки, дым»"
+                      value={customProductEffectText}
+                      onChange={ev => setCustomProductEffectText(ev.target.value)}
+                    />
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -1693,14 +2013,24 @@ function App() {
                     </div>
                   ))}
                 </div>
+                {selectedProductEffect.id === 'custom' && (
+                  <div className="custom-variant-row" style={{marginTop:10}}>
+                    <input
+                      className="custom-variant-input"
+                      placeholder="Опишите ваш спецэффект: «взрыв конфетти, снежинки, дым»"
+                      value={customProductEffectText}
+                      onChange={ev => setCustomProductEffectText(ev.target.value)}
+                    />
+                  </div>
+                )}
               </>
             )}
           </>
         )}
-      </motion.div>
+      </motion.div>}
 
       {/* 6. ФОРМАТ */}
-      <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.9,duration:0.5,ease:[0.16,1,0.3,1]}}>
+      {appMode !== 'quick' && <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.9,duration:0.5,ease:[0.16,1,0.3,1]}}>
         <div className="section-title"><span className="icon">📐</span> Формат изображения</div>
         <div className="preset-grid">
           {ASPECT_RATIOS.map(r => (
@@ -1709,10 +2039,10 @@ function App() {
             </div>
           ))}
         </div>
-      </motion.div>
+      </motion.div>}
 
       {/* 7. ГЕНЕРАЦИЯ */}
-      <motion.div className="generate-section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:1.05,duration:0.5,ease:[0.16,1,0.3,1]}}>
+      {appMode !== 'quick' && <motion.div className="generate-section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:1.05,duration:0.5,ease:[0.16,1,0.3,1]}}>
         <div className="beauty-toggle">
           <label className={`beauty-switch ${isBeautyMode ? 'active' : ''}`}>
             <input type="checkbox" checked={isBeautyMode} onChange={e => setIsBeautyMode(e.target.checked)} />
@@ -1720,18 +2050,47 @@ function App() {
           </label>
           <span className="beauty-hint">
             {appMode === 'product' && !productWithModel
-              ? (isBeautyMode ? 'Коммерческий глянец, идеальные поверхности' : 'Натуральные текстуры и материалы')
-              : (isBeautyMode ? 'Журнальный глянец, идеальная кожа' : 'Натуральная кожа с текстурой')}
+              ? (isBeautyMode
+                  ? 'Выбран коммерческий глянец — идеальные поверхности. Нажмите, чтобы вернуть натуральные текстуры'
+                  : 'Выбран реализм — натуральные текстуры материалов. Нажмите, чтобы включить коммерческий глянец')
+              : (isBeautyMode
+                  ? 'Выбран журнальный глянец «Идеальная кожа». Нажмите, чтобы вернуть реализм'
+                  : 'Выбран реализм: натуральная кожа с текстурой. Нажмите, чтобы включить журнальный глянец «Идеальная кожа»')}
           </span>
+        </div>
+
+        {/* Селектор количества вариантов */}
+        <div className="variant-count-section">
+          <div className="variant-count-title">🎯 Количество вариантов</div>
+          <div className="variant-count-grid">
+            {[1, 2, 3, 4].map(n => (
+              <button
+                key={n}
+                className={`variant-count-btn ${variantCount === n ? 'active' : ''}`}
+                onClick={() => setVariantCount(n)}
+              >
+                <span className="variant-count-number">{n}</span>
+                <span className="variant-count-label">{n === 1 ? 'кадр' : (n < 5 ? 'кадра' : 'кадров')}</span>
+                <span className="variant-count-credits">{n} {n === 1 ? 'кредит' : (n < 5 ? 'кредита' : 'кредитов')}</span>
+              </button>
+            ))}
+          </div>
         </div>
         
         <div style={{display: 'flex', gap: '10px', flexDirection: 'column'}}>
-          <button className="generate-btn" onClick={handleGenerate} onMouseEnter={() => { fetch('/api/generate-image', { method: 'OPTIONS', keepalive: true }).catch(() => {}); }} disabled={!garmentUrls.length||isProcessing||isUploading}>{isUploading ? '☁️ Загрузка в облако...' : '✨ Сгенерировать студийный кадр'}</button>
+          <button className="generate-btn" onClick={handleGenerate} onMouseEnter={() => { fetch('/api/generate-image', { method: 'OPTIONS', keepalive: true }).catch(() => {}); }} disabled={!garmentUrls.length||isProcessing||isUploading}>{isUploading ? '☁️ Загрузка в облако...' : `✨ Сгенерировать ${variantCount > 1 ? variantCount + ' варианта' : 'студийный кадр'}`}</button>
           <button className="generate-btn" style={{background: 'linear-gradient(135deg, #8b5cf6, #d946ef)'}} onClick={handleAutoCatalog} disabled={!garmentUrls.length||isProcessing||isUploading}>{isUploading ? '☁️ Загрузка...' : '🏭 Отправить в Auto-Catalog (Batch)'}</button>
         </div>
 
         <div className="status-bar">{statusText && <p className={`status-text ${statusType}`}>{statusText}</p>}</div>
-      </motion.div>
+      </motion.div>}
+
+      {/* ═══ STATUS BAR for quick mode ═══ */}
+      {appMode === 'quick' && statusText && (
+        <div className="status-bar" style={{textAlign:'center',padding:'12px 0'}}>
+          <p className={`status-text ${statusType}`}>{statusText}</p>
+        </div>
+      )}
 
       {/* 8. РЕЗУЛЬТАТ */}
       <AnimatePresence>
@@ -1788,6 +2147,88 @@ function App() {
                 >🔄 Новый вариант</button>
               )}
             </div>
+
+            {/* ═══ CARD DESIGNER CTA ═══ */}
+            <motion.div
+              className="card-designer-section"
+              initial={{opacity:0,y:20}}
+              animate={{opacity:1,y:0}}
+              transition={{delay:0.3,duration:0.5,ease:[0.16,1,0.3,1]}}
+            >
+              <div className="card-designer-header">
+                <span className="card-designer-icon">🎴</span>
+                <div>
+                  <div className="card-designer-title">Оформить карточку для маркетплейса</div>
+                  <div className="card-designer-subtitle">Превратите фото в продающую карточку WB / Ozon</div>
+                </div>
+              </div>
+
+              <div className="card-style-picker">
+                <div className="card-style-options">
+                  <button
+                    className={`card-style-btn ${cardDesignStyle === 'natural' ? 'active' : ''}`}
+                    onClick={() => setCardDesignStyle('natural')}
+                  >
+                    <span className="card-style-icon">🌿</span>
+                    <span className="card-style-name">Естественная</span>
+                    <span className="card-style-desc">Элегантная, минимализм</span>
+                  </button>
+                  <button
+                    className={`card-style-btn ${cardDesignStyle === 'epic' ? 'active' : ''}`}
+                    onClick={() => setCardDesignStyle('epic')}
+                  >
+                    <span className="card-style-icon">🔥</span>
+                    <span className="card-style-name">Эпичная</span>
+                    <span className="card-style-desc">Кинематограф, wow-эффект</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="card-designer-actions">
+                <button className="card-examples-btn" onClick={() => setShowCardExamples(true)}>
+                  👁 Примеры
+                </button>
+                <button
+                  className="card-generate-btn"
+                  onClick={handleCardDesignClick}
+                  disabled={isCardGenerating}
+                >
+                  {isCardGenerating ? '⏳ Создаём...' : '🎴 Создать карточку'}
+                </button>
+                <span className="card-credits-hint">1 кредит / шт</span>
+              </div>
+
+              {/* Card result */}
+              {cardResult && Array.isArray(cardResult) && cardResult.length > 0 && (
+                <motion.div
+                  className="card-result-block"
+                  initial={{opacity:0,scale:0.95}}
+                  animate={{opacity:1,scale:1}}
+                  transition={{duration:0.4}}
+                >
+                  <h4 className="card-result-title">🎴 {cardResult.length > 1 ? `Готовые карточки (${cardResult.length})` : 'Готовая карточка'}</h4>
+                  <div className={`card-result-grid ${cardResult.length > 1 ? 'multi' : ''}`}>
+                    {cardResult.map((url, ci) => (
+                      <div key={ci} className="card-result-image-wrap">
+                        <img src={url} alt={`Карточка ${ci+1}`} onClick={() => setLightboxSrc(url)} />
+                        <button className="download-btn card-dl" onClick={() => {
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `card-${cardDesignStyle}-${ci+1}-${Date.now()}.png`;
+                          a.target = '_blank';
+                          a.click();
+                        }}>⬇️</button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="card-result-actions">
+                    <button className="card-generate-btn" onClick={handleCardDesignClick} disabled={isCardGenerating}>
+                      🔄 Ещё варианты
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </motion.div>
 
             {/* Iterative editing */}
             <div className="shot-modifier-block">
@@ -2065,10 +2506,138 @@ function App() {
           show={showCalibWizard}
           onClose={() => setShowCalibWizard(false)}
           onSave={saveCalibratedModel}
+          onStartCalibration={async () => {
+            if (!user || user.isGuest || user.isAnonymous) {
+              throw new Error('Для создания модели необходимо авторизоваться');
+            }
+            // Калибровка модели теперь бесплатна, кредиты не списываются.
+          }}
           modelPrompt={getCurrentModelPrompt()}
           modelRefImages={getCurrentModelRefs()}
           userId={user?.uid}
         />
+      </AnimatePresence>
+
+      {/* ═══ CARD COUNT SELECTION MODAL ═══ */}
+      <AnimatePresence>
+        {showCardCountModal && (
+          <motion.div
+            className="card-examples-overlay"
+            initial={{opacity:0}}
+            animate={{opacity:1}}
+            exit={{opacity:0}}
+            onClick={() => setShowCardCountModal(false)}
+          >
+            <motion.div
+              className="card-count-modal"
+              initial={{opacity:0,scale:0.9,y:20}}
+              animate={{opacity:1,scale:1,y:0}}
+              exit={{opacity:0,scale:0.9,y:20}}
+              transition={{type:'spring',stiffness:400,damping:25,mass:0.5}}
+              onClick={e => e.stopPropagation()}
+            >
+              <h3 className="card-count-title">🎯 Сколько карточек сделать?</h3>
+              <p className="card-count-subtitle">Каждая карточка = 1 кредит</p>
+              <div className="card-count-grid">
+                {[1, 2, 3, 4].map(n => (
+                  <button
+                    key={n}
+                    className="card-count-btn"
+                    onClick={() => { setCardVariantCount(n); startCardGeneration(n); }}
+                  >
+                    <span className="card-count-number">{n}</span>
+                    <span className="card-count-label">{n === 1 ? 'карточка' : (n < 5 ? 'карточки' : 'карточек')}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="card-count-custom">
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  placeholder="Своё количество"
+                  className="card-count-input"
+                  value={customCardCount}
+                  onChange={e => setCustomCardCount(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && parseInt(customCardCount) > 0) { startCardGeneration(parseInt(customCardCount)); }}}
+                />
+                <button
+                  className="card-count-go"
+                  disabled={!customCardCount || parseInt(customCardCount) < 1}
+                  onClick={() => { const n = parseInt(customCardCount); if (n > 0) startCardGeneration(n); }}
+                >
+                  Создать →
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ═══ CARD EXAMPLES MODAL ═══ */}
+      <AnimatePresence>
+        {showCardExamples && (
+          <motion.div
+            className="card-examples-overlay"
+            initial={{opacity:0}}
+            animate={{opacity:1}}
+            exit={{opacity:0}}
+            onClick={() => setShowCardExamples(false)}
+          >
+            <motion.div
+              className="card-examples-modal"
+              initial={{opacity:0,scale:0.9,y:40}}
+              animate={{opacity:1,scale:1,y:0}}
+              exit={{opacity:0,scale:0.9,y:40}}
+              transition={{type:"spring",stiffness:400,damping:25,mass:0.5}}
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="card-examples-header">
+                <h3>Примеры карточек до / после</h3>
+                <button className="card-examples-close" onClick={() => setShowCardExamples(false)}>✕</button>
+              </div>
+
+              <div className="card-examples-tabs">
+                <button
+                  className={`card-examples-tab ${cardDesignStyle === 'natural' ? 'active' : ''}`}
+                  onClick={() => setCardDesignStyle('natural')}
+                >🌿 Естественная</button>
+                <button
+                  className={`card-examples-tab ${cardDesignStyle === 'epic' ? 'active' : ''}`}
+                  onClick={() => setCardDesignStyle('epic')}
+                >🔥 Эпичная</button>
+              </div>
+
+              <div className="card-examples-grid">
+                {/* Glass example */}
+                <div className="card-example-pair">
+                  <div className="card-example-item">
+                    <div className="card-example-label">До</div>
+                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-glass-before.jpg' : '/examples/cards/epic-glass-before.jpg'} alt="Стакан до" />
+                  </div>
+                  <div className="card-example-arrow">→</div>
+                  <div className="card-example-item">
+                    <div className="card-example-label">После</div>
+                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-glass-after.png' : '/examples/cards/epic-glass-after.png'} alt="Стакан после" />
+                  </div>
+                </div>
+
+                {/* Pajama example */}
+                <div className="card-example-pair">
+                  <div className="card-example-item">
+                    <div className="card-example-label">До</div>
+                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-pajama-before.png' : '/examples/cards/epic-pajama-before.jpg'} alt="Пижама до" />
+                  </div>
+                  <div className="card-example-arrow">→</div>
+                  <div className="card-example-item">
+                    <div className="card-example-label">После</div>
+                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-pajama-after.png' : '/examples/cards/epic-pajama-after.png'} alt="Пижама после" />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );
