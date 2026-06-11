@@ -256,6 +256,17 @@ function App() {
       });
   }, [user]);
 
+  // Обновляет баланс кредитов после генерации — переполучает подписку из Firestore
+  const refreshCreditsFromResponse = async (_responseData) => {
+    if (!user?.uid) return;
+    try {
+      const fresh = await getSubscription(user.uid, user.email);
+      if (fresh) setSubscription(fresh);
+    } catch (_e) {
+      // Silent fail — UI balance stays until next reload
+    }
+  };
+
   // Проверка успешной оплаты ЮKassa при возврате на сайт (return_url)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -652,8 +663,9 @@ function App() {
         .map(d => d.imageUrl || d.imageBase64);
 
       if (successImages.length > 0) {
-        // Кредиты уже списаны бэкендом — обновляем баланс из ответа
-        refreshCreditsFromResponse(successImages[0] ? { creditsRemaining: data.creditsRemaining } : data);
+        // Кредиты уже списаны бэкендом — обновляем баланс из Firestore
+        const firstSuccess = results.find(d => d.success);
+        refreshCreditsFromResponse(firstSuccess || {});
 
         const VARIANT_LABELS = ['A', 'B', 'C', 'D'];
         setGeneratedImage(successImages[0]);
@@ -1085,6 +1097,7 @@ function App() {
 
     try {
       // Run N parallel card generation requests
+      const isBase64 = generatedImage && generatedImage.startsWith('data:');
       const promises = Array.from({ length: count }, () =>
         fetch('/api/generate-image', {
           method: 'POST',
@@ -1093,7 +1106,9 @@ function App() {
             userId: user.uid,
             isCardDesign: true,
             cardStyle: cardDesignStyle,
-            sourceImageUrl: generatedImage,
+            ...(isBase64
+              ? { sourceImageBase64: generatedImage }
+              : { sourceImageUrl: generatedImage }),
           }),
         }).then(r => r.json())
       );
@@ -1156,27 +1171,35 @@ function App() {
 
     try {
       // ШАГ 1: Студийное фото товара через product mode
-      const step1Resp = await generateImageRequest({
-        isProductMode: true,
-        categoryId: selectedProductCategory?.id || 'default',
-        garmentImageUrls: garmentUrls,
-        withHumanModel: quickWithModel,
-        humanModelPrompt: quickWithModel ? (getCurrentModelPrompt() || 'professional model in their 20s') : '',
-        backgroundPreset: 'clean minimalist white cyclorama studio background',
-        compositionPreset: 'centered product shot, professional e-commerce framing',
-        aspectRatio: '3:4',
+      const step1Resp = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.uid || null,
+          isProductMode: true,
+          categoryId: selectedProductCategory?.id || 'default',
+          garmentImageUrls: garmentUrls,
+          withHumanModel: quickWithModel,
+          humanModelPrompt: quickWithModel ? (getCurrentModelPrompt() || 'professional model in their 20s') : '',
+          backgroundPreset: 'clean minimalist white cyclorama studio background',
+          posePreset: 'centered product shot, professional e-commerce framing',
+          aspectRatio: '3:4',
+        }),
       });
       clearInterval(iv);
       const step1Data = await safeParseJSON(step1Resp);
 
-      if (!step1Data.success || !step1Data.imageUrl) {
+      if (!step1Data.success) {
         throw new Error(step1Data.error || 'Не удалось создать студийное фото товара');
       }
 
       const productPhotoUrl = step1Data.imageUrl;
-      setGeneratedImage(step1Data.imageBase64 || productPhotoUrl);
-      setImageHistory([{ image: step1Data.imageBase64 || productPhotoUrl, label: '📦 Фото товара' }]);
-      setHistoryIndex(0);
+      const productPhotoDisplay = step1Data.imageBase64 || productPhotoUrl;
+      if (productPhotoDisplay) {
+        setGeneratedImage(productPhotoDisplay);
+        setImageHistory([{ image: productPhotoDisplay, label: '📦 Фото товара' }]);
+        setHistoryIndex(0);
+      }
       refreshCreditsFromResponse(step1Data);
 
       // ШАГ 2: Карточка маркетплейса
@@ -1190,10 +1213,15 @@ function App() {
         setStatusText(step2Messages[stepIdx]);
       }, 7000);
 
-      const step2Resp = await generateImageRequest({
-        isCardDesign: true,
-        cardStyle: quickCardStyle,
-        sourceImageUrl: productPhotoUrl,
+      const step2Resp = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.uid || null,
+          isCardDesign: true,
+          cardStyle: quickCardStyle,
+          sourceImageUrl: productPhotoUrl,
+        }),
       });
       clearInterval(iv);
       const step2Data = await safeParseJSON(step2Resp);
@@ -1204,13 +1232,14 @@ function App() {
         if (cardDisplay) {
           setGeneratedImage(cardDisplay);
           setImageHistory(prev => [...prev, { image: cardDisplay, label: '🎴 Карточка маркетплейса' }]);
-          setHistoryIndex(1);
+          setHistoryIndex(prev => prev + 1);
         }
         if (step2Data.imageUrl) setCardResult([step2Data.imageUrl]);
         setStatusText('⚡ Готово! Карточка маркетплейса создана');
         setStatusType('success');
       } else {
-        setStatusText(`⚠️ Фото готово, но карточка не удалась: ${step2Data.error || 'ошибка'}`);
+        // Шаг 1 уже показан — карточку не удалось, но фото есть
+        setStatusText(`⚠️ Фото товара готово, но карточка не создалась: ${step2Data.error || 'ошибка'}`);
         setStatusType('error');
       }
     } catch (err) {
