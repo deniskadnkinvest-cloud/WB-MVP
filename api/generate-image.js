@@ -872,6 +872,8 @@ export default async function handler(req, res) {
       withHumanModel = false,
       humanModelPrompt = '',
       humanModelRefImages,
+      isCardDesign = false,
+      cardStyle = 'natural',
     } = req.body;
 
     // ═══ PHOTO EDIT MODE — precise, non-destructive editing ═══
@@ -987,9 +989,80 @@ Return ONLY the edited photograph.`;
       return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl });
     }
 
+    // ═══ CARD DESIGN MODE — маркетплейсная карточка товара ═══
+    if (isCardDesign) {
+      const elapsed = () => ((Date.now() - startTime) / 1000).toFixed(1);
+      console.log(`🎴 [${elapsed()}s] Card Design: style=${cardStyle}, source=${sourceImageUrl ? 'url' : sourceImageBase64 ? 'base64' : 'garment'}`);
+      try {
+        let cardImageInputs = [];
+        if (sourceImageUrl) {
+          const dl = await downloadToBase64(sourceImageUrl);
+          if (dl) cardImageInputs.push(`data:${dl.mimeType};base64,${dl.base64str}`);
+        } else if (sourceImageBase64) {
+          cardImageInputs.push(sourceImageBase64.startsWith('data:') ? sourceImageBase64 : `data:image/jpeg;base64,${sourceImageBase64}`);
+        } else if (garmentImages && garmentImages.length > 0) {
+          for (const img of garmentImages.slice(0, 1)) {
+            if (img.startsWith('data:')) { cardImageInputs.push(img); }
+            else if (img.startsWith('http')) {
+              const result = await downloadToBase64(img);
+              if (result) cardImageInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
+            }
+          }
+        }
+        if (cardImageInputs.length === 0) {
+          return res.status(200).json({ success: false, error: 'Нет исходного фото для создания карточки.' });
+        }
+
+        const EPIC_CARD_PROMPT = `ROLE: Elite Russian E-commerce Art Director (Wildberries/Ozon).
+TASK: Transform this product photo into a COMPLETE marketplace card design.
+STYLE: EPIC — Dark cinematic. Deep background (#1a1a2e to #16213e gradient). Gold/amber accent typography.
+LAYOUT: Product photo dominant center-right (60% width). Left column for text.
+TEXT (ALL IN RUSSIAN — generate realistic text based on the product you see):
+  - Top-left badge: discount pill (example: -30%)
+  - Brand/category label: small gold caps
+  - Product name: 2-3 word bold headline in white
+  - 3 benefit bullets with gold checkmarks
+  - Price block: current price large + strikethrough old price
+  - CTA button: gold pill "Купить"
+  - Rating: gold stars + review count
+OUTPUT: A COMPLETE, FINISHED card design image. ALL text in RUSSIAN. NO placeholder text. Generate realistic product name and benefits from the actual product visible in the photo.`;
+
+        const NATURAL_CARD_PROMPT = `ROLE: Elite Russian E-commerce Art Director (Wildberries/Ozon).
+TASK: Transform this product photo into a COMPLETE marketplace card design.
+STYLE: NATURAL — Clean, premium lifestyle. Soft cream/warm white background (#faf8f5). Elegant dark typography.
+LAYOUT: Product photo right/center (55-60% of card). Text area left/above with generous white space.
+TEXT (ALL IN RUSSIAN — generate realistic text based on the product you see):
+  - Brand label: thin sans-serif, warm gray, top
+  - Product name: 2-3 word elegant headline, near-black
+  - Tagline: one poetic benefit sentence, italic warm gray
+  - 3 feature bullets with minimal dot icons
+  - Price: clean style, dark charcoal
+  - CTA: "Подробнее" underlined or minimal outlined button
+OUTPUT: A COMPLETE, FINISHED card design image. ALL text in RUSSIAN. NO placeholder text. Generate realistic product name and benefits from the actual product visible in the photo.`;
+
+        const cardPrompt = cardStyle === 'epic' ? EPIC_CARD_PROMPT : NATURAL_CARD_PROMPT;
+
+        console.log(`🎴 [${elapsed()}s] Sending to KIE.ai nano-banana-2...`);
+        const resultUrl = await executeKieTask(cardPrompt, cardImageInputs, 'nano-banana-2');
+        console.log(`✅ [${elapsed()}s] Card design ready. Downloading...`);
+        const dl = await downloadToBase64(resultUrl);
+        if (!dl) throw new Error('Failed to download card design from KIE.ai');
+
+        incrementGlobalCounter('generationsCard').catch(() => {});
+        saveGenerationLog({ userId: req.body?.userId, success: true, imageUrl: resultUrl, reqBody: req.body, durationMs: Date.now() - startTime }).catch(() => {});
+
+        return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl });
+      } catch (cardErr) {
+        console.error(`❌ Card Design error:`, cardErr.message);
+        alertOnError(cardErr, `generate-image [card_design]`).catch(() => {});
+        return res.status(200).json({ success: false, error: `Ошибка создания карточки: ${cardErr.message.substring(0, 200)}` });
+      }
+    }
+
     // ═══ PRODUCT MODE — предметная съемка товаров ═══
     // Использует buildProductPrompt() вместо fashion pipeline
     if (isProductMode) {
+
       console.log(`📦 [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product Mode: category=${categoryId}, images=${garmentImages.length}, withModel=${withHumanModel}`);
       
       const effectPrompt = customPoseText || '';
