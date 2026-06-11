@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth, firebaseErrorToRussian } from '../contexts/AuthContext';
 import './LoginPage.css';
 
 export default function LoginPage() {
   const {
-    signInWithGoogle,
+    sendOtpCode,
+    verifyOtpCode,
     signInWithEmail,
     signUpWithEmail,
     resetPassword,
-    sendMagicLink,
     signInAsGuest,
     signInWithTelegramAccount,
     isInAppBrowser,
@@ -18,7 +18,7 @@ export default function LoginPage() {
     isPrivate,
   } = useAuth();
 
-  const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'reset' | 'magiclink'
+  const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'reset' | 'otp_request' | 'otp_verify'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -26,26 +26,118 @@ export default function LoginPage() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [showBrowserHint, setShowBrowserHint] = useState(false);
-  const [googleRedirecting, setGoogleRedirecting] = useState(false);
+
   const [showEmailForm, setShowEmailForm] = useState(false);
 
-  // ═══════════════════════════════════════════
-  //  GOOGLE SIGN-IN
-  // ═══════════════════════════════════════════
-  const handleGoogle = async () => {
+  // OTP States
+  const [otpCode, setOtpCode] = useState(['', '', '', '', '', '']);
+  const [otpTimer, setOtpTimer] = useState(0);
+  const otpRefs = useRef([]);
+
+  // Timer Effect
+  useEffect(() => {
+    if (otpTimer <= 0) return;
+    const interval = setInterval(() => {
+      setOtpTimer(prev => prev - 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [otpTimer]);
+
+  const formatTimer = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const handleOtpChange = (value, index) => {
+    const cleaned = value.replace(/[^0-9]/g, '');
+    if (!cleaned) return;
+
+    const newCode = [...otpCode];
+    newCode[index] = cleaned[cleaned.length - 1];
+    setOtpCode(newCode);
+
+    // Auto-advance focus
+    if (index < 5 && cleaned) {
+      otpRefs.current[index + 1]?.focus();
+    }
+
+    // Auto-submit if all filled
+    const fullCode = newCode.join('');
+    if (fullCode.length === 6) {
+      handleVerifyOtp(email, fullCode);
+    }
+  };
+
+  const handleOtpKeyDown = (e, index) => {
+    if (e.key === 'Backspace') {
+      const newCode = [...otpCode];
+      if (!newCode[index] && index > 0) {
+        newCode[index - 1] = '';
+        setOtpCode(newCode);
+        otpRefs.current[index - 1]?.focus();
+      } else {
+        newCode[index] = '';
+        setOtpCode(newCode);
+      }
+      e.preventDefault();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').trim().replace(/[^0-9]/g, '');
+    if (pastedData.length === 6) {
+      const newCode = pastedData.split('');
+      setOtpCode(newCode);
+      handleVerifyOtp(email, pastedData);
+    }
+  };
+
+  const handleSendOtp = async (e) => {
+    if (e) e.preventDefault();
+    if (!email) { setError('Введите email'); return; }
     setError(''); setSuccess(''); setLoading(true);
     try {
-      await signInWithGoogle();
-    } catch (err) {
-      if (err.message === 'OPEN_IN_BROWSER') {
-        setShowBrowserHint(true); setError('');
-      } else if (err?.code === 'auth/popup-blocked' || err?.message?.includes('redirect')) {
-        setGoogleRedirecting(true); setError('');
+      const data = await sendOtpCode(email);
+      // Переключаем режим напрямую, не затирая success через switchMode
+      setMode('otp_verify');
+      setError('');
+      if (data && data.telegramFallback) {
+        setSuccess('Код отправлен в ваш Telegram.');
+      } else if (data && data.supportFallback) {
+        setSuccess('Почта временно недоступна. Код передан в резервный канал поддержки.');
       } else {
-        setError(firebaseErrorToRussian(err));
+        setSuccess('Код отправлен на почту ' + email);
       }
-    } finally { setLoading(false); }
+      setOtpCode(['', '', '', '', '', '']);
+      setOtpTimer(300); // 5 minutes
+      setTimeout(() => {
+        otpRefs.current[0]?.focus();
+      }, 300);
+    } catch (err) {
+      setError(err.message || 'Ошибка отправки кода');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleVerifyOtp = async (targetEmail, codeString) => {
+    setError(''); setSuccess(''); setLoading(true);
+    try {
+      await verifyOtpCode(targetEmail, codeString);
+      setSuccess('Успешный вход!');
+    } catch (err) {
+      setError(err.message || 'Неверный код подтверждения');
+      setOtpCode(['', '', '', '', '', '']);
+      setTimeout(() => {
+        otpRefs.current[0]?.focus();
+      }, 50);
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   // ═══════════════════════════════════════════
   //  EMAIL / MAGIC LINK / RESET
@@ -55,13 +147,8 @@ export default function LoginPage() {
     setError(''); setSuccess('');
     if (!email) { setError('Введите email'); return; }
 
-    if (mode === 'magiclink') {
-      setLoading(true);
-      try {
-        await sendMagicLink(email);
-        setSuccess('Ссылка для входа отправлена на ' + email + '. Проверьте почту!');
-      } catch (err) { setError(firebaseErrorToRussian(err)); }
-      finally { setLoading(false); }
+    if (mode === 'otp_request') {
+      await handleSendOtp(e);
       return;
     }
 
@@ -149,7 +236,7 @@ export default function LoginPage() {
             <span className="inapp-banner-icon">⚠️</span>
             <div className="inapp-banner-text">
               <strong>Встроенный браузер</strong>
-              <p>Для входа через Google откройте в Safari или Chrome.</p>
+              <p>Для входа откройте в Safari или Chrome.</p>
               <button className="inapp-open-btn" onClick={handleOpenInBrowser}>
                 Открыть в браузере ↗
               </button>
@@ -157,12 +244,6 @@ export default function LoginPage() {
           </div>
         )}
 
-        {googleRedirecting && (
-          <div className="inapp-banner" style={{ borderColor: 'rgba(66,133,244,0.4)' }}>
-            <span className="inapp-banner-icon">🔄</span>
-            <div className="inapp-banner-text"><p>Перенаправляем на Google для входа...</p></div>
-          </div>
-        )}
 
         {showBrowserHint && (
           <div className="inapp-banner" style={{ borderColor: '#4285F4' }}>
@@ -177,7 +258,7 @@ export default function LoginPage() {
         {isTelegram ? (
           <>
             {/* Primary: Telegram account login */}
-            <button className="google-btn telegram-btn" onClick={handleTelegramLogin} disabled={loading}>
+            <button className="auth-social-btn" onClick={handleTelegramLogin} disabled={loading}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.2-.08-.06-.19-.04-.28-.02-.12.02-2.02 1.28-5.7 3.77-.54.37-1.03.55-1.47.54-.48-.01-1.4-.27-2.09-.49-.84-.28-1.51-.42-1.45-.89.03-.25.38-.5 1.04-.76 4.09-1.78 6.82-2.96 8.19-3.52 3.9-1.62 4.71-1.9 5.24-1.91.12 0 .37.03.54.17.14.12.18.28.2.47-.01.06.01.24 0 .37z" fill="#29B6F6"/>
               </svg>
@@ -188,14 +269,59 @@ export default function LoginPage() {
             {!showEmailForm ? (
               <button
                 className="magic-link-btn"
-                onClick={() => { setShowEmailForm(true); setMode('login'); }}
+                onClick={() => { setShowEmailForm(true); setMode('otp_request'); }}
               >
                 ✉️ Войти по email
               </button>
+            ) : mode === 'otp_verify' ? (
+              <>
+                <div className="login-divider">
+                  <span>код подтверждения</span>
+                </div>
+                <div className="otp-container" style={{ textAlign: 'center' }}>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                    Код отправлен на <strong>{email}</strong>
+                  </p>
+                  <div className="otp-inputs-container">
+                    {otpCode.map((digit, idx) => (
+                      <input
+                        key={idx}
+                        ref={el => otpRefs.current[idx] = el}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={1}
+                        value={digit}
+                        onChange={e => handleOtpChange(e.target.value, idx)}
+                        onKeyDown={e => handleOtpKeyDown(e, idx)}
+                        onPaste={handleOtpPaste}
+                        className="otp-input-box"
+                        disabled={loading}
+                      />
+                    ))}
+                  </div>
+                  
+                  {otpTimer > 0 ? (
+                    <p className="otp-timer-text">
+                      Запросить повторно через <strong style={{ color: 'var(--gold)' }}>{formatTimer(otpTimer)}</strong>
+                    </p>
+                  ) : (
+                    <p className="otp-timer-text">
+                      <button type="button" className="otp-resend-btn" onClick={handleSendOtp} disabled={loading}>
+                        Отправить код повторно
+                      </button>
+                    </p>
+                  )}
+
+                  <p className="otp-change-email" style={{ marginTop: '20px', cursor: 'pointer', display: 'inline-block' }} onClick={() => switchMode('otp_request')}>
+                    ← Изменить email
+                  </p>
+                </div>
+              </>
             ) : (
               <>
                 <div className="login-divider">
-                  <span>{mode === 'magiclink' ? 'ссылка на email' : mode === 'reset' ? 'сброс пароля' : 'вход по email'}</span>
+                  <span>{mode === 'otp_request' ? 'код на email' : mode === 'reset' ? 'сброс пароля' : mode === 'signup' ? 'регистрация' : 'вход по email'}</span>
                 </div>
                 <form onSubmit={handleEmail} className="email-form">
                   <input
@@ -207,7 +333,7 @@ export default function LoginPage() {
                     autoComplete="email"
                   />
 
-                  {mode !== 'reset' && mode !== 'magiclink' && (
+                  {mode !== 'reset' && mode !== 'otp_request' && (
                     <div className="password-field">
                       <input
                         type={showPassword ? 'text' : 'password'}
@@ -227,7 +353,7 @@ export default function LoginPage() {
 
                   <button type="submit" className="email-btn" disabled={loading}>
                     {loading ? '⏳ Загрузка...'
-                      : mode === 'magiclink' ? '📧 Отправить ссылку для входа'
+                      : mode === 'otp_request' ? '📧 Получить код'
                       : mode === 'reset' ? 'Отправить письмо для сброса'
                       : mode === 'signup' ? 'Зарегистрироваться'
                       : 'Войти'}
@@ -235,53 +361,96 @@ export default function LoginPage() {
                 </form>
 
                 <div className="login-links">
-                  {mode === 'magiclink' && (
-                    <p className="login-toggle" onClick={() => switchMode('login')}>
-                      Войти с <strong>email + пароль</strong>
-                    </p>
+                  {mode === 'otp_request' && (
+                    <>
+                      <p className="login-toggle" onClick={() => switchMode('login')}>
+                        Войти с <strong>паролем</strong>
+                      </p>
+                      <p className="login-toggle login-toggle-secondary" onClick={() => { setShowEmailForm(false); setError(''); setSuccess(''); }}>
+                        ← Назад
+                      </p>
+                    </>
                   )}
                   {mode === 'login' && (
                     <>
+                      <p className="login-toggle" onClick={() => switchMode('otp_request')}>
+                        Войти <strong>без пароля</strong> (по коду на email)
+                      </p>
                       <p className="login-toggle" onClick={() => switchMode('signup')}>
                         Нет аккаунта? <strong>Зарегистрироваться</strong>
                       </p>
                       <p className="login-toggle" onClick={() => switchMode('reset')}>
                         Забыли пароль?
                       </p>
-                      <p className="login-toggle login-toggle-secondary" onClick={() => switchMode('magiclink')}>
-                        ← Войти <strong>без пароля</strong> (ссылка на email)
-                      </p>
                     </>
                   )}
                   {mode === 'signup' && (
-                    <p className="login-toggle" onClick={() => switchMode('login')}>
-                      Уже есть аккаунт? <strong>Войти</strong>
+                    <p className="login-toggle" onClick={() => switchMode('otp_request')}>
+                      Уже есть аккаунт? <strong>Войти по коду</strong>
                     </p>
                   )}
                   {mode === 'reset' && (
-                    <p className="login-toggle" onClick={() => switchMode('login')}>← Вернуться ко входу</p>
+                    <p className="login-toggle" onClick={() => switchMode('otp_request')}>← Вернуться ко входу</p>
                   )}
                 </div>
               </>
             )}
           </>
+        ) : mode === 'otp_verify' ? (
+          <>
+            <div className="login-divider">
+              <span>код подтверждения</span>
+            </div>
+            <div className="otp-container" style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                Код отправлен на <strong>{email}</strong>
+              </p>
+              <div className="otp-inputs-container">
+                {otpCode.map((digit, idx) => (
+                  <input
+                    key={idx}
+                    ref={el => otpRefs.current[idx] = el}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={1}
+                    value={digit}
+                    onChange={e => handleOtpChange(e.target.value, idx)}
+                    onKeyDown={e => handleOtpKeyDown(e, idx)}
+                    onPaste={handleOtpPaste}
+                    className="otp-input-box"
+                    disabled={loading}
+                  />
+                ))}
+              </div>
+              
+              {otpTimer > 0 ? (
+                <p className="otp-timer-text">
+                  Запросить повторно через <strong style={{ color: 'var(--gold)' }}>{formatTimer(otpTimer)}</strong>
+                </p>
+              ) : (
+                <p className="otp-timer-text">
+                  <button type="button" className="otp-resend-btn" onClick={handleSendOtp} disabled={loading}>
+                    Отправить код повторно
+                  </button>
+                </p>
+              )}
+
+              <p className="otp-change-email" style={{ marginTop: '20px', cursor: 'pointer', display: 'inline-block' }} onClick={() => switchMode('otp_request')}>
+                ← Изменить email
+              </p>
+            </div>
+          </>
         ) : (
           <>
-            {/* ═══ GOOGLE BUTTON (normal browser) ═══ */}
-            {!isInAppBrowser && !googleRedirecting && (
-              <button className="google-btn" onClick={handleGoogle} disabled={loading}>
-                <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
-                {loading ? 'Подключаемся...' : 'Войти через Google'}
-              </button>
-            )}
 
-            <div className="login-divider"><span>{mode === 'reset' ? 'сброс пароля' : 'или по email'}</span></div>
+            <div className="login-divider"><span>{mode === 'otp_request' ? 'код на email' : mode === 'reset' ? 'сброс пароля' : 'вход по email'}</span></div>
 
             <form onSubmit={handleEmail} className="email-form">
               <input type="email" className="login-input" placeholder="Email"
                 value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" />
 
-              {mode !== 'reset' && (
+              {mode !== 'reset' && mode !== 'otp_request' && (
                 <div className="password-field">
                   <input type={showPassword ? 'text' : 'password'} className="login-input"
                     placeholder="Пароль" value={password} onChange={e => setPassword(e.target.value)}
@@ -296,6 +465,7 @@ export default function LoginPage() {
 
               <button type="submit" className="email-btn" disabled={loading}>
                 {loading ? '⏳ Загрузка...'
+                  : mode === 'otp_request' ? '📧 Получить код'
                   : mode === 'reset' ? 'Отправить письмо для сброса'
                   : mode === 'signup' ? 'Зарегистрироваться'
                   : 'Войти'}
@@ -303,8 +473,18 @@ export default function LoginPage() {
             </form>
 
             <div className="login-links">
+              {mode === 'otp_request' && (
+                <>
+                  <p className="login-toggle" onClick={() => switchMode('login')}>
+                    Войти с <strong>паролем</strong>
+                  </p>
+                </>
+              )}
               {mode === 'login' && (
                 <>
+                  <p className="login-toggle" onClick={() => switchMode('otp_request')}>
+                    Войти <strong>без пароля</strong> (по коду на email)
+                  </p>
                   <p className="login-toggle" onClick={() => switchMode('signup')}>
                     Нет аккаунта? <strong>Зарегистрироваться</strong>
                   </p>
@@ -314,12 +494,12 @@ export default function LoginPage() {
                 </>
               )}
               {mode === 'signup' && (
-                <p className="login-toggle" onClick={() => switchMode('login')}>
-                  Уже есть аккаунт? <strong>Войти</strong>
+                <p className="login-toggle" onClick={() => switchMode('otp_request')}>
+                  Уже есть аккаунт? <strong>Войти по коду</strong>
                 </p>
               )}
               {mode === 'reset' && (
-                <p className="login-toggle" onClick={() => switchMode('login')}>← Вернуться ко входу</p>
+                <p className="login-toggle" onClick={() => switchMode('otp_request')}>← Вернуться ко входу</p>
               )}
             </div>
           </>

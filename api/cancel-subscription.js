@@ -2,7 +2,7 @@
 // Отключает автопродление подписки пользователя в Firestore.
 
 import { ensureFirebaseAdmin } from './_firebase-admin.js';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { alertOnError } from './_admin-alerts.js';
 
@@ -45,7 +45,10 @@ export default async function handler(req, res) {
       return res.status(404).json({ ok: false, error: 'Subscription not found' });
     }
 
-    await ref.update({ autoRenew: false });
+    await ref.update({
+      autoRenew: false,
+      yookassaPaymentMethodId: FieldValue.delete(),
+    });
 
     console.log(`[Subscription] Auto-renew disabled for user ${uid}`);
     return res.status(200).json({ ok: true });

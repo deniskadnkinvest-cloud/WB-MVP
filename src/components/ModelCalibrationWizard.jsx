@@ -72,9 +72,11 @@ export default function ModelCalibrationWizard({
   show,
   onClose,
   onSave,
+  onStartCalibration,
   modelPrompt,
   modelRefImages,
   userId,
+  getAuthToken,
 }) {
   const [step, setStep] = useState(0);
   const [lockedImages, setLockedImages] = useState({
@@ -87,10 +89,14 @@ export default function ModelCalibrationWizard({
   const [selectedBatchIdx, setSelectedBatchIdx] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
-  const [generationCount, setGenerationCount] = useState(0);
+  const [, setGenerationCount] = useState(0);
+  const [stepRegenCounts, setStepRegenCounts] = useState({});
+  const [startingCalibration, setStartingCalibration] = useState(false);
   const [modelName, setModelName] = useState('');
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+
+  const MAX_REGENS_PER_STEP = 5;
 
   // Lightbox
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -144,9 +150,13 @@ export default function ModelCalibrationWizard({
         existingRefs.length > 0 ? existingRefs : modelRefImages || [],
     };
 
+    const token = getAuthToken ? await getAuthToken() : null;
     const resp = await fetch('/api/generate-image', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(body),
     });
 
@@ -169,7 +179,7 @@ export default function ModelCalibrationWizard({
       return data.imageUrl || data.imageBase64;
     }
     throw new Error(data.details || data.error || 'Ошибка генерации');
-  }, [modelPrompt, modelRefImages, userId]);
+  }, [getAuthToken, modelPrompt, modelRefImages, userId]);
 
   // ═══════════════════════════════════════
   //  GENERATE BATCH
@@ -199,7 +209,8 @@ export default function ModelCalibrationWizard({
     // Deduplicate
     const uniqueRefs = [...new Set(refs)];
 
-    const results = new Array(BATCH_SIZE).fill(null);
+    const results = Array.from({ length: BATCH_SIZE }, () => ({ loading: true }));
+    setBatchImages([...results]);
 
     try {
       const promises = Array.from({ length: BATCH_SIZE }, async (_, i) => {
@@ -208,17 +219,27 @@ export default function ModelCalibrationWizard({
           results[i] = img;
           setBatchImages([...results]);
         } catch (err) {
-          results[i] = null;
-          throw err;
+          console.error(`Ошибка генерации варианта ${i + 1}:`, err);
+          results[i] = { error: true, message: err.message || 'Временный сбой API' };
+          setBatchImages([...results]);
         }
       });
 
       await Promise.all(promises);
-      setBatchImages([...results]);
+
+      // Проверяем, если абсолютно ВСЕ варианты упали
+      const allFailed = results.every(r => r && r.error);
+      if (allFailed) {
+        setError('Все варианты генерации завершились ошибкой. Попробуйте еще раз.');
+      }
+
       setGenerationCount((prev) => prev + BATCH_SIZE);
+      // Track regen count per step
+      const stepId = currentStep.id;
+      setStepRegenCounts(prev => ({ ...prev, [stepId]: (prev[stepId] || 0) + 1 }));
     } catch (err) {
+      console.error('Критическая ошибка батча:', err);
       setError(err.message || 'Произошла ошибка при генерации.');
-      setBatchImages([]);
     } finally {
       stopStatusRotation();
       setIsGenerating(false);
@@ -229,9 +250,10 @@ export default function ModelCalibrationWizard({
   //  LOCK SELECTED IMAGE
   // ═══════════════════════════════════════
   const handleLockBatch = () => {
-    if (selectedBatchIdx === null || !batchImages[selectedBatchIdx]) return;
+    const selectedImg = batchImages[selectedBatchIdx];
+    if (selectedBatchIdx === null || !selectedImg || typeof selectedImg !== 'string' || selectedImg.error) return;
     const angle = currentStep.id; // 'front' | 'left34' | 'right34' | 'fullbody'
-    const newLocked = { ...lockedImages, [angle]: batchImages[selectedBatchIdx] };
+    const newLocked = { ...lockedImages, [angle]: selectedImg };
     setLockedImages(newLocked);
     setBatchImages([]);
     setSelectedBatchIdx(null);
@@ -298,6 +320,8 @@ export default function ModelCalibrationWizard({
     setBatchImages([]);
     setSelectedBatchIdx(null);
     setGenerationCount(0);
+    setStepRegenCounts({});
+    setStartingCalibration(false);
     setModelName('');
     setError('');
     setShowCloseConfirm(false);
@@ -343,7 +367,7 @@ export default function ModelCalibrationWizard({
       isLongPress.current = false;
       return;
     }
-    if (img) setSelectedBatchIdx(i);
+    if (img && typeof img === 'string') setSelectedBatchIdx(i);
   };
 
   if (!show) return null;
@@ -361,31 +385,45 @@ export default function ModelCalibrationWizard({
       )}
       {batchImages.length > 0 && (
         <div className={`calib-batch-grid ${currentStep.id === 'fullbody' ? 'calib-batch-grid--tall' : ''}`}>
-          {batchImages.map((img, i) => (
-            <div
-              key={i}
-              className={`calib-batch-item ${selectedBatchIdx === i ? 'selected' : ''} ${!img ? 'loading' : ''} ${currentStep.id === 'fullbody' ? 'calib-batch-item--tall' : ''}`}
-              onClick={() => handleBatchClick(img, i)}
-              onPointerDown={() => img && handlePointerDown(img)}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerCancel}
-              onContextMenu={(e) => e.preventDefault()}
-            >
-              {img ? (
-                <>
-                  <img src={img} alt={`Вариант ${i + 1}`} draggable={false} />
-                  <span className="calib-batch-num">{i + 1}</span>
-                  {selectedBatchIdx === i && (
-                    <div className="calib-batch-check">✅</div>
-                  )}
-                </>
-              ) : (
-                <div className="calib-batch-loading">
-                  <div className="processing-spinner" style={{ width: 20, height: 20 }} />
-                </div>
-              )}
-            </div>
-          ))}
+          {batchImages.map((img, i) => {
+            const isImgLoading = !img || img.loading;
+            const isImgError = img && img.error;
+            const isImgSuccess = img && typeof img === 'string';
+
+            return (
+              <div
+                key={i}
+                className={`calib-batch-item ${selectedBatchIdx === i ? 'selected' : ''} ${isImgLoading ? 'loading' : ''} ${isImgError ? 'error' : ''} ${currentStep.id === 'fullbody' ? 'calib-batch-item--tall' : ''}`}
+                onClick={() => isImgSuccess && handleBatchClick(img, i)}
+                onPointerDown={() => isImgSuccess && handlePointerDown(img)}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerCancel}
+                onContextMenu={(e) => e.preventDefault()}
+              >
+                {isImgSuccess ? (
+                  <>
+                    <img src={img} alt={`Вариант ${i + 1}`} draggable={false} />
+                    <span className="calib-batch-num">{i + 1}</span>
+                    {selectedBatchIdx === i && (
+                      <div className="calib-batch-check">✅</div>
+                    )}
+                  </>
+                ) : isImgError ? (
+                  <div className="calib-batch-error" title={img.message}>
+                    <span style={{ fontSize: '1.4rem', marginBottom: 4 }}>⚠️</span>
+                    <span className="calib-batch-error-text">Ошибка</span>
+                    <span className="calib-batch-error-desc" style={{ fontSize: '0.6rem', opacity: 0.7, textAlign: 'center', padding: '0 4px', width: '100%', whiteSpace: 'normal' }}>
+                      {img.message && img.message.length > 30 ? img.message.substring(0, 30) + '...' : img.message}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="calib-batch-loading">
+                    <div className="processing-spinner" style={{ width: 20, height: 20 }} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
       {!isGenerating && batchImages.length === 0 && (
@@ -397,29 +435,39 @@ export default function ModelCalibrationWizard({
     </div>
   );
 
-  const renderBatchActions = (lockLabel) => (
-    <>
-      {batchImages.filter(Boolean).length > 0 && (
-        <p className="calib-longpress-hint">💡 Зажмите фото для полноэкранного просмотра</p>
-      )}
-      <div className="calib-actions">
-        <button
-          className="calib-btn-secondary"
-          onClick={handleGenerateBatch}
-          disabled={isGenerating}
-        >
-          {batchImages.length > 0
-            ? `🔄 Перегенерировать ${BATCH_SIZE}`
-            : `✨ Сгенерировать ${BATCH_SIZE} варианта`}
-        </button>
-        {selectedBatchIdx !== null && batchImages[selectedBatchIdx] && (
-          <button className="calib-btn-primary" onClick={handleLockBatch}>
-            {lockLabel}
-          </button>
+  const renderBatchActions = (lockLabel) => {
+    const regenCount = stepRegenCounts[currentStep.id] || 0;
+    const regenLimitReached = regenCount >= MAX_REGENS_PER_STEP;
+    return (
+      <>
+        {batchImages.filter(Boolean).length > 0 && (
+          <p className="calib-longpress-hint">💡 Зажмите фото для полноэкранного просмотра</p>
         )}
-      </div>
-    </>
-  );
+        {regenLimitReached && (
+          <p className="calib-regen-limit-msg">
+            ⚠️ Лимит попыток исчерпан ({MAX_REGENS_PER_STEP}/{MAX_REGENS_PER_STEP}). Выберите лучший вариант из доступных и зафиксируйте его.
+          </p>
+        )}
+        <div className="calib-actions">
+          <button
+            className="calib-btn-secondary"
+            onClick={handleGenerateBatch}
+            disabled={isGenerating || regenLimitReached}
+            title={regenLimitReached ? `Лимит перегенераций (${MAX_REGENS_PER_STEP}) исчерпан` : undefined}
+          >
+            {batchImages.length > 0
+              ? `🔄 Перегенерировать ${BATCH_SIZE} ${regenLimitReached ? `(${regenCount}/${MAX_REGENS_PER_STEP})` : `(${regenCount}/${MAX_REGENS_PER_STEP})`}`
+              : `✨ Сгенерировать ${BATCH_SIZE} варианта`}
+          </button>
+          {selectedBatchIdx !== null && batchImages[selectedBatchIdx] && (
+            <button className="calib-btn-primary" onClick={handleLockBatch}>
+              {lockLabel}
+            </button>
+          )}
+        </div>
+      </>
+    );
+  };
 
   // ═══════════════════════════════════════
   //  COMP CARD — финальный экран
@@ -623,12 +671,46 @@ export default function ModelCalibrationWizard({
               Займёт ~3-5 минут. В результате — официальная карточка модели
               с <strong>5 фотографиями</strong>, как в настоящем модельном агентстве.
             </p>
+
+            {/* Премиальный блок стоимости (аккуратный компактный бадж) */}
+            <div className="calib-cost-notice-compact">
+              <div className="calib-cost-row">
+                <span className="calib-cost-pill">
+                  <span className="calib-cost-sparkle">✨</span> VIP Аватар
+                </span>
+                <span className="calib-cost-main-text">
+                  Собственная модель навсегда за <strong>10 генераций</strong>
+                </span>
+              </div>
+              <div className="calib-cost-subtext">
+                Кастинг в 4 ракурса <span className="calib-cost-dot">·</span> До {MAX_REGENS_PER_STEP} попыток на шаг для идеального кадра
+              </div>
+            </div>
+
+            {error && <p className="calib-error" style={{marginTop:8}}>{error}</p>}
             <div className="calib-actions">
               <button className="calib-btn-secondary" onClick={handleClose}>
                 Отмена
               </button>
-              <button className="calib-btn-primary" onClick={() => setStep(1)}>
-                🚀 Начать кастинг
+              <button
+                className="calib-btn-primary"
+                disabled={startingCalibration}
+                onClick={async () => {
+                  setError('');
+                  setStartingCalibration(true);
+                  try {
+                    if (onStartCalibration) {
+                      await onStartCalibration();
+                    }
+                    setStep(1);
+                  } catch (err) {
+                    setError(err.message || 'Недостаточно генераций для запуска калибровки');
+                  } finally {
+                    setStartingCalibration(false);
+                  }
+                }}
+              >
+                {startingCalibration ? '⏳ Проверяем баланс...' : '🚀 Начать кастинг'}
               </button>
             </div>
           </div>

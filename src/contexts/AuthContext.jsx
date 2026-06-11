@@ -1,9 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
-  GoogleAuthProvider,
-  signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -153,7 +149,7 @@ export const firebaseErrorToRussian = (error) => {
     'auth/account-exists-with-different-credential': 'Аккаунт с этим email уже существует с другим способом входа',
     'auth/requires-recent-login': 'Для этого действия нужно перезайти в аккаунт',
     'auth/credential-already-in-use': 'Эти данные уже привязаны к другому аккаунту',
-    'auth/operation-not-allowed': 'Этот способ входа отключён. Используйте email или Google',
+    'auth/operation-not-allowed': 'Этот способ входа отключён. Используйте email или Telegram.',
     'auth/internal-error': 'Внутренняя ошибка сервера. Попробуйте позже',
     'auth/missing-email': 'Введите email адрес',
     'auth/missing-password': 'Введите пароль',
@@ -194,16 +190,42 @@ export function AuthProvider({ children }) {
     if (isSignInWithEmailLink(auth, window.location.href)) {
       let email = window.localStorage.getItem('emailForSignIn');
       if (!email) {
+        // Fallback: extract email from URL query parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        email = urlParams.get('email');
+      }
+      if (!email) {
         // User opened link on different device — ask for email
         email = window.prompt('Введите email для подтверждения входа:');
       }
       if (email) {
         signInWithEmailLink(auth, email, window.location.href)
-          .then(() => {
+          .then(async (result) => {
             window.localStorage.removeItem('emailForSignIn');
-            // Clean URL from email link params
+            
+            // Extract Telegram session ID before clearing parameters from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const tgSessionId = urlParams.get('tgSessionId');
+
+            // Clean URL from email link params, keeping only original path/domain
             window.history.replaceState(null, '', window.location.origin);
             console.log('✉️ Magic link sign-in successful');
+
+            if (tgSessionId) {
+              try {
+                const idToken = await result.user.getIdToken();
+                await fetch('/api/complete-tg-auth', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ idToken, sessionId: tgSessionId })
+                });
+                
+                // Alert the user to switch back to Telegram
+                alert('Вход выполнен успешно! Закройте эту вкладку и вернитесь в Telegram-бот.');
+              } catch (err) {
+                console.error('Error reporting TG session success:', err);
+              }
+            }
           })
           .catch(err => console.error('Magic link error:', err));
       }
@@ -303,8 +325,6 @@ export function AuthProvider({ children }) {
       };
     } else {
       // Standalone mode: use Firebase Auth normally
-      // Check for redirect result first (in case user is returning from Google sign-in via redirect)
-      getRedirectResult(auth).catch(() => {});
 
       const unsub = onAuthStateChanged(auth, (u) => {
         setUser(u);
@@ -314,40 +334,8 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  // ═══════════════════════════════════════════
-  //  GOOGLE SIGN-IN (with popup → redirect fallback)
-  // ═══════════════════════════════════════════
-  const signInWithGoogle = async () => {
-    const provider = new GoogleAuthProvider();
-
-    if (isInAppBrowser) {
-      // In-app browsers block popups entirely.
-      // Open in system browser instead.
-      const currentUrl = window.location.href;
-      window.open(currentUrl, '_system') || window.open(currentUrl, '_blank');
-      throw new Error('OPEN_IN_BROWSER');
-    }
-
-    // Try popup first (works on desktop and most mobile browsers)
-    try {
-      return await signInWithPopup(auth, provider);
-    } catch (popupError) {
-      // If popup was blocked or failed, fallback to redirect
-      const code = popupError?.code || '';
-      if (
-        code === 'auth/popup-blocked' ||
-        code === 'auth/popup-closed-by-user' ||
-        code === 'auth/cancelled-popup-request' ||
-        popupError?.message?.includes('popup')
-      ) {
-        console.warn('Popup failed, falling back to redirect:', code);
-        // signInWithRedirect will navigate away, onAuthStateChanged + getRedirectResult handle return
-        return signInWithRedirect(auth, provider);
-      }
-      // Re-throw other errors
-      throw popupError;
-    }
-  };
+  // Google Auth удалён (ФЗ № 406 — запрет иностранных OAuth на РФ-ресурсах)
+  // Используйте Email OTP или Telegram Login
 
   // ═══════════════════════════════════════════
   //  EMAIL SIGN-IN / SIGN-UP
@@ -373,19 +361,54 @@ export function AuthProvider({ children }) {
   };
 
   // ═══════════════════════════════════════════
-  //  MAGIC LINK (Email Link / Passwordless)
-  //  Perfect for Telegram where Google OAuth is blocked
+  //  OTP (One-Time Password) Email Auth
+  //  Премиальная бесшовная авторизация для Telegram Mini App
   // ═══════════════════════════════════════════
+  const sendOtpCode = async (email) => {
+    const tgInitData = window.Telegram?.WebApp?.initData || '';
+    const resp = await fetch('/api/send-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, tgInitData }),
+    });
+    if (!resp.ok) {
+      const errData = await resp.json();
+      throw new Error(errData.error || 'Не удалось отправить код подтверждения');
+    }
+    const data = await resp.json();
+    if (import.meta.env.DEV && data.debug && data.code) {
+      console.log('🔑 [DEBUG CODE]:', data.code);
+      window.localStorage.setItem('debugOtpCode', data.code);
+    } else {
+      window.localStorage.removeItem('debugOtpCode');
+    }
+    return data;
+  };
+
+  const verifyOtpCode = async (email, code) => {
+    const resp = await fetch('/api/verify-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code }),
+    });
+    if (!resp.ok) {
+      const errData = await resp.json();
+      throw new Error(errData.error || 'Неверный код или ошибка сервера');
+    }
+    const { customToken } = await resp.json();
+    const result = await signInWithCustomToken(auth, customToken);
+    return result;
+  };
+
   const sendMagicLink = async (email) => {
-    // Use hardcoded production URL — window.location.origin is unreliable in Telegram WebView
-    // (it may return t.me or be empty, causing Firebase to reject the sign-in link)
-    const appUrl = import.meta.env.VITE_APP_URL || 'https://vton-mvp-omega.vercel.app';
+    // Временный fallback для совместимости со старыми вызовами
+    const baseAppUrl = import.meta.env.VITE_APP_URL || 'https://seller-studio-ai.ru';
+    let appUrl = `${baseAppUrl}/?email=${encodeURIComponent(email)}`;
     const actionCodeSettings = {
       url: appUrl,
       handleCodeInApp: true,
     };
     await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-    // Save email in localStorage so we can complete sign-in when user returns
     window.localStorage.setItem('emailForSignIn', email);
   };
 
@@ -443,11 +466,13 @@ export function AuthProvider({ children }) {
     isInAppBrowser,
     isMobile,
     isPrivate,
-    signInWithGoogle,
+
     signInWithEmail,
     signUpWithEmail,
     resetPassword,
     sendMagicLink,
+    sendOtpCode,
+    verifyOtpCode,
     signInAsGuest,
     signInWithTelegramAccount,
     upgradeGuestToEmail,

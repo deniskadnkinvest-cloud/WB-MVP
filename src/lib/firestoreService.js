@@ -1,7 +1,30 @@
 import {
-  collection, doc, addDoc, getDocs, deleteDoc, updateDoc, query, orderBy, serverTimestamp,
+  collection, doc, addDoc, getDocs, deleteDoc, updateDoc, query, orderBy, where, limit, serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
+
+// ═══════════════════════════════════════
+//  ГЕНЕРАЦИИ (generations) — Галерея
+// ═══════════════════════════════════════
+
+/**
+ * Получить историю генераций юзера (последние N).
+ * @param {string} uid
+ * @param {number} maxResults — максимум записей (default 50)
+ * @returns {Promise<Array>}
+ */
+export const getUserGenerations = async (uid, maxResults = 50) => {
+  const colRef = collection(db, 'generations');
+  const q = query(
+    colRef,
+    where('userId', '==', uid),
+    where('success', '==', true),
+    orderBy('createdAt', 'desc'),
+    limit(maxResults)
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+};
 
 // ═══════════════════════════════════════
 //  МОДЕЛИ (saved_models)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useAdmin } from '../AdminApp';
 
@@ -77,16 +77,18 @@ export default function Payments() {
   const [error, setError] = useState(null);
   const [mode, setMode] = useState('real');
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     fetch('/api/admin/stats', { headers: { ...authHeaders } })
       .then(r => r.json())
       .then(res => res.ok ? setData(res.data) : setError(res.error))
       .catch(() => setError('Ошибка загрузки'))
       .finally(() => setLoading(false));
-  };
+  }, [authHeaders]);
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   if (loading) {
     return (

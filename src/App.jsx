@@ -12,7 +12,7 @@ import SubscriptionBadge from './components/SubscriptionBadge';
 import { useAuth } from './contexts/AuthContext';
 import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt } from './lib/firestoreService';
 import { uploadBase64Image, compressImage, uploadImage, deleteImage } from './lib/storageService';
-import { getSubscription, useCredit, checkFeature, canGenerate, activatePlan } from './lib/subscriptionService';
+import { getSubscription, checkFeature, canGenerate, activatePlan } from './lib/subscriptionService';
 import './App.css';
 
 const MSGS = ['Анализируем текстуру ткани...','Выставляем студийный свет...','Строим 3D-модель фигуры...','Натягиваем одежду с учетом физики...','Рендерим финальный кадр...'];
@@ -652,18 +652,8 @@ function App() {
         .map(d => d.imageUrl || d.imageBase64);
 
       if (successImages.length > 0) {
-        // Списание кредитов по факту успешной генерации (1 кредит = 1 успешный вариант)
-        const creditsToCharge = successImages.length;
-        if (subscription.local) {
-          setSubscription(prev => ({ ...prev, credits: Math.max(0, prev.credits - creditsToCharge) }));
-        } else {
-          try {
-            const result = await useCredit(user.uid, creditsToCharge);
-            setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
-          } catch (err) {
-            console.error('Ошибка списания кредитов:', err);
-          }
-        }
+        // Кредиты уже списаны бэкендом — обновляем баланс из ответа
+        refreshCreditsFromResponse(successImages[0] ? { creditsRemaining: data.creditsRemaining } : data);
 
         const VARIANT_LABELS = ['A', 'B', 'C', 'D'];
         setGeneratedImage(successImages[0]);
@@ -1034,17 +1024,8 @@ function App() {
       clearInterval(iv);
       const data = await safeParseJSON(resp);
       if (data.success) {
-        // Списание 1 кредита по факту успешной перегенерации
-        if (subscription.local) {
-          setSubscription(prev => ({ ...prev, credits: Math.max(0, prev.credits - 1) }));
-        } else {
-          try {
-            const result = await useCredit(user.uid, 1);
-            setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
-          } catch (err) {
-            console.error('Ошибка списания кредита:', err);
-          }
-        }
+        // Кредиты уже списаны бэкендом — обновляем баланс из ответа
+        refreshCreditsFromResponse(data);
 
         const newImg = data.imageUrl || data.imageBase64;
         setGeneratedImage(newImg);
@@ -1123,15 +1104,9 @@ function App() {
       const successCards = results.filter(d => d.success).map(d => d.imageUrl);
       
       if (successCards.length > 0) {
-        // Deduct credits
-        if (!subscription?.local) {
-          try {
-            const result = await useCredit(user.uid, successCards.length);
-            setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
-          } catch (err) {
-            console.error('Ошибка списания кредита:', err);
-          }
-        }
+        // Кредиты уже списаны бэкендом — обновляем баланс из ответа
+        const lastCard = results.find(d => d.success && d.creditsRemaining != null);
+        refreshCreditsFromResponse(lastCard || results.find(d => d.success));
         setCardResult(successCards);
         setStatusText(`🎴 Готово! ${successCards.length} ${successCards.length === 1 ? 'карточка' : 'карточек'}`);
         setStatusType('success');
@@ -1155,7 +1130,6 @@ function App() {
       setStatusText('Сначала загрузите фото товара'); setStatusType('error');
       return;
     }
-    // Credit check (2 credits)
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < 2 && !subscription?.local) {
       setShowPricing(true);
@@ -1170,58 +1144,82 @@ function App() {
     setIsProcessing(true);
     setGeneratedImage(null);
     setCardResult(null);
-    setStatusText('⚡ Шаг 1/2 — Генерируем фото товара...');
+    setStatusText('⚡ Шаг 1/2 — Генерируем студийное фото...');
     setStatusType('processing');
 
-    const progressSteps = ['📦 Обрабатываем фото товара...', '📸 Создаём студийный кадр...', '🎴 Переходим к оформлению карточки...', '🎨 Подбираем стиль...', '✍️ Генерируем текст и иконки...', '📐 Компонуем макет...', '✨ Финальная полировка...'];
+    const step1Messages = ['📦 Обрабатываем фото товара...', '📸 Создаём студийный кадр...', '🎨 Оптимизируем свет и тени...'];
     let stepIdx = 0;
-    const iv = setInterval(() => {
-      stepIdx = (stepIdx + 1) % progressSteps.length;
-      setStatusText(progressSteps[stepIdx]);
-    }, 7000);
+    let iv = setInterval(() => {
+      stepIdx = (stepIdx + 1) % step1Messages.length;
+      setStatusText(step1Messages[stepIdx]);
+    }, 6000);
 
     try {
-      const resp = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.uid,
-          isQuickMode: true,
-          cardStyle: quickCardStyle,
-          garmentImageUrls: garmentUrls,
-          withHumanModel: quickWithModel,
-          humanModelPrompt: quickWithModel ? (getCurrentModelPrompt() || 'professional model in their 20s') : '',
-          categoryId: selectedProductCategory?.id || 'default',
-        }),
+      // ШАГ 1: Студийное фото товара через product mode
+      const step1Resp = await generateImageRequest({
+        isProductMode: true,
+        categoryId: selectedProductCategory?.id || 'default',
+        garmentImageUrls: garmentUrls,
+        withHumanModel: quickWithModel,
+        humanModelPrompt: quickWithModel ? (getCurrentModelPrompt() || 'professional model in their 20s') : '',
+        backgroundPreset: 'clean minimalist white cyclorama studio background',
+        compositionPreset: 'centered product shot, professional e-commerce framing',
+        aspectRatio: '3:4',
       });
       clearInterval(iv);
-      const data = await resp.json();
-      if (data.success) {
-        // Deduct 2 credits
-        if (!subscription?.local) {
-          try {
-            const result = await useCredit(user.uid, 2);
-            setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
-          } catch (err) {
-            console.error('Ошибка списания кредитов:', err);
-          }
+      const step1Data = await safeParseJSON(step1Resp);
+
+      if (!step1Data.success || !step1Data.imageUrl) {
+        throw new Error(step1Data.error || 'Не удалось создать студийное фото товара');
+      }
+
+      const productPhotoUrl = step1Data.imageUrl;
+      setGeneratedImage(step1Data.imageBase64 || productPhotoUrl);
+      setImageHistory([{ image: step1Data.imageBase64 || productPhotoUrl, label: '📦 Фото товара' }]);
+      setHistoryIndex(0);
+      refreshCreditsFromResponse(step1Data);
+
+      // ШАГ 2: Карточка маркетплейса
+      setStatusText('🎴 Шаг 2/2 — Оформляем карточку маркетплейса...');
+      setStatusType('processing');
+
+      const step2Messages = ['🎴 Анализируем товар...', '✍️ Генерируем заголовок и текст...', '📐 Компонуем макет карточки...', '✨ Финальная полировка...'];
+      stepIdx = 0;
+      iv = setInterval(() => {
+        stepIdx = (stepIdx + 1) % step2Messages.length;
+        setStatusText(step2Messages[stepIdx]);
+      }, 7000);
+
+      const step2Resp = await generateImageRequest({
+        isCardDesign: true,
+        cardStyle: quickCardStyle,
+        sourceImageUrl: productPhotoUrl,
+      });
+      clearInterval(iv);
+      const step2Data = await safeParseJSON(step2Resp);
+
+      if (step2Data.success && (step2Data.imageUrl || step2Data.imageBase64)) {
+        refreshCreditsFromResponse(step2Data);
+        const cardDisplay = step2Data.imageBase64 || step2Data.imageUrl;
+        if (cardDisplay) {
+          setGeneratedImage(cardDisplay);
+          setImageHistory(prev => [...prev, { image: cardDisplay, label: '🎴 Карточка маркетплейса' }]);
+          setHistoryIndex(1);
         }
-        // Show both product image and card
-        if (data.productImageUrl) {
-          setGeneratedImage(data.productImageUrl);
-          setImageHistory([{ image: data.productImageUrl, label: '⚡ Фото товара' }]);
-          setHistoryIndex(0);
-        }
-        setCardResult(data.imageUrl);
-        setStatusText('⚡ Готово! Карточка и фото товара созданы');
+        if (step2Data.imageUrl) setCardResult([step2Data.imageUrl]);
+        setStatusText('⚡ Готово! Карточка маркетплейса создана');
         setStatusType('success');
       } else {
-        setStatusText(`Ошибка: ${data.error || 'Не удалось создать карточку'}`);
+        setStatusText(`⚠️ Фото готово, но карточка не удалась: ${step2Data.error || 'ошибка'}`);
         setStatusType('error');
       }
     } catch (err) {
       clearInterval(iv);
-      setStatusText(`Ошибка: ${err.message}`);
+      if (err.name === 'AbortError') {
+        setStatusText('❌ Генерация отменена. Кредиты не списаны.');
+      } else {
+        setStatusText(`Ошибка: ${err.message}`);
+      }
       setStatusType('error');
     } finally {
       setIsProcessing(false);
@@ -1270,17 +1268,8 @@ function App() {
       });
       const data = await resp.json();
       if (data.success) {
-        // Списание 3 кредитов по факту успешного запуска автокаталога
-        if (subscription.local) {
-          setSubscription(prev => ({ ...prev, credits: Math.max(0, prev.credits - 3) }));
-        } else {
-          try {
-            const result = await useCredit(user.uid, 3);
-            setSubscription(prev => ({ ...prev, credits: result.creditsRemaining }));
-          } catch (err) {
-            console.error('Ошибка списания кредитов:', err);
-          }
-        }
+        // Списание 3 кредитов (локальный сервер — используем оптимистичное списание)
+        setSubscription(prev => ({ ...prev, credits: Math.max(0, (prev.credits || 0) - 3) }));
 
         setStatusText(`✅ Auto-Catalog запущен! Батч отправлен на фоновую обработку.`);
         setStatusType('success');

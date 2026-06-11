@@ -180,13 +180,25 @@
 
 /* Price */
 .pricing-price {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
 }
 .pricing-price-value {
   font-family: var(--font-display);
-  font-size: 2rem;
+  font-size: 2.2rem;
   font-weight: 800;
-  color: var(--text-primary);
+  background: linear-gradient(to bottom right, #ffffff, rgba(255, 255, 255, 0.6));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.02em;
+}
+.pricing-card--best .pricing-price-value {
+  background: linear-gradient(to bottom right, #FFE87C, #D4A843);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 .pricing-price-currency {
   font-size: 1.1rem;
@@ -194,12 +206,11 @@
   font-weight: 600;
 }
 .pricing-price-period {
-  display: block;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   color: var(--text-ghost);
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
-  margin-top: 2px;
+  margin-left: 2px;
 }
 
 /* Credits */
@@ -257,7 +268,6 @@
   font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
-  margin-top: auto;
 }
 .pricing-btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.08);
@@ -524,23 +534,57 @@
   }
 }
 
-/* ЮКасса-обязательный дисклеймер под кнопкой тарифа */
-.pricing-cancel-hint {
-  margin-top: 10px;
-  font-size: 0.72rem;
-  color: var(--text-secondary);
-  text-align: center;
+.pricing-action-area {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pricing-cancel-badge {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  opacity: 0.9;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: var(--r-md);
+  font-size: 0.68rem;
+  color: var(--text-ghost);
   font-weight: 500;
-  transition: opacity 0.2s ease;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(8px);
 }
 
-.pricing-cancel-hint span {
-  font-size: 0.85rem;
+.pricing-card:hover .pricing-cancel-badge {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
+}
+
+.pricing-cancel-badge-icon {
+  width: 13px;
+  height: 13px;
+  opacity: 0.8;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.pricing-card:hover .pricing-cancel-badge-icon {
+  color: var(--primary-light);
+  filter: drop-shadow(0 0 4px rgba(100, 180, 255, 0.3));
+}
+
+.pricing-cancel-badge--onetime {
+  background: transparent;
+  border-color: transparent;
+  opacity: 0.7;
+}
+
+.pricing-card:hover .pricing-cancel-badge--onetime {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.04);
+  color: var(--text-ghost);
 }
 
 /* Информационное сообщение в блоке управления подпиской */

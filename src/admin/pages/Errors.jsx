@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useAdmin } from '../AdminApp';
 
 const c = {
   surface: 'rgba(255,255,255,0.03)',

@@ -1,9 +1,7 @@
-const fetch = require('node-fetch'); // If node 18+, fetch is built-in
+import dotenv from 'dotenv';
 
-const apiKey = process.env.KIE_API_KEY || process.env.GEMINI_API_KEY || 'test';
-// I need the actual API key. The app uses process.env.KIE_API_KEY. I can use dotenv to load it.
-require('dotenv').config({ path: './.env.local' });
-require('dotenv').config({ path: './.env' });
+dotenv.config({ path: './.env.local' });
+dotenv.config({ path: './.env' });
 
 const realApiKey = process.env.KIE_API_KEY || process.env.GEMINI_API_KEY;
 

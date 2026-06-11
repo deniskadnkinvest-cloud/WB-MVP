@@ -1,16 +1,20 @@
 // ═══════════════════════════════════════════════════════════════
 // POST /api/create-payment
 // Создаёт платеж в ЮKassa для покупки тарифа
-// Body: { planId: 'trial' | 'base' | 'pro', uid: string }
+// Body: { planId: 'trial' | 'base' | 'pro', uid: string, email?: string }
 // Returns: { ok: true, invoiceLink: string } (confirmation_url)
 // ═══════════════════════════════════════════════════════════════
 
 import crypto from 'crypto';
+import { getAuth } from 'firebase-admin/auth';
+import { ensureFirebaseAdmin } from './_firebase-admin.js';
 import { alertOnError } from './_admin-alerts.js';
+
+ensureFirebaseAdmin();
 
 const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID || '1373290';
 const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY;
-const VITE_APP_URL = process.env.VITE_APP_URL || 'https://vton-mvp-omega.vercel.app';
+const VITE_APP_URL = process.env.VITE_APP_URL || 'https://seller-studio-ai.ru';
 
 // Цены тарифов в рублях (согласно финансовому плану)
 const PLAN_CONFIG = {
@@ -38,7 +42,7 @@ export default async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
   if (req.method !== 'POST') {
@@ -49,10 +53,29 @@ export default async function handler(req, res) {
     return res.status(500).json({ ok: false, error: 'Yookassa secret key not configured' });
   }
 
-  const { planId, uid } = req.body || {};
+  const { planId, uid, email } = req.body || {};
 
   if (!planId || !uid) {
     return res.status(400).json({ ok: false, error: 'planId and uid are required' });
+  }
+
+  const authHeader = req.headers.authorization || '';
+  const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  if (!idToken) {
+    return res.status(401).json({ ok: false, error: 'Authorization token is required' });
+  }
+
+  let payerEmail = email || 'customer@seller-studio-ai.ru';
+  try {
+    const decoded = await getAuth().verifyIdToken(idToken);
+    if (decoded.uid !== uid) {
+      return res.status(403).json({ ok: false, error: 'Forbidden' });
+    }
+    payerEmail = decoded.email || payerEmail;
+  } catch (err) {
+    console.error('create-payment auth error:', err.message);
+    return res.status(401).json({ ok: false, error: 'Invalid authorization token' });
   }
 
   const plan = PLAN_CONFIG[planId];
@@ -69,7 +92,7 @@ export default async function handler(req, res) {
       method: 'POST',
       headers: {
         'Authorization': authHeader,
-        'Idempotency-Key': idempotencyKey,
+        'Idempotence-Key': idempotencyKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -88,6 +111,24 @@ export default async function handler(req, res) {
           uid: uid,
           planId: planId,
         },
+        receipt: {
+          customer: {
+            email: payerEmail,
+          },
+          items: [
+            {
+              description: plan.title,
+              quantity: '1.00',
+              amount: {
+                value: plan.priceRub.toFixed(2),
+                currency: 'RUB',
+              },
+              vat_code: '1', // 1 = Без НДС (для ИП на УСН / патенте)
+              payment_mode: 'full_payment',
+              payment_subject: 'service',
+            }
+          ]
+        }
       }),
     });
 

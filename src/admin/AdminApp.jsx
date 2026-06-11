@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, useEffect, createContext, useContext, useMemo } from 'react';
 import AdminLayout from './components/AdminLayout';
 import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
@@ -26,13 +26,13 @@ export default function AdminApp() {
   const [activePage, setActivePage] = useState('dashboard');
 
   // Получаем accessKey из URL (?key=...) — передаётся ботом
-  const accessKey = new URLSearchParams(window.location.search).get('key') || '';
+  const accessKey = useMemo(() => new URLSearchParams(window.location.search).get('key') || '', []);
 
   // Telegram initData (если доступен — для мобильного)
-  const initData = (() => {
+  const initData = useMemo(() => {
     try { return window.Telegram?.WebApp?.initData || ''; }
     catch { return ''; }
-  })();
+  }, []);
 
   useEffect(() => {
     // Настройка Telegram WebApp
@@ -79,7 +79,18 @@ export default function AdminApp() {
         setErrorMsg('Ошибка подключения к серверу');
         setStatus('error');
       });
-  }, []);
+  }, [accessKey, initData]);
+
+  const authHeaders = useMemo(() => ({
+    'X-Admin-Key': accessKey || '',
+    'X-Admin-Init-Data': initData || '',
+  }), [accessKey, initData]);
+
+  const contextValue = useMemo(() => ({
+    adminUser,
+    accessKey,
+    authHeaders,
+  }), [adminUser, accessKey, authHeaders]);
 
   if (status === 'loading') return <AdminLoader />;
   if (status === 'error') return <AdminError message={errorMsg} />;
@@ -111,13 +122,8 @@ export default function AdminApp() {
     errors: <Errors />,
   };
 
-  const authHeaders = {
-    'X-Admin-Key': accessKey || '',
-    'X-Admin-Init-Data': initData || '',
-  };
-
   return (
-    <AdminContext.Provider value={{ adminUser, accessKey, authHeaders }}>
+    <AdminContext.Provider value={contextValue}>
       <AdminLayout activePage={activePage} onNavigate={setActivePage}>
         {pages[activePage] || pages.dashboard}
       </AdminLayout>
@@ -210,4 +216,3 @@ function AdminError({ message }) {
     </div>
   );
 }
-

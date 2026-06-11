@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 
-const API_URL = 'https://vton-mvp-omega.vercel.app/api/generate-image';
+const API_URL = 'https://seller-studio-ai.ru/api/generate-image';
 const OUTPUT_DIR = 'c:\\Users\\LORD-KSON\\Kson Project\\Все мои APPы\\VTON-MVP\\test-results';
 
 function img(filePath) {

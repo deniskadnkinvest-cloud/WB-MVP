@@ -8,7 +8,7 @@ import { ensureFirebaseAdmin } from './_firebase-admin.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { alertOnPayment, alertOnError } from './_admin-alerts.js';
 
-const APP_URL = process.env.VITE_APP_URL || 'https://vton-mvp-omega.vercel.app';
+const APP_URL = process.env.VITE_APP_URL || 'https://seller-studio-ai.ru';
 
 // Whitelist Telegram ID для доступа к админке
 const getAdminIds = () => {
@@ -173,7 +173,7 @@ export default async function handler(req, res) {
         text: `Привет${firstName ? ', ' + firstName : ''}! 👋\n\nДобро пожаловать в Селлер-Студию — ИИ-фотостудию для маркетплейсов.\n\n📸 Загрузите фото одежды → получите готовые кадры с моделью за 30 секунд.\n\nНажмите кнопку ниже, чтобы начать ↓`,
         reply_markup: {
           inline_keyboard: [[
-            { text: '🚀 Открыть Студию', web_app: { url: 'https://vton-mvp-omega.vercel.app' } }
+            { text: '🚀 Открыть Студию', web_app: { url: 'https://seller-studio-ai.ru' } }
           ]]
         }
       }),

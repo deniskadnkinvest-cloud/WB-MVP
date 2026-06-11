@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAdmin } from '../AdminApp';
 
@@ -42,13 +42,14 @@ export default function Generations() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchUid, setSearchUid] = useState('');
+  const [appliedSearchUid, setAppliedSearchUid] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [selectedGen, setSelectedGen] = useState(null);
 
-  const fetchGenerations = () => {
+  const fetchGenerations = useCallback(() => {
     setLoading(true);
     let url = '/api/admin/generations?limit=100';
-    if (searchUid.trim()) url += `&userId=${encodeURIComponent(searchUid.trim())}`;
+    if (appliedSearchUid) url += `&userId=${encodeURIComponent(appliedSearchUid)}`;
     if (filterType !== 'all') url += `&type=${filterType}`;
 
     fetch(url, { headers: { ...authHeaders } })
@@ -63,15 +64,15 @@ export default function Generations() {
       })
       .catch(() => setError('Ошибка подключения к серверу'))
       .finally(() => setLoading(false));
-  };
+  }, [appliedSearchUid, authHeaders, filterType]);
 
   useEffect(() => {
     fetchGenerations();
-  }, [filterType]);
+  }, [fetchGenerations]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchGenerations();
+    setAppliedSearchUid(searchUid.trim());
   };
 
   return (

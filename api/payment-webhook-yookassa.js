@@ -34,6 +34,14 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
+  // ═══ SECURITY: Verify request comes from YooKassa IPs ═══
+  const YOOKASSA_IP_PREFIXES = ['185.71.76.', '185.71.77.'];
+  const clientIp = (req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || '').split(',')[0].trim();
+  if (!YOOKASSA_IP_PREFIXES.some(prefix => clientIp.startsWith(prefix))) {
+    console.warn(`⚠️ [YooKassa Webhook] Rejected non-YooKassa IP: ${clientIp}`);
+    return res.status(403).json({ ok: false, error: 'Forbidden: invalid source IP' });
+  }
+
   const { event, object } = req.body || {};
 
   // ЮKassa шлёт пинг-запросы для проверки вебхука
@@ -71,6 +79,16 @@ export default async function handler(req, res) {
 
   try {
     const ref = db.doc(`users/${uid}/subscription/current`);
+
+    // ═══ IDEMPOTENCY: Skip duplicate webhooks ═══
+    const paymentId = object.id;
+    const existingSnap = await ref.get();
+    const existingPayments = existingSnap.data()?.payments || [];
+    if (existingPayments.some(p => p.yookassaPaymentId === paymentId)) {
+      console.log(`[YooKassa] Duplicate webhook ignored: ${paymentId}`);
+      return res.status(200).json({ ok: true, message: 'already processed' });
+    }
+
     const isSubscription = planId !== 'trial';
     const paymentMethodId = (isSubscription && object.payment_method?.saved)
       ? object.payment_method.id

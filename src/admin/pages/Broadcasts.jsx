@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAdmin } from '../AdminApp';
 
 const c = {
@@ -111,7 +111,7 @@ export default function Broadcasts() {
     }
   }
 
-  async function loadHistory() {
+  const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
       const res = await fetch('/api/admin/broadcasts', { headers: authHeaders });
@@ -120,11 +120,11 @@ export default function Broadcasts() {
     } finally {
       setHistoryLoading(false);
     }
-  }
+  }, [authHeaders]);
 
   useEffect(() => {
     if (tab === 'history') loadHistory();
-  }, [tab]);
+  }, [loadHistory, tab]);
 
   // Card styles
   const cardStyle = {

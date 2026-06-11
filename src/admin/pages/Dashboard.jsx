@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useAdmin } from '../AdminApp';
 
@@ -163,10 +163,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showTest, setShowTest] = useState(false);
-  const [showGrants, setShowGrants] = useState(false);
   const [loadTime, setLoadTime] = useState(null);
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true);
     setError(null);
     const t0 = Date.now();
@@ -178,9 +177,11 @@ export default function Dashboard() {
       })
       .catch(() => setError('Нет соединения'))
       .finally(() => setLoading(false));
-  };
+  }, [authHeaders]);
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   if (loading) {
     return (
@@ -348,7 +349,7 @@ export default function Dashboard() {
           </div>
           <div style={{ display: 'flex', gap: '5px' }}>
             {testPaymentsCount > 0 && (
-              <button onClick={() => { setShowTest(!showTest); setShowGrants(false); }} style={{
+              <button onClick={() => setShowTest(!showTest)} style={{
                 padding: '3px 7px', borderRadius: '6px', fontSize: '10px', fontWeight: 600,
                 background: showTest ? 'rgba(251,191,36,0.1)' : 'transparent',
                 border: `1px solid ${showTest ? 'rgba(251,191,36,0.3)' : c.border}`,

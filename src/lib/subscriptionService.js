@@ -197,7 +197,7 @@ export const activatePlan = async (uid, planId, paymentInfo = {}) => {
 //  USE CREDIT (deduct 1 per generation)
 // ═══════════════════════════════════════════
 
-export const useCredit = async (uid, amount = 1) => {
+export const consumeCredit = async (uid, amount = 1) => {
   const sub = await getSubscription(uid);
 
   if (sub.plan === 'none') {

@@ -8,10 +8,17 @@ const TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const GET_TASK_URL = 'https://api.kie.ai/api/v1/jobs/recordInfo?taskId=';
 const FILE_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-base64-upload';
 
+const stripInvisibleChars = (value) => {
+  const invisibleChars = ['\uFEFF', '\u200B', '\u200C', '\u200D', '\uFFFE'];
+  return invisibleChars.reduce((clean, char) => clean.split(char).join(''), value)
+    .replace(/[\r\n]/g, '')
+    .trim();
+};
+
 function getApiKey() {
   const raw = process.env.KIE_API_KEY;
   if (!raw) throw new Error('KIE_API_KEY not set in .env');
-  return raw.replace(/[\uFEFF\u200B\u200C\u200D\uFFFE\r\n]/g, '').trim();
+  return stripInvisibleChars(raw);
 }
 
 // ── Промпт для Auto-Catalog генерации ─────────────────────

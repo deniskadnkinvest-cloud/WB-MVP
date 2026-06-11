@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useAdmin } from '../AdminApp';
 
@@ -291,7 +291,7 @@ export default function Users() {
   const [filter, setFilter] = useState('all');
   const [tab, setTab] = useState('users');
 
-  const load = (searchQuery = '') => {
+  const load = useCallback((searchQuery = '') => {
     setLoading(true);
     let url = '/api/admin/users?limit=100';
     if (searchQuery.trim()) {
@@ -309,11 +309,11 @@ export default function Users() {
       })
       .catch(() => setError('Ошибка загрузки'))
       .finally(() => setLoading(false));
-  };
+  }, [authHeaders]);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const handleRefund = async (uid) => {
     const res = await fetch('/api/admin/refund', {

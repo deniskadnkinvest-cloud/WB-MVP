@@ -321,13 +321,13 @@ export const PRODUCT_COMPOSITIONS = [
 export const PRODUCT_BACKGROUNDS = [
   {
     id: 'clean_beauty',
-    label: 'Clean Beauty',
+    label: 'Чистая эстетика',
     emoji: '⬜',
     prompt: 'clean minimalist studio backdrop, elegant marble podium platform, pastel color palette, soft luxury studio lighting'
   },
   {
     id: 'organic_eco',
-    label: 'Organic Eco',
+    label: 'Эко-органика',
     emoji: '🌿',
     prompt: 'natural organic environment, wet stones, green moss patches, eucalyptus leaves, morning dew, soft sunlight filtering through leaves'
   },
@@ -339,7 +339,7 @@ export const PRODUCT_BACKGROUNDS = [
   },
   {
     id: 'urban_tech',
-    label: 'Urban Tech',
+    label: 'Урбан-тех',
     emoji: '🏙️',
     prompt: 'sleek cyber tech environment, dark concrete texture backdrop, subtle purple and cyan neon accent lighting, anodized metal pedestal'
   },
@@ -374,7 +374,7 @@ export const PRODUCT_EFFECTS = [
     id: 'candle_flame',
     label: 'Пламя и свечение',
     emoji: '🔥',
-    prompt: 'flickering physical candle flame with a warm volumetric glow, casting gentle halo effect and cozy highlights on the product'
+    prompt: 'warm ethereal volumetric glow emanating from behind and around the product, soft golden-amber light rays, radiant backlit halo effect, cinematic lens flare, no physical candle or fire source — pure luminous energy surrounding the product'
   },
   {
     id: 'flower_petals',
@@ -387,6 +387,12 @@ export const PRODUCT_EFFECTS = [
     label: 'Капсулы рядом',
     emoji: '💊',
     prompt: 'a few scattered natural supplement capsules and tablets neatly placed next to the container, showing product content'
+  },
+  {
+    id: 'custom',
+    label: 'Свой эффект',
+    emoji: '✍️',
+    prompt: ''
   }
 ];
 

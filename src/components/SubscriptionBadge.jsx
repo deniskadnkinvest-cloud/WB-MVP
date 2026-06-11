@@ -5,7 +5,6 @@ export default function SubscriptionBadge({ subscription, onClick }) {
   if (!subscription) return null;
 
   const plan = getPlanDetails(subscription.plan);
-  const hasCredits = subscription.credits > 0;
 
   return (
     <div

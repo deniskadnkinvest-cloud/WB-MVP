@@ -172,7 +172,7 @@ test.describe('📦 Product Mode — Deep Chaos QA Level 3', () => {
     // ФОН
     const bgSection = page.locator('.section', { hasText: 'Сцена / Окружение' });
     await bgSection.scrollIntoViewIfNeeded();
-    const backgrounds = ['Clean Beauty', 'Organic Eco', 'Скандинавский уют', 'Urban Tech', 'Рабочий стол'];
+    const backgrounds = ['Чистая эстетика', 'Эко-органика', 'Скандинавский уют', 'Урбан-тех', 'Рабочий стол'];
     let bgOk = true;
     for (const b of backgrounds) {
       const card = bgSection.locator('.preset-card', { hasText: b });
@@ -182,7 +182,7 @@ test.describe('📦 Product Mode — Deep Chaos QA Level 3', () => {
     await page.screenshot({ path: `${SCREENSHOT_DIR}/09_backgrounds.png`, fullPage: false });
     
     // ЭФФЕКТЫ
-    const effects = ['Без эффектов', 'Брызги воды', 'Мазок крема', 'Пламя и свечение', 'Лепестки цветов', 'Капсулы рядом'];
+    const effects = ['Без эффектов', 'Брызги воды', 'Мазок крема', 'Пламя и свечение', 'Лепестки цветов', 'Капсулы рядом', 'Свой эффект'];
     let efOk = true;
     for (const e of effects) {
       const card = page.locator('.preset-card', { hasText: e }).first();
@@ -219,7 +219,7 @@ test.describe('📦 Product Mode — Deep Chaos QA Level 3', () => {
     await page.waitForTimeout(1000);
     
     // Прокликиваем всё подряд для провоцирования ошибок
-    const clicks = ['Косметика', 'Парфюмерия', 'Другое', 'Flat Lay', 'Urban Tech', 'Брызги воды'];
+    const clicks = ['Косметика', 'Парфюмерия', 'Другое', 'Flat Lay', 'Урбан-тех', 'Брызги воды'];
     for (const text of clicks) {
       const el = page.locator('.preset-card', { hasText: text }).first();
       if (await el.isVisible().catch(() => false)) { await el.click(); await page.waitForTimeout(300); }
