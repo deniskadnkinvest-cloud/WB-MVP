@@ -1,5 +1,22 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { auth } from '../lib/firebase';
+import {
+  MODEL_PRESETS, POSE_PRESETS, BACKGROUND_PRESETS,
+  CAMERA_ANGLES, ASPECT_RATIOS, PRODUCT_CATEGORIES,
+  PRODUCT_COMPOSITIONS, PRODUCT_BACKGROUNDS, PRODUCT_EFFECTS
+} from '../data/presets';
+
+// Универсальный маппер prompt → label (русское название с эмодзи)
+function findPresetLabel(prompt, presets) {
+  if (!prompt) return null;
+  const p = prompt.trim().toLowerCase();
+  for (const preset of presets) {
+    if (preset.prompt && p.startsWith(preset.prompt.trim().toLowerCase().slice(0, 30))) {
+      return `${preset.emoji || ''} ${preset.label}`.trim();
+    }
+  }
+  return null;
+}
 
 const TYPE_LABELS = {
   fashion: '👗 Одежда',
@@ -217,34 +234,44 @@ export default function MyHistoryPage({ onClose }) {
         details.push({ icon: '🏷️', label: 'Тип', value: TYPE_LABELS[gen.type] || gen.type });
 
         // Формат
-        if (gen.aspectRatio) details.push({ icon: '📐', label: 'Формат', value: gen.aspectRatio });
+        if (gen.aspectRatio) {
+          const ratioPreset = ASPECT_RATIOS.find(r => r.id === gen.aspectRatio);
+          details.push({ icon: ratioPreset?.icon || '📐', label: 'Формат', value: ratioPreset?.label || gen.aspectRatio });
+        }
 
         // Модель
         if (gen.modelPreset) {
-          const short = gen.modelPreset.length > 80 ? gen.modelPreset.slice(0, 80) + '…' : gen.modelPreset;
-          details.push({ icon: '👤', label: 'Модель', value: short });
+          const label = findPresetLabel(gen.modelPreset, MODEL_PRESETS);
+          details.push({ icon: '👤', label: 'Модель', value: label || gen.modelPreset.slice(0, 60) });
         }
 
         // Поза
         if (gen.posePreset) {
-          const short = gen.posePreset.length > 80 ? gen.posePreset.slice(0, 80) + '…' : gen.posePreset;
-          details.push({ icon: '🧍', label: 'Поза', value: short });
+          const label = findPresetLabel(gen.posePreset, POSE_PRESETS);
+          details.push({ icon: '🧍', label: 'Поза', value: label || gen.posePreset.slice(0, 60) });
         }
 
         // Кастомная поза
         if (gen.customPoseText) details.push({ icon: '✍️', label: 'Кастомная поза', value: gen.customPoseText });
 
         // Камера
-        if (gen.cameraAngle) details.push({ icon: '📷', label: 'Камера', value: gen.cameraAngle });
+        if (gen.cameraAngle) {
+          const label = findPresetLabel(gen.cameraAngle, CAMERA_ANGLES);
+          details.push({ icon: '📷', label: 'Камера', value: label || gen.cameraAngle });
+        }
 
         // Фон
         if (gen.backgroundPreset) {
-          const short = gen.backgroundPreset.length > 80 ? gen.backgroundPreset.slice(0, 80) + '…' : gen.backgroundPreset;
-          details.push({ icon: '🖼️', label: 'Фон', value: short });
+          const allBgs = [...BACKGROUND_PRESETS, ...PRODUCT_BACKGROUNDS];
+          const label = findPresetLabel(gen.backgroundPreset, allBgs);
+          details.push({ icon: '🖼️', label: 'Фон', value: label || gen.backgroundPreset.slice(0, 60) });
         }
 
         // Категория (предметка)
-        if (gen.categoryId && gen.categoryId !== 'default') details.push({ icon: '📦', label: 'Категория', value: gen.categoryId });
+        if (gen.categoryId && gen.categoryId !== 'default') {
+          const catPreset = PRODUCT_CATEGORIES.find(c => c.id === gen.categoryId);
+          details.push({ icon: catPreset?.emoji || '📦', label: 'Категория', value: catPreset?.label || gen.categoryId });
+        }
 
         // С моделью (предметка)
         if (gen.withHumanModel) details.push({ icon: '🧑', label: 'С моделью', value: 'Да' });
