@@ -2183,6 +2183,14 @@ function App() {
       {/* 8. РЕЗУЛЬТАТ */}
       <AnimatePresence>
         {generatedImage && (
+          appMode === 'quick' ? (
+            <SmartCanvas 
+              imageUrl={generatedImage} 
+              onClose={() => setGeneratedImage(null)} 
+              user={user} 
+              setSubscription={setSubscription} 
+            />
+          ) : (
           <motion.div className="section result-section" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} exit={{opacity:0}} transition={{duration:0.5}}>
             <h3>Финальный Рендер</h3>
             <div className="result-image-wrap" style={{position:'relative'}}>
@@ -2454,6 +2462,7 @@ function App() {
               </div>
             )}
           </motion.div>
+          )
         )}
       </AnimatePresence>
 

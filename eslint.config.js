@@ -12,6 +12,7 @@ export default defineConfig([
     'playwright-report',
     'test-results',
     'videos',
+    'src/App_clean.jsx',
     '*.png',
     'chrome.log',
     'test_out.txt',

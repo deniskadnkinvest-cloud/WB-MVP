@@ -857,6 +857,15 @@ export default async function handler(req, res) {
   const startTime = Date.now();
 
   try {
+    if (req.body?.action === 'deduct-credit') {
+      const { userId, amount = 1 } = req.body;
+      if (!userId) return res.status(400).json({ success: false, error: 'User ID is required' });
+      const subRef = _db.collection('subscriptions').doc(userId);
+      await subRef.update({ credits: _admin.firestore.FieldValue.increment(-amount) });
+      const subDoc = await subRef.get();
+      return res.status(200).json({ success: true, newCredits: subDoc.data()?.credits || 0 });
+    }
+
     const {
       modelPreset = "25-year-old European female, slim build, natural makeup",
       posePreset = "standing straight, confident posture, facing the camera directly",

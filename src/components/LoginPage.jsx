@@ -25,7 +25,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showBrowserHint, setShowBrowserHint] = useState(false);
+  const [showBrowserHint] = useState(false);
 
   const [showEmailForm, setShowEmailForm] = useState(false);
 
