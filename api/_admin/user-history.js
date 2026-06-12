@@ -58,6 +58,7 @@ export default async function handler(req, res) {
         garmentUrls: d.garmentUrls || [],
         durationMs: d.durationMs || 0,
         categoryId: d.categoryId || '',
+        attributes: d.attributes || null,
         withHumanModel: d.withHumanModel || false,
         isCardDesign: d.isCardDesign || false,
         cardStyle: d.cardStyle || '',

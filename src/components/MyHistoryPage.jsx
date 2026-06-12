@@ -74,7 +74,7 @@ async function downloadImage(url, filename) {
   }
 }
 
-export default function MyHistoryPage({ onClose }) {
+export default function MyHistoryPage({ onClose, onReuseSettings }) {
   const [generations, setGenerations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -245,6 +245,18 @@ export default function MyHistoryPage({ onClose }) {
           details.push({ icon: '👤', label: 'Модель', value: label || gen.modelPreset.slice(0, 60) });
         }
 
+        // Детальные характеристики модели
+        if (gen.attributes && typeof gen.attributes === 'object') {
+          if (gen.attributes.bodyType) details.push({ icon: '📏', label: 'Телосложение', value: gen.attributes.bodyType });
+          if (gen.attributes.hairColor || gen.attributes.hairLength) {
+            const hair = [gen.attributes.hairLength, gen.attributes.hairColor].filter(Boolean).join(' ');
+            if (hair) details.push({ icon: '💇', label: 'Волосы', value: hair });
+          }
+          if (gen.attributes.emotion) details.push({ icon: '🎭', label: 'Эмоция', value: gen.attributes.emotion });
+          if (gen.attributes.tattoo && gen.attributes.tattoo !== 'Нет') details.push({ icon: '🖋️', label: 'Тату', value: gen.attributes.tattoo });
+          if (gen.attributes.piercing && gen.attributes.piercing !== 'Нет') details.push({ icon: '💎', label: 'Пирсинг', value: gen.attributes.piercing });
+        }
+
         // Поза
         if (gen.posePreset) {
           const label = findPresetLabel(gen.posePreset, POSE_PRESETS);
@@ -345,6 +357,16 @@ export default function MyHistoryPage({ onClose }) {
                 >
                   ⬇️ Скачать
                 </button>
+                {onReuseSettings && (
+                  <button
+                    className="history-lb-download history-lb-reuse"
+                    style={{ background: '#3b82f6', borderColor: '#2563eb', marginLeft: '8px' }}
+                    onClick={() => onReuseSettings(gen)}
+                    title="Применить эти настройки"
+                  >
+                    ♻️ Повторить настройки
+                  </button>
+                )}
                 <button className="history-lb-close" onClick={() => setLightbox(null)}>✕</button>
               </div>
             </div>

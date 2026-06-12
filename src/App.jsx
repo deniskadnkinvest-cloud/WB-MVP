@@ -1496,6 +1496,60 @@ function App() {
   if (loading) return <div className="app-wrapper" style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh'}}><div className="processing-spinner" /></div>;
   if (!user) return <LoginPage />;
 
+  const handleReuseSettings = (gen) => {
+    // Mode
+    setAppMode(gen.type === 'product' ? 'product' : 'fashion');
+    
+    // Formats
+    if (gen.aspectRatio) {
+      const ratio = ASPECT_RATIOS.find(r => r.id === gen.aspectRatio);
+      if (ratio) setSelectedRatio(ratio);
+    }
+    if (gen.cameraAngle) {
+      const cam = CAMERA_ANGLES.find(c => c.id === gen.cameraAngle || c.prompt === gen.cameraAngle);
+      if (cam) setSelectedCamera(cam);
+    }
+
+    if (gen.type === 'product') {
+      if (gen.categoryId) {
+        const cat = PRODUCT_CATEGORIES.find(c => c.id === gen.categoryId);
+        if (cat) setSelectedProductCategory(cat);
+      }
+      if (gen.backgroundPreset) {
+        const bg = [...PRODUCT_BACKGROUNDS, ...BACKGROUND_PRESETS].find(b => b.prompt === gen.backgroundPreset || b.id === gen.backgroundPreset);
+        if (bg) { setSelectedProductBg(bg); setCustomProductBg(''); }
+        else { setCustomProductBg(gen.backgroundPreset); setSelectedProductBg(null); }
+      }
+      if (gen.attributes) setProductModelDetails(gen.attributes);
+      if (gen.withHumanModel !== undefined) setProductWithModel(gen.withHumanModel);
+    } else {
+      if (gen.modelPreset) {
+        const m = MODEL_PRESETS.find(p => p.prompt === gen.modelPreset || p.id === gen.modelPreset);
+        if (m) { setSelectedModel(m); setCustomModelPrompt(''); }
+        else { setCustomModelPrompt(gen.modelPreset); setSelectedModel(null); }
+      }
+      if (gen.attributes) setModelDetails(gen.attributes);
+      
+      if (gen.posePreset) {
+        const p = POSE_PRESETS.find(x => x.prompt === gen.posePreset || x.id === gen.posePreset);
+        if (p) { setSelectedPose(p); setCustomPoseText(''); }
+        else { setCustomPoseText(gen.posePreset); setSelectedPose(null); }
+      }
+      if (gen.customPoseText) setCustomPoseText(gen.customPoseText);
+      
+      if (gen.backgroundPreset) {
+        const bg = BACKGROUND_PRESETS.find(b => b.prompt === gen.backgroundPreset || b.id === gen.backgroundPreset);
+        if (bg) { setSelectedBg(bg); setCustomBgText(''); }
+        else { setCustomBgText(gen.backgroundPreset); setSelectedBg(null); }
+      }
+    }
+    
+    setShowHistory(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setStatusText('✅ Настройки генерации успешно загружены!');
+    setStatusType('success');
+  };
+
   return (
     <div className="app-wrapper">
       <header className="app-header">
@@ -1554,7 +1608,7 @@ function App() {
       />
 
       {/* ═══ МОИ РАБОТЫ ═══ */}
-      {showHistory && <MyHistoryPage onClose={() => setShowHistory(false)} />}
+      {showHistory && <MyHistoryPage onClose={() => setShowHistory(false)} onReuseSettings={handleReuseSettings} />}
 
       {/* ═══ QUICK MODE PANEL ═══ */}
       {appMode === 'quick' && (

@@ -50,6 +50,7 @@ async function saveGenerationLog({ userId, success, imageUrl, error, reqBody, du
       isPhotoEdit: reqBody?.isPhotoEdit || false,
       editInstruction: reqBody?.editInstruction || '',
       customPoseText: reqBody?.customPoseText || '',
+      attributes: reqBody?.attributes || null,
     };
     
     if (imageUrl) docData.imageUrl = imageUrl;

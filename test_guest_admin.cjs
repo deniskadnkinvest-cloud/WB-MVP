@@ -1,0 +1,25 @@
+const { chromium } = require('playwright');
+const path = require('path');
+const fs = require('fs');
+
+(async () => {
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  
+  // Navigate to login
+  await page.goto('https://seller-studio-ai.ru/admin');
+  await page.waitForTimeout(5000);
+  
+  console.log('Clicking Try Without Registration...');
+  await page.click('button:has-text("Попробовать без регистрации")');
+  await page.waitForTimeout(5000);
+  
+  console.log('Going to admin page...');
+  await page.goto('https://seller-studio-ai.ru/admin');
+  await page.waitForTimeout(5000);
+  
+  await page.screenshot({path: 'admin_panel_guest_test.png'});
+  console.log('Screenshot saved.');
+
+  await browser.close();
+})();
