@@ -33,21 +33,17 @@ export default async function handler(req, res) {
 
     let queryRef = db.collection('generations')
       .where('userId', '==', uid)
-      .where('success', '==', true)
-      .orderBy('createdAt', 'desc')
-      .limit(limitCount);
+      .where('success', '==', true);
 
     if (typeFilter) {
       queryRef = db.collection('generations')
         .where('userId', '==', uid)
         .where('success', '==', true)
-        .where('type', '==', typeFilter)
-        .orderBy('createdAt', 'desc')
-        .limit(limitCount);
+        .where('type', '==', typeFilter);
     }
 
     const snap = await queryRef.get();
-    const generations = snap.docs.map(doc => {
+    let generations = snap.docs.map(doc => {
       const d = doc.data();
       return {
         id: doc.id,
@@ -60,6 +56,15 @@ export default async function handler(req, res) {
         garmentUrls: d.garmentUrls || [],
       };
     });
+
+    // Сортировка в памяти Node.js по убыванию даты создания (учитывая Firebase Timestamp)
+    generations.sort((a, b) => {
+      const dateA = a.createdAt ? (a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt)) : 0;
+      const dateB = b.createdAt ? (b.createdAt.toDate ? b.createdAt.toDate() : new Date(b.createdAt)) : 0;
+      return dateB - dateA;
+    });
+
+    generations = generations.slice(0, limitCount);
 
     return res.status(200).json({ ok: true, generations, total: generations.length });
   } catch (err) {
