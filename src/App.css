@@ -4862,3 +4862,29 @@ button[onclick*="signOut"],
   color: #f59e0b;
 }
 
+/* Кнопка повторения настроек в лайтбоксе */
+.history-lb-reuse {
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.15), rgba(139, 92, 246, 0.15)) !important;
+  border: 1px solid rgba(167, 139, 250, 0.35) !important;
+  color: #a78bfa !important;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 10px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.05);
+}
+
+.history-lb-reuse:hover {
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.28), rgba(139, 92, 246, 0.28)) !important;
+  border-color: rgba(167, 139, 250, 0.6) !important;
+  color: #c084fc !important;
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.25);
+  transform: translateY(-1.5px);
+}
+
+.history-lb-reuse:active {
+  transform: translateY(0);
+}
+

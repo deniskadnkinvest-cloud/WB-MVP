@@ -246,15 +246,28 @@ export default function MyHistoryPage({ onClose, onReuseSettings }) {
         }
 
         // Детальные характеристики модели
-        if (gen.attributes && typeof gen.attributes === 'object') {
-          if (gen.attributes.bodyType) details.push({ icon: '📏', label: 'Телосложение', value: gen.attributes.bodyType });
-          if (gen.attributes.hairColor || gen.attributes.hairLength) {
-            const hair = [gen.attributes.hairLength, gen.attributes.hairColor].filter(Boolean).join(' ');
-            if (hair) details.push({ icon: '💇', label: 'Волосы', value: hair });
-          }
-          if (gen.attributes.emotion) details.push({ icon: '🎭', label: 'Эмоция', value: gen.attributes.emotion });
-          if (gen.attributes.tattoo && gen.attributes.tattoo !== 'Нет') details.push({ icon: '🖋️', label: 'Тату', value: gen.attributes.tattoo });
-          if (gen.attributes.piercing && gen.attributes.piercing !== 'Нет') details.push({ icon: '💎', label: 'Пирсинг', value: gen.attributes.piercing });
+        const isFashion = gen.type === 'fashion' || gen.type === 'quick' || !gen.type;
+        const isProductWithModel = gen.type === 'product' && gen.withHumanModel;
+
+        if (isFashion || isProductWithModel) {
+          const attrs = gen.attributes || {};
+          
+          details.push({ icon: '📏', label: 'Телосложение', value: attrs.bodyType || 'По умолчанию' });
+          
+          const hair = [attrs.hairLength, attrs.hairColor].filter(Boolean).join(' ');
+          details.push({ icon: '💇', label: 'Волосы', value: hair || 'По умолчанию' });
+          
+          details.push({ icon: '🎭', label: 'Эмоция', value: attrs.emotion || 'По умолчанию' });
+          
+          const tattooVal = Array.isArray(attrs.tattoo) 
+            ? attrs.tattoo.filter(x => x !== 'Нет').join(', ') 
+            : (attrs.tattoo !== 'Нет' ? attrs.tattoo : '');
+          details.push({ icon: '🖋️', label: 'Тату', value: tattooVal || 'Нет' });
+          
+          const piercingVal = Array.isArray(attrs.piercing)
+            ? attrs.piercing.filter(x => x !== 'Нет').join(', ')
+            : (attrs.piercing !== 'Нет' ? attrs.piercing : '');
+          details.push({ icon: '💎', label: 'Пирсинг', value: piercingVal || 'Нет' });
         }
 
         // Поза
@@ -360,11 +373,10 @@ export default function MyHistoryPage({ onClose, onReuseSettings }) {
                 {onReuseSettings && (
                   <button
                     className="history-lb-download history-lb-reuse"
-                    style={{ background: '#3b82f6', borderColor: '#2563eb', marginLeft: '8px' }}
                     onClick={() => onReuseSettings(gen)}
                     title="Применить эти настройки"
                   >
-                    ♻️ Повторить настройки
+                    🪄 Повторить настройки
                   </button>
                 )}
                 <button className="history-lb-close" onClick={() => setLightbox(null)}>✕</button>

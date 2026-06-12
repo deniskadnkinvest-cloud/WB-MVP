@@ -28,6 +28,7 @@ export default function DetailPanel({ modelDetails, setModelDetails, visible, ge
   };
 
   const isActive = (key, opt) => {
+    if (!modelDetails) return false;
     const val = modelDetails[key];
     if (MULTI_SELECT_FIELDS.includes(key) && Array.isArray(val)) return val.includes(opt);
     return val === opt;

@@ -644,7 +644,7 @@ function App() {
         cameraAngle: selectedCamera.prompt, backgroundPreset: bgPrompt,
         aspectRatio: selectedRatio.id, modelReferenceImages: modelRefImages,
         locationImages: locImages, customPoseText: customPoseText.trim() || undefined,
-        attributes: modelDetails, isBeautyMode, biometricSeed: seed,
+        attributes: appMode === 'product' ? productModelDetails : modelDetails, isBeautyMode, biometricSeed: seed,
         isProductMode: appMode === 'product',
         categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
         withHumanModel: appMode === 'product' && productWithModel,
@@ -1030,7 +1030,7 @@ function App() {
           aspectRatio: selectedRatio.id, modelReferenceImages: editRefImages.length > 0 ? editRefImages : null,
           locationImages: locImages,
           editInstruction: mod,
-          attributes: modelDetails, isBeautyMode, biometricSeed,
+          attributes: appMode === 'product' ? productModelDetails : modelDetails, isBeautyMode, biometricSeed,
           isProductMode: appMode === 'product',
           categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
         }),
@@ -1408,7 +1408,7 @@ function App() {
             posePreset: angle.pose, cameraAngle: angle.camera,
             backgroundPreset: bgPrompt, aspectRatio: selectedRatio.id,
             modelReferenceImages: modelRefImages, locationImages: locImages,
-            attributes: modelDetails, isBeautyMode, biometricSeed,
+            attributes: appMode === 'product' ? productModelDetails : modelDetails, isBeautyMode, biometricSeed,
             isProductMode: appMode === 'product',
             categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
             withHumanModel: appMode === 'product' && productWithModel,
@@ -1520,7 +1520,11 @@ function App() {
         if (bg) { setSelectedProductBg(bg); setCustomProductBg(''); }
         else { setCustomProductBg(gen.backgroundPreset); setSelectedProductBg(null); }
       }
-      if (gen.attributes) setProductModelDetails(gen.attributes);
+      if (gen.attributes && typeof gen.attributes === 'object') {
+        setProductModelDetails({ ...initDetails(), ...gen.attributes });
+      } else {
+        setProductModelDetails(initDetails());
+      }
       if (gen.withHumanModel !== undefined) setProductWithModel(gen.withHumanModel);
     } else {
       if (gen.modelPreset) {
@@ -1528,7 +1532,11 @@ function App() {
         if (m) { setSelectedModel(m); setCustomModelPrompt(''); }
         else { setCustomModelPrompt(gen.modelPreset); setSelectedModel(null); }
       }
-      if (gen.attributes) setModelDetails(gen.attributes);
+      if (gen.attributes && typeof gen.attributes === 'object') {
+        setModelDetails({ ...initDetails(), ...gen.attributes });
+      } else {
+        setModelDetails(initDetails());
+      }
       
       if (gen.posePreset) {
         const p = POSE_PRESETS.find(x => x.prompt === gen.posePreset || x.id === gen.posePreset);
