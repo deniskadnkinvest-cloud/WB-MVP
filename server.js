@@ -2,8 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { serve } from 'inngest/express';
-import { inngest } from './api/inngest/client.js';
-import { functions } from './api/inngest/functions.js';
+import { inngest } from './api/_inngest/client.js';
+import { functions } from './api/_inngest/functions.js';
 
 import generateImageHandler from './api/generate-image.js';
 import verifyPanxTokenHandler from './api/verify-panx-token.js';

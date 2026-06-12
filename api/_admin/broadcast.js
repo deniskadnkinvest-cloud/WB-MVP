@@ -20,7 +20,7 @@
 import { ensureFirebaseAdmin } from '../_firebase-admin.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { checkAdminAuth } from './verify.js';
-import { inngest } from '../inngest/client.js';
+import { inngest } from '../_inngest/client.js';
 
 ensureFirebaseAdmin();
 const db = getFirestore();
