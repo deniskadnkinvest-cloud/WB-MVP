@@ -208,37 +208,122 @@ export default function MyHistoryPage({ onClose }) {
         </div>
       </div>
 
-      {/* Lightbox */}
-      {lightbox !== null && generations[lightbox] && (
-        <div className="history-lightbox" ref={lightboxRef} onClick={() => setLightbox(null)}>
-          <div className="history-lightbox-inner" onClick={e => e.stopPropagation()}>
-            <img src={generations[lightbox].imageUrl} alt="Просмотр" />
-            <div className="history-lightbox-controls">
-              <button
-                className="history-lb-btn"
-                disabled={lightbox <= 0}
-                onClick={() => setLightbox(lightbox - 1)}
-              >←</button>
-              <span className="history-lb-counter">
-                {lightbox + 1} / {generations.length}
-              </span>
-              <button
-                className="history-lb-btn"
-                disabled={lightbox >= generations.length - 1}
-                onClick={() => setLightbox(lightbox + 1)}
-              >→</button>
-              <button
-                className="history-lb-download"
-                onClick={() => downloadImage(generations[lightbox].imageUrl, `seller-studio-${generations[lightbox].type}-${lightbox + 1}.jpg`)}
-                title="Скачать оригинал"
-              >
-                ⬇️ Скачать
-              </button>
-              <button className="history-lb-close" onClick={() => setLightbox(null)}>✕</button>
+      {/* Lightbox with Details Panel */}
+      {lightbox !== null && generations[lightbox] && (() => {
+        const gen = generations[lightbox];
+        const details = [];
+
+        // Тип генерации
+        details.push({ icon: '🏷️', label: 'Тип', value: TYPE_LABELS[gen.type] || gen.type });
+
+        // Формат
+        if (gen.aspectRatio) details.push({ icon: '📐', label: 'Формат', value: gen.aspectRatio });
+
+        // Модель
+        if (gen.modelPreset) {
+          const short = gen.modelPreset.length > 80 ? gen.modelPreset.slice(0, 80) + '…' : gen.modelPreset;
+          details.push({ icon: '👤', label: 'Модель', value: short });
+        }
+
+        // Поза
+        if (gen.posePreset) {
+          const short = gen.posePreset.length > 80 ? gen.posePreset.slice(0, 80) + '…' : gen.posePreset;
+          details.push({ icon: '🧍', label: 'Поза', value: short });
+        }
+
+        // Кастомная поза
+        if (gen.customPoseText) details.push({ icon: '✍️', label: 'Кастомная поза', value: gen.customPoseText });
+
+        // Камера
+        if (gen.cameraAngle) details.push({ icon: '📷', label: 'Камера', value: gen.cameraAngle });
+
+        // Фон
+        if (gen.backgroundPreset) {
+          const short = gen.backgroundPreset.length > 80 ? gen.backgroundPreset.slice(0, 80) + '…' : gen.backgroundPreset;
+          details.push({ icon: '🖼️', label: 'Фон', value: short });
+        }
+
+        // Категория (предметка)
+        if (gen.categoryId && gen.categoryId !== 'default') details.push({ icon: '📦', label: 'Категория', value: gen.categoryId });
+
+        // С моделью (предметка)
+        if (gen.withHumanModel) details.push({ icon: '🧑', label: 'С моделью', value: 'Да' });
+
+        // Бьюти-режим
+        if (gen.isBeautyMode) details.push({ icon: '💄', label: 'Бьюти-режим', value: 'Да' });
+
+        // Дизайн-карточка
+        if (gen.isCardDesign) details.push({ icon: '🎨', label: 'Карточка', value: gen.cardStyle || 'стандарт' });
+
+        // Фоторедактирование
+        if (gen.isPhotoEdit && gen.editInstruction) details.push({ icon: '✏️', label: 'Фоторедактирование', value: gen.editInstruction });
+
+        // Время генерации
+        if (gen.durationMs > 0) {
+          const secs = (gen.durationMs / 1000).toFixed(1);
+          details.push({ icon: '⏱️', label: 'Время', value: `${secs} сек` });
+        }
+
+        // Дата
+        details.push({ icon: '📅', label: 'Дата', value: formatDate(gen.createdAt) });
+
+        return (
+          <div className="history-lightbox" ref={lightboxRef} onClick={() => setLightbox(null)}>
+            <div className="history-lightbox-inner history-lightbox-with-details" onClick={e => e.stopPropagation()}>
+              <div className="history-lightbox-image-area">
+                <img src={gen.imageUrl} alt="Просмотр" />
+              </div>
+              <div className="history-lightbox-details">
+                <h3 className="history-details-title">⚙️ Настройки генерации</h3>
+                <div className="history-details-list">
+                  {details.map((d, i) => (
+                    <div key={i} className="history-detail-row">
+                      <span className="history-detail-icon">{d.icon}</span>
+                      <div className="history-detail-content">
+                        <span className="history-detail-label">{d.label}</span>
+                        <span className="history-detail-value">{d.value}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {gen.garmentUrls && gen.garmentUrls.length > 0 && (
+                  <div className="history-detail-garments">
+                    <span className="history-detail-label">👕 Исходные фото ({gen.garmentUrls.length})</span>
+                    <div className="history-detail-garment-thumbs">
+                      {gen.garmentUrls.slice(0, 4).map((url, gi) => (
+                        <img key={gi} src={url} alt={`Исходное ${gi + 1}`} className="history-garment-thumb" />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="history-lightbox-controls">
+                <button
+                  className="history-lb-btn"
+                  disabled={lightbox <= 0}
+                  onClick={() => setLightbox(lightbox - 1)}
+                >←</button>
+                <span className="history-lb-counter">
+                  {lightbox + 1} / {generations.length}
+                </span>
+                <button
+                  className="history-lb-btn"
+                  disabled={lightbox >= generations.length - 1}
+                  onClick={() => setLightbox(lightbox + 1)}
+                >→</button>
+                <button
+                  className="history-lb-download"
+                  onClick={() => downloadImage(gen.imageUrl, `seller-studio-${gen.type}-${lightbox + 1}.jpg`)}
+                  title="Скачать оригинал"
+                >
+                  ⬇️ Скачать
+                </button>
+                <button className="history-lb-close" onClick={() => setLightbox(null)}>✕</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

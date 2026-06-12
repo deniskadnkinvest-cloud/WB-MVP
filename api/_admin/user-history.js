@@ -52,8 +52,19 @@ export default async function handler(req, res) {
         aspectRatio: d.aspectRatio || '3:4',
         createdAt: d.createdAt || null,
         modelPreset: d.modelPreset || '',
+        posePreset: d.posePreset || '',
         backgroundPreset: d.backgroundPreset || '',
+        cameraAngle: d.cameraAngle || '',
         garmentUrls: d.garmentUrls || [],
+        durationMs: d.durationMs || 0,
+        categoryId: d.categoryId || '',
+        withHumanModel: d.withHumanModel || false,
+        isCardDesign: d.isCardDesign || false,
+        cardStyle: d.cardStyle || '',
+        isBeautyMode: d.isBeautyMode || false,
+        isPhotoEdit: d.isPhotoEdit || false,
+        editInstruction: d.editInstruction || '',
+        customPoseText: d.customPoseText || '',
       };
     });
 

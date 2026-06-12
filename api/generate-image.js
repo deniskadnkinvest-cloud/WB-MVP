@@ -40,6 +40,16 @@ async function saveGenerationLog({ userId, success, imageUrl, error, reqBody, du
       modelPreset: reqBody?.modelPreset || '',
       posePreset: reqBody?.posePreset || '',
       backgroundPreset: reqBody?.backgroundPreset || '',
+      // Расширенные метаданные для панели деталей в «Мои работы»
+      cameraAngle: reqBody?.cameraAngle || '',
+      categoryId: reqBody?.categoryId || '',
+      withHumanModel: reqBody?.withHumanModel || false,
+      isCardDesign: reqBody?.isCardDesign || false,
+      cardStyle: reqBody?.cardStyle || '',
+      isBeautyMode: reqBody?.isBeautyMode || false,
+      isPhotoEdit: reqBody?.isPhotoEdit || false,
+      editInstruction: reqBody?.editInstruction || '',
+      customPoseText: reqBody?.customPoseText || '',
     };
     
     if (imageUrl) docData.imageUrl = imageUrl;
