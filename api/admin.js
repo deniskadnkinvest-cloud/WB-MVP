@@ -11,6 +11,7 @@ import grantAccessHandler from './_admin/grant-access.js';
 import broadcastHandler from './_admin/broadcast.js';
 import broadcastsHandler from './_admin/broadcasts.js';
 import refundHandler from './_admin/refund.js';
+import userHistoryHandler from './_admin/user-history.js';
 
 export default async function handler(req, res) {
   // Разбираем URL-путь (например, "/api/admin/verify?key=..." -> "/api/admin/verify")
@@ -38,6 +39,8 @@ export default async function handler(req, res) {
       return broadcastsHandler(req, res);
     case 'refund':
       return refundHandler(req, res);
+    case 'user-history':
+      return userHistoryHandler(req, res);
     default:
       // Fallback на верификацию, если это корневой POST-запрос
       if (action === '' && req.method === 'POST') {

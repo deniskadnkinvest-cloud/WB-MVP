@@ -9,6 +9,7 @@ import TerminalOfMagic from './components/TerminalOfMagic';
 import LoginPage from './components/LoginPage';
 import PricingModal from './components/PricingModal';
 import SubscriptionBadge from './components/SubscriptionBadge';
+import MyHistoryPage from './components/MyHistoryPage';
 import { useAuth } from './contexts/AuthContext';
 import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt } from './lib/firestoreService';
 import { uploadBase64Image, compressImage, uploadImage, deleteImage } from './lib/storageService';
@@ -44,6 +45,7 @@ function App() {
   // Subscription state
   const [subscription, setSubscription] = useState({ plan: 'none', credits: 0, creditsTotal: 0 });
   const [showPricing, setShowPricing] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [cancelingSubscription, setCancelingSubscription] = useState(false);
 
@@ -1531,6 +1533,9 @@ function App() {
 
         <div style={{marginTop:16,display:'flex',alignItems:'center',justifyContent:'center',gap:8,flexWrap:'wrap'}}>
           <SubscriptionBadge subscription={subscription} onClick={() => setShowPricing(true)} />
+          <button className="my-history-btn" onClick={() => setShowHistory(true)} title="Мои работы">
+            🖼️ Мои работы
+          </button>
           <span style={{fontSize:'0.75rem',color:'var(--text-muted)'}}>{user.displayName || user.email}</span>
           {!isEmbedded && <button onClick={signOut} style={{fontSize:'0.7rem',color:'var(--text-muted)',background:'none',border:'1px solid var(--border-subtle)',borderRadius:'9999px',padding:'4px 14px',cursor:'pointer',fontFamily:'var(--font-body)',letterSpacing:'1px',textTransform:'uppercase'}}>Выйти</button>}
         </div>
@@ -1547,6 +1552,9 @@ function App() {
         onCancelAutoRenew={handleCancelAutoRenew}
         canceling={cancelingSubscription}
       />
+
+      {/* ═══ МОИ РАБОТЫ ═══ */}
+      {showHistory && <MyHistoryPage onClose={() => setShowHistory(false)} />}
 
       {/* ═══ QUICK MODE PANEL ═══ */}
       {appMode === 'quick' && (
