@@ -2237,7 +2237,8 @@ function App() {
             </div>
 
             {/* ═══ CARD DESIGNER CTA ═══ */}
-            <motion.div
+            {/* Не показываем в режиме «В два клика» — там результат уже карточка */}
+            {appMode !== 'quick' && <motion.div
               className="card-designer-section"
               initial={{opacity:0,y:20}}
               animate={{opacity:1,y:0}}
@@ -2316,7 +2317,7 @@ function App() {
                   </div>
                 </motion.div>
               )}
-            </motion.div>
+            </motion.div>}
 
             {/* Iterative editing */}
             <div className="shot-modifier-block">
