@@ -1206,18 +1206,35 @@ function App() {
       }
       refreshCreditsFromResponse(step1Data);
 
-      // ШАГ 2: Анализ фото товара и авто-генерация продающего текста
-      setStatusText('✍️ Шаг 2/2 — Генерируем продающий текст для карточки...');
+      // ШАГ 2: Генерация ИИ-дизайна карточки (без текста) + авто-копирайтинг
+      setStatusText('🎴 Шаг 2/2 — Создаем дизайн карточки и пишем тексты...');
       setStatusType('processing');
 
-      const step2Messages = ['🎴 Анализируем товар...', '✍️ Составляем продающие заголовки...', '✨ Финальная полировка...'];
+      const step2Messages = [
+        '🎴 Интегрируем товар в 3D сцену...',
+        '✨ Прорисовываем свет и тени...',
+        '✍️ Генерируем продающие заголовки...',
+        '📐 Финальное сведение шаблона...'
+      ];
       stepIdx = 0;
       iv = setInterval(() => {
         stepIdx = (stepIdx + 1) % step2Messages.length;
         setStatusText(step2Messages[stepIdx]);
-      }, 3000);
+      }, 4000);
 
-      const step2Resp = await fetch('/api/generate-image', {
+      // Запускаем генерацию подложки (KIE.ai) и копирайтинг (Gemini) параллельно!
+      const designPromise = fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.uid || null,
+          isCardDesign: true,
+          cardStyle: quickCardStyle,
+          sourceImageUrl: productPhotoUrl,
+        }),
+      });
+
+      const textPromise = fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1225,8 +1242,12 @@ function App() {
           imageUrl: productPhotoUrl,
         }),
       });
+
+      const [designResp, textResp] = await Promise.all([designPromise, textPromise]);
       clearInterval(iv);
-      const step2Data = await safeParseJSON(step2Resp);
+
+      const designData = await safeParseJSON(designResp);
+      const textData = await safeParseJSON(textResp);
 
       let cardText = {
         title: 'АНАТОМИЧЕСКАЯ ПОДУШКА',
@@ -1236,20 +1257,29 @@ function App() {
         price: '1 990 ₽'
       };
 
-      if (step2Data.success) {
+      if (textData.success) {
         cardText = {
-          title: step2Data.title,
-          material: step2Data.material,
-          size: step2Data.size,
-          benefit: step2Data.benefit,
-          price: step2Data.price,
+          title: textData.title,
+          material: textData.material,
+          size: textData.size,
+          benefit: textData.benefit,
+          price: textData.price,
         };
       }
 
       setQuickCardText(cardText);
-      // Устанавливаем чистое сгенерированное фото как результат, который будет редактироваться
-      setGeneratedImage(productPhotoDisplay);
-      setImageHistory([{ image: productPhotoDisplay, label: '📸 Фото товара' }]);
+
+      // Если ИИ-дизайн успешно сгенерирован, используем его как подложку. Иначе делаем фоллбэк на фото товара.
+      let finalCardImage = productPhotoDisplay;
+      if (designData.success && (designData.imageUrl || designData.imageBase64)) {
+        refreshCreditsFromResponse(designData);
+        finalCardImage = designData.imageBase64 || designData.imageUrl;
+      } else {
+        console.warn('⚠️ Card design background failed, falling back to clean photo:', designData.error);
+      }
+
+      setGeneratedImage(finalCardImage);
+      setImageHistory([{ image: finalCardImage, label: '🎴 Шаблон карточки' }]);
       setHistoryIndex(0);
 
       setStatusText('⚡ Готово! Карточка создана, настройте текст справа.');

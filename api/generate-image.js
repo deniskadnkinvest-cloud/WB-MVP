@@ -1125,31 +1125,18 @@ Return ONLY the edited photograph.`;
         }
 
         const EPIC_CARD_PROMPT = `ROLE: Elite Russian E-commerce Art Director (Wildberries/Ozon).
-TASK: Transform this product photo into a COMPLETE marketplace card design.
-STYLE: EPIC — Dark cinematic. Deep background (#1a1a2e to #16213e gradient). Gold/amber accent typography.
-LAYOUT: Product photo dominant center-right (60% width). Left column for text.
-TEXT (ALL IN RUSSIAN — generate realistic text based on the product you see):
-  - Top-left badge: discount pill (example: -30%)
-  - Brand/category label: small gold caps
-  - Product name: 2-3 word bold headline in white
-  - 3 benefit bullets with gold checkmarks
-  - Price block: current price large + strikethrough old price
-  - CTA button: gold pill "Купить"
-  - Rating: gold stars + review count
-OUTPUT: A COMPLETE, FINISHED card design image. ALL text in RUSSIAN. NO placeholder text. Generate realistic product name and benefits from the actual product visible in the photo.`;
+TASK: Transform this product photo into a stunning marketplace card background template.
+STYLE: EPIC — Dark cinematic. Deep mysterious dark background (#06060c to #111122 gradient) with dynamic abstract shapes, light beams or soft glowing particles.
+LAYOUT: Place the product photo on the right/center (55-60% of card width) with realistic contact shadows and glowing ambient backlighting.
+TEXT WARNING: DO NOT WRITE ANY TEXT, WORDS, LETTERS, CHARACTERS, NUMBERS OR BADGES ON THE IMAGE. Keep the left side (approx 40-45% width) completely clean and empty for text overlay.
+OUTPUT: A clean, high-end marketplace background template with the product integrated, containing NO text or letters.`;
 
         const NATURAL_CARD_PROMPT = `ROLE: Elite Russian E-commerce Art Director (Wildberries/Ozon).
-TASK: Transform this product photo into a COMPLETE marketplace card design.
-STYLE: NATURAL — Clean, premium lifestyle. Soft cream/warm white background (#faf8f5). Elegant dark typography.
-LAYOUT: Product photo right/center (55-60% of card). Text area left/above with generous white space.
-TEXT (ALL IN RUSSIAN — generate realistic text based on the product you see):
-  - Brand label: thin sans-serif, warm gray, top
-  - Product name: 2-3 word elegant headline, near-black
-  - Tagline: one poetic benefit sentence, italic warm gray
-  - 3 feature bullets with minimal dot icons
-  - Price: clean style, dark charcoal
-  - CTA: "Подробнее" underlined or minimal outlined button
-OUTPUT: A COMPLETE, FINISHED card design image. ALL text in RUSSIAN. NO placeholder text. Generate realistic product name and benefits from the actual product visible in the photo.`;
+TASK: Transform this product photo into a stunning marketplace card background template.
+STYLE: NATURAL — Clean, premium lifestyle. Soft cream, beige, or warm white minimalist aesthetic background (#faf8f5) with soft shadows or organic shadows.
+LAYOUT: Place the product in the center-bottom or right (55% height/width) with realistic soft ground shadows.
+TEXT WARNING: DO NOT WRITE ANY TEXT, WORDS, LETTERS, CHARACTERS, NUMBERS OR BADGES ON THE IMAGE. Keep the top/left area clean and empty for text overlay.
+OUTPUT: A clean, high-end marketplace background template with the product integrated, containing NO text or letters.`;
 
         const cardPrompt = cardStyle === 'epic' ? EPIC_CARD_PROMPT : NATURAL_CARD_PROMPT;
 

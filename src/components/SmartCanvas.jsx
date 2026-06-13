@@ -4,6 +4,7 @@ import './SmartCanvas.css';
 
 export default function SmartCanvas({ imageUrl, onClose, user, setSubscription, suggestedText, initialStyle }) {
   const [style, setStyle] = useState(initialStyle || 'natural');
+  const [brand, setBrand] = useState('ПРЕМИУМ');
   const [title, setTitle] = useState('АНАТОМИЧЕСКАЯ ПОДУШКА');
   const [material, setMaterial] = useState('Мягкий велюр');
   const [size, setSize] = useState('Размер: M-L');
@@ -55,7 +56,7 @@ export default function SmartCanvas({ imageUrl, onClose, user, setSubscription, 
         // html-to-image options to guarantee premium rendering quality
         const dataUrl = await toPng(canvasRef.current, { 
           quality: 1.0, 
-          pixelRatio: 2,
+          pixelRatio: 2.5, // High resolution for marketplace print
           style: {
             transform: 'scale(1)',
             transformOrigin: 'top left',
@@ -87,8 +88,8 @@ export default function SmartCanvas({ imageUrl, onClose, user, setSubscription, 
       <div className="smart-canvas-header">
         <div className="sc-header-left">
           <div className="sc-badge">SMART CANVAS</div>
-          <h2 className="sc-title">Интерактивный редактор</h2>
-          <p className="sc-desc">Текст и цена редактируются в реальном времени. Изменения мгновенно отрисовываются на карточке.</p>
+          <h2 className="sc-title">Редактор карточки товара</h2>
+          <p className="sc-desc">Редактируйте тексты поверх сгенерированного ИИ дизайна. При экспорте вы получите единое изображение.</p>
         </div>
         <div className="sc-header-right">
           <div className="sc-export-badge">СКАЧИВАНИЕ: 1 КРЕДИТ</div>
@@ -101,56 +102,49 @@ export default function SmartCanvas({ imageUrl, onClose, user, setSubscription, 
         <div className="smart-canvas-preview-col">
           <div className={`canvas-wrapper style-${style}`} ref={canvasRef}>
             
+            {/* The main background image from AI (product on beautiful 3D backdrop) */}
+            <img src={imageUrl} alt="Background" className="canvas-main-bg-img" />
+
             {style === 'natural' ? (
-              <div className="natural-card-content">
-                <div className="natural-brand">SELLER STUDIO AI</div>
-                
-                <div className="natural-image-box">
-                  <img src={imageUrl} alt="Product" className="natural-product-img" />
+              <div className="natural-card-overlay">
+                <div className="natural-top-section">
+                  {brand && <div className="natural-brand-text">{brand}</div>}
+                  <h1 className="natural-title-text">{title}</h1>
+                  {benefit && <div className="natural-benefit-text">{benefit}</div>}
                 </div>
 
-                <div className="natural-text-group">
-                  <h1 className="natural-title">{title}</h1>
-                  {benefit && <div className="natural-benefit">{benefit}</div>}
-                  <div className="natural-details">
-                    {material && <span className="detail-tag">{material}</span>}
-                    {size && <span className="detail-tag">{size}</span>}
+                <div className="natural-bottom-section">
+                  <div className="natural-details-row">
+                    {material && <span className="natural-tag">{material}</span>}
+                    {size && <span className="natural-tag">{size}</span>}
                   </div>
-                  {price && <div className="natural-price">{price}</div>}
+                  {price && <div className="natural-price-text">{price}</div>}
                 </div>
               </div>
             ) : (
-              <div className="epic-card-content">
-                {/* Blurred backdrop image */}
-                <div className="epic-backdrop-container">
-                  <img src={imageUrl} alt="Background" className="epic-ambient-bg" />
-                  <div className="epic-bg-overlay" />
-                </div>
-                
-                <div className="epic-card-grid">
-                  <div className="epic-text-col">
-                    <div className="epic-brand">SELLER STUDIO AI</div>
-                    <h1 className="epic-title">{title}</h1>
-                    
-                    <div className="epic-bullets">
-                      {material && <div className="epic-bullet"><span className="bullet-icon">⚡</span> {material}</div>}
-                      {size && <div className="epic-bullet"><span className="bullet-icon">📐</span> {size}</div>}
-                      {benefit && <div className="epic-bullet"><span className="bullet-icon">💎</span> {benefit}</div>}
+              <div className="epic-card-overlay">
+                <div className="epic-left-column">
+                  <div className="epic-top-group">
+                    {brand && <div className="epic-brand-text">{brand}</div>}
+                    <h1 className="epic-title-text">{title}</h1>
+                  </div>
+                  
+                  <div className="epic-middle-group">
+                    <div className="epic-bullets-list">
+                      {material && <div className="epic-bullet-item"><span className="bullet-bullet">✦</span> {material}</div>}
+                      {size && <div className="epic-bullet-item"><span className="bullet-bullet">✦</span> {size}</div>}
+                      {benefit && <div className="epic-bullet-item"><span className="bullet-bullet">✦</span> {benefit}</div>}
                     </div>
-                    
-                    {price && (
-                      <div className="epic-price-box">
-                        <span className="price-label">СУПЕРЦЕНА</span>
-                        <div className="epic-price">{price}</div>
-                      </div>
-                    )}
-                    <div className="epic-cta">ПОДРОБНЕЕ</div>
                   </div>
 
-                  <div className="epic-image-col">
-                    <div className="epic-image-wrapper">
-                      <img src={imageUrl} alt="Product" className="epic-product-img" />
-                    </div>
+                  <div className="epic-bottom-group">
+                    {price && (
+                      <div className="epic-price-wrapper">
+                        <span className="price-tag-label">СПЕЦПРЕДЛОЖЕНИЕ</span>
+                        <div className="epic-price-text">{price}</div>
+                      </div>
+                    )}
+                    <div className="epic-cta-btn">КУПИТЬ</div>
                   </div>
                 </div>
               </div>
@@ -184,10 +178,21 @@ export default function SmartCanvas({ imageUrl, onClose, user, setSubscription, 
 
           <div className="sc-rule-box">
             <h4 className="sc-rule-title">Правило режима:</h4>
-            <p className="sc-rule-text">Редактируйте надписи ниже — они мгновенно встраиваются в макет картинки без искажений ИИ.</p>
+            <p className="sc-rule-text">ИИ сгенерировал дизайн карточки и встроил товар. Редактируйте тексты ниже — они накладываются точно в свободные зоны без перекрытия продукта.</p>
           </div>
 
           <div className="sc-inputs">
+            <div className="sc-input-group">
+              <label className="sc-input-label">Бренд / Надпись сверху</label>
+              <input 
+                type="text" 
+                placeholder="Например: PREMIUM" 
+                value={brand} 
+                onChange={e => setBrand(e.target.value)} 
+                className="sc-input brand-input"
+              />
+            </div>
+
             <div className="sc-input-group">
               <label className="sc-input-label">Название товара</label>
               <input 

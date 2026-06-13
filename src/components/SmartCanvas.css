@@ -86,56 +86,66 @@
   user-select: none;
 }
 
-/* 🌿 СТИЛЬ: NATURAL (Светлый минимализм) */
-.canvas-wrapper.style-natural {
-  background: #FAF8F5;
-  box-sizing: border-box;
-}
-
-.natural-card-content {
+/* ИИ-картинка подложки карточки */
+.canvas-main-bg-img {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+/* 🌿 СТИЛЬ: NATURAL (Светлый минимализм) */
+.natural-card-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
-  padding: 32px 24px 28px 24px;
+  padding: 44px 24px 36px 24px;
   box-sizing: border-box;
+  text-align: center;
 }
 
-.natural-brand {
+.natural-brand-text {
   font-family: 'Inter', sans-serif;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.25em;
-  color: #8c857b;
+  color: #7c7267;
   text-transform: uppercase;
+  margin-bottom: 8px;
 }
 
-.natural-image-box {
-  width: 88%;
-  height: 52%;
-  background: #ffffff;
-  border-radius: 12px;
-  padding: 10px;
-  box-shadow: 0 12px 30px rgba(140, 133, 123, 0.08);
-  border: 1px solid rgba(140, 133, 123, 0.06);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  overflow: hidden;
-  box-sizing: border-box;
+.natural-title-text {
+  font-family: 'Playfair Display', serif;
+  font-size: 24px;
+  font-weight: 700;
+  color: #2c251e;
+  margin: 0;
+  line-height: 1.25;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  max-width: 90%;
+  word-wrap: break-word;
 }
 
-.natural-product-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 8px;
+.natural-benefit-text {
+  font-family: 'Playfair Display', serif;
+  font-style: italic;
+  font-size: 13px;
+  color: #635b52;
+  margin-top: 4px;
 }
 
-.natural-text-group {
-  text-align: center;
+.natural-bottom-section {
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -144,128 +154,72 @@
   box-sizing: border-box;
 }
 
-.natural-title {
-  font-family: 'Playfair Display', serif;
-  font-size: 24px;
-  font-weight: 700;
-  color: #2c251e;
-  margin: 0;
-  line-height: 1.2;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  max-width: 90%;
-  word-wrap: break-word;
-}
-
-.natural-benefit {
-  font-family: 'Playfair Display', serif;
-  font-style: italic;
-  font-size: 13px;
-  color: #7c7267;
-  margin-top: 1px;
-}
-
-.natural-details {
+.natural-details-row {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 4px;
 }
 
-.natural-details .detail-tag {
+.natural-tag {
   font-family: 'Inter', sans-serif;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: #8c857b;
-  background: rgba(140, 133, 123, 0.08);
+  color: #635b52;
+  background: rgba(140, 133, 123, 0.15);
   padding: 4px 8px;
   border-radius: 4px;
 }
 
-.natural-price {
+.natural-price-text {
   font-family: 'Inter', sans-serif;
   font-size: 22px;
   font-weight: 900;
-  color: #3d352b;
-  margin-top: 8px;
+  color: #2c251e;
+  margin-top: 4px;
   letter-spacing: -0.02em;
 }
 
 
 /* 🔥 СТИЛЬ: EPIC (Темный кинематограф) */
-.canvas-wrapper.style-epic {
-  background: #06060c;
-  box-sizing: border-box;
-}
-
-.epic-card-content {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-
-.epic-backdrop-container {
+.epic-card-overlay {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 1;
-}
-
-.epic-ambient-bg {
-  width: 120%;
-  height: 120%;
-  object-fit: cover;
-  filter: blur(24px) brightness(0.22) contrast(1.15);
-  position: absolute;
-  top: -10%;
-  left: -10%;
-}
-
-.epic-bg-overlay {
-  position: absolute;
-  top: 0; left: 0; width: 100%; height: 100%;
-  background: linear-gradient(135deg, rgba(6, 6, 12, 0.85) 0%, rgba(6, 6, 12, 0.3) 50%, rgba(6, 6, 12, 0.95) 100%);
-}
-
-.epic-card-grid {
-  position: relative;
   z-index: 2;
-  height: 100%;
-  width: 100%;
-  display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  padding: 28px 20px;
-  align-items: center;
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 44px 32px 36px 32px;
   box-sizing: border-box;
 }
 
-.epic-text-col {
+.epic-left-column {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   height: 100%;
+  width: 48%; /* Текст строго слева, товар ИИ нарисовал справа */
   color: #fff;
   box-sizing: border-box;
 }
 
-.epic-brand {
+.epic-brand-text {
   font-family: 'Inter', sans-serif;
   font-size: 9px;
   font-weight: 800;
   letter-spacing: 0.2em;
-  color: rgba(255, 255, 255, 0.35);
+  color: #F59E0B;
   text-transform: uppercase;
+  margin-bottom: 6px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 
-.epic-title {
+.epic-title-text {
   font-family: 'Montserrat', sans-serif;
   font-size: 24px;
   font-weight: 900;
@@ -273,49 +227,49 @@
   color: #ffffff;
   text-transform: uppercase;
   letter-spacing: -0.015em;
-  text-shadow: 0 3px 12px rgba(0,0,0,0.6);
-  margin: 10px 0;
-  max-width: 100%;
+  text-shadow: 0 3px 10px rgba(0,0,0,0.8);
+  margin: 0;
   word-wrap: break-word;
 }
 
-.epic-bullets {
+.epic-bullets-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin: 12px 0;
+  margin: 16px 0;
 }
 
-.epic-bullet {
+.epic-bullet-item {
   font-family: 'Inter', sans-serif;
   font-size: 10px;
   font-weight: 800;
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.95);
   display: flex;
   align-items: center;
   gap: 6px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  text-shadow: 0 2px 6px rgba(0,0,0,0.7);
 }
 
-.epic-bullet .bullet-icon {
+.epic-bullet-item .bullet-bullet {
   color: #F59E0B;
   font-size: 11px;
 }
 
-.epic-price-box {
-  margin-top: auto;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.epic-price-wrapper {
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   padding: 10px 14px;
   border-radius: 12px;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   width: fit-content;
   box-sizing: border-box;
+  margin-bottom: 12px;
 }
 
-.price-label {
+.price-tag-label {
   font-family: 'Inter', sans-serif;
   font-size: 8px;
   font-weight: 900;
@@ -325,7 +279,7 @@
   margin-bottom: 2px;
 }
 
-.epic-price {
+.epic-price-text {
   font-family: 'Montserrat', sans-serif;
   font-size: 20px;
   font-weight: 900;
@@ -333,46 +287,18 @@
   letter-spacing: -0.01em;
 }
 
-.epic-cta {
+.epic-cta-btn {
   font-family: 'Inter', sans-serif;
   font-size: 9px;
   font-weight: 900;
   background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
   color: #fff;
-  padding: 8px 14px;
+  padding: 10px 18px;
   border-radius: 30px;
   text-align: center;
   letter-spacing: 0.1em;
   width: fit-content;
-  margin-top: 12px;
-  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.35);
-}
-
-.epic-image-col {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-}
-
-.epic-image-wrapper {
-  position: relative;
-  width: 100%;
-  height: 80%;
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.epic-product-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  box-shadow: 0 4px 15px rgba(245, 158, 11, 0.45);
 }
 
 
@@ -495,6 +421,11 @@
   outline: none;
   border-color: #F59E0B;
   background: #202024;
+}
+
+.sc-input.brand-input {
+  border-color: rgba(245, 158, 11, 0.25);
+  font-weight: 600;
 }
 
 .sc-input.title-input {
