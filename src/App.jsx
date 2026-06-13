@@ -1,9 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MODEL_PRESETS, POSE_PRESETS, BACKGROUND_PRESETS, ASPECT_RATIOS, CAMERA_ANGLES, getModelDetails, PRODUCT_CATEGORIES, PRODUCT_COMPOSITIONS, PRODUCT_BACKGROUNDS, PRODUCT_EFFECTS } from './data/presets';
-import GenderToggle from './components/GenderToggle';
-import DetailPanel from './components/DetailPanel';
-import LoraModal from './components/LoraModal';
 import ModelCalibrationWizard from './components/ModelCalibrationWizard';
 import TerminalOfMagic from './components/TerminalOfMagic';
 import LoginPage from './components/LoginPage';
@@ -14,7 +11,6 @@ import { useAuth } from './contexts/AuthContext';
 import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt } from './lib/firestoreService';
 import { uploadBase64Image, compressImage, uploadImage, deleteImage } from './lib/storageService';
 import { getSubscription, checkFeature, canGenerate, activatePlan } from './lib/subscriptionService';
-import SmartCanvas from './components/SmartCanvas';
 import SmartCardEditor from './components/SmartCardEditor';
 import './App.css';
 
@@ -243,21 +239,21 @@ function App() {
     // Загружаем данные параллельно и асинхронно, не блокируя отрисовку интерфейса
     getModels(user.uid)
       .then((models) => {
-        console.log('📦 Models loaded:', models?.length || 0);
+
         setMyModels(models || []);
       })
       .catch((err) => console.error('Ошибка загрузки моделей:', err));
 
     getLocations(user.uid)
       .then((locations) => {
-        console.log('📍 Locations loaded:', locations?.length || 0);
+
         setMyLocations(locations || []);
       })
       .catch((err) => console.error('Ошибка загрузки локаций:', err));
 
     getSubscription(user.uid, user.email)
       .then((sub) => {
-        console.log('🔑 Subscription loaded:', sub?.plan || 'none');
+
         if (sub) setSubscription(sub);
       })
       .catch((err) => {
@@ -310,6 +306,7 @@ function App() {
             clearInterval(interval);
           }
         }, 1500);
+        return () => clearInterval(interval);
       }
     }
   }, [user]);
@@ -596,7 +593,7 @@ function App() {
             if (sm) { humanPrompt = sm.prompt || humanPrompt; modelRefImages = sm.imageUrls || []; }
           }
           // humanModelPrompt будет передан отдельно
-          modelPrompt = modelPrompt; // product description stays
+          // product description stays as-is
           // Сохраняем в отдельные переменные для передачи
           window.__humanModelPrompt = humanPrompt;
           window.__humanModelRefImages = modelRefImages;
@@ -770,7 +767,7 @@ function App() {
     }
     setIsSaving(true);
     try {
-      console.log('📦 Saving calibrated model:', name, 'photos:', Object.keys(photos).filter(k => photos[k]));
+
       const photoEntries = Object.entries(photos).filter(([, v]) => v);
       // Upload all photos and track which key maps to which URL
       const uploadResults = await Promise.all(
@@ -797,7 +794,7 @@ function App() {
       setShowCalibWizard(false);
       setStatusText('✅ Откалиброванная модель сохранена!');
       setStatusType('success');
-      console.log('✅ Model saved successfully:', name);
+
     } catch (err) {
       console.error('Ошибка сохранения модели:', err);
       setStatusText('Ошибка сохранения модели');
@@ -1359,7 +1356,7 @@ QUALITY:
     try {
       // NOTE: We point to the standalone auto-catalog server (port 3002)
       // In production this would be unified or routed via Vercel Edge
-      const resp = await fetch('http://localhost:3002/api/auto-catalog/start', {
+      const resp = await fetch('/api/auto-catalog/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

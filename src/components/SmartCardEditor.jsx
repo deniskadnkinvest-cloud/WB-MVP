@@ -31,6 +31,7 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
   // Автодетекция элементов (Gemini Vision bounding boxes)
   const [elements, setElements]         = useState([]);       // [{name, bbox:[x%,y%,w%,h%]}]
   const [isScanning, setIsScanning]     = useState(false);
+  const [scanError, setScanError]       = useState(false);
   const [hoveredIdx, setHoveredIdx]     = useState(null);     // Индекс элемента под курсором
   const [selectedIdx, setSelectedIdx]   = useState(null);     // Индекс выбранного элемента
 
@@ -45,11 +46,13 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
   const [paths, setPaths]             = useState([]);
   const [currentPath, setCurrentPath] = useState(null);
   const [brushPopup, setBrushPopup]   = useState(false);
+  const rafRef = useRef(null);
 
   // ── Сканирование элементов через Gemini Vision ───────────────
-  const scanElements = useCallback(async () => {
+  const scanElements = useCallback(async (signal) => {
     if (!imageUrl) return;
     setIsScanning(true);
+    setScanError(false);
     try {
       const resp = await fetch('/api/generate-image', {
         method: 'POST',
@@ -58,15 +61,20 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
           action: 'detect-elements',
           imageBase64: imageUrl,
         }),
+        signal,
       });
+      if (signal?.aborted) return;
       if (resp.ok) {
         const data = await resp.json();
+        if (signal?.aborted) return;
         if (data.elements?.length) {
           setElements(data.elements);
         }
       }
     } catch (err) {
+      if (err.name === 'AbortError') return;
       console.error('[SmartCardEditor] scan error:', err);
+      setScanError(true);
     } finally {
       setIsScanning(false);
     }
@@ -74,9 +82,10 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
 
   // Запускаем сканирование при загрузке картинки
   useEffect(() => {
-    if (imgLoaded && imageUrl) {
-      scanElements();
-    }
+    if (!imgLoaded || !imageUrl) return;
+    const controller = new AbortController();
+    scanElements(controller.signal);
+    return () => controller.abort();
   }, [imgLoaded, imageUrl, scanElements]);
 
   // ── Определяем какой элемент под курсором ────────────────────
@@ -103,8 +112,14 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
   // ── Mouse handlers (SELECT mode) ─────────────────────────────
   const handleMouseMove = (e) => {
     if (mode !== EDIT_MODES.SELECT) return;
-    const idx = getElementAtPoint(e.clientX, e.clientY);
-    setHoveredIdx(idx);
+    if (rafRef.current) return; // skip if pending
+    const clientX = e.clientX;
+    const clientY = e.clientY;
+    rafRef.current = requestAnimationFrame(() => {
+      const idx = getElementAtPoint(clientX, clientY);
+      setHoveredIdx(idx);
+      rafRef.current = null;
+    });
   };
 
   const handleClick = (e) => {
@@ -236,6 +251,11 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
     setIsProcessing(true);
     try {
       const maskBase64 = generateMask();
+      if (!maskBase64) {
+        alert('Не удалось создать маску. Попробуйте снова.');
+        setIsProcessing(false);
+        return;
+      }
       let finalPrompt = editPrompt;
       if (selectedAction?.id === 'remove')     finalPrompt = 'Remove this element completely. Fill area naturally with surrounding background.';
       if (selectedAction?.id === 'color')      finalPrompt = `Change the color: ${editPrompt}`;
@@ -264,6 +284,11 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
     };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
+  }, []);
+
+  // Cleanup RAF on unmount
+  useEffect(() => {
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, []);
 
   const handleDownload = () => {
@@ -299,6 +324,7 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
             <span className="sce-logo">✦ Умный Редактор</span>
             <span className="sce-subtitle">
               {isScanning ? '🔍 Сканирую элементы...' :
+               scanError ? '⚠️ Не удалось определить элементы. Используйте кисть или пересканируйте.' :
                elements.length ? `Найдено ${elements.length} элементов — наведите и кликните` :
                'Кликните на элемент для редактирования'}
             </span>

@@ -9,6 +9,7 @@
   width: 100vw; height: 100vh;
   background: rgba(3, 3, 5, 0.92);
   backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -33,13 +34,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
+  padding: 16px 20px;
   border-bottom: 1px solid rgba(255,255,255,0.05);
   background: rgba(0,0,0,0.3);
   flex-shrink: 0;
   gap: 12px;
 }
-.sce-header-left { display: flex; flex-direction: column; gap: 2px; }
+.sce-header-left { display: flex; flex-direction: column; gap: 4px; }
 .sce-logo { font-size: 15px; font-weight: 600; color: #fff; }
 .sce-subtitle { font-size: 12px; color: rgba(255,255,255,0.4); }
 .sce-header-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -53,7 +54,7 @@
   overflow: hidden;
 }
 .sce-mode-btn {
-  padding: 6px 14px;
+  padding: 8px 12px;
   font-size: 13px;
   font-weight: 500;
   color: rgba(255,255,255,0.5);
@@ -72,7 +73,7 @@
 
 /* Buttons */
 .sce-icon-btn {
-  padding: 6px 12px; font-size: 12px;
+  padding: 8px 12px; font-size: 12px;
   color: rgba(255,255,255,0.6);
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
@@ -150,12 +151,13 @@
 /* Метка элемента */
 .sce-bbox-label {
   position: absolute;
-  top: -26px; left: 0;
+  top: -28px; left: 0;
   background: rgba(20, 20, 35, 0.92);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(99, 179, 255, 0.3);
   border-radius: 5px;
-  padding: 3px 8px;
+  padding: 4px 8px;
   font-size: 11px;
   font-weight: 500;
   color: #63b3ff;
@@ -214,6 +216,7 @@
   width: 100%; height: 100%;
   background: rgba(5,5,10,0.7);
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -240,6 +243,7 @@
   width: 280px;
   background: rgba(18, 18, 28, 0.95);
   backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 14px;
   padding: 12px;
@@ -250,7 +254,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px;
+  padding: 8px 12px;
   margin-bottom: 8px;
   background: rgba(99,179,255,0.06);
   border: 1px solid rgba(99,179,255,0.1);
@@ -272,10 +276,10 @@
 }
 
 /* Action Buttons */
-.sce-popup-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.sce-popup-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .sce-action-btn {
-  display: flex; align-items: center; gap: 7px;
-  padding: 9px 10px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px;
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: 8px;
@@ -292,7 +296,7 @@
 .sce-action-icon { font-size: 15px; }
 
 /* Input Area */
-.sce-popup-input-area { display: flex; flex-direction: column; gap: 7px; }
+.sce-popup-input-area { display: flex; flex-direction: column; gap: 8px; }
 .sce-action-label { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.9); }
 .sce-action-label.sce-danger { color: #ff6b6b; }
 .sce-edit-input {
@@ -300,7 +304,7 @@
   background: rgba(0,0,0,0.3);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 8px;
-  padding: 9px 11px;
+  padding: 8px 12px;
   color: #fff;
   font-size: 13px;
   font-family: inherit;
@@ -315,14 +319,14 @@
 /* Footer */
 .sce-popup-footer { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; }
 .sce-back-btn {
-  padding: 7px 12px; font-size: 12px;
+  padding: 8px 12px; font-size: 12px;
   color: rgba(255,255,255,0.5);
   background: none; border: 1px solid rgba(255,255,255,0.08);
   border-radius: 7px; cursor: pointer; transition: all 0.15s;
 }
 .sce-back-btn:hover { color: #fff; background: rgba(255,255,255,0.05); }
 .sce-submit-btn {
-  flex: 1; padding: 7px 14px; font-size: 13px; font-weight: 600;
+  flex: 1; padding: 8px 16px; font-size: 13px; font-weight: 600;
   color: #fff;
   background: linear-gradient(135deg, #3b82f6, #2563eb);
   border: none; border-radius: 7px; cursor: pointer; transition: all 0.2s;
@@ -334,7 +338,7 @@
 
 /* ── FOOTER ─────────────────────────────── */
 .sce-footer {
-  padding: 10px 20px;
+  padding: 12px 20px;
   border-top: 1px solid rgba(255,255,255,0.04);
   background: rgba(0,0,0,0.2);
   display: flex;
