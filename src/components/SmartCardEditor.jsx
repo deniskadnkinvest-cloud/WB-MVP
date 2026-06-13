@@ -3,143 +3,143 @@ import { motion, AnimatePresence } from 'framer-motion';
 import './SmartCardEditor.css';
 
 // ═══════════════════════════════════════════════════════════════
-//  SmartCardEditor — Умный редактор карточки маркетплейса
-//  Аналог Reve Editor, но лучше: русский интерфейс, плавающий
-//  попап, AI-контекстные подсказки, brush-режим.
+//  SmartCardEditor v2 — Умный редактор с автодетекцией элементов
+//  Gemini Vision определяет все элементы + bounding boxes.
+//  Hover → подсветка элемента. Click → попап редактирования.
 // ═══════════════════════════════════════════════════════════════
 
 const EDIT_MODES = {
-  SELECT: 'select',   // Умный выбор — наводишь, кликаешь
-  BRUSH:  'brush',    // Ручная кисть
+  SELECT: 'select',
+  BRUSH:  'brush',
 };
 
 const QUICK_ACTIONS = [
-  { id: 'text',        icon: '✏️', label: 'Изменить текст',      placeholder: 'Напишите новый текст...' },
-  { id: 'color',       icon: '🎨', label: 'Изменить цвет',       placeholder: 'Например: сделай синим...' },
-  { id: 'regenerate',  icon: '🔄', label: 'Перегенерировать',    placeholder: 'Опишите как должно выглядеть...' },
-  { id: 'remove',      icon: '🗑️', label: 'Убрать элемент',      placeholder: 'Элемент будет удалён...' },
+  { id: 'text',       icon: '✏️', label: 'Изменить текст',   placeholder: 'Напишите новый текст...' },
+  { id: 'color',      icon: '🎨', label: 'Изменить цвет',    placeholder: 'Например: сделай синим...' },
+  { id: 'regenerate', icon: '🔄', label: 'Перегенерировать', placeholder: 'Опишите как должно выглядеть...' },
+  { id: 'remove',     icon: '🗑️', label: 'Убрать элемент',   placeholder: '' },
 ];
 
 export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
-  const containerRef     = useRef(null);
   const imageRef         = useRef(null);
-  const overlayCanvasRef = useRef(null);  // Hover-подсветка
-  const maskCanvasRef    = useRef(null);  // Маска кисти
+  const maskCanvasRef    = useRef(null);
 
-  // ── Состояния редактора ──────────────────────────────────────
-  const [mode, setMode]               = useState(EDIT_MODES.SELECT);
+  // ── Состояния ────────────────────────────────────────────────
+  const [mode, setMode]           = useState(EDIT_MODES.SELECT);
+  const [imgLoaded, setImgLoaded] = useState(false);
+
+  // Автодетекция элементов (Gemini Vision bounding boxes)
+  const [elements, setElements]         = useState([]);       // [{name, bbox:[x%,y%,w%,h%]}]
+  const [isScanning, setIsScanning]     = useState(false);
+  const [hoveredIdx, setHoveredIdx]     = useState(null);     // Индекс элемента под курсором
+  const [selectedIdx, setSelectedIdx]   = useState(null);     // Индекс выбранного элемента
+
+  // Попап
+  const [selectedAction, setSelectedAction] = useState(null);
+  const [editPrompt, setEditPrompt]         = useState('');
+  const [isProcessing, setIsProcessing]     = useState(false);
+
+  // Brush
   const [isDrawing, setIsDrawing]     = useState(false);
   const [brushSize, setBrushSize]     = useState(40);
   const [paths, setPaths]             = useState([]);
   const [currentPath, setCurrentPath] = useState(null);
+  const [brushPopup, setBrushPopup]   = useState(false);
 
-  // Клик / попап
-  const [clickPoint, setClickPoint]         = useState(null);     // {x, y} в px на картинке
-  const [popupVisible, setPopupVisible]     = useState(false);
-  const [selectedAction, setSelectedAction] = useState(null);     // QUICK_ACTIONS[id]
-  const [editPrompt, setEditPrompt]         = useState('');
-  const [aiHint, setAiHint]                 = useState('');       // Gemini-подсказка об элементе
-  const [isDetecting, setIsDetecting]       = useState(false);    // Gemini запрос идёт
-  const [isProcessing, setIsProcessing]     = useState(false);    // Reve Edit запрос идёт
-
-  // Hover-трекинг
-  const [hoverPos, setHoverPos] = useState(null);
-
-  // ── Вычисляем размеры картинки ───────────────────────────────
-  const getImageRect = useCallback(() => {
-    if (!imageRef.current) return null;
-    return imageRef.current.getBoundingClientRect();
-  }, []);
-
-  // ── Отрисовка hover-кружка на overlay canvas ────────────────
-  useEffect(() => {
-    const canvas = overlayCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const img = imageRef.current;
-    if (!img) return;
-
-    canvas.width  = img.offsetWidth;
-    canvas.height = img.offsetHeight;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (mode === EDIT_MODES.SELECT && hoverPos) {
-      // Рисуем spotlight-кружок вокруг курсора
-      const r = 50;
-      const gradient = ctx.createRadialGradient(
-        hoverPos.x, hoverPos.y, 0,
-        hoverPos.x, hoverPos.y, r,
-      );
-      gradient.addColorStop(0,   'rgba(99, 179, 255, 0.12)');
-      gradient.addColorStop(0.6, 'rgba(99, 179, 255, 0.06)');
-      gradient.addColorStop(1,   'rgba(99, 179, 255, 0)');
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(hoverPos.x, hoverPos.y, r, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Контурный обводка
-      ctx.strokeStyle = 'rgba(99, 179, 255, 0.5)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([4, 3]);
-      ctx.beginPath();
-      ctx.arc(hoverPos.x, hoverPos.y, r * 0.6, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
+  // ── Сканирование элементов через Gemini Vision ───────────────
+  const scanElements = useCallback(async () => {
+    if (!imageUrl) return;
+    setIsScanning(true);
+    try {
+      const resp = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'detect-elements',
+          imageBase64: imageUrl,
+        }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.elements?.length) {
+          setElements(data.elements);
+        }
+      }
+    } catch (err) {
+      console.error('[SmartCardEditor] scan error:', err);
+    } finally {
+      setIsScanning(false);
     }
-  }, [hoverPos, mode]);
+  }, [imageUrl]);
 
-  // ── Отрисовка маски кисти ────────────────────────────────────
+  // Запускаем сканирование при загрузке картинки
   useEffect(() => {
-    const canvas = maskCanvasRef.current;
-    if (!canvas) return;
+    if (imgLoaded && imageUrl) {
+      scanElements();
+    }
+  }, [imgLoaded, imageUrl, scanElements]);
+
+  // ── Определяем какой элемент под курсором ────────────────────
+  const getElementAtPoint = (clientX, clientY) => {
     const img = imageRef.current;
-    if (!img) return;
-    canvas.width  = img.offsetWidth;
-    canvas.height = img.offsetHeight;
+    if (!img || !elements.length) return -1;
+    const rect = img.getBoundingClientRect();
+    const px = ((clientX - rect.left) / rect.width) * 100;
+    const py = ((clientY - rect.top) / rect.height) * 100;
 
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.lineCap  = 'round';
-    ctx.lineJoin = 'round';
+    // Ищем самый маленький элемент, содержащий точку (приоритет мелким)
+    let bestIdx = -1;
+    let bestArea = Infinity;
+    elements.forEach((el, i) => {
+      const [ex, ey, ew, eh] = el.bbox;
+      if (px >= ex && px <= ex + ew && py >= ey && py <= ey + eh) {
+        const area = ew * eh;
+        if (area < bestArea) { bestArea = area; bestIdx = i; }
+      }
+    });
+    return bestIdx;
+  };
 
-    const drawPath = (path) => {
-      if (!path?.points?.length) return;
-      ctx.beginPath();
-      ctx.strokeStyle = 'rgba(99, 179, 255, 0.55)';
-      ctx.lineWidth   = path.size;
-      path.points.forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
-      ctx.stroke();
-    };
+  // ── Mouse handlers (SELECT mode) ─────────────────────────────
+  const handleMouseMove = (e) => {
+    if (mode !== EDIT_MODES.SELECT) return;
+    const idx = getElementAtPoint(e.clientX, e.clientY);
+    setHoveredIdx(idx);
+  };
 
-    paths.forEach(drawPath);
-    if (currentPath) drawPath(currentPath);
-  }, [paths, currentPath]);
+  const handleClick = (e) => {
+    if (mode !== EDIT_MODES.SELECT) return;
+    const idx = getElementAtPoint(e.clientX, e.clientY);
+    if (idx >= 0) {
+      setSelectedIdx(idx);
+      setSelectedAction(null);
+      setEditPrompt('');
+    } else {
+      setSelectedIdx(null);
+    }
+  };
 
-  // ── Координаты курсора относительно картинки ─────────────────
+  // ── Brush handlers ───────────────────────────────────────────
   const getCoordsOnImage = (e) => {
     const img = imageRef.current;
     if (!img) return { x: 0, y: 0 };
     const rect = img.getBoundingClientRect();
-    const scaleX = img.naturalWidth  / img.offsetWidth;
-    const scaleY = img.naturalHeight / img.offsetHeight;
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return {
-      x: (clientX - rect.left),
-      y: (clientY - rect.top),
-      // Координаты в натуральных пикселях для маски
-      nx: (clientX - rect.left) * scaleX,
-      ny: (clientY - rect.top)  * scaleY,
-    };
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    return { x: cx - rect.left, y: cy - rect.top };
   };
 
-  // ── Hover ─────────────────────────────────────────────────────
-  const handleMouseMove = (e) => {
+  const startDrawing = (e) => {
+    if (mode !== EDIT_MODES.BRUSH) return;
+    e.preventDefault();
     const { x, y } = getCoordsOnImage(e);
-    setHoverPos({ x, y });
+    setIsDrawing(true);
+    setCurrentPath({ points: [{ x, y }], size: brushSize });
+  };
 
+  const moveDrawing = (e) => {
     if (mode === EDIT_MODES.BRUSH && isDrawing) {
+      const { x, y } = getCoordsOnImage(e);
       setCurrentPath(prev => ({
         ...prev,
         points: [...(prev?.points || []), { x, y }],
@@ -147,166 +147,108 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
     }
   };
 
-  const handleMouseLeave = () => {
-    setHoverPos(null);
-    if (mode === EDIT_MODES.BRUSH && isDrawing) stopDrawing();
-  };
-
-  // ── Клик (SELECT режим) ───────────────────────────────────────
-  const handleClick = async (e) => {
-    if (mode !== EDIT_MODES.SELECT) return;
-    const { x, y } = getCoordsOnImage(e);
-
-    setClickPoint({ x, y });
-    setSelectedAction(null);
-    setEditPrompt('');
-    setAiHint('');
-    setPopupVisible(true);
-
-    // Запрашиваем Gemini Vision — что за элемент?
-    detectElement(x, y);
-  };
-
-  // ── Определение элемента через Gemini ────────────────────────
-  const detectElement = async (x, y) => {
-    setIsDetecting(true);
-    setAiHint('Анализирую элемент...');
-    try {
-      // Вырезаем 200×200 вокруг клика для анализа
-      const img = imageRef.current;
-      const cropCanvas = document.createElement('canvas');
-      const cropSize = 200;
-      cropCanvas.width = cropSize;
-      cropCanvas.height = cropSize;
-      const ctx = cropCanvas.getContext('2d');
-
-      const scaleX = img.naturalWidth  / img.offsetWidth;
-      const scaleY = img.naturalHeight / img.offsetHeight;
-
-      ctx.drawImage(
-        img,
-        Math.max(0, (x - cropSize / 2) * scaleX), Math.max(0, (y - cropSize / 2) * scaleY),
-        cropSize * scaleX, cropSize * scaleY,
-        0, 0, cropSize, cropSize,
-      );
-
-      const cropBase64 = cropCanvas.toDataURL('image/jpeg', 0.8);
-
-      const resp = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'identify-element',
-          imageBase64: cropBase64,
-        }),
-      });
-
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data.hint) setAiHint(data.hint);
-        else setAiHint('Выберите действие для редактирования');
-      } else {
-        setAiHint('Нажмите на действие для редактирования');
-      }
-    } catch {
-      setAiHint('Нажмите на действие для редактирования');
-    } finally {
-      setIsDetecting(false);
-    }
-  };
-
-  // ── Brush режим ───────────────────────────────────────────────
-  const startDrawing = (e) => {
-    if (mode !== EDIT_MODES.BRUSH) return;
-    e.preventDefault();
-    const { x, y } = getCoordsOnImage(e);
-    setIsDrawing(true);
-    setCurrentPath({ points: [{ x, y }], size: brushSize });
-    setPopupVisible(false);
-  };
-
   const stopDrawing = () => {
     if (!isDrawing) return;
     setIsDrawing(false);
     if (currentPath?.points?.length) {
       setPaths(prev => [...prev, currentPath]);
-      setPopupVisible(true);
-      setClickPoint(hoverPos);
-      setSelectedAction(null);
-      setEditPrompt('');
-      setAiHint('Нарисовали область — что нужно изменить?');
+      setBrushPopup(true);
     }
     setCurrentPath(null);
   };
 
-  // ── Генерация черно-белой маски ───────────────────────────────
+  // Отрисовка brush на canvas
+  useEffect(() => {
+    const canvas = maskCanvasRef.current;
+    const img = imageRef.current;
+    if (!canvas || !img || !imgLoaded) return;
+    canvas.width = img.offsetWidth;
+    canvas.height = img.offsetHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    const draw = (path) => {
+      if (!path?.points?.length) return;
+      ctx.beginPath();
+      ctx.strokeStyle = 'rgba(99, 179, 255, 0.5)';
+      ctx.lineWidth = path.size;
+      path.points.forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
+      ctx.stroke();
+    };
+    paths.forEach(draw);
+    if (currentPath) draw(currentPath);
+  }, [paths, currentPath, imgLoaded]);
+
+  // ── Генерация маски ──────────────────────────────────────────
   const generateMask = () => {
     const img = imageRef.current;
     if (!img) return null;
-    const maskCanvas = document.createElement('canvas');
-    maskCanvas.width  = img.naturalWidth;
-    maskCanvas.height = img.naturalHeight;
-    const ctx = maskCanvas.getContext('2d');
+    const mc = document.createElement('canvas');
+    mc.width = img.naturalWidth;
+    mc.height = img.naturalHeight;
+    const ctx = mc.getContext('2d');
+    const sx = img.naturalWidth / img.offsetWidth;
+    const sy = img.naturalHeight / img.offsetHeight;
 
-    const scaleX = img.naturalWidth  / img.offsetWidth;
-    const scaleY = img.naturalHeight / img.offsetHeight;
-
-    // Черный фон
     ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+    ctx.fillRect(0, 0, mc.width, mc.height);
+    ctx.fillStyle = '#fff';
 
     if (mode === EDIT_MODES.BRUSH && paths.length) {
-      // Рисуем белым пути кисти (в натуральных пикселях)
-      ctx.lineCap  = 'round';
+      ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.strokeStyle = '#fff';
-      paths.forEach(path => {
+      paths.forEach(p => {
         ctx.beginPath();
-        ctx.lineWidth = path.size * scaleX;
-        path.points.forEach((pt, i) =>
-          i === 0 ? ctx.moveTo(pt.x * scaleX, pt.y * scaleY) : ctx.lineTo(pt.x * scaleX, pt.y * scaleY)
+        ctx.lineWidth = p.size * sx;
+        p.points.forEach((pt, i) =>
+          i === 0 ? ctx.moveTo(pt.x * sx, pt.y * sy) : ctx.lineTo(pt.x * sx, pt.y * sy)
         );
         ctx.stroke();
       });
-    } else if (clickPoint) {
-      // Рисуем белый эллипс вокруг клика
-      const rX = 120 * scaleX;
-      const rY = 80  * scaleY;
-      ctx.fillStyle = '#fff';
+    } else if (selectedIdx !== null && elements[selectedIdx]) {
+      const [ex, ey, ew, eh] = elements[selectedIdx].bbox;
+      const rx = (ex / 100) * mc.width;
+      const ry = (ey / 100) * mc.height;
+      const rw = (ew / 100) * mc.width;
+      const rh = (eh / 100) * mc.height;
+      // Скругленный прямоугольник для маски
+      const r = Math.min(rw, rh) * 0.08;
       ctx.beginPath();
-      ctx.ellipse(
-        clickPoint.x * scaleX, clickPoint.y * scaleY,
-        rX, rY, 0, 0, Math.PI * 2,
-      );
+      ctx.moveTo(rx + r, ry);
+      ctx.lineTo(rx + rw - r, ry);
+      ctx.quadraticCurveTo(rx + rw, ry, rx + rw, ry + r);
+      ctx.lineTo(rx + rw, ry + rh - r);
+      ctx.quadraticCurveTo(rx + rw, ry + rh, rx + rw - r, ry + rh);
+      ctx.lineTo(rx + r, ry + rh);
+      ctx.quadraticCurveTo(rx, ry + rh, rx, ry + rh - r);
+      ctx.lineTo(rx, ry + r);
+      ctx.quadraticCurveTo(rx, ry, rx + r, ry);
       ctx.fill();
     }
-
-    return maskCanvas.toDataURL('image/png');
+    return mc.toDataURL('image/png');
   };
 
-  // ── Отправка редактирования ───────────────────────────────────
+  // ── Отправка редактирования ──────────────────────────────────
   const handleSubmitEdit = async () => {
     if (!editPrompt.trim() && selectedAction?.id !== 'remove') return;
-
     setIsProcessing(true);
-    setPopupVisible(false);
-
     try {
       const maskBase64 = generateMask();
-
-      // Строим умный промпт на основе действия
       let finalPrompt = editPrompt;
-      if (selectedAction?.id === 'remove')      finalPrompt = `Remove this element completely. Fill the area naturally to match the surrounding background.`;
-      if (selectedAction?.id === 'color')       finalPrompt = `Change the color of this element: ${editPrompt}`;
-      if (selectedAction?.id === 'regenerate')  finalPrompt = editPrompt || `Regenerate this element with better quality, keeping the same style and purpose.`;
+      if (selectedAction?.id === 'remove')     finalPrompt = 'Remove this element completely. Fill area naturally with surrounding background.';
+      if (selectedAction?.id === 'color')      finalPrompt = `Change the color: ${editPrompt}`;
+      if (selectedAction?.id === 'regenerate') finalPrompt = editPrompt || 'Regenerate this element with better quality.';
 
       await onEdit(finalPrompt, maskBase64);
-
-      // Сброс после успеха
       setPaths([]);
-      setClickPoint(null);
+      setSelectedIdx(null);
       setSelectedAction(null);
       setEditPrompt('');
+      setBrushPopup(false);
+      // Пересканируем после редактирования
+      scanElements();
     } catch (err) {
       alert(`Ошибка: ${err.message}`);
     } finally {
@@ -314,251 +256,253 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
     }
   };
 
-  // ── Клавиатурные шорткаты ────────────────────────────────────
+  // ── Keyboard ─────────────────────────────────────────────────
   useEffect(() => {
-    const handler = (e) => {
-      if (e.key === 'Escape') { setPopupVisible(false); setClickPoint(null); }
-      if (e.key === 'z' && (e.ctrlKey || e.metaKey)) setPaths(prev => prev.slice(0, -1));
+    const h = (e) => {
+      if (e.key === 'Escape') { setSelectedIdx(null); setBrushPopup(false); }
+      if (e.key === 'z' && (e.ctrlKey || e.metaKey)) setPaths(p => p.slice(0, -1));
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
   }, []);
 
-  // ── Скачать результат ────────────────────────────────────────
   const handleDownload = () => {
-    const link = document.createElement('a');
-    link.download = `marketplace-card-${Date.now()}.png`;
-    link.href = imageUrl;
-    link.click();
+    const a = document.createElement('a');
+    a.download = `card-${Date.now()}.png`;
+    a.href = imageUrl;
+    a.click();
   };
 
-  // ─────────────────────────────────────────────────────────────
+  // ── Вычисляем позицию попапа для выбранного элемента ─────────
+  const getPopupPos = () => {
+    if (selectedIdx === null || !elements[selectedIdx] || !imageRef.current) return {};
+    const [ex, ey, ew, eh] = elements[selectedIdx].bbox;
+    const img = imageRef.current;
+    const px = ((ex + ew) / 100) * img.offsetWidth + 12;
+    const py = ((ey) / 100) * img.offsetHeight;
+    return {
+      left: Math.min(px, img.offsetWidth - 280),
+      top: Math.max(py, 10),
+    };
+  };
+
+  // ═════════════════════════════════════════════════════════════
   // RENDER
-  // ─────────────────────────────────────────────────────────────
+  // ═════════════════════════════════════════════════════════════
   return (
-    <motion.div
-      className="sce-overlay"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    >
+    <motion.div className="sce-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <div className="sce-container">
 
-        {/* ── HEADER ────────────────────────────────────────── */}
+        {/* HEADER */}
         <div className="sce-header">
           <div className="sce-header-left">
             <span className="sce-logo">✦ Умный Редактор</span>
-            <span className="sce-subtitle">Кликните на элемент карточки чтобы изменить его</span>
+            <span className="sce-subtitle">
+              {isScanning ? '🔍 Сканирую элементы...' :
+               elements.length ? `Найдено ${elements.length} элементов — наведите и кликните` :
+               'Кликните на элемент для редактирования'}
+            </span>
           </div>
           <div className="sce-header-tools">
-            {/* Режим */}
             <div className="sce-mode-toggle">
-              <button
-                className={`sce-mode-btn ${mode === EDIT_MODES.SELECT ? 'active' : ''}`}
-                onClick={() => { setMode(EDIT_MODES.SELECT); setPaths([]); }}
-                title="Умный выбор — наведи и кликни"
-              >
+              <button className={`sce-mode-btn ${mode === EDIT_MODES.SELECT ? 'active' : ''}`}
+                onClick={() => { setMode(EDIT_MODES.SELECT); setPaths([]); setBrushPopup(false); }}>
                 ◎ Выбор
               </button>
-              <button
-                className={`sce-mode-btn ${mode === EDIT_MODES.BRUSH ? 'active' : ''}`}
-                onClick={() => { setMode(EDIT_MODES.BRUSH); setPopupVisible(false); }}
-                title="Кисть — нарисуй область вручную"
-              >
+              <button className={`sce-mode-btn ${mode === EDIT_MODES.BRUSH ? 'active' : ''}`}
+                onClick={() => { setMode(EDIT_MODES.BRUSH); setSelectedIdx(null); }}>
                 ✒ Кисть
               </button>
             </div>
-
-            {/* Brush size */}
             {mode === EDIT_MODES.BRUSH && (
               <div className="sce-brush-control">
                 <span>Размер:</span>
-                <input
-                  type="range" min="10" max="100" value={brushSize}
-                  onChange={e => setBrushSize(Number(e.target.value))}
-                />
+                <input type="range" min="10" max="100" value={brushSize}
+                  onChange={e => setBrushSize(Number(e.target.value))} />
                 <span className="sce-brush-size-label">{brushSize}px</span>
               </div>
             )}
-
-            {/* Undo */}
-            <button
-              className="sce-icon-btn"
-              onClick={() => setPaths(prev => prev.slice(0, -1))}
-              disabled={paths.length === 0}
-              title="Отменить (Ctrl+Z)"
-            >↩ Отменить</button>
-
-            {/* Download */}
-            <button className="sce-icon-btn sce-download-btn" onClick={handleDownload} title="Скачать">
-              ⬇ Скачать
-            </button>
-
-            {/* Close */}
-            <button className="sce-close-btn" onClick={onClose} title="Закрыть">✕</button>
+            <button className="sce-icon-btn" onClick={() => setPaths(p => p.slice(0, -1))}
+              disabled={paths.length === 0}>↩ Отменить</button>
+            {elements.length > 0 && (
+              <button className="sce-icon-btn" onClick={scanElements} disabled={isScanning}>
+                🔄 Пересканировать
+              </button>
+            )}
+            <button className="sce-icon-btn sce-download-btn" onClick={handleDownload}>⬇ Скачать</button>
+            <button className="sce-close-btn" onClick={onClose}>✕</button>
           </div>
         </div>
 
-        {/* ── WORKSPACE ─────────────────────────────────────── */}
+        {/* WORKSPACE */}
         <div className="sce-workspace">
-          <div
-            className={`sce-image-zone ${mode === EDIT_MODES.BRUSH ? 'brush-cursor' : 'select-cursor'} ${isProcessing ? 'processing' : ''}`}
-            ref={containerRef}
-          >
-            {/* Базовое изображение */}
+          <div className={`sce-image-zone ${isProcessing ? 'processing' : ''}`}>
+
+            {/* Картинка */}
             <img
               ref={imageRef}
               src={imageUrl}
-              alt="Карточка маркетплейса"
+              alt="Карточка"
               className="sce-base-image"
               draggable={false}
+              onLoad={() => setImgLoaded(true)}
             />
 
-            {/* Hover-подсветка canvas */}
-            <canvas
-              ref={overlayCanvasRef}
-              className="sce-overlay-canvas"
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
-              onClick={handleClick}
-            />
+            {/* Bounding boxes overlay (SELECT mode) */}
+            {mode === EDIT_MODES.SELECT && imgLoaded && (
+              <div
+                className="sce-bbox-layer"
+                onMouseMove={handleMouseMove}
+                onMouseLeave={() => setHoveredIdx(null)}
+                onClick={handleClick}
+              >
+                {elements.map((el, i) => {
+                  const [ex, ey, ew, eh] = el.bbox;
+                  const isHovered = hoveredIdx === i;
+                  const isSelected = selectedIdx === i;
+                  return (
+                    <div key={i}
+                      className={`sce-bbox ${isHovered ? 'hovered' : ''} ${isSelected ? 'selected' : ''}`}
+                      style={{
+                        left: `${ex}%`, top: `${ey}%`,
+                        width: `${ew}%`, height: `${eh}%`,
+                      }}
+                    >
+                      {/* Метка элемента */}
+                      {(isHovered || isSelected) && (
+                        <div className="sce-bbox-label">
+                          {el.name}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
-            {/* Кисть-маска canvas */}
-            <canvas
-              ref={maskCanvasRef}
-              className="sce-mask-canvas"
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
-              onMouseDown={startDrawing}
-              onMouseUp={stopDrawing}
-              onMouseOut={stopDrawing}
-              onTouchStart={startDrawing}
-              onTouchMove={(e) => { e.preventDefault(); handleMouseMove(e); }}
-              onTouchEnd={stopDrawing}
-              style={{ display: mode === EDIT_MODES.BRUSH ? 'block' : 'none' }}
-            />
+            {/* Brush canvas */}
+            {mode === EDIT_MODES.BRUSH && (
+              <canvas
+                ref={maskCanvasRef}
+                className="sce-mask-canvas"
+                onMouseDown={startDrawing}
+                onMouseMove={moveDrawing}
+                onMouseUp={stopDrawing}
+                onMouseLeave={stopDrawing}
+                onTouchStart={startDrawing}
+                onTouchMove={(e) => { e.preventDefault(); moveDrawing(e); }}
+                onTouchEnd={stopDrawing}
+              />
+            )}
 
-            {/* Spinner при обработке */}
+            {/* Scanning overlay */}
+            {isScanning && (
+              <div className="sce-scanning-overlay">
+                <div className="sce-scan-line" />
+                <span>🔍 Анализирую элементы карточки...</span>
+              </div>
+            )}
+
+            {/* Processing overlay */}
             <AnimatePresence>
               {isProcessing && (
-                <motion.div
-                  className="sce-processing-overlay"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                >
+                <motion.div className="sce-processing-overlay"
+                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                   <div className="sce-spinner" />
-                  <span>Reve перерисовывает область...</span>
+                  <span>Reve перерисовывает элемент...</span>
                 </motion.div>
               )}
             </AnimatePresence>
 
-            {/* Маркер клика */}
-            {clickPoint && mode === EDIT_MODES.SELECT && !isProcessing && (
-              <div
-                className="sce-click-marker"
-                style={{ left: clickPoint.x, top: clickPoint.y }}
-              />
-            )}
+            {/* POPUP для выбранного элемента (SELECT mode) */}
+            <AnimatePresence>
+              {selectedIdx !== null && !isProcessing && mode === EDIT_MODES.SELECT && (
+                <motion.div className="sce-popup" style={getPopupPos()}
+                  initial={{ opacity: 0, scale: 0.85, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.85, y: 10 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25, mass: 0.5 }}>
+
+                  <div className="sce-popup-hint">
+                    <span className="sce-hint-dot" />
+                    <span>{elements[selectedIdx]?.name || 'Элемент'}</span>
+                  </div>
+
+                  {!selectedAction && (
+                    <div className="sce-popup-actions">
+                      {QUICK_ACTIONS.map(a => (
+                        <button key={a.id} className="sce-action-btn"
+                          onClick={() => { setSelectedAction(a); if (a.id === 'remove') setEditPrompt('remove'); }}>
+                          <span className="sce-action-icon">{a.icon}</span>
+                          <span>{a.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {selectedAction && selectedAction.id !== 'remove' && (
+                    <div className="sce-popup-input-area">
+                      <div className="sce-action-label">{selectedAction.icon} {selectedAction.label}</div>
+                      <textarea className="sce-edit-input" placeholder={selectedAction.placeholder}
+                        value={editPrompt} onChange={e => setEditPrompt(e.target.value)} autoFocus rows={2}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitEdit(); }}} />
+                      <div className="sce-popup-footer">
+                        <button className="sce-back-btn" onClick={() => setSelectedAction(null)}>← Назад</button>
+                        <button className="sce-submit-btn" onClick={handleSubmitEdit}
+                          disabled={!editPrompt.trim()}>✨ Применить</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedAction?.id === 'remove' && (
+                    <div className="sce-popup-input-area">
+                      <div className="sce-action-label sce-danger">🗑️ Убрать «{elements[selectedIdx]?.name}»?</div>
+                      <p className="sce-remove-desc">ИИ уберёт элемент и заполнит область фоном</p>
+                      <div className="sce-popup-footer">
+                        <button className="sce-back-btn" onClick={() => setSelectedAction(null)}>← Отмена</button>
+                        <button className="sce-submit-btn sce-danger-btn" onClick={handleSubmitEdit}>🗑️ Убрать</button>
+                      </div>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* POPUP для brush mode */}
+            <AnimatePresence>
+              {brushPopup && mode === EDIT_MODES.BRUSH && !isProcessing && (
+                <motion.div className="sce-popup" style={{ right: 20, top: 20, left: 'auto' }}
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.85 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25, mass: 0.5 }}>
+                  <div className="sce-popup-hint">
+                    <span className="sce-hint-dot" />
+                    <span>Область выделена — что изменить?</span>
+                  </div>
+                  <textarea className="sce-edit-input" placeholder="Опишите что изменить..."
+                    value={editPrompt} onChange={e => setEditPrompt(e.target.value)} autoFocus rows={2}
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitEdit(); }}} />
+                  <div className="sce-popup-footer">
+                    <button className="sce-back-btn" onClick={() => { setBrushPopup(false); setPaths([]); }}>← Сбросить</button>
+                    <button className="sce-submit-btn" onClick={handleSubmitEdit}
+                      disabled={!editPrompt.trim()}>✨ Применить</button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-
-          {/* ── ПЛАВАЮЩИЙ ПОПАП ─────────────────────────────── */}
-          <AnimatePresence>
-            {popupVisible && clickPoint && !isProcessing && (
-              <motion.div
-                className="sce-popup"
-                style={{
-                  left: Math.min(clickPoint.x + 20, (imageRef.current?.offsetWidth || 400) - 320),
-                  top:  Math.max(clickPoint.y - 180, 10),
-                }}
-                initial={{ opacity: 0, scale: 0.85, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.85, y: 10 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 25, mass: 0.5 }}
-              >
-                {/* AI-подсказка */}
-                <div className="sce-popup-hint">
-                  <span className="sce-hint-dot" />
-                  <span>{isDetecting ? '🔍 Анализирую...' : (aiHint || 'Выберите действие')}</span>
-                </div>
-
-                {/* Кнопки-действия */}
-                {!selectedAction && (
-                  <div className="sce-popup-actions">
-                    {QUICK_ACTIONS.map(action => (
-                      <button
-                        key={action.id}
-                        className="sce-action-btn"
-                        onClick={() => {
-                          setSelectedAction(action);
-                          if (action.id === 'remove') setEditPrompt('remove');
-                        }}
-                      >
-                        <span className="sce-action-icon">{action.icon}</span>
-                        <span>{action.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                {/* Поле ввода после выбора действия */}
-                {selectedAction && selectedAction.id !== 'remove' && (
-                  <div className="sce-popup-input-area">
-                    <div className="sce-action-label">
-                      {selectedAction.icon} {selectedAction.label}
-                    </div>
-                    <textarea
-                      className="sce-edit-input"
-                      placeholder={selectedAction.placeholder}
-                      value={editPrompt}
-                      onChange={e => setEditPrompt(e.target.value)}
-                      autoFocus
-                      rows={2}
-                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitEdit(); } }}
-                    />
-                    <div className="sce-popup-footer">
-                      <button className="sce-back-btn" onClick={() => setSelectedAction(null)}>← Назад</button>
-                      <button
-                        className="sce-submit-btn"
-                        onClick={handleSubmitEdit}
-                        disabled={!editPrompt.trim()}
-                      >
-                        ✨ Применить
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Подтверждение удаления */}
-                {selectedAction?.id === 'remove' && (
-                  <div className="sce-popup-input-area">
-                    <div className="sce-action-label sce-danger">
-                      🗑️ Убрать элемент?
-                    </div>
-                    <p className="sce-remove-desc">ИИ убёрет этот элемент и естественно заполнит область</p>
-                    <div className="sce-popup-footer">
-                      <button className="sce-back-btn" onClick={() => setSelectedAction(null)}>← Отмена</button>
-                      <button className="sce-submit-btn sce-danger-btn" onClick={handleSubmitEdit}>
-                        🗑️ Убрать
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
 
-        {/* ── FOOTER ────────────────────────────────────────── */}
+        {/* FOOTER */}
         <div className="sce-footer">
           <span className="sce-footer-tip">
             {mode === EDIT_MODES.SELECT
-              ? '💡 Наведи мышку на элемент карточки и кликни, чтобы изменить его'
-              : '💡 Закрась нужную область кистью, затем опиши что изменить · Ctrl+Z — отменить'}
+              ? '💡 Наведите мышку на элемент — он подсветится. Кликните чтобы редактировать.'
+              : '💡 Закрасьте область кистью, затем опишите что изменить. Ctrl+Z — отменить.'}
           </span>
-          <span className="sce-shortcut-hint">Esc — закрыть попап · Ctrl+Z — отменить</span>
+          <span className="sce-shortcut-hint">Esc — закрыть · Ctrl+Z — отменить</span>
         </div>
-
       </div>
     </motion.div>
   );

@@ -866,6 +866,79 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, newCredits: subDoc.data()?.credits || 0 });
     }
 
+    // ═══ DETECT ALL ELEMENTS (Gemini Vision — bounding boxes) ═══
+    if (req.body?.action === 'detect-elements') {
+      const { imageBase64 } = req.body;
+      if (!imageBase64) return res.status(400).json({ success: false, error: 'imageBase64 required' });
+
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(200).json({ success: true, elements: [] });
+      }
+
+      try {
+        const { GoogleGenAI } = await import('@google/genai');
+        const ai = new GoogleGenAI({ apiKey });
+        const { mimeType: mt, base64str: b64 } = extractBase64(imageBase64);
+
+        const resp = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: [{
+            role: 'user',
+            parts: [
+              { inlineData: { mimeType: mt, data: b64 } },
+              { text: `Ты видишь карточку товара маркетплейса. Найди ВСЕ визуальные элементы на картинке.
+
+Для каждого элемента определи:
+- name: короткое название на русском (2-4 слова) 
+- bbox: координаты прямоугольника [x%, y%, width%, height%] от размеров картинки (0-100)
+
+Типы элементов которые нужно искать:
+- Заголовок (текст)
+- Подзаголовок (текст)
+- Бейдж/пилл (кнопка с характеристикой)
+- Фото товара
+- Декоративные элементы (чемодан, плед и т.п.)
+- Фон
+- Цена (если есть)
+- Иконки
+
+Ответь СТРОГО в JSON формате, без markdown:
+[{"name":"Заголовок","bbox":[10,5,80,8]},{"name":"Бейдж: Мягкая фактура","bbox":[5,25,25,6]}]
+
+ВАЖНО:
+- bbox в ПРОЦЕНТАХ от размеров картинки (0-100)
+- Не включай элемент "Вся карточка" 
+- Минимум 4, максимум 15 элементов
+- Сортируй сверху вниз` }
+            ]
+          }],
+          config: { temperature: 0.1, maxOutputTokens: 1500 },
+        });
+
+        let text = (resp.text || '').trim();
+        // Убираем markdown обертку если есть
+        text = text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '');
+        
+        let elements = [];
+        try {
+          elements = JSON.parse(text);
+          // Валидируем формат
+          elements = elements.filter(el =>
+            el.name && Array.isArray(el.bbox) && el.bbox.length === 4 &&
+            el.bbox.every(v => typeof v === 'number' && v >= 0 && v <= 100)
+          );
+        } catch {
+          console.error('[detect-elements] JSON parse error:', text);
+        }
+
+        return res.status(200).json({ success: true, elements });
+      } catch (err) {
+        console.error('[detect-elements]', err.message);
+        return res.status(200).json({ success: true, elements: [] });
+      }
+    }
+
     // ═══ IDENTIFY ELEMENT (Gemini Vision) ═══════════════════════
     if (req.body?.action === 'identify-element') {
       const { imageBase64 } = req.body;
