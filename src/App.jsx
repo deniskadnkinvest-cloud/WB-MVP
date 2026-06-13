@@ -2181,18 +2181,20 @@ function App() {
         </div>
       )}
 
-      {/* 8. РЕЗУЛЬТАТ */}
+      {/* 8а. SMART CANVAS — режим «В два клика» */}
+      {generatedImage && appMode === 'quick' && (
+        <SmartCanvas
+          imageUrl={generatedImage}
+          onClose={() => setGeneratedImage(null)}
+          user={user}
+          setSubscription={setSubscription}
+        />
+      )}
+
+      {/* 8б. РЕЗУЛЬТАТ — режимы Одежда / Предметка */}
       <AnimatePresence>
-        {generatedImage && (
-          appMode === 'quick' ? (
-            <SmartCanvas 
-              imageUrl={generatedImage} 
-              onClose={() => setGeneratedImage(null)} 
-              user={user} 
-              setSubscription={setSubscription} 
-            />
-          ) : (
-          <motion.div className="section result-section" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} exit={{opacity:0}} transition={{duration:0.5}}>
+        {generatedImage && appMode !== 'quick' && (
+          <motion.div key="result-section" className="section result-section" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} exit={{opacity:0}} transition={{duration:0.5}}>
             <h3>Финальный Рендер</h3>
             <div className="result-image-wrap" style={{position:'relative'}}>
               {/* ← Previous render */}
@@ -2463,7 +2465,6 @@ function App() {
               </div>
             )}
           </motion.div>
-          )
         )}
       </AnimatePresence>
 
