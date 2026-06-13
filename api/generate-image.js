@@ -866,6 +866,50 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, newCredits: subDoc.data()?.credits || 0 });
     }
 
+    // ═══ IDENTIFY ELEMENT (Gemini Vision) ═══════════════════════
+    if (req.body?.action === 'identify-element') {
+      const { imageBase64 } = req.body;
+      if (!imageBase64) return res.status(400).json({ success: false, error: 'imageBase64 required' });
+
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        return res.status(200).json({ success: true, hint: 'Нажмите на действие для редактирования' });
+      }
+
+      try {
+        const { GoogleGenAI } = await import('@google/genai');
+        const ai = new GoogleGenAI({ apiKey });
+        const { mimeType: mt, base64str: b64 } = extractBase64(imageBase64);
+
+        const resp = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: [{
+            role: 'user',
+            parts: [
+              { inlineData: { mimeType: mt, data: b64 } },
+              { text: `Ты видишь фрагмент карточки товара маркетплейса.
+Определи что это за элемент. Ответь ОДНОЙ фразой на русском языке (максимум 15 слов).
+Примеры:
+- "Заголовок с названием товара"
+- "Бейдж-характеристика товара, можно изменить текст"
+- "Фоновый декор, можно изменить цвет или убрать"
+- "Цена товара"
+- "Фото товара"
+- "CTA-кнопка"
+Ответь ТОЛЬКО описанием, без кавычек.` }
+            ]
+          }],
+          config: { temperature: 0.1, maxOutputTokens: 60 },
+        });
+
+        const hint = resp.text?.trim() || 'Нажмите на действие для редактирования';
+        return res.status(200).json({ success: true, hint });
+      } catch (err) {
+        console.error('[identify-element]', err.message);
+        return res.status(200).json({ success: true, hint: 'Выберите действие для редактирования' });
+      }
+    }
+
     if (req.body?.action === 'generate-card-text') {
       const { imageUrl, imageBase64 } = req.body;
       let targetImage = null;

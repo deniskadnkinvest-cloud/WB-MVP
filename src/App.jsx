@@ -15,7 +15,7 @@ import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, 
 import { uploadBase64Image, compressImage, uploadImage, deleteImage } from './lib/storageService';
 import { getSubscription, checkFeature, canGenerate, activatePlan } from './lib/subscriptionService';
 import SmartCanvas from './components/SmartCanvas';
-import ReveCanvas from './components/ReveCanvas';
+import SmartCardEditor from './components/SmartCardEditor';
 import './App.css';
 
 const MSGS = ['Анализируем текстуру ткани...','Выставляем студийный свет...','Строим 3D-модель фигуры...','Натягиваем одежду с учетом физики...','Рендерим финальный кадр...'];
@@ -2335,9 +2335,9 @@ QUALITY:
         </motion.div>
       )}
 
-      {/* 8а-2. REVE CANVAS — интерактивный редактор карточки с AI Inpainting */}
+      {/* 8а-2. SMART CARD EDITOR — умный редактор карточки маркетплейса */}
       {reveCardImage && appMode === 'quick' && showReveCanvas && (
-        <ReveCanvas
+        <SmartCardEditor
           imageUrl={reveCardImage}
           onClose={() => {
             setShowReveCanvas(false);
