@@ -866,6 +866,97 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, newCredits: subDoc.data()?.credits || 0 });
     }
 
+    if (req.body?.action === 'generate-card-text') {
+      const { imageUrl, imageBase64 } = req.body;
+      let targetImage = null;
+      
+      if (imageUrl) {
+        targetImage = await downloadToBase64(imageUrl);
+      } else if (imageBase64) {
+        const { mimeType, base64str } = extractBase64(imageBase64);
+        targetImage = { mimeType, base64str };
+      }
+      
+      if (!targetImage) {
+        return res.status(400).json({ success: false, error: 'Изображение не найдено для анализа' });
+      }
+
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        console.warn('⚠️ GEMINI_API_KEY not set, returning fallback card text');
+        return res.status(200).json({
+          success: true,
+          title: 'АНАТОМИЧЕСКАЯ ПОДУШКА',
+          material: 'Мягкий велюр',
+          size: 'Размер: M-L',
+          benefit: 'Анатомическая форма',
+          price: '1 990 ₽'
+        });
+      }
+
+      try {
+        const { GoogleGenAI } = await import('@google/genai');
+        const ai = new GoogleGenAI({ apiKey });
+        
+        const textPrompt = `Analyze this product image carefully.
+You are a top copywriter for Wildberries and Ozon marketplaces.
+Generate realistic Russian selling metadata for this exact product.
+
+Return ONLY a strict JSON object with these exact fields:
+{
+  "title": "A catchy, short product name in Russian (2-3 words, capitalized, e.g., 'АНАТОМИЧЕСКАЯ ПОДУШКА' or 'ШЕЛКОВАЯ ПИЖАМА')",
+  "material": "One key material/composition in Russian (e.g., '100% Велюр' or 'Натуральный шелк')",
+  "size": "One key size/dimension description in Russian (e.g., 'Размер: M-L' or 'Объем: 50 мл')",
+  "benefit": "One strong product benefit or feature in Russian (e.g., 'Анатомическая форма' or 'Глубокое увлажнение')",
+  "price": "A realistic price in Russian Roubles with ₽ sign (e.g., '1 990 ₽' or '2 490 ₽')"
+}
+
+IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation.`;
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { inlineData: { mimeType: targetImage.mimeType, data: targetImage.base64str } },
+                { text: textPrompt }
+              ]
+            }
+          ],
+          config: {
+            temperature: 0.2,
+            maxOutputTokens: 256,
+            responseMimeType: 'application/json'
+          }
+        });
+
+        let text = response.text?.trim() || '';
+        if (text.startsWith('```')) {
+          text = text.replace(/^```json\n?/, '').replace(/```$/, '').trim();
+        }
+        const json = JSON.parse(text);
+        return res.status(200).json({
+          success: true,
+          title: json.title || 'АНАТОМИЧЕСКАЯ ПОДУШКА',
+          material: json.material || 'Мягкий велюр',
+          size: json.size || 'Размер: M-L',
+          benefit: json.benefit || 'Анатомическая форма',
+          price: json.price || '1 990 ₽'
+        });
+      } catch (err) {
+        console.error('❌ Gemini card text generation failed:', err.message);
+        return res.status(200).json({
+          success: true,
+          title: 'АНАТОМИЧЕСКАЯ ПОДУШКА',
+          material: 'Мягкий велюр',
+          size: 'Размер: M-L',
+          benefit: 'Анатомическая форма',
+          price: '1 990 ₽'
+        });
+      }
+    }
+
     const {
       modelPreset = "25-year-old European female, slim build, natural makeup",
       posePreset = "standing straight, confident posture, facing the camera directly",

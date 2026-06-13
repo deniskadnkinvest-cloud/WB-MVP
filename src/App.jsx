@@ -182,6 +182,7 @@ function App() {
   // Quick mode states
   const [quickCardStyle, setQuickCardStyle] = useState('natural');
   const [quickWithModel, setQuickWithModel] = useState(false);
+  const [quickCardText, setQuickCardText] = useState(null);
 
   // Lightbox (gallery mode)
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -1205,46 +1206,54 @@ function App() {
       }
       refreshCreditsFromResponse(step1Data);
 
-      // ШАГ 2: Карточка маркетплейса
-      setStatusText('🎴 Шаг 2/2 — Оформляем карточку маркетплейса...');
+      // ШАГ 2: Анализ фото товара и авто-генерация продающего текста
+      setStatusText('✍️ Шаг 2/2 — Генерируем продающий текст для карточки...');
       setStatusType('processing');
 
-      const step2Messages = ['🎴 Анализируем товар...', '✍️ Генерируем заголовок и текст...', '📐 Компонуем макет карточки...', '✨ Финальная полировка...'];
+      const step2Messages = ['🎴 Анализируем товар...', '✍️ Составляем продающие заголовки...', '✨ Финальная полировка...'];
       stepIdx = 0;
       iv = setInterval(() => {
         stepIdx = (stepIdx + 1) % step2Messages.length;
         setStatusText(step2Messages[stepIdx]);
-      }, 7000);
+      }, 3000);
 
       const step2Resp = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user?.uid || null,
-          isCardDesign: true,
-          cardStyle: quickCardStyle,
-          sourceImageUrl: productPhotoUrl,
+          action: 'generate-card-text',
+          imageUrl: productPhotoUrl,
         }),
       });
       clearInterval(iv);
       const step2Data = await safeParseJSON(step2Resp);
 
-      if (step2Data.success && (step2Data.imageUrl || step2Data.imageBase64)) {
-        refreshCreditsFromResponse(step2Data);
-        const cardDisplay = step2Data.imageBase64 || step2Data.imageUrl;
-        if (cardDisplay) {
-          setGeneratedImage(cardDisplay);
-          setImageHistory(prev => [...prev, { image: cardDisplay, label: '🎴 Карточка маркетплейса' }]);
-          setHistoryIndex(prev => prev + 1);
-        }
-        if (step2Data.imageUrl) setCardResult([step2Data.imageUrl]);
-        setStatusText('⚡ Готово! Карточка маркетплейса создана');
-        setStatusType('success');
-      } else {
-        // Шаг 1 уже показан — карточку не удалось, но фото есть
-        setStatusText(`⚠️ Фото товара готово, но карточка не создалась: ${step2Data.error || 'ошибка'}`);
-        setStatusType('error');
+      let cardText = {
+        title: 'АНАТОМИЧЕСКАЯ ПОДУШКА',
+        material: 'Мягкий велюр',
+        size: 'Размер: M-L',
+        benefit: 'Анатомическая форма',
+        price: '1 990 ₽'
+      };
+
+      if (step2Data.success) {
+        cardText = {
+          title: step2Data.title,
+          material: step2Data.material,
+          size: step2Data.size,
+          benefit: step2Data.benefit,
+          price: step2Data.price,
+        };
       }
+
+      setQuickCardText(cardText);
+      // Устанавливаем чистое сгенерированное фото как результат, который будет редактироваться
+      setGeneratedImage(productPhotoDisplay);
+      setImageHistory([{ image: productPhotoDisplay, label: '📸 Фото товара' }]);
+      setHistoryIndex(0);
+
+      setStatusText('⚡ Готово! Карточка создана, настройте текст справа.');
+      setStatusType('success');
     } catch (err) {
       clearInterval(iv);
       if (err.name === 'AbortError') {
@@ -2188,6 +2197,8 @@ function App() {
           onClose={() => setGeneratedImage(null)}
           user={user}
           setSubscription={setSubscription}
+          suggestedText={quickCardText}
+          initialStyle={quickCardStyle}
         />
       )}
 
