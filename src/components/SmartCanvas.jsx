@@ -4,12 +4,11 @@ import './SmartCanvas.css';
 
 export default function SmartCanvas({ imageUrl, onClose, user, setSubscription, suggestedText, initialStyle }) {
   const [style, setStyle] = useState(initialStyle || 'natural');
-  const [brand, setBrand] = useState('ПРЕМИУМ');
-  const [title, setTitle] = useState('АНАТОМИЧЕСКАЯ ПОДУШКА');
-  const [material, setMaterial] = useState('Мягкий велюр');
-  const [size, setSize] = useState('Размер: M-L');
-  const [benefit, setBenefit] = useState('Анатомическая форма');
-  const [price, setPrice] = useState('1 990 ₽');
+  const [brand, setBrand] = useState('');
+  const [title, setTitle] = useState('');
+  const [material, setMaterial] = useState('');
+  const [size, setSize] = useState('');
+  const [benefit, setBenefit] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -22,7 +21,7 @@ export default function SmartCanvas({ imageUrl, onClose, user, setSubscription, 
       if (suggestedText.material) setMaterial(suggestedText.material);
       if (suggestedText.size) setSize(suggestedText.size);
       if (suggestedText.benefit) setBenefit(suggestedText.benefit);
-      if (suggestedText.price) setPrice(suggestedText.price);
+      if (suggestedText.brand) setBrand(suggestedText.brand);
     }
   }, [suggestedText]);
 
@@ -53,10 +52,9 @@ export default function SmartCanvas({ imageUrl, onClose, user, setSubscription, 
 
       // 2. Export DOM to Image
       if (canvasRef.current) {
-        // html-to-image options to guarantee premium rendering quality
         const dataUrl = await toPng(canvasRef.current, { 
           quality: 1.0, 
-          pixelRatio: 2.5, // High resolution for marketplace print
+          pixelRatio: 2.5,
           style: {
             transform: 'scale(1)',
             transformOrigin: 'top left',
@@ -83,13 +81,16 @@ export default function SmartCanvas({ imageUrl, onClose, user, setSubscription, 
     link.click();
   };
 
+  // Check if any text field has content
+  const hasText = title || brand || material || size || benefit;
+
   return (
     <div className="smart-canvas-container">
       <div className="smart-canvas-header">
         <div className="sc-header-left">
-          <div className="sc-badge">SMART CANVAS</div>
+          <div className="sc-badge">SMART CANVAS 2.0</div>
           <h2 className="sc-title">Редактор карточки товара</h2>
-          <p className="sc-desc">Редактируйте тексты поверх сгенерированного ИИ дизайна. При экспорте вы получите единое изображение.</p>
+          <p className="sc-desc">ИИ создал дизайн карточки. Редактируйте тексты ниже — они интегрированы в композицию.</p>
         </div>
         <div className="sc-header-right">
           <div className="sc-export-badge">СКАЧИВАНИЕ: 1 КРЕДИТ</div>
@@ -102,10 +103,19 @@ export default function SmartCanvas({ imageUrl, onClose, user, setSubscription, 
         <div className="smart-canvas-preview-col">
           <div className={`canvas-wrapper style-${style}`} ref={canvasRef}>
             
-            {/* The main background image from AI (product on beautiful 3D backdrop) */}
+            {/* The main background image from AI */}
             <img src={imageUrl} alt="Background" className="canvas-main-bg-img" />
 
-            {style === 'natural' ? (
+            {/* [SMART_TYPOGRAPHY_2.0] — SVG Film Grain overlay for optical coherence */}
+            <svg className="canvas-grain-overlay" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+              <filter id="grain-filter">
+                <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" />
+                <feColorMatrix type="saturate" values="0" />
+              </filter>
+              <rect width="100%" height="100%" filter="url(#grain-filter)" opacity="0.04" />
+            </svg>
+
+            {hasText && style === 'natural' ? (
               <div className="natural-card-overlay">
                 <div className="natural-top-section">
                   {brand && <div className="natural-brand-text">{brand}</div>}
@@ -118,10 +128,9 @@ export default function SmartCanvas({ imageUrl, onClose, user, setSubscription, 
                     {material && <span className="natural-tag">{material}</span>}
                     {size && <span className="natural-tag">{size}</span>}
                   </div>
-                  {price && <div className="natural-price-text">{price}</div>}
                 </div>
               </div>
-            ) : (
+            ) : hasText && style === 'epic' ? (
               <div className="epic-card-overlay">
                 <div className="epic-left-column">
                   <div className="epic-top-group">
@@ -138,17 +147,11 @@ export default function SmartCanvas({ imageUrl, onClose, user, setSubscription, 
                   </div>
 
                   <div className="epic-bottom-group">
-                    {price && (
-                      <div className="epic-price-wrapper">
-                        <span className="price-tag-label">СПЕЦПРЕДЛОЖЕНИЕ</span>
-                        <div className="epic-price-text">{price}</div>
-                      </div>
-                    )}
-                    <div className="epic-cta-btn">КУПИТЬ</div>
+                    <div className="epic-cta-btn">ПОДРОБНЕЕ</div>
                   </div>
                 </div>
               </div>
-            )}
+            ) : null}
 
           </div>
         </div>
@@ -177,8 +180,8 @@ export default function SmartCanvas({ imageUrl, onClose, user, setSubscription, 
           </div>
 
           <div className="sc-rule-box">
-            <h4 className="sc-rule-title">Правило режима:</h4>
-            <p className="sc-rule-text">ИИ сгенерировал дизайн карточки и встроил товар. Редактируйте тексты ниже — они накладываются точно в свободные зоны без перекрытия продукта.</p>
+            <h4 className="sc-rule-title">Smart Typography 2.0</h4>
+            <p className="sc-rule-text">Текст интегрирован в композицию с пленочным шумом и адаптивным затемнением. Очистите любое поле, чтобы убрать элемент.</p>
           </div>
 
           <div className="sc-inputs">
@@ -218,11 +221,6 @@ export default function SmartCanvas({ imageUrl, onClose, user, setSubscription, 
               <label className="sc-input-label">Главное преимущество / Оффер</label>
               <input type="text" placeholder="Например: Анатомическая форма" value={benefit} onChange={e => setBenefit(e.target.value)} className="sc-input" />
             </div>
-
-            <div className="sc-input-group">
-              <label className="sc-input-label">Цена</label>
-              <input type="text" placeholder="Например: 1 990 ₽" value={price} onChange={e => setPrice(e.target.value)} className="sc-input price-input" />
-            </div>
           </div>
 
           <div className="sc-actions">
@@ -236,7 +234,7 @@ export default function SmartCanvas({ imageUrl, onClose, user, setSubscription, 
           </div>
           
           <button className="sc-btn-close" onClick={onClose}>
-            ← Вернуться к настройкам
+            ← Вернуться к фото
           </button>
         </div>
       </div>

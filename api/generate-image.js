@@ -886,11 +886,10 @@ export default async function handler(req, res) {
         console.warn('⚠️ GEMINI_API_KEY not set, returning fallback card text');
         return res.status(200).json({
           success: true,
-          title: 'АНАТОМИЧЕСКАЯ ПОДУШКА',
-          material: 'Мягкий велюр',
-          size: 'Размер: M-L',
-          benefit: 'Анатомическая форма',
-          price: '1 990 ₽'
+          title: 'СТИЛЬНЫЙ ТОВАР',
+          material: 'Премиум качество',
+          size: '',
+          benefit: 'Лучший выбор'
         });
       }
 
@@ -907,11 +906,10 @@ Return ONLY a strict JSON object with these exact fields:
   "title": "A catchy, short product name in Russian (2-3 words, capitalized, e.g., 'АНАТОМИЧЕСКАЯ ПОДУШКА' or 'ШЕЛКОВАЯ ПИЖАМА')",
   "material": "One key material/composition in Russian (e.g., '100% Велюр' or 'Натуральный шелк')",
   "size": "One key size/dimension description in Russian (e.g., 'Размер: M-L' or 'Объем: 50 мл')",
-  "benefit": "One strong product benefit or feature in Russian (e.g., 'Анатомическая форма' or 'Глубокое увлажнение')",
-  "price": "A realistic price in Russian Roubles with ₽ sign (e.g., '1 990 ₽' or '2 490 ₽')"
+  "benefit": "One strong product benefit or feature in Russian (e.g., 'Анатомическая форма' or 'Глубокое увлажнение')"
 }
 
-IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation.`;
+IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation. DO NOT include any price — the seller sets their own pricing.`;
 
         const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
@@ -938,21 +936,19 @@ IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation
         const json = JSON.parse(text);
         return res.status(200).json({
           success: true,
-          title: json.title || 'АНАТОМИЧЕСКАЯ ПОДУШКА',
-          material: json.material || 'Мягкий велюр',
-          size: json.size || 'Размер: M-L',
-          benefit: json.benefit || 'Анатомическая форма',
-          price: json.price || '1 990 ₽'
+          title: json.title || 'СТИЛЬНЫЙ ТОВАР',
+          material: json.material || 'Премиум качество',
+          size: json.size || '',
+          benefit: json.benefit || 'Лучший выбор'
         });
       } catch (err) {
         console.error('❌ Gemini card text generation failed:', err.message);
         return res.status(200).json({
           success: true,
-          title: 'АНАТОМИЧЕСКАЯ ПОДУШКА',
-          material: 'Мягкий велюр',
-          size: 'Размер: M-L',
-          benefit: 'Анатомическая форма',
-          price: '1 990 ₽'
+          title: 'СТИЛЬНЫЙ ТОВАР',
+          material: 'Премиум качество',
+          size: '',
+          benefit: 'Лучший выбор'
         });
       }
     }

@@ -183,6 +183,10 @@ function App() {
   const [quickCardStyle, setQuickCardStyle] = useState('natural');
   const [quickWithModel, setQuickWithModel] = useState(false);
   const [quickCardText, setQuickCardText] = useState(null);
+  // [SMART_QUICK_MODE_2.0] — Lazy Typography states
+  const [showSmartCanvas, setShowSmartCanvas] = useState(false);
+  const [quickCleanPhoto, setQuickCleanPhoto] = useState(null); // Original clean photo before card design
+  const [quickCleanPhotoUrl, setQuickCleanPhotoUrl] = useState(null); // URL for Gemini analysis
 
   // Lightbox (gallery mode)
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -1149,32 +1153,35 @@ function App() {
       setStatusText('Сначала загрузите фото товара'); setStatusType('error');
       return;
     }
+    // [SMART_QUICK_MODE_2.0] — Hero-First: only 1 credit for clean photo
     const creditsAvailable = subscription?.credits || 0;
-    if (creditsAvailable < 2 && !subscription?.local) {
+    if (creditsAvailable < 1 && !subscription?.local) {
       setShowPricing(true);
-      setStatusText('⚡ Для режима «В два клика» нужно 2 кредита'); setStatusType('error');
+      setStatusText('⚡ Для генерации нужен 1 кредит'); setStatusType('error');
       return;
     }
-    if (subscription?.local && creditsAvailable < 2) {
-      setStatusText('⚡ Для режима «В два клика» нужно 2 кредита'); setStatusType('error');
+    if (subscription?.local && creditsAvailable < 1) {
+      setStatusText('⚡ Для генерации нужен 1 кредит'); setStatusType('error');
       return;
     }
 
     setIsProcessing(true);
     setGeneratedImage(null);
     setCardResult(null);
-    setStatusText('⚡ Шаг 1/2 — Генерируем студийное фото...');
+    setQuickCardText(null); // Reset any previous text
+    setShowSmartCanvas(false); // Hide editor if was open
+    setStatusText('⚡ Генерируем студийное фото...');
     setStatusType('processing');
 
-    const step1Messages = ['📦 Обрабатываем фото товара...', '📸 Создаём студийный кадр...', '🎨 Оптимизируем свет и тени...'];
+    const step1Messages = ['📦 Обрабатываем фото товара...', '📸 Создаём студийный кадр...', '🎨 Оптимизируем свет и тени...', '✨ Финализируем композицию...'];
     let stepIdx = 0;
     let iv = setInterval(() => {
       stepIdx = (stepIdx + 1) % step1Messages.length;
       setStatusText(step1Messages[stepIdx]);
-    }, 6000);
+    }, 5000);
 
     try {
-      // ШАГ 1: Студийное фото товара через product mode
+      // Hero-First: Generate ONLY the clean studio photo
       const step1Resp = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1201,88 +1208,16 @@ function App() {
       const productPhotoDisplay = step1Data.imageBase64 || productPhotoUrl;
       if (productPhotoDisplay) {
         setGeneratedImage(productPhotoDisplay);
-        setImageHistory([{ image: productPhotoDisplay, label: '📦 Фото товара' }]);
+        setQuickCleanPhoto(productPhotoDisplay); // Save clean photo for later
+        setQuickCleanPhotoUrl(productPhotoUrl); // Save URL for Gemini analysis
+        setImageHistory([{ image: productPhotoDisplay, label: '📸 Студийное фото' }]);
         setHistoryIndex(0);
       }
       refreshCreditsFromResponse(step1Data);
 
-      // ШАГ 2: Генерация ИИ-дизайна карточки (без текста) + авто-копирайтинг
-      setStatusText('🎴 Шаг 2/2 — Создаем дизайн карточки и пишем тексты...');
-      setStatusType('processing');
-
-      const step2Messages = [
-        '🎴 Интегрируем товар в 3D сцену...',
-        '✨ Прорисовываем свет и тени...',
-        '✍️ Генерируем продающие заголовки...',
-        '📐 Финальное сведение шаблона...'
-      ];
-      stepIdx = 0;
-      iv = setInterval(() => {
-        stepIdx = (stepIdx + 1) % step2Messages.length;
-        setStatusText(step2Messages[stepIdx]);
-      }, 4000);
-
-      // Запускаем генерацию подложки (KIE.ai) и копирайтинг (Gemini) параллельно!
-      const designPromise = fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user?.uid || null,
-          isCardDesign: true,
-          cardStyle: quickCardStyle,
-          sourceImageUrl: productPhotoUrl,
-        }),
-      });
-
-      const textPromise = fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'generate-card-text',
-          imageUrl: productPhotoUrl,
-        }),
-      });
-
-      const [designResp, textResp] = await Promise.all([designPromise, textPromise]);
-      clearInterval(iv);
-
-      const designData = await safeParseJSON(designResp);
-      const textData = await safeParseJSON(textResp);
-
-      let cardText = {
-        title: 'АНАТОМИЧЕСКАЯ ПОДУШКА',
-        material: 'Мягкий велюр',
-        size: 'Размер: M-L',
-        benefit: 'Анатомическая форма',
-        price: '1 990 ₽'
-      };
-
-      if (textData.success) {
-        cardText = {
-          title: textData.title,
-          material: textData.material,
-          size: textData.size,
-          benefit: textData.benefit,
-          price: textData.price,
-        };
-      }
-
-      setQuickCardText(cardText);
-
-      // Если ИИ-дизайн успешно сгенерирован, используем его как подложку. Иначе делаем фоллбэк на фото товара.
-      let finalCardImage = productPhotoDisplay;
-      if (designData.success && (designData.imageUrl || designData.imageBase64)) {
-        refreshCreditsFromResponse(designData);
-        finalCardImage = designData.imageBase64 || designData.imageUrl;
-      } else {
-        console.warn('⚠️ Card design background failed, falling back to clean photo:', designData.error);
-      }
-
-      setGeneratedImage(finalCardImage);
-      setImageHistory([{ image: finalCardImage, label: '🎴 Шаблон карточки' }]);
-      setHistoryIndex(0);
-
-      setStatusText('⚡ Готово! Карточка создана, настройте текст справа.');
+      // [SMART_QUICK_MODE_2.0] — NO auto text/design generation!
+      // User sees clean photo first. Typography is triggered on-demand via "Add Design" button.
+      setStatusText('✅ Студийное фото готово! Скачайте или добавьте продающий дизайн.');
       setStatusType('success');
     } catch (err) {
       clearInterval(iv);
@@ -1294,6 +1229,97 @@ function App() {
       setStatusType('error');
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // [SMART_QUICK_MODE_2.0] — Lazy Typography: triggered ONLY by user click
+  const handleAddDesign = async () => {
+    if (!generatedImage) return;
+
+    setIsCardGenerating(true);
+    setStatusText('🪄 Анализируем товар и создаём дизайн...');
+    setStatusType('processing');
+
+    const progressMessages = [
+      '✨ ИИ анализирует ваш товар...',
+      '✍️ Генерируем продающие тексты...',
+      '🎴 Создаём дизайн карточки...',
+      '📐 Финализируем композицию...'
+    ];
+    let msgIdx = 0;
+    const iv = setInterval(() => {
+      msgIdx = (msgIdx + 1) % progressMessages.length;
+      setStatusText(progressMessages[msgIdx]);
+    }, 4000);
+
+    try {
+      // Parallel: card design background + Gemini text (WITHOUT price)
+      const sourceUrl = quickCleanPhotoUrl || null;
+
+      const designPromise = fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.uid || null,
+          isCardDesign: true,
+          cardStyle: quickCardStyle,
+          sourceImageUrl: sourceUrl,
+          sourceImageBase64: !sourceUrl ? generatedImage : undefined,
+        }),
+      });
+
+      const textPromise = fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate-card-text',
+          imageUrl: sourceUrl,
+          imageBase64: !sourceUrl ? generatedImage : undefined,
+        }),
+      });
+
+      const [designResp, textResp] = await Promise.all([designPromise, textPromise]);
+      clearInterval(iv);
+
+      const designData = await safeParseJSON(designResp);
+      const textData = await safeParseJSON(textResp);
+
+      // Build card text (NO PRICE field)
+      let cardText = {
+        title: 'СТИЛЬНЫЙ ТОВАР',
+        material: 'Премиум качество',
+        size: '',
+        benefit: 'Лучший выбор',
+      };
+
+      if (textData.success) {
+        cardText = {
+          title: textData.title || cardText.title,
+          material: textData.material || cardText.material,
+          size: textData.size || '',
+          benefit: textData.benefit || cardText.benefit,
+        };
+      }
+
+      setQuickCardText(cardText);
+
+      // Use card design as background if available, else fallback to clean photo
+      let finalCardImage = generatedImage;
+      if (designData.success && (designData.imageUrl || designData.imageBase64)) {
+        refreshCreditsFromResponse(designData);
+        finalCardImage = designData.imageBase64 || designData.imageUrl;
+      }
+
+      setGeneratedImage(finalCardImage);
+      setShowSmartCanvas(true);
+      setStatusText('✅ Дизайн готов! Редактируйте тексты.');
+      setStatusType('success');
+    } catch (err) {
+      clearInterval(iv);
+      setStatusText(`Ошибка дизайна: ${err.message}`);
+      setStatusType('error');
+    } finally {
+      setIsCardGenerating(false);
     }
   };
 
@@ -1785,9 +1811,9 @@ function App() {
               onClick={handleQuickGenerate}
               disabled={isProcessing || !garmentUrls.length}
             >
-              {isProcessing ? '⏳ Создаём...' : '⚡ Создать карточку'}
+              {isProcessing ? '⏳ Генерируем...' : '⚡ Создать студийное фото'}
             </button>
-            <span className="quick-credits-hint">2 кредита</span>
+            <span className="quick-credits-hint">1 кредит</span>
           </div>
         </motion.div>
       )}
@@ -2272,11 +2298,46 @@ function App() {
         </div>
       )}
 
-      {/* 8а. SMART CANVAS — режим «В два клика» */}
-      {generatedImage && appMode === 'quick' && (
+      {/* 8а. QUICK MODE RESULT — Hero-First: чистое фото + upsell */}
+      {generatedImage && appMode === 'quick' && !showSmartCanvas && (
+        <motion.div className="section result-section quick-hero-result" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} transition={{duration:0.5}}>
+          <h3>📸 Ваше студийное фото</h3>
+          <div className="result-image-wrap" style={{position:'relative'}}>
+            <img src={generatedImage} alt="Студийное фото" onClick={() => setLightboxSrc(generatedImage)} style={{cursor:'pointer'}} />
+          </div>
+          <div className="quick-hero-actions">
+            <button className="download-btn" onClick={() => {
+              const link = document.createElement('a');
+              link.download = `studio-photo-${Date.now()}.png`;
+              link.href = generatedImage;
+              link.click();
+            }}>⬇️ Скачать чистое фото</button>
+            <button
+              className="generate-btn quick-add-design-btn"
+              onClick={handleAddDesign}
+              disabled={isCardGenerating}
+            >
+              {isCardGenerating ? '⏳ Создаём дизайн...' : '✨ Добавить продающий дизайн'}
+            </button>
+            <span className="quick-credits-hint" style={{marginTop: 4}}>+1 кредит за дизайн</span>
+          </div>
+          <button className="sc-btn-close" style={{marginTop: 16}} onClick={() => {
+            setGeneratedImage(null);
+            setQuickCleanPhoto(null);
+            setQuickCleanPhotoUrl(null);
+          }}>← Новая генерация</button>
+        </motion.div>
+      )}
+
+      {/* 8а-2. SMART CANVAS — opens only after "Add Design" click */}
+      {generatedImage && appMode === 'quick' && showSmartCanvas && (
         <SmartCanvas
           imageUrl={generatedImage}
-          onClose={() => setGeneratedImage(null)}
+          onClose={() => {
+            setShowSmartCanvas(false);
+            // Restore clean photo if user closes editor
+            if (quickCleanPhoto) setGeneratedImage(quickCleanPhoto);
+          }}
           user={user}
           setSubscription={setSubscription}
           suggestedText={quickCardText}
