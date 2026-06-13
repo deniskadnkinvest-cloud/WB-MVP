@@ -1659,7 +1659,7 @@ function App() {
       {showHistory && <MyHistoryPage onClose={() => setShowHistory(false)} onReuseSettings={handleReuseSettings} />}
 
       {/* ═══ QUICK MODE PANEL ═══ */}
-      {appMode === 'quick' && (
+      {appMode === 'quick' && !generatedImage && (
         <motion.div className="section quick-mode-panel" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.1,duration:0.5,ease:[0.16,1,0.3,1]}}>
           <div className="section-title">
             <span className="icon">⚡</span> В два клика
@@ -1697,6 +1697,58 @@ function App() {
               <span className="quick-toggle-text">👤 Добавить модель-человека</span>
             </label>
           </div>
+
+          <AnimatePresence mode="wait">
+            {quickWithModel && (
+              <motion.div
+                key="model-settings"
+                initial={{opacity:0,height:0}} animate={{opacity:1,height:'auto'}} exit={{opacity:0,height:0}}
+                transition={{type:'spring',stiffness:400,damping:25,mass:0.5}}
+                style={{overflow:'hidden', marginTop: 16, marginBottom: 16, background: 'rgba(255,255,255,0.02)', padding: 16, borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)'}}
+              >
+                <div className="tabs-row" style={{marginBottom: 16}}>
+                  <button className={`tab-btn ${productModelTab==='presets'?'active':''}`} onClick={()=>{setProductModelTab('presets');setProductSavedModelId(null);}}>🎭 Пресеты</button>
+                  <button className={`tab-btn ${productModelTab==='my_models'?'active':''}`} onClick={()=>setProductModelTab('my_models')}>⭐ Мои Модели{myModels.length>0?` (${myModels.length})`:''}</button>
+                </div>
+                {productModelTab === 'presets' ? (
+                  <>
+                    <GenderToggle gender={productModelGender} setGender={setProductModelGender} />
+                    <div className="preset-grid" style={{marginTop: 12}}>
+                      {MODEL_PRESETS.filter(m => m.gender === productModelGender).map(m => (
+                        <div key={m.id} className={`preset-card ${productModelPreset.id===m.id&&!customProductModelPrompt&&!productSavedModelId?'active':''}`}
+                          onClick={() => { setProductModelPreset(m); setCustomProductModelPrompt(''); setProductSavedModelId(null); setShowProductModelDetails(true); }}>
+                          <span className="emoji">{m.emoji}</span><span className="label">{m.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <DetailPanel modelDetails={productModelDetails} setModelDetails={setProductModelDetails} visible={showProductModelDetails && !customProductModelPrompt && !productSavedModelId} gender={productModelGender} extraPrompt={''} setExtraPrompt={() => {}} />
+                    <div className="custom-variant-row" style={{marginTop: 16}}>
+                      <input className="custom-variant-input" type="text" placeholder="Описать модель: «рыжая девушка 25 лет с веснушками»"
+                        value={customProductModelPrompt}
+                        onFocus={() => { setShowProductModelDetails(false); setProductSavedModelId(null); }}
+                        onChange={e => { setCustomProductModelPrompt(e.target.value); setProductSavedModelId(null); setShowProductModelDetails(false); }} />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {myModels.length > 0 ? (
+                      <div className="model-avatar-grid">
+                        {myModels.map(m => (
+                          <div key={m.id} className={`model-avatar ${productSavedModelId===m.id?'active':''}`}
+                            onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
+                            <img src={m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
+                            <div className="avatar-name">{m.name}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="section-hint" style={{textAlign:'center',padding:'20px 0'}}>У вас пока нет сохранённых моделей.</p>
+                    )}
+                  </>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Card style picker */}
           <div className="card-style-picker">
@@ -2207,7 +2259,7 @@ function App() {
         
         <div style={{display: 'flex', gap: '10px', flexDirection: 'column'}}>
           <button className="generate-btn" onClick={handleGenerate} onMouseEnter={() => { fetch('/api/generate-image', { method: 'OPTIONS', keepalive: true }).catch(() => {}); }} disabled={!garmentUrls.length||isProcessing||isUploading}>{isUploading ? '☁️ Загрузка в облако...' : `✨ Сгенерировать ${variantCount > 1 ? variantCount + ' варианта' : 'студийный кадр'}`}</button>
-          <button className="generate-btn" style={{background: 'linear-gradient(135deg, #8b5cf6, #d946ef)'}} onClick={handleAutoCatalog} disabled={!garmentUrls.length||isProcessing||isUploading}>{isUploading ? '☁️ Загрузка...' : '🏭 Отправить в Auto-Catalog (Batch)'}</button>
+          <button className="generate-btn" style={{background: 'linear-gradient(135deg, #18181b, #27272a)', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#fafafa'}} onClick={handleAutoCatalog} disabled={!garmentUrls.length||isProcessing||isUploading}>{isUploading ? '☁️ Загрузка...' : '🏭 Отправить в Auto-Catalog (Batch)'}</button>
         </div>
 
         <div className="status-bar">{statusText && <p className={`status-text ${statusType}`}>{statusText}</p>}</div>
