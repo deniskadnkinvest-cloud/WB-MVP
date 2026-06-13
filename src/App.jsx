@@ -15,6 +15,7 @@ import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, 
 import { uploadBase64Image, compressImage, uploadImage, deleteImage } from './lib/storageService';
 import { getSubscription, checkFeature, canGenerate, activatePlan } from './lib/subscriptionService';
 import SmartCanvas from './components/SmartCanvas';
+import ReveCanvas from './components/ReveCanvas';
 import './App.css';
 
 const MSGS = ['Анализируем текстуру ткани...','Выставляем студийный свет...','Строим 3D-модель фигуры...','Натягиваем одежду с учетом физики...','Рендерим финальный кадр...'];
@@ -183,10 +184,12 @@ function App() {
   const [quickCardStyle, setQuickCardStyle] = useState('natural');
   const [quickWithModel, setQuickWithModel] = useState(false);
   const [quickCardText, setQuickCardText] = useState(null);
-  // [SMART_QUICK_MODE_2.0] — Lazy Typography states
+  // [REVE_CANVAS] — Interactive AI Canvas states
   const [showSmartCanvas, setShowSmartCanvas] = useState(false);
+  const [showReveCanvas, setShowReveCanvas] = useState(false);
   const [quickCleanPhoto, setQuickCleanPhoto] = useState(null); // Original clean photo before card design
   const [quickCleanPhotoUrl, setQuickCleanPhotoUrl] = useState(null); // URL for Gemini analysis
+  const [reveCardImage, setReveCardImage] = useState(null); // Full Reve-generated marketplace card
 
   // Lightbox (gallery mode)
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -1237,91 +1240,93 @@ function App() {
     if (!generatedImage) return;
 
     setIsCardGenerating(true);
-    setStatusText('🪄 Анализируем товар и создаём дизайн...');
+    setStatusText('🪄 Reve AI создаёт карточку маркетплейса...');
     setStatusType('processing');
 
     const progressMessages = [
-      '✨ ИИ анализирует ваш товар...',
-      '✍️ Генерируем продающие тексты...',
-      '🎴 Создаём дизайн карточки...',
-      '📐 Финализируем композицию...'
+      '✨ Анализируем товар...',
+      '🎨 Reve генерирует дизайн...',
+      '✍️ Добавляем продающие тексты...',
+      '📐 Финализируем карточку...',
+      '🔥 Почти готово...',
     ];
     let msgIdx = 0;
     const iv = setInterval(() => {
       msgIdx = (msgIdx + 1) % progressMessages.length;
       setStatusText(progressMessages[msgIdx]);
-    }, 4000);
+    }, 3500);
 
     try {
-      // Parallel: card design background + Gemini text (WITHOUT price)
-      const sourceUrl = quickCleanPhotoUrl || null;
+      // ── REVE MARKETPLACE CARD PROMPT ────────────────────────────
+      // Используем переданное фото как reference image (remix)
+      // и просим Reve сгенерировать полноценную карточку маркетплейса
+      const reveStyle = quickCardStyle === 'epic'
+        ? 'dark cinematic background with deep dark gradient (#0a0a15), subtle golden light beams, dramatic shadows'
+        : 'clean premium lifestyle background, soft warm cream (#faf8f5), natural shadows, minimalist aesthetic';
 
-      const designPromise = fetch('/api/generate-image', {
+      const revePrompt = `Create a complete, professional Russian marketplace product card (Wildberries/Ozon style, 3:4 ratio).
+
+STYLE: ${reveStyle}
+
+LAYOUT:
+- Product photo prominently placed right-center (55% of card width)
+- Left side and top: text and design elements
+- Realistic contact shadows under the product
+
+TEXT (all in RUSSIAN — generate realistic text based on the visible product):
+- Large headline (H1): 2-3 word product name in bold (e.g. ПОДУШКА ДЛЯ ШЕИ)
+- Subtitle: one-line tagline describing benefit (e.g. Комфорт в каждой поездке)
+- 3-4 feature pill badges with small icons: key product features (e.g. Мягкая фактура | Поддержка шеи | Компактный)
+- Optional: relevant lifestyle props that match the product category
+
+QUALITY:
+- Photorealistic, studio-quality render
+- All text must be perfectly legible and correctly spelled in Russian
+- NO watermarks, NO frame, NO border
+- The card should look like a premium marketplace listing hero image`;
+
+      const resp = await fetch('/api/reve-edit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user?.uid || null,
-          isCardDesign: true,
-          cardStyle: quickCardStyle,
-          sourceImageUrl: sourceUrl,
-          sourceImageBase64: !sourceUrl ? generatedImage : undefined,
+          action: 'remix',
+          prompt: revePrompt,
+          imageBase64: generatedImage,
+          strength: 0.65,
         }),
       });
 
-      const textPromise = fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'generate-card-text',
-          imageUrl: sourceUrl,
-          imageBase64: !sourceUrl ? generatedImage : undefined,
-        }),
-      });
-
-      const [designResp, textResp] = await Promise.all([designPromise, textPromise]);
       clearInterval(iv);
+      const data = await resp.json();
 
-      const designData = await safeParseJSON(designResp);
-      const textData = await safeParseJSON(textResp);
-
-      // Build card text (NO PRICE field)
-      let cardText = {
-        title: 'СТИЛЬНЫЙ ТОВАР',
-        material: 'Премиум качество',
-        size: '',
-        benefit: 'Лучший выбор',
-      };
-
-      if (textData.success) {
-        cardText = {
-          title: textData.title || cardText.title,
-          material: textData.material || cardText.material,
-          size: textData.size || '',
-          benefit: textData.benefit || cardText.benefit,
-        };
+      if (data.success && data.imageBase64) {
+        // ✅ Reve вернул готовую карточку
+        setReveCardImage(data.imageBase64);
+        setShowReveCanvas(true);
+        setStatusText('✅ Карточка готова! Выделите область кистью для редактирования.');
+        setStatusType('success');
+      } else {
+        // ⚠️ MOCK режим — Reve нет кредитов или другая ошибка
+        // Используем оригинальное фото как "карточку" → UX всё равно работает
+        console.warn('[Reve] Fallback to mock mode:', data.error);
+        setReveCardImage(generatedImage);
+        setShowReveCanvas(true);
+        setStatusText('🎨 Редактор открыт! (Пополни баланс Reve для генерации карточки)');
+        setStatusType('success');
       }
-
-      setQuickCardText(cardText);
-
-      // Use card design as background if available, else fallback to clean photo
-      let finalCardImage = generatedImage;
-      if (designData.success && (designData.imageUrl || designData.imageBase64)) {
-        refreshCreditsFromResponse(designData);
-        finalCardImage = designData.imageBase64 || designData.imageUrl;
-      }
-
-      setGeneratedImage(finalCardImage);
-      setShowSmartCanvas(true);
-      setStatusText('✅ Дизайн готов! Редактируйте тексты.');
-      setStatusType('success');
     } catch (err) {
       clearInterval(iv);
-      setStatusText(`Ошибка дизайна: ${err.message}`);
-      setStatusType('error');
+      // Даже при ошибке открываем редактор с исходным фото (mock)
+      console.error('[Reve] Error, falling back to mock:', err);
+      setReveCardImage(generatedImage);
+      setShowReveCanvas(true);
+      setStatusText('🎨 Редактор открыт в режиме предпросмотра');
+      setStatusType('success');
     } finally {
       setIsCardGenerating(false);
     }
   };
+
 
   // Auto-Catalog integration
   const handleAutoCatalog = async () => {
@@ -2299,7 +2304,7 @@ function App() {
       )}
 
       {/* 8а. QUICK MODE RESULT — Hero-First: чистое фото + upsell */}
-      {generatedImage && appMode === 'quick' && !showSmartCanvas && (
+      {generatedImage && appMode === 'quick' && !showReveCanvas && (
         <motion.div className="section result-section quick-hero-result" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} transition={{duration:0.5}}>
           <h3>📸 Ваше студийное фото</h3>
           <div className="result-image-wrap" style={{position:'relative'}}>
@@ -2311,37 +2316,50 @@ function App() {
               link.download = `studio-photo-${Date.now()}.png`;
               link.href = generatedImage;
               link.click();
-            }}>⬇️ Скачать чистое фото</button>
+            }}>⬇️ Скачать фото</button>
             <button
               className="generate-btn quick-add-design-btn"
               onClick={handleAddDesign}
               disabled={isCardGenerating}
             >
-              {isCardGenerating ? '⏳ Создаём дизайн...' : '✨ Добавить продающий дизайн'}
+              {isCardGenerating ? '⏳ Генерируем карточку...' : '✨ Создать карточку + редактор'}
             </button>
-            <span className="quick-credits-hint" style={{marginTop: 4}}>+1 кредит за дизайн</span>
+            <span className="quick-credits-hint" style={{marginTop: 4}}>Создаст готовую карточку с текстами, которую можно редактировать</span>
           </div>
           <button className="sc-btn-close" style={{marginTop: 16}} onClick={() => {
             setGeneratedImage(null);
+            setReveCardImage(null);
             setQuickCleanPhoto(null);
             setQuickCleanPhotoUrl(null);
           }}>← Новая генерация</button>
         </motion.div>
       )}
 
-      {/* 8а-2. SMART CANVAS — opens only after "Add Design" click */}
-      {generatedImage && appMode === 'quick' && showSmartCanvas && (
-        <SmartCanvas
-          imageUrl={generatedImage}
+      {/* 8а-2. REVE CANVAS — интерактивный редактор карточки с AI Inpainting */}
+      {reveCardImage && appMode === 'quick' && showReveCanvas && (
+        <ReveCanvas
+          imageUrl={reveCardImage}
           onClose={() => {
-            setShowSmartCanvas(false);
-            // Restore clean photo if user closes editor
-            if (quickCleanPhoto) setGeneratedImage(quickCleanPhoto);
+            setShowReveCanvas(false);
           }}
-          user={user}
-          setSubscription={setSubscription}
-          suggestedText={quickCardText}
-          initialStyle={quickCardStyle}
+          onEdit={async (prompt, maskBase64) => {
+            const resp = await fetch('/api/reve-edit', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'edit',
+                prompt,
+                imageBase64: reveCardImage,
+                maskBase64,
+              }),
+            });
+            const data = await resp.json();
+            if (data.success && data.imageBase64) {
+              setReveCardImage(data.imageBase64);
+            } else {
+              throw new Error(data.error || 'Ошибка редактирования');
+            }
+          }}
         />
       )}
 
