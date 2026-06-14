@@ -201,7 +201,7 @@ async function uploadBase64ToKie(base64DataUrl, apiKey, index = 0) {
   }
 }
 
-async function executeKieTask(prompt, imageInputs = [], modelName = "gpt-image-2") {
+async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana-2") {
   const rawKey = process.env.KIE_API_KEY;
   if (!rawKey) throw new Error("API key missing. Set KIE_API_KEY in .env");
   // Strip BOM, zero-width chars, and whitespace that PowerShell/editors inject
@@ -1163,7 +1163,7 @@ ABSOLUTE REQUIREMENTS:
 
 Return ONLY the edited photograph.`;
 
-        const resultUrl = await executeKieTask(editPrompt, [`data:${sourceData.mimeType};base64,${sourceData.base64str}`], 'gpt-image-2');
+        const resultUrl = await executeKieTask(editPrompt, [`data:${sourceData.mimeType};base64,${sourceData.base64str}`], 'nano-banana-2');
         console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Photo edit complete. Downloading result...`);
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error("Failed to download edited image");
@@ -1231,7 +1231,7 @@ Return ONLY the edited photograph.`;
         }
       }
       console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Отправляем калибровку в KIE.ai...`);
-      const resultUrl = await executeKieTask(calibPrompt, imageInputs, 'gpt-image-2');
+      const resultUrl = await executeKieTask(calibPrompt, imageInputs, 'nano-banana-2');
       console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Калибровка успешна. Downloading result...`);
       const dl = await downloadToBase64(resultUrl);
       if (!dl) throw new Error("Failed to download generated image");
@@ -1279,7 +1279,7 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
         const cardPrompt = cardStyle === 'epic' ? EPIC_CARD_PROMPT : NATURAL_CARD_PROMPT;
 
         console.log(`🎴 [${elapsed()}s] Sending to KIE.ai gpt-image-2...`);
-        const resultUrl = await executeKieTask(cardPrompt, cardImageInputs, 'gpt-image-2');
+        const resultUrl = await executeKieTask(cardPrompt, cardImageInputs, 'nano-banana-2');
         console.log(`✅ [${elapsed()}s] Card design ready. Downloading...`);
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download card design from KIE.ai');
@@ -1344,7 +1344,7 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
       }
 
       console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product Mode → KIE.ai (gpt-image-2), ${imageInputs.length} image(s), model=${withHumanModel}...`);
-      const resultUrl = await executeKieTask(productPromptText, imageInputs, 'gpt-image-2');
+      const resultUrl = await executeKieTask(productPromptText, imageInputs, 'nano-banana-2');
       console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product shot ready. Downloading...`);
       const dl = await downloadToBase64(resultUrl);
       if (!dl) throw new Error("Failed to download product image from KIE.ai");
@@ -1475,7 +1475,7 @@ ${skinPrompt}
 
     console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Отправляем запрос в KIE.ai (gpt-image-2)...`);
     
-    const resultUrl = await executeKieTask(promptText, imageInputs, 'gpt-image-2');
+    const resultUrl = await executeKieTask(promptText, imageInputs, 'nano-banana-2');
     console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Картинка сгенерирована. Downloading result...`);
     const dl = await downloadToBase64(resultUrl);
     if (!dl) throw new Error("Failed to download final generated image from KIE.ai");
