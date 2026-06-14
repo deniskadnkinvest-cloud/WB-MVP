@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MODEL_PRESETS, POSE_PRESETS, BACKGROUND_PRESETS, ASPECT_RATIOS, CAMERA_ANGLES, getModelDetails, PRODUCT_CATEGORIES, PRODUCT_COMPOSITIONS, PRODUCT_BACKGROUNDS, PRODUCT_EFFECTS } from './data/presets';
 import ModelCalibrationWizard from './components/ModelCalibrationWizard';
+import GenderToggle from './components/GenderToggle';
 import TerminalOfMagic from './components/TerminalOfMagic';
 import LoginPage from './components/LoginPage';
 import PricingModal from './components/PricingModal';
