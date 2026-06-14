@@ -2,6 +2,7 @@
 import { alertOnError } from './_admin-alerts.js';
 import { ensureFirebaseAdmin } from './_firebase-admin.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
 ensureFirebaseAdmin();
 const _db = getFirestore();
@@ -850,18 +851,35 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
   const startTime = Date.now();
 
+  // ═══ AUTH: Firebase Token Verification ═══
+  // Сервер НЕ доверяет userId из body — вместо этого криптографически
+  // проверяет ID Token из заголовка Authorization: Bearer <token>
+  let verifiedUid = null;
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    try {
+      const decoded = await getAuth().verifyIdToken(authHeader.split('Bearer ')[1]);
+      verifiedUid = decoded.uid;
+    } catch (authErr) {
+      console.warn('[Auth] Invalid ID token:', authErr.message);
+      return res.status(401).json({ success: false, error: 'Unauthorized: invalid token' });
+    }
+  } else {
+    return res.status(401).json({ success: false, error: 'Unauthorized: no token provided' });
+  }
+
   try {
     if (req.body?.action === 'deduct-credit') {
-      const { userId, amount = 1 } = req.body;
-      if (!userId) return res.status(400).json({ success: false, error: 'User ID is required' });
-      const subRef = _db.collection('subscriptions').doc(userId);
-      await subRef.update({ credits: _admin.firestore.FieldValue.increment(-amount) });
+      const { amount = 1 } = req.body;
+      if (!verifiedUid) return res.status(401).json({ success: false, error: 'Unauthorized' });
+      const subRef = _db.collection('subscriptions').doc(verifiedUid);
+      await subRef.update({ credits: FieldValue.increment(-amount) });
       const subDoc = await subRef.get();
       return res.status(200).json({ success: true, newCredits: subDoc.data()?.credits || 0 });
     }
@@ -1260,7 +1278,7 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
         if (!dl) throw new Error('Failed to download card design from KIE.ai');
 
         incrementGlobalCounter('generationsCard').catch(() => {});
-        saveGenerationLog({ userId: req.body?.userId, success: true, imageUrl: resultUrl, reqBody: req.body, durationMs: Date.now() - startTime }).catch(() => {});
+        saveGenerationLog({ userId: verifiedUid, success: true, imageUrl: resultUrl, reqBody: req.body, durationMs: Date.now() - startTime }).catch(() => {});
 
         return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl });
       } catch (cardErr) {
@@ -1461,7 +1479,7 @@ ${skinPrompt}
 
     // Записываем детальный лог успешной генерации
     saveGenerationLog({
-      userId: req.body?.userId,
+      userId: verifiedUid,
       success: true,
       imageUrl: resultUrl,
       reqBody: req.body,
@@ -1475,7 +1493,7 @@ ${skinPrompt}
     
     // Записываем детальный лог ошибки генерации
     saveGenerationLog({
-      userId: req.body?.userId,
+      userId: verifiedUid,
       success: false,
       error: error.message,
       reqBody: req.body,

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MODEL_PRESETS, POSE_PRESETS, BACKGROUND_PRESETS, ASPECT_RATIOS, CAMERA_ANGLES, getModelDetails, PRODUCT_CATEGORIES, PRODUCT_COMPOSITIONS, PRODUCT_BACKGROUNDS, PRODUCT_EFFECTS } from './data/presets';
-import { NATURAL_CARD_PROMPT, EPIC_CARD_PROMPT, getNaturalCardPrompt, getEpicCardPrompt } from './data/cardPrompts';
+import { NATURAL_CARD_PROMPT, EPIC_CARD_PROMPT } from './data/cardPrompts';
 import ModelCalibrationWizard from './components/ModelCalibrationWizard';
 import GenderToggle from './components/GenderToggle';
 import DetailPanel from './components/DetailPanel';
@@ -15,7 +15,7 @@ import { useAuth } from './contexts/AuthContext';
 import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt } from './lib/firestoreService';
 import { uploadBase64Image, compressImage, uploadImage, deleteImage } from './lib/storageService';
 import { getSubscription, checkFeature, canGenerate, activatePlan } from './lib/subscriptionService';
-import SmartCardEditor from './components/SmartCardEditor';
+import CardLayerStudio from './components/CardLayerStudio';
 import './App.css';
 
 const MSGS = ['Анализируем текстуру ткани...','Выставляем студийный свет...','Строим 3D-модель фигуры...','Натягиваем одежду с учетом физики...','Рендерим финальный кадр...'];
@@ -552,6 +552,18 @@ function App() {
     return parts.length ? `, ${parts.join(', ')}` : '';
   };
 
+  // ═══ AUTH FETCH: добавляет Firebase ID Token ко всем API-запросам ═══
+  const authFetch = async (url, options = {}) => {
+    const token = user ? await user.getIdToken() : null;
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+    });
+  };
+
   const handleGenerate = async () => {
     if (!imageFiles.length) return;
 
@@ -663,7 +675,7 @@ function App() {
       });
 
       const results = await Promise.all(seeds.map(seed =>
-        fetch('/api/generate-image', {
+        authFetch('/api/generate-image', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: buildBody(seed),
         }).then(r => safeParseJSON(r)).catch(err => ({ success: false, error: err.message }))
@@ -879,7 +891,7 @@ function App() {
       const refImgs = sm?.imageUrls || [];
       // Use loaded garments if available, otherwise send previewMode
       let garmentUrlsForPreview = garmentUrls.slice(0, 1);
-      const resp = await fetch('/api/generate-image', {
+      const resp = await authFetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user?.uid || null,
@@ -1031,7 +1043,7 @@ function App() {
       const editRefImages = modelRefImages ? [...modelRefImages] : [];
 
       const biometricSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
-      const resp = await fetch('/api/generate-image', {
+      const resp = await authFetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user?.uid || null,
@@ -1111,7 +1123,7 @@ function App() {
       // Run N parallel card generation requests
       const isBase64 = generatedImage && generatedImage.startsWith('data:');
       const promises = Array.from({ length: count }, () =>
-        fetch('/api/generate-image', {
+        authFetch('/api/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1175,86 +1187,56 @@ function App() {
     setShowSmartCanvas(false); 
     setReveCardImage(null);
     setShowReveCanvas(false); 
-    setStatusText('🔍 Анализируем фото товара...');
+    setStatusText('🪄 Reve создаёт карточку маркетплейса...');
     setStatusType('processing');
 
+    // Анимированные статус-сообщения
+    const cardMessages = ['🎨 Reve анализирует продукт...', '✍️ Генерируем дизайн и тексты...', '📐 Финализируем карточку...', '🔥 Почти готово...'];
+    let cardMsgIdx = 0;
+    const cardIv = setInterval(() => {
+      cardMsgIdx = (cardMsgIdx + 1) % cardMessages.length;
+      setStatusText(cardMessages[cardMsgIdx]);
+    }, 5000);
+
     try {
-      // Шаг 1: Анализ фото товара через Gemini Vision для определения копирайтинга
-      const analyzeResp = await fetch('/api/generate-image', {
+      // Отправляем фото НАПРЯМУЮ в Reve с полным профессиональным промптом
+      // Reve сам анализирует продукт и генерирует текст — без Gemini
+      const revePrompt = quickCardStyle === 'epic' ? EPIC_CARD_PROMPT : NATURAL_CARD_PROMPT;
+        
+      const reveResp = await authFetch('/api/reve-edit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'generate-card-text',
+          action: 'remix',
+          prompt: revePrompt,
           imageUrl: garmentUrls[0],
         }),
       });
-      const analyzeData = await safeParseJSON(analyzeResp);
-      
-      let title = 'СТИЛЬНЫЙ ТОВАР';
-      let material = 'Премиум качество';
-      let size = '';
-      let benefit = 'Лучший выбор';
-      
-      if (analyzeData.success) {
-        title = analyzeData.title || title;
-        material = analyzeData.material || material;
-        size = analyzeData.size || size;
-        benefit = analyzeData.benefit || benefit;
-      }
-      
-      // Шаг 2: Вызываем Reve API (Remix) напрямую на загруженную картинку
-      setStatusText('🪄 Создаём карточку маркетплейса...');
-      const cardMessages = ['🎨 Reve генерирует дизайн...', '✍️ Добавляем продающие тексты...', '📐 Финализируем карточку...', '🔥 Почти готово...'];
-      let cardMsgIdx = 0;
-      const cardIv = setInterval(() => {
-        cardMsgIdx = (cardMsgIdx + 1) % cardMessages.length;
-        setStatusText(cardMessages[cardMsgIdx]);
-      }, 4000);
+      clearInterval(cardIv);
+      const reveData = await reveResp.json();
 
-      try {
-        const revePrompt = quickCardStyle === 'epic' 
-          ? getEpicCardPrompt(title, benefit, material, size) 
-          : getNaturalCardPrompt(title, benefit, material, size);
-          
-        const reveResp = await fetch('/api/reve-edit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'remix',
-            prompt: revePrompt,
-            imageUrl: garmentUrls[0],
-            strength: 0.8,
-          }),
-        });
-        clearInterval(cardIv);
-        const reveData = await reveResp.json();
-
-        if (reveData.success && reveData.imageBase64) {
-          // Списание 1 кредита
-          const updatedCredits = Math.max(0, creditsAvailable - 1);
-          setSubscription(prev => prev ? { ...prev, credits: updatedCredits } : prev);
-          
-          setReveCardImage(reveData.imageBase64);
-          setGeneratedImage(reveData.imageBase64); 
-          setShowReveCanvas(true);
-          setStatusText('✅ Карточка готова! Редактируйте элементы через панель слоёв.');
-          setStatusType('success');
-        } else {
-          console.error('[Reve] Card generation failed:', reveData.error);
-          setStatusText(`⚠️ Reve не смог создать карточку: ${reveData.error || 'неизвестная ошибка'}`);
-          setStatusType('error');
-        }
-      } catch (reveErr) {
-        clearInterval(cardIv);
-        console.error('[Reve] Card generation error:', reveErr);
-        setStatusText(`⚠️ Ошибка Reve: ${reveErr.message}`);
+      if (reveData.success && reveData.imageBase64) {
+        // Списание 1 кредита
+        const updatedCredits = Math.max(0, creditsAvailable - 1);
+        setSubscription(prev => prev ? { ...prev, credits: updatedCredits } : prev);
+        
+        setReveCardImage(reveData.imageBase64);
+        setGeneratedImage(reveData.imageBase64); 
+        setShowReveCanvas(true);
+        setStatusText('✅ Карточка готова! Редактируйте элементы через панель слоёв.');
+        setStatusType('success');
+      } else {
+        console.error('[Reve] Card generation failed:', reveData.error);
+        setStatusText(`⚠️ Reve не смог создать карточку: ${reveData.error || 'неизвестная ошибка'}`);
         setStatusType('error');
       }
     } catch (err) {
+      clearInterval(cardIv);
       if (err.name === 'AbortError') {
         setStatusText('❌ Генерация отменена. Кредиты не списаны.');
       } else {
-        setStatusText(`Ошибка: ${err.message}`);
+        console.error('[Reve] Card generation error:', err);
+        setStatusText(`⚠️ Ошибка Reve: ${err.message}`);
       }
       setStatusType('error');
     } finally {
@@ -1416,7 +1398,7 @@ function App() {
       // PARALLEL generation — all shots fire simultaneously for speed
       const promises = angles.map((angle, idx) => {
         const biometricSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
-        return fetch('/api/generate-image', {
+        return authFetch('/api/generate-image', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: user?.uid || null,
@@ -1473,7 +1455,7 @@ function App() {
     try {
       // Upload source image to Firebase Storage to avoid body size limits
       const { url: sourceUrl } = await uploadBase64Image(user?.uid || 'anonymous', currentImg, 'edits');
-      const resp = await fetch('/api/generate-image', {
+      const resp = await authFetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user?.uid || null,
@@ -2280,30 +2262,30 @@ function App() {
         </motion.div>
       )}
 
-      {/* 8а-2. SMART CARD EDITOR — умный редактор карточки маркетплейса */}
+      {/* 8а-2. CARD LAYER STUDIO — полноценный редактор слоёв (только quick-режим) */}
       {reveCardImage && appMode === 'quick' && showReveCanvas && (
-        <SmartCardEditor
+        <CardLayerStudio
           imageUrl={reveCardImage}
           onClose={() => {
             setShowReveCanvas(false);
           }}
-          onEdit={async (prompt, maskBase64) => {
-            const resp = await fetch('/api/reve-edit', {
+          onAiEdit={async (prompt, srcImage) => {
+            const resp = await authFetch('/api/reve-edit', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 action: 'edit',
                 prompt,
-                imageBase64: reveCardImage,
-                maskBase64,
+                imageBase64: srcImage,
               }),
             });
             const data = await resp.json();
-            if (data.success && data.imageBase64) {
-              setReveCardImage(data.imageBase64);
-            } else {
-              throw new Error(data.error || 'Ошибка редактирования');
-            }
+            if (data.success && data.imageBase64) return data.imageBase64;
+            throw new Error(data.error || 'Ошибка редактирования');
+          }}
+          onSaveToProject={async () => {
+            // Mock: реальное сохранение в Storage подключим позже; тост показывает сама студия.
+            await new Promise((r) => setTimeout(r, 350));
           }}
         />
       )}
@@ -2732,6 +2714,7 @@ function App() {
           modelPrompt={getCurrentModelPrompt()}
           modelRefImages={getCurrentModelRefs()}
           userId={user?.uid}
+          getAuthToken={async () => user?.getIdToken?.()}
         />
       </AnimatePresence>
 
