@@ -6,9 +6,7 @@
     "api/generate-image.js": {
       "maxDuration": 120
     },
-    "api/verify-panx-token.js": {
-      "maxDuration": 10
-    },
+
     "api/payment-webhook.js": {
       "maxDuration": 30
     },
@@ -54,7 +52,7 @@
   ],
   "rewrites": [
     { "source": "/api/generate-image", "destination": "/api/generate-image" },
-    { "source": "/api/verify-panx-token", "destination": "/api/verify-panx-token" },
+
     { "source": "/api/payment-webhook", "destination": "/api/payment-webhook" },
     { "source": "/api/payment-webhook-yookassa", "destination": "/api/payment-webhook-yookassa" },
     { "source": "/api/create-payment", "destination": "/api/create-payment" },
