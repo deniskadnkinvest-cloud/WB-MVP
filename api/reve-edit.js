@@ -160,9 +160,7 @@ export default async function handler(req, res) {
 
       const payload = {
         prompt,
-        images: [baseImageB64],
-        strength: strength || 0.7,
-        test_time_scaling: 2,
+        reference_images: [baseImageB64],
       };
 
       const data = await callReve('remix', payload, apiKey);
