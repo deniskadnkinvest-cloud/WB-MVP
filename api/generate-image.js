@@ -762,14 +762,16 @@ function buildProductPrompt({
   // ═══════════════════════════════════════════════════════════════════
   const COMPOSITION_DIRECTIVES = {
     in_hand: `<composition_directive type="IN_HAND">
-MANDATORY: A realistic human hand MUST be prominently visible in the frame, physically gripping and holding the product.
-- The hand must have natural skin texture, visible knuckles, realistic finger positioning.
-- The product MUST be held naturally in the hand — NOT floating, NOT placed on a surface, NOT worn on the body.
+MANDATORY HAND-HELD PRODUCT SHOT. THIS OVERRIDES ALL OTHER COMPOSITION INSTRUCTIONS.
+- A realistic human HAND must be the PRIMARY visual element alongside the product. The hand physically GRIPS and HOLDS the product.
+- FRAMING: Close-up shot. Only the hand, wrist, and product are in frame. Do NOT show full body, do NOT show legs, do NOT show a person standing.
+- The product MUST be held UP in the hand — NOT placed on any surface, pedestal, podium, platform, table, or stand.
+- NO PODIUMS. NO PEDESTALS. NO MARBLE PLATFORMS. The product is AIRBORNE, held by the human hand.
 - Show accurate scale: the product size must be proportional to the human hand.
-- Camera framing: close-up to medium shot focused on the hand + product interaction.
-- The hand enters the frame naturally — from the bottom or side of the composition.
-- Background should be blurred (shallow depth of field) to isolate the hand-product pair.
-- If the product is a pillow, bag, bottle, or any non-wearable item — the hand HOLDS it, does NOT wear it or drape it on the body.
+- Background: soft blurred bokeh (shallow depth of field, f/1.8). The background is abstract and out of focus.
+- The hand enters the frame naturally from the bottom or side of the composition.
+- Hand must have natural skin texture, visible knuckles, realistic finger positioning, and honest material physics.
+- If the product is a pillow, bag, bottle, or any non-wearable item — the hand HOLDS it up, does NOT wear it, drape it, or place it on the body.
 </composition_directive>`,
 
     macro: `<composition_directive type="MACRO">
@@ -838,6 +840,14 @@ INTERACTION STYLE:
 </human_model_integration>
 ` : '';
 
+  // Для «Товар в руке» — очищаем фон от подиумов/платформ, которые конфликтуют с композицией
+  const sanitizedBg = compositionId === 'in_hand'
+    ? bgPrompt.replace(/,?\s*(elegant\s+)?marble\s+podium\s+platform/gi, '').replace(/,?\s*pedestal/gi, '').replace(/,?\s*platform/gi, '').replace(/,?\s*podium/gi, '').trim()
+    : bgPrompt;
+
+  const integrationText = compositionId === 'in_hand'
+    ? 'The product is held in a human hand. No surface contact. No ground plane. The hand is the only support.'
+    : 'Ground the product naturally onto the surface with accurate contact shadows, ambient occlusion, and bounced environmental light. Do NOT let the product float.';
 
   return `<system_directive>
 ROLE: Elite Commercial Product Photographer, Master CGI Compositor & Material Specialist.
@@ -869,11 +879,11 @@ ${humanModelBlock}
 
 <scene_composition>
   - PLACEMENT & STAGING: ${compositionPrompt}
-  - ENVIRONMENT & BACKGROUND: ${bgPrompt}
+  - ENVIRONMENT & BACKGROUND: ${sanitizedBg}
   - SPECIAL EFFECTS: ${effectPrompt || 'None'}
   - ASPECT RATIO TARGET: ${aspectRatio}
   - CAMERA: ${cameraAngle}. Commercial photography framing.
-  - INTEGRATION: Ground the product naturally onto the surface with accurate contact shadows, ambient occlusion, and bounced environmental light. Do NOT let the product float.
+  - INTEGRATION: ${integrationText}
 </scene_composition>
 
 <output_rules>

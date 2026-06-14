@@ -738,12 +738,12 @@ function App() {
         const firstSuccess = successItems[0];
         refreshCreditsFromResponse(firstSuccess);
 
-        const newImages = successItems.map(r => r.imageUrl || r.imageBase64);
+        const newImages = successItems.map(r => r.imageBase64 || r.imageUrl);
         setGeneratedImage(newImages[0]);
 
         setImageHistory(prev => {
           const h = [...prev, ...successItems.map(r => {
-            const img = r.imageUrl || r.imageBase64;
+            const img = r.imageBase64 || r.imageUrl;
             const label = r.task.comp 
               ? `🎨 ${r.task.comp.label} (${r.task.variantIndex})` 
               : `🎨 Вариант ${r.task.variantIndex}`;
