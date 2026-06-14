@@ -10,6 +10,8 @@
 const REVE_BASE = 'https://api.reve.com/v1/image';
 
 async function callReve(endpoint, payload, apiKey) {
+  console.log(`[Reve] Calling ${endpoint} | prompt length: ${(payload.prompt || '').length} chars | has image: ${!!payload.image || !!(payload.images?.length)}`);
+  
   const res = await fetch(`${REVE_BASE}/${endpoint}`, {
     method: 'POST',
     headers: {
@@ -20,14 +22,27 @@ async function callReve(endpoint, payload, apiKey) {
     body: JSON.stringify(payload)
   });
 
-  const data = await res.json();
+  const text = await res.text();
+  console.log(`[Reve] Response status: ${res.status} | body length: ${text.length} chars`);
+  
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    console.error('[Reve] Non-JSON response:', text.substring(0, 500));
+    throw new Error(`Reve API returned non-JSON response (${res.status})`);
+  }
 
   if (!res.ok) {
     const code = res.status;
-    const msg = data?.error || data?.message || `Reve API error ${code}`;
+    const msg = data?.error?.message || data?.error || data?.message || `Reve API error ${code}`;
+    console.error(`[Reve] Error ${code}:`, JSON.stringify(data).substring(0, 500));
     throw new Error(`[Reve ${code}] ${msg}`);
   }
 
+  // Log response structure (not full data) for debugging
+  console.log(`[Reve] Response keys:`, Object.keys(data));
+  
   return data;
 }
 

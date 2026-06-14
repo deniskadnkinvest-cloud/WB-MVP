@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MODEL_PRESETS, POSE_PRESETS, BACKGROUND_PRESETS, ASPECT_RATIOS, CAMERA_ANGLES, getModelDetails, PRODUCT_CATEGORIES, PRODUCT_COMPOSITIONS, PRODUCT_BACKGROUNDS, PRODUCT_EFFECTS } from './data/presets';
-import { NATURAL_CARD_PROMPT, EPIC_CARD_PROMPT } from './data/cardPrompts';
+import { NATURAL_CARD_PROMPT, EPIC_CARD_PROMPT, getNaturalCardPrompt, getEpicCardPrompt } from './data/cardPrompts';
 import ModelCalibrationWizard from './components/ModelCalibrationWizard';
 import GenderToggle from './components/GenderToggle';
 import DetailPanel from './components/DetailPanel';
@@ -1151,13 +1151,12 @@ function App() {
     }
   };
 
-  // ═══ QUICK MODE — two-click card generation ═══
+  // ═══ QUICK MODE — one-step card generation ═══
   const handleQuickGenerate = async () => {
     if (!garmentUrls.length) {
       setStatusText('Сначала загрузите фото товара'); setStatusType('error');
       return;
     }
-    // [SMART_QUICK_MODE_2.0] — Hero-First: only 1 credit for clean photo
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < 1 && !subscription?.local) {
       setShowPricing(true);
@@ -1172,59 +1171,86 @@ function App() {
     setIsProcessing(true);
     setGeneratedImage(null);
     setCardResult(null);
-    setQuickCardText(null); // Reset any previous text
-    setShowSmartCanvas(false); // Hide editor if was open
-    setStatusText('⚡ Генерируем студийное фото...');
+    setQuickCardText(null); 
+    setShowSmartCanvas(false); 
+    setReveCardImage(null);
+    setShowReveCanvas(false); 
+    setStatusText('🔍 Анализируем фото товара...');
     setStatusType('processing');
 
-    const step1Messages = ['📦 Обрабатываем фото товара...', '📸 Создаём студийный кадр...', '🎨 Оптимизируем свет и тени...', '✨ Финализируем композицию...'];
-    let stepIdx = 0;
-    let iv = setInterval(() => {
-      stepIdx = (stepIdx + 1) % step1Messages.length;
-      setStatusText(step1Messages[stepIdx]);
-    }, 5000);
-
     try {
-      // Hero-First: Generate ONLY the clean studio photo
-      const step1Resp = await fetch('/api/generate-image', {
+      // Шаг 1: Анализ фото товара через Gemini Vision для определения копирайтинга
+      const analyzeResp = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: user?.uid || null,
-          isProductMode: true,
-          categoryId: selectedProductCategory?.id || 'default',
-          garmentImageUrls: garmentUrls,
-          withHumanModel: quickWithModel,
-          humanModelPrompt: quickWithModel ? (getCurrentModelPrompt() || 'professional model in their 20s') : '',
-          backgroundPreset: 'clean minimalist white cyclorama studio background',
-          posePreset: 'centered product shot, professional e-commerce framing',
-          aspectRatio: '3:4',
+          action: 'generate-card-text',
+          imageUrl: garmentUrls[0],
         }),
       });
-      clearInterval(iv);
-      const step1Data = await safeParseJSON(step1Resp);
-
-      if (!step1Data.success) {
-        throw new Error(step1Data.error || 'Не удалось создать студийное фото товара');
+      const analyzeData = await safeParseJSON(analyzeResp);
+      
+      let title = 'СТИЛЬНЫЙ ТОВАР';
+      let material = 'Премиум качество';
+      let size = '';
+      let benefit = 'Лучший выбор';
+      
+      if (analyzeData.success) {
+        title = analyzeData.title || title;
+        material = analyzeData.material || material;
+        size = analyzeData.size || size;
+        benefit = analyzeData.benefit || benefit;
       }
+      
+      // Шаг 2: Вызываем Reve API (Remix) напрямую на загруженную картинку
+      setStatusText('🪄 Создаём карточку маркетплейса...');
+      const cardMessages = ['🎨 Reve генерирует дизайн...', '✍️ Добавляем продающие тексты...', '📐 Финализируем карточку...', '🔥 Почти готово...'];
+      let cardMsgIdx = 0;
+      const cardIv = setInterval(() => {
+        cardMsgIdx = (cardMsgIdx + 1) % cardMessages.length;
+        setStatusText(cardMessages[cardMsgIdx]);
+      }, 4000);
 
-      const productPhotoUrl = step1Data.imageUrl;
-      const productPhotoDisplay = step1Data.imageBase64 || productPhotoUrl;
-      if (productPhotoDisplay) {
-        setGeneratedImage(productPhotoDisplay);
-        setQuickCleanPhoto(productPhotoDisplay); // Save clean photo for later
-        setQuickCleanPhotoUrl(productPhotoUrl); // Save URL for Gemini analysis
-        setImageHistory([{ image: productPhotoDisplay, label: '📸 Студийное фото' }]);
-        setHistoryIndex(0);
+      try {
+        const revePrompt = quickCardStyle === 'epic' 
+          ? getEpicCardPrompt(title, benefit, material, size) 
+          : getNaturalCardPrompt(title, benefit, material, size);
+          
+        const reveResp = await fetch('/api/reve-edit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'remix',
+            prompt: revePrompt,
+            imageUrl: garmentUrls[0],
+            strength: 0.8,
+          }),
+        });
+        clearInterval(cardIv);
+        const reveData = await reveResp.json();
+
+        if (reveData.success && reveData.imageBase64) {
+          // Списание 1 кредита
+          const updatedCredits = Math.max(0, creditsAvailable - 1);
+          setSubscription(prev => prev ? { ...prev, credits: updatedCredits } : prev);
+          
+          setReveCardImage(reveData.imageBase64);
+          setGeneratedImage(reveData.imageBase64); 
+          setShowReveCanvas(true);
+          setStatusText('✅ Карточка готова! Редактируйте элементы через панель слоёв.');
+          setStatusType('success');
+        } else {
+          console.error('[Reve] Card generation failed:', reveData.error);
+          setStatusText(`⚠️ Reve не смог создать карточку: ${reveData.error || 'неизвестная ошибка'}`);
+          setStatusType('error');
+        }
+      } catch (reveErr) {
+        clearInterval(cardIv);
+        console.error('[Reve] Card generation error:', reveErr);
+        setStatusText(`⚠️ Ошибка Reve: ${reveErr.message}`);
+        setStatusType('error');
       }
-      refreshCreditsFromResponse(step1Data);
-
-      // [SMART_QUICK_MODE_2.0] — NO auto text/design generation!
-      // User sees clean photo first. Typography is triggered on-demand via "Add Design" button.
-      setStatusText('✅ Студийное фото готово! Скачайте или добавьте продающий дизайн.');
-      setStatusType('success');
     } catch (err) {
-      clearInterval(iv);
       if (err.name === 'AbortError') {
         setStatusText('❌ Генерация отменена. Кредиты не списаны.');
       } else {
@@ -1238,70 +1264,12 @@ function App() {
 
   // [SMART_QUICK_MODE_2.0] — Lazy Typography: triggered ONLY by user click
   const handleAddDesign = async () => {
-    if (!generatedImage) return;
-
-    setIsCardGenerating(true);
-    setStatusText('🪄 Reve AI создаёт карточку маркетплейса...');
-    setStatusType('processing');
-
-    const progressMessages = [
-      '✨ Анализируем товар...',
-      '🎨 Reve генерирует дизайн...',
-      '✍️ Добавляем продающие тексты...',
-      '📐 Финализируем карточку...',
-      '🔥 Почти готово...',
-    ];
-    let msgIdx = 0;
-    const iv = setInterval(() => {
-      msgIdx = (msgIdx + 1) % progressMessages.length;
-      setStatusText(progressMessages[msgIdx]);
-    }, 3500);
-
-    try {
-      // ── REVE MARKETPLACE CARD PROMPT ────────────────────────────
-      // Используем профессиональные промпты из файлов промптов
-      const revePrompt = quickCardStyle === 'epic' ? EPIC_CARD_PROMPT : NATURAL_CARD_PROMPT;
-
-      const resp = await fetch('/api/reve-edit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'remix',
-          prompt: revePrompt,
-          imageBase64: generatedImage,
-          strength: 0.72,
-        }),
-      });
-
-      clearInterval(iv);
-      const data = await resp.json();
-
-      if (data.success && data.imageBase64) {
-        // ✅ Reve вернул готовую карточку
-        setReveCardImage(data.imageBase64);
-        setShowReveCanvas(true);
-        setStatusText('✅ Карточка готова! Выделите область кистью для редактирования.');
-        setStatusType('success');
-      } else {
-        // ⚠️ MOCK режим — Reve нет кредитов или другая ошибка
-        // Используем оригинальное фото как "карточку" → UX всё равно работает
-        console.warn('[Reve] Fallback to mock mode:', data.error);
-        setReveCardImage(generatedImage);
-        setShowReveCanvas(true);
-        setStatusText('🎨 Редактор открыт! (Пополни баланс Reve для генерации карточки)');
-        setStatusType('success');
-      }
-    } catch (err) {
-      clearInterval(iv);
-      // Даже при ошибке открываем редактор с исходным фото (mock)
-      console.error('[Reve] Error, falling back to mock:', err);
-      setReveCardImage(generatedImage);
+    if (reveCardImage) {
       setShowReveCanvas(true);
-      setStatusText('🎨 Редактор открыт в режиме предпросмотра');
-      setStatusType('success');
-    } finally {
-      setIsCardGenerating(false);
+      return;
     }
+    if (!garmentUrls.length) return;
+    handleQuickGenerate();
   };
 
 
@@ -1793,7 +1761,7 @@ function App() {
               onClick={handleQuickGenerate}
               disabled={isProcessing || !garmentUrls.length}
             >
-              {isProcessing ? '⏳ Генерируем...' : '⚡ Создать студийное фото'}
+              {isProcessing ? '⏳ Генерируем...' : '⚡ Создать карточку'}
             </button>
             <span className="quick-credits-hint">1 кредит</span>
           </div>
@@ -2299,7 +2267,7 @@ function App() {
               onClick={handleAddDesign}
               disabled={isCardGenerating}
             >
-              {isCardGenerating ? '⏳ Генерируем карточку...' : '✨ Создать карточку + редактор'}
+              {reveCardImage ? '🎨 Открыть редактор карточки' : (isCardGenerating ? '⏳ Генерируем карточку...' : '✨ Создать карточку + редактор')}
             </button>
             <span className="quick-credits-hint" style={{marginTop: 4}}>Создаст готовую карточку с текстами, которую можно редактировать</span>
           </div>
