@@ -673,6 +673,7 @@ function App() {
           garmentImageUrls: garmentUrls, 
           modelPreset: modelPrompt, 
           posePreset: comp.prompt,
+          compositionId: comp.id,
           cameraAngle: selectedCamera.prompt, 
           backgroundPreset: bgPrompt,
           aspectRatio: selectedRatio.id, 

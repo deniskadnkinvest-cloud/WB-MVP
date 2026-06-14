@@ -743,6 +743,8 @@ function buildProductPrompt({
   categoryId,
   productPrompt,
   compositionPrompt,
+  compositionId = 'still_life',
+  cameraAngle = 'eye-level shot',
   bgPrompt,
   effectPrompt = '',
   aspectRatio = '1:1',
@@ -754,6 +756,58 @@ function buildProductPrompt({
   const category = CATEGORY_CONFIGS[categoryId] || CATEGORY_CONFIGS.default;
   const gender = detectGender(humanModelPrompt);
   const attrDirectives = attributes ? buildAttributeDirectives(attributes, gender) : '';
+
+  // ═══════════════════════════════════════════════════════════════════
+  // COMPOSITION-SPECIFIC DIRECTIVES — жёсткие блоки для каждого типа кадра
+  // ═══════════════════════════════════════════════════════════════════
+  const COMPOSITION_DIRECTIVES = {
+    in_hand: `<composition_directive type="IN_HAND">
+MANDATORY: A realistic human hand MUST be prominently visible in the frame, physically gripping and holding the product.
+- The hand must have natural skin texture, visible knuckles, realistic finger positioning.
+- The product MUST be held naturally in the hand — NOT floating, NOT placed on a surface, NOT worn on the body.
+- Show accurate scale: the product size must be proportional to the human hand.
+- Camera framing: close-up to medium shot focused on the hand + product interaction.
+- The hand enters the frame naturally — from the bottom or side of the composition.
+- Background should be blurred (shallow depth of field) to isolate the hand-product pair.
+- If the product is a pillow, bag, bottle, or any non-wearable item — the hand HOLDS it, does NOT wear it or drape it on the body.
+</composition_directive>`,
+
+    macro: `<composition_directive type="MACRO">
+MANDATORY: Extreme close-up macro photography.
+- Fill 80-90% of the frame with the product — show intricate surface details, textures, labels, and micro-features.
+- Ultra-shallow depth of field (f/2.0 or wider) — razor-sharp focus on the product surface, everything else melts into creamy bokeh.
+- Show material micro-texture: fabric weave, plastic grain, metal brushing, glass refraction.
+- Camera distance: extremely close, as if using a dedicated macro lens.
+- No full product silhouette — this is about DETAIL, not overview.
+</composition_directive>`,
+
+    flat_lay: `<composition_directive type="FLAT_LAY">
+MANDATORY: Strict top-down overhead flat lay composition.
+- Camera angle: EXACTLY 90 degrees from above, looking straight down. No perspective distortion.
+- The product lies flat on the surface, shot from directly above.
+- Geometric alignment: the product is centered with optional styling props arranged symmetrically around it.
+- Even, shadowless overhead lighting to minimize depth perception.
+- Clean, organized layout typical of high-end Instagram flat lay photography.
+</composition_directive>`,
+
+    angled: `<composition_directive type="ANGLED_3/4">
+MANDATORY: Dynamic 3/4 angle perspective shot.
+- Camera positioned at approximately 30-45 degrees from the product's front face.
+- This angle reveals the product's three-dimensional volume — showing both the front label AND the side profile.
+- Elegant volumetric lighting with dramatic depth of field.
+- The product appears sculptural and premium from this dynamic viewing angle.
+</composition_directive>`,
+
+    still_life: `<composition_directive type="STILL_LIFE">
+MANDATORY: Classic front-facing product portrait (натюрморт).
+- Centered composition, eye-level camera aligned with the product's center of mass.
+- The product faces the camera directly — full label visibility, symmetrical framing.
+- Professional studio lighting with clean backdrop.
+- Standard e-commerce product hero shot.
+</composition_directive>`
+  };
+
+  const compositionDirective = COMPOSITION_DIRECTIVES[compositionId] || COMPOSITION_DIRECTIVES.still_life;
 
   // Блок модели-человека: когда продавец хочет показать товар вместе с живой моделью
   const humanModelBlock = withHumanModel && humanModelPrompt ? `
@@ -809,6 +863,8 @@ ${category.materials.trim()}
 
 ${category.lighting.trim()}
 
+${compositionDirective}
+
 ${humanModelBlock}
 
 <scene_composition>
@@ -816,7 +872,7 @@ ${humanModelBlock}
   - ENVIRONMENT & BACKGROUND: ${bgPrompt}
   - SPECIAL EFFECTS: ${effectPrompt || 'None'}
   - ASPECT RATIO TARGET: ${aspectRatio}
-  - CAMERA LENS: 85mm-100mm macro/portrait lens. Commercial photography framing.
+  - CAMERA: ${cameraAngle}. Commercial photography framing.
   - INTEGRATION: Ground the product naturally onto the surface with accurate contact shadows, ambient occlusion, and bounced environmental light. Do NOT let the product float.
 </scene_composition>
 
@@ -1092,6 +1148,7 @@ IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation
       biometricSeed,
       isProductMode = false,
       categoryId = 'default',
+      compositionId = 'still_life',
       withHumanModel = false,
       humanModelPrompt = '',
       humanModelRefImages,
@@ -1280,6 +1337,8 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
         categoryId,
         productPrompt: modelPreset,
         compositionPrompt: posePreset,
+        compositionId,
+        cameraAngle,
         bgPrompt: backgroundPreset,
         effectPrompt,
         aspectRatio,
