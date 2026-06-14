@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MODEL_PRESETS, POSE_PRESETS, BACKGROUND_PRESETS, ASPECT_RATIOS, CAMERA_ANGLES, getModelDetails, PRODUCT_CATEGORIES, PRODUCT_COMPOSITIONS, PRODUCT_BACKGROUNDS, PRODUCT_EFFECTS } from './data/presets';
+import { NATURAL_CARD_PROMPT, EPIC_CARD_PROMPT } from './data/cardPrompts';
 import ModelCalibrationWizard from './components/ModelCalibrationWizard';
 import GenderToggle from './components/GenderToggle';
 import DetailPanel from './components/DetailPanel';
@@ -1258,32 +1259,8 @@ function App() {
 
     try {
       // ── REVE MARKETPLACE CARD PROMPT ────────────────────────────
-      // Используем переданное фото как reference image (remix)
-      // и просим Reve сгенерировать полноценную карточку маркетплейса
-      const reveStyle = quickCardStyle === 'epic'
-        ? 'dark cinematic background with deep dark gradient (#0a0a15), subtle golden light beams, dramatic shadows'
-        : 'clean premium lifestyle background, soft warm cream (#faf8f5), natural shadows, minimalist aesthetic';
-
-      const revePrompt = `Create a complete, professional Russian marketplace product card (Wildberries/Ozon style, 3:4 ratio).
-
-STYLE: ${reveStyle}
-
-LAYOUT:
-- Product photo prominently placed right-center (55% of card width)
-- Left side and top: text and design elements
-- Realistic contact shadows under the product
-
-TEXT (all in RUSSIAN — generate realistic text based on the visible product):
-- Large headline (H1): 2-3 word product name in bold (e.g. ПОДУШКА ДЛЯ ШЕИ)
-- Subtitle: one-line tagline describing benefit (e.g. Комфорт в каждой поездке)
-- 3-4 feature pill badges with small icons: key product features (e.g. Мягкая фактура | Поддержка шеи | Компактный)
-- Optional: relevant lifestyle props that match the product category
-
-QUALITY:
-- Photorealistic, studio-quality render
-- All text must be perfectly legible and correctly spelled in Russian
-- NO watermarks, NO frame, NO border
-- The card should look like a premium marketplace listing hero image`;
+      // Используем профессиональные промпты из файлов промптов
+      const revePrompt = quickCardStyle === 'epic' ? EPIC_CARD_PROMPT : NATURAL_CARD_PROMPT;
 
       const resp = await fetch('/api/reve-edit', {
         method: 'POST',
@@ -1292,7 +1269,7 @@ QUALITY:
           action: 'remix',
           prompt: revePrompt,
           imageBase64: generatedImage,
-          strength: 0.65,
+          strength: 0.72,
         }),
       });
 

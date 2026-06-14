@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════
-   SmartCardEditor v2 — Premium Dark UI
-   Bounding boxes + hover highlight + scanning animation
+   SmartCardEditor v3 — Premium Dark UI + Layers Panel
+   Two-column layout: Canvas (left) + Layers (right)
    ═══════════════════════════════════════════════════════════════ */
 
 .sce-overlay {
@@ -18,7 +18,7 @@
 
 .sce-container {
   width: 100%;
-  max-width: 1100px;
+  max-width: 1400px;
   height: 95vh;
   display: flex;
   flex-direction: column;
@@ -34,13 +34,13 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 14px 20px;
   border-bottom: 1px solid rgba(255,255,255,0.05);
   background: rgba(0,0,0,0.3);
   flex-shrink: 0;
   gap: 12px;
 }
-.sce-header-left { display: flex; flex-direction: column; gap: 4px; }
+.sce-header-left { display: flex; flex-direction: column; gap: 3px; }
 .sce-logo { font-size: 15px; font-weight: 600; color: #fff; }
 .sce-subtitle { font-size: 12px; color: rgba(255,255,255,0.4); }
 .sce-header-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -54,7 +54,7 @@
   overflow: hidden;
 }
 .sce-mode-btn {
-  padding: 8px 12px;
+  padding: 7px 12px;
   font-size: 13px;
   font-weight: 500;
   color: rgba(255,255,255,0.5);
@@ -73,7 +73,7 @@
 
 /* Buttons */
 .sce-icon-btn {
-  padding: 8px 12px; font-size: 12px;
+  padding: 7px 12px; font-size: 12px;
   color: rgba(255,255,255,0.6);
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
@@ -91,7 +91,14 @@
 }
 .sce-close-btn:hover { color: #fff; background: rgba(255,60,60,0.15); }
 
-/* ── WORKSPACE ──────────────────────────── */
+/* ── MAIN — Two-column layout ──────────── */
+.sce-main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ── LEFT: WORKSPACE ───────────────────── */
 .sce-workspace {
   flex: 1;
   display: flex;
@@ -101,6 +108,7 @@
   background: #050508;
   overflow: hidden;
   padding: 20px;
+  min-width: 0;
 }
 .sce-image-zone {
   position: relative;
@@ -134,7 +142,7 @@
   border: 2px solid transparent;
   border-radius: 6px;
   transition: border-color 0.15s, background-color 0.15s;
-  pointer-events: none; /* Пусть клики проходят через bbox-layer */
+  pointer-events: none;
 }
 
 .sce-bbox.hovered {
@@ -236,7 +244,7 @@
 }
 @keyframes sce-spin { to { transform: rotate(360deg); } }
 
-/* ── FLOATING POPUP ─────────────────────── */
+/* ── FLOATING POPUP (brush mode) ───────── */
 .sce-popup {
   position: absolute;
   z-index: 30;
@@ -275,30 +283,7 @@
   50%      { opacity: 0.3; }
 }
 
-/* Action Buttons */
-.sce-popup-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
-.sce-action-btn {
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 8px;
-  color: rgba(255,255,255,0.85);
-  font-size: 12px; font-weight: 500;
-  cursor: pointer; transition: all 0.15s;
-}
-.sce-action-btn:hover {
-  background: rgba(99,179,255,0.1);
-  border-color: rgba(99,179,255,0.25);
-  color: #fff;
-  transform: translateY(-1px);
-}
-.sce-action-icon { font-size: 15px; }
-
 /* Input Area */
-.sce-popup-input-area { display: flex; flex-direction: column; gap: 8px; }
-.sce-action-label { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.9); }
-.sce-action-label.sce-danger { color: #ff6b6b; }
 .sce-edit-input {
   width: 100%;
   background: rgba(0,0,0,0.3);
@@ -311,32 +296,254 @@
   resize: none;
   transition: border-color 0.2s;
   line-height: 1.4;
+  box-sizing: border-box;
 }
 .sce-edit-input:focus { outline: none; border-color: rgba(99,179,255,0.4); }
 .sce-edit-input::placeholder { color: rgba(255,255,255,0.25); }
-.sce-remove-desc { font-size: 12px; color: rgba(255,255,255,0.45); margin: 0; line-height: 1.5; }
+.sce-remove-desc { font-size: 12px; color: rgba(255,255,255,0.45); margin: 4px 0 0; line-height: 1.5; }
 
 /* Footer */
-.sce-popup-footer { display: flex; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.sce-popup-footer { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; }
 .sce-back-btn {
-  padding: 8px 12px; font-size: 12px;
+  padding: 7px 12px; font-size: 12px;
   color: rgba(255,255,255,0.5);
   background: none; border: 1px solid rgba(255,255,255,0.08);
   border-radius: 7px; cursor: pointer; transition: all 0.15s;
 }
 .sce-back-btn:hover { color: #fff; background: rgba(255,255,255,0.05); }
 .sce-submit-btn {
-  flex: 1; padding: 8px 16px; font-size: 13px; font-weight: 600;
+  flex: 1; padding: 7px 16px; font-size: 13px; font-weight: 600;
   color: #fff;
   background: linear-gradient(135deg, #3b82f6, #2563eb);
   border: none; border-radius: 7px; cursor: pointer; transition: all 0.2s;
 }
 .sce-submit-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(59,130,246,0.3); }
 .sce-submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.sce-danger-btn { background: linear-gradient(135deg, #ef4444, #dc2626); }
-.sce-danger-btn:hover { box-shadow: 0 4px 16px rgba(239,68,68,0.3); }
+.sce-danger { color: #ff6b6b !important; }
+.sce-danger-btn { background: linear-gradient(135deg, #ef4444, #dc2626) !important; }
+.sce-danger-btn:hover { box-shadow: 0 4px 16px rgba(239,68,68,0.3) !important; }
 
-/* ── FOOTER ─────────────────────────────── */
+/* ═══════════════════════════════════════════
+   RIGHT: LAYERS PANEL
+   ═══════════════════════════════════════════ */
+
+.sce-layers-panel {
+  width: 300px;
+  min-width: 280px;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(8, 8, 14, 0.95);
+  border-left: 1px solid rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+
+.sce-layers-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+
+.sce-layers-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.sce-layers-count {
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.04);
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+
+.sce-layers-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+.sce-layers-list::-webkit-scrollbar { width: 4px; }
+.sce-layers-list::-webkit-scrollbar-track { background: transparent; }
+.sce-layers-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+/* Scanning state in layers */
+.sce-layers-scanning {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 16px;
+  color: rgba(255,255,255,0.5);
+  font-size: 13px;
+}
+.sce-mini-spinner {
+  width: 18px; height: 18px;
+  border: 2px solid rgba(99,179,255,0.15);
+  border-radius: 50%;
+  border-top-color: #63b3ff;
+  animation: sce-spin 0.8s linear infinite;
+}
+
+/* Empty state */
+.sce-layers-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 40px 16px;
+  color: rgba(255,255,255,0.4);
+  font-size: 13px;
+  text-align: center;
+}
+.sce-rescan-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+  color: #63b3ff;
+  background: rgba(99,179,255,0.08);
+  border: 1px solid rgba(99,179,255,0.2);
+  border-radius: 6px;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: all 0.2s;
+}
+.sce-rescan-btn:hover {
+  background: rgba(99,179,255,0.15);
+  color: #fff;
+}
+
+/* ── LAYER ITEM ─────────────────────────── */
+.sce-layer-item-wrap {
+  margin-bottom: 2px;
+}
+
+.sce-layer-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+  position: relative;
+}
+
+.sce-layer-item:hover,
+.sce-layer-item.hovered {
+  background: rgba(99, 179, 255, 0.04);
+  border-color: rgba(99, 179, 255, 0.1);
+}
+
+.sce-layer-item.selected {
+  background: rgba(99, 179, 255, 0.08);
+  border-color: rgba(99, 179, 255, 0.25);
+}
+
+.sce-layer-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 22px;
+  text-align: center;
+}
+
+.sce-layer-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255,255,255,0.8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sce-layer-item.selected .sce-layer-name {
+  color: #fff;
+}
+
+.sce-layer-eye {
+  font-size: 12px;
+  opacity: 0.3;
+  flex-shrink: 0;
+  transition: opacity 0.2s;
+}
+.sce-layer-item:hover .sce-layer-eye,
+.sce-layer-item.selected .sce-layer-eye {
+  opacity: 0.6;
+}
+
+/* ── LAYER INLINE EDITOR ───────────────── */
+.sce-layer-editor {
+  overflow: hidden;
+  padding: 0 8px;
+}
+
+.sce-layer-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 8px 4px;
+}
+
+.sce-layer-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 7px;
+  color: rgba(255,255,255,0.8);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.sce-layer-action-btn:hover {
+  background: rgba(99,179,255,0.1);
+  border-color: rgba(99,179,255,0.25);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.sce-layer-edit-form {
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sce-layer-edit-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.9);
+}
+
+.sce-layer-edit-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+/* ── LAYERS FOOTER ──────────────────────── */
+.sce-layers-footer {
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0;
+}
+
+.sce-layers-tip {
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  line-height: 1.5;
+}
+
+/* ── MAIN FOOTER ───────────────────────── */
 .sce-footer {
   padding: 12px 20px;
   border-top: 1px solid rgba(255,255,255,0.04);
@@ -351,10 +558,18 @@
 
 /* ── MOBILE ─────────────────────────────── */
 @media (max-width: 768px) {
-  .sce-container { height: 100vh; border-radius: 0; }
+  .sce-container { height: 100vh; border-radius: 0; max-width: 100%; }
+  .sce-main { flex-direction: column; }
+  .sce-layers-panel {
+    width: 100%;
+    max-width: 100%;
+    min-width: unset;
+    max-height: 35vh;
+    border-left: none;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
   .sce-header { flex-wrap: wrap; gap: 8px; }
-  .sce-popup { width: 250px; }
-  .sce-popup-actions { grid-template-columns: 1fr; }
   .sce-workspace { padding: 10px; }
   .sce-footer { flex-direction: column; gap: 4px; text-align: center; }
+  .sce-layer-actions { grid-template-columns: 1fr; }
 }

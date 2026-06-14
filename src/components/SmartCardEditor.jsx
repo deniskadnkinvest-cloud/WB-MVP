@@ -3,14 +3,28 @@ import { motion, AnimatePresence } from 'framer-motion';
 import './SmartCardEditor.css';
 
 // ═══════════════════════════════════════════════════════════════
-//  SmartCardEditor v2 — Умный редактор с автодетекцией элементов
+//  SmartCardEditor v3 — Редактор с панелью слоёв
 //  Gemini Vision определяет все элементы + bounding boxes.
-//  Hover → подсветка элемента. Click → попап редактирования.
+//  Справа — панель слоёв. Hover/Click → подсветка + редактирование.
 // ═══════════════════════════════════════════════════════════════
 
 const EDIT_MODES = {
   SELECT: 'select',
   BRUSH:  'brush',
+};
+
+// Иконка слоя по имени элемента
+const getLayerIcon = (name) => {
+  const n = (name || '').toLowerCase();
+  if (n.includes('заголов') || n.includes('headline')) return '🔤';
+  if (n.includes('подзагол') || n.includes('subtitle') || n.includes('текст')) return '📝';
+  if (n.includes('бейдж') || n.includes('badge') || n.includes('pill') || n.includes('характеристик')) return '🏷️';
+  if (n.includes('фото') || n.includes('товар') || n.includes('product') || n.includes('изображ')) return '📦';
+  if (n.includes('фон') || n.includes('background')) return '🖼️';
+  if (n.includes('иконк') || n.includes('icon')) return '⭐';
+  if (n.includes('тень') || n.includes('shadow') || n.includes('декор') || n.includes('эффект')) return '🎨';
+  if (n.includes('цена') || n.includes('price')) return '💰';
+  return '◆';
 };
 
 const QUICK_ACTIONS = [
@@ -112,7 +126,7 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
   // ── Mouse handlers (SELECT mode) ─────────────────────────────
   const handleMouseMove = (e) => {
     if (mode !== EDIT_MODES.SELECT) return;
-    if (rafRef.current) return; // skip if pending
+    if (rafRef.current) return;
     const clientX = e.clientX;
     const clientY = e.clientY;
     rafRef.current = requestAnimationFrame(() => {
@@ -228,7 +242,6 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
       const ry = (ey / 100) * mc.height;
       const rw = (ew / 100) * mc.width;
       const rh = (eh / 100) * mc.height;
-      // Скругленный прямоугольник для маски
       const r = Math.min(rw, rh) * 0.08;
       ctx.beginPath();
       ctx.moveTo(rx + r, ry);
@@ -298,17 +311,19 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
     a.click();
   };
 
-  // ── Вычисляем позицию попапа для выбранного элемента ─────────
-  const getPopupPos = () => {
-    if (selectedIdx === null || !elements[selectedIdx] || !imageRef.current) return {};
-    const [ex, ey, ew, eh] = elements[selectedIdx].bbox;
-    const img = imageRef.current;
-    const px = ((ex + ew) / 100) * img.offsetWidth + 12;
-    const py = ((ey) / 100) * img.offsetHeight;
-    return {
-      left: Math.min(px, img.offsetWidth - 280),
-      top: Math.max(py, 10),
-    };
+  // ── Клик по слою в панели слоёв ─────────────────────────────
+  const handleLayerClick = (idx) => {
+    if (selectedIdx === idx) {
+      // Повторный клик — снимаем выделение
+      setSelectedIdx(null);
+      setSelectedAction(null);
+      setEditPrompt('');
+    } else {
+      setSelectedIdx(idx);
+      setSelectedAction(null);
+      setEditPrompt('');
+      setMode(EDIT_MODES.SELECT);
+    }
   };
 
   // ═════════════════════════════════════════════════════════════
@@ -324,9 +339,9 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
             <span className="sce-logo">✦ Умный Редактор</span>
             <span className="sce-subtitle">
               {isScanning ? '🔍 Сканирую элементы...' :
-               scanError ? '⚠️ Не удалось определить элементы. Используйте кисть или пересканируйте.' :
-               elements.length ? `Найдено ${elements.length} элементов — наведите и кликните` :
-               'Кликните на элемент для редактирования'}
+               scanError ? '⚠️ Не удалось определить элементы. Используйте кисть.' :
+               elements.length ? `Найдено ${elements.length} элементов` :
+               'Загрузка...'}
             </span>
           </div>
           <div className="sce-header-tools">
@@ -360,163 +375,223 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
           </div>
         </div>
 
-        {/* WORKSPACE */}
-        <div className="sce-workspace">
-          <div className={`sce-image-zone ${isProcessing ? 'processing' : ''}`}>
+        {/* MAIN CONTENT: Canvas + Layers Panel */}
+        <div className="sce-main">
 
-            {/* Картинка */}
-            <img
-              ref={imageRef}
-              src={imageUrl}
-              alt="Карточка"
-              className="sce-base-image"
-              draggable={false}
-              onLoad={() => setImgLoaded(true)}
-            />
+          {/* LEFT: Image workspace */}
+          <div className="sce-workspace">
+            <div className={`sce-image-zone ${isProcessing ? 'processing' : ''}`}>
 
-            {/* Bounding boxes overlay (SELECT mode) */}
-            {mode === EDIT_MODES.SELECT && imgLoaded && (
-              <div
-                className="sce-bbox-layer"
-                onMouseMove={handleMouseMove}
-                onMouseLeave={() => setHoveredIdx(null)}
-                onClick={handleClick}
-              >
-                {elements.map((el, i) => {
-                  const [ex, ey, ew, eh] = el.bbox;
-                  const isHovered = hoveredIdx === i;
-                  const isSelected = selectedIdx === i;
-                  return (
-                    <div key={i}
-                      className={`sce-bbox ${isHovered ? 'hovered' : ''} ${isSelected ? 'selected' : ''}`}
-                      style={{
-                        left: `${ex}%`, top: `${ey}%`,
-                        width: `${ew}%`, height: `${eh}%`,
-                      }}
-                    >
-                      {/* Метка элемента */}
-                      {(isHovered || isSelected) && (
-                        <div className="sce-bbox-label">
-                          {el.name}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Brush canvas */}
-            {mode === EDIT_MODES.BRUSH && (
-              <canvas
-                ref={maskCanvasRef}
-                className="sce-mask-canvas"
-                onMouseDown={startDrawing}
-                onMouseMove={moveDrawing}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
-                onTouchStart={startDrawing}
-                onTouchMove={(e) => { e.preventDefault(); moveDrawing(e); }}
-                onTouchEnd={stopDrawing}
+              {/* Картинка */}
+              <img
+                ref={imageRef}
+                src={imageUrl}
+                alt="Карточка"
+                className="sce-base-image"
+                draggable={false}
+                onLoad={() => setImgLoaded(true)}
               />
-            )}
 
-            {/* Scanning overlay */}
-            {isScanning && (
-              <div className="sce-scanning-overlay">
-                <div className="sce-scan-line" />
-                <span>🔍 Анализирую элементы карточки...</span>
+              {/* Bounding boxes overlay (SELECT mode) */}
+              {mode === EDIT_MODES.SELECT && imgLoaded && (
+                <div
+                  className="sce-bbox-layer"
+                  onMouseMove={handleMouseMove}
+                  onMouseLeave={() => setHoveredIdx(null)}
+                  onClick={handleClick}
+                >
+                  {elements.map((el, i) => {
+                    const [ex, ey, ew, eh] = el.bbox;
+                    const isHovered = hoveredIdx === i;
+                    const isSelected = selectedIdx === i;
+                    return (
+                      <div key={i}
+                        className={`sce-bbox ${isHovered ? 'hovered' : ''} ${isSelected ? 'selected' : ''}`}
+                        style={{
+                          left: `${ex}%`, top: `${ey}%`,
+                          width: `${ew}%`, height: `${eh}%`,
+                        }}
+                      >
+                        {(isHovered || isSelected) && (
+                          <div className="sce-bbox-label">
+                            {el.name}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Brush canvas */}
+              {mode === EDIT_MODES.BRUSH && (
+                <canvas
+                  ref={maskCanvasRef}
+                  className="sce-mask-canvas"
+                  onMouseDown={startDrawing}
+                  onMouseMove={moveDrawing}
+                  onMouseUp={stopDrawing}
+                  onMouseLeave={stopDrawing}
+                  onTouchStart={startDrawing}
+                  onTouchMove={(e) => { e.preventDefault(); moveDrawing(e); }}
+                  onTouchEnd={stopDrawing}
+                />
+              )}
+
+              {/* Scanning overlay */}
+              {isScanning && (
+                <div className="sce-scanning-overlay">
+                  <div className="sce-scan-line" />
+                  <span>🔍 Анализирую элементы карточки...</span>
+                </div>
+              )}
+
+              {/* Processing overlay */}
+              <AnimatePresence>
+                {isProcessing && (
+                  <motion.div className="sce-processing-overlay"
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <div className="sce-spinner" />
+                    <span>Reve перерисовывает элемент...</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* POPUP для brush mode */}
+              <AnimatePresence>
+                {brushPopup && mode === EDIT_MODES.BRUSH && !isProcessing && (
+                  <motion.div className="sce-popup" style={{ right: 20, top: 20, left: 'auto' }}
+                    initial={{ opacity: 0, scale: 0.85 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.85 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 25, mass: 0.5 }}>
+                    <div className="sce-popup-hint">
+                      <span className="sce-hint-dot" />
+                      <span>Область выделена — что изменить?</span>
+                    </div>
+                    <textarea className="sce-edit-input" placeholder="Опишите что изменить..."
+                      value={editPrompt} onChange={e => setEditPrompt(e.target.value)} autoFocus rows={2}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitEdit(); }}} />
+                    <div className="sce-popup-footer">
+                      <button className="sce-back-btn" onClick={() => { setBrushPopup(false); setPaths([]); }}>← Сбросить</button>
+                      <button className="sce-submit-btn" onClick={handleSubmitEdit}
+                        disabled={!editPrompt.trim()}>✨ Применить</button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+
+          {/* RIGHT: Layers Panel */}
+          <div className="sce-layers-panel">
+            <div className="sce-layers-header">
+              <span className="sce-layers-title">📋 Слои</span>
+              <span className="sce-layers-count">
+                {isScanning ? '...' : `${elements.length} элементов`}
+              </span>
+            </div>
+
+            <div className="sce-layers-list">
+              {isScanning && (
+                <div className="sce-layers-scanning">
+                  <div className="sce-mini-spinner" />
+                  <span>Сканируем слои...</span>
+                </div>
+              )}
+
+              {!isScanning && elements.length === 0 && !scanError && (
+                <div className="sce-layers-empty">
+                  <span>🔍</span>
+                  <span>Элементы не найдены</span>
+                  <button className="sce-rescan-btn" onClick={scanElements}>Сканировать</button>
+                </div>
+              )}
+
+              {!isScanning && scanError && (
+                <div className="sce-layers-empty">
+                  <span>⚠️</span>
+                  <span>Ошибка сканирования</span>
+                  <button className="sce-rescan-btn" onClick={scanElements}>Повторить</button>
+                </div>
+              )}
+
+              {elements.map((el, i) => {
+                const isSelected = selectedIdx === i;
+                const isHovered = hoveredIdx === i;
+                return (
+                  <div key={i} className="sce-layer-item-wrap">
+                    <div
+                      className={`sce-layer-item ${isSelected ? 'selected' : ''} ${isHovered ? 'hovered' : ''}`}
+                      onClick={() => handleLayerClick(i)}
+                      onMouseEnter={() => setHoveredIdx(i)}
+                      onMouseLeave={() => { if (hoveredIdx === i) setHoveredIdx(null); }}
+                    >
+                      <span className="sce-layer-icon">{getLayerIcon(el.name)}</span>
+                      <span className="sce-layer-name">{el.name}</span>
+                      <span className="sce-layer-eye">👁</span>
+                    </div>
+
+                    {/* Inline editor for selected layer */}
+                    <AnimatePresence>
+                      {isSelected && !isProcessing && mode === EDIT_MODES.SELECT && (
+                        <motion.div className="sce-layer-editor"
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ type: 'spring', stiffness: 400, damping: 30, mass: 0.5 }}>
+
+                          {!selectedAction && (
+                            <div className="sce-layer-actions">
+                              {QUICK_ACTIONS.map(a => (
+                                <button key={a.id} className="sce-layer-action-btn"
+                                  onClick={(e) => { e.stopPropagation(); setSelectedAction(a); if (a.id === 'remove') setEditPrompt('remove'); }}>
+                                  <span>{a.icon}</span>
+                                  <span>{a.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {selectedAction && selectedAction.id !== 'remove' && (
+                            <div className="sce-layer-edit-form">
+                              <div className="sce-layer-edit-label">{selectedAction.icon} {selectedAction.label}</div>
+                              <textarea className="sce-edit-input" placeholder={selectedAction.placeholder}
+                                value={editPrompt} onChange={e => setEditPrompt(e.target.value)} autoFocus rows={2}
+                                onClick={e => e.stopPropagation()}
+                                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitEdit(); }}} />
+                              <div className="sce-layer-edit-footer">
+                                <button className="sce-back-btn" onClick={(e) => { e.stopPropagation(); setSelectedAction(null); }}>← Назад</button>
+                                <button className="sce-submit-btn" onClick={(e) => { e.stopPropagation(); handleSubmitEdit(); }}
+                                  disabled={!editPrompt.trim()}>✨ Применить</button>
+                              </div>
+                            </div>
+                          )}
+
+                          {selectedAction?.id === 'remove' && (
+                            <div className="sce-layer-edit-form">
+                              <div className="sce-layer-edit-label sce-danger">🗑️ Убрать «{el.name}»?</div>
+                              <p className="sce-remove-desc">ИИ уберёт элемент и заполнит область фоном</p>
+                              <div className="sce-layer-edit-footer">
+                                <button className="sce-back-btn" onClick={(e) => { e.stopPropagation(); setSelectedAction(null); }}>← Отмена</button>
+                                <button className="sce-submit-btn sce-danger-btn" onClick={(e) => { e.stopPropagation(); handleSubmitEdit(); }}>🗑️ Убрать</button>
+                              </div>
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Brush fallback */}
+            <div className="sce-layers-footer">
+              <div className="sce-layers-tip">
+                💡 Не нашли нужный элемент? Переключитесь на кисть ✒ и выделите вручную.
               </div>
-            )}
-
-            {/* Processing overlay */}
-            <AnimatePresence>
-              {isProcessing && (
-                <motion.div className="sce-processing-overlay"
-                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                  <div className="sce-spinner" />
-                  <span>Reve перерисовывает элемент...</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* POPUP для выбранного элемента (SELECT mode) */}
-            <AnimatePresence>
-              {selectedIdx !== null && !isProcessing && mode === EDIT_MODES.SELECT && (
-                <motion.div className="sce-popup" style={getPopupPos()}
-                  initial={{ opacity: 0, scale: 0.85, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.85, y: 10 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 25, mass: 0.5 }}>
-
-                  <div className="sce-popup-hint">
-                    <span className="sce-hint-dot" />
-                    <span>{elements[selectedIdx]?.name || 'Элемент'}</span>
-                  </div>
-
-                  {!selectedAction && (
-                    <div className="sce-popup-actions">
-                      {QUICK_ACTIONS.map(a => (
-                        <button key={a.id} className="sce-action-btn"
-                          onClick={() => { setSelectedAction(a); if (a.id === 'remove') setEditPrompt('remove'); }}>
-                          <span className="sce-action-icon">{a.icon}</span>
-                          <span>{a.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-
-                  {selectedAction && selectedAction.id !== 'remove' && (
-                    <div className="sce-popup-input-area">
-                      <div className="sce-action-label">{selectedAction.icon} {selectedAction.label}</div>
-                      <textarea className="sce-edit-input" placeholder={selectedAction.placeholder}
-                        value={editPrompt} onChange={e => setEditPrompt(e.target.value)} autoFocus rows={2}
-                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitEdit(); }}} />
-                      <div className="sce-popup-footer">
-                        <button className="sce-back-btn" onClick={() => setSelectedAction(null)}>← Назад</button>
-                        <button className="sce-submit-btn" onClick={handleSubmitEdit}
-                          disabled={!editPrompt.trim()}>✨ Применить</button>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedAction?.id === 'remove' && (
-                    <div className="sce-popup-input-area">
-                      <div className="sce-action-label sce-danger">🗑️ Убрать «{elements[selectedIdx]?.name}»?</div>
-                      <p className="sce-remove-desc">ИИ уберёт элемент и заполнит область фоном</p>
-                      <div className="sce-popup-footer">
-                        <button className="sce-back-btn" onClick={() => setSelectedAction(null)}>← Отмена</button>
-                        <button className="sce-submit-btn sce-danger-btn" onClick={handleSubmitEdit}>🗑️ Убрать</button>
-                      </div>
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* POPUP для brush mode */}
-            <AnimatePresence>
-              {brushPopup && mode === EDIT_MODES.BRUSH && !isProcessing && (
-                <motion.div className="sce-popup" style={{ right: 20, top: 20, left: 'auto' }}
-                  initial={{ opacity: 0, scale: 0.85 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.85 }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 25, mass: 0.5 }}>
-                  <div className="sce-popup-hint">
-                    <span className="sce-hint-dot" />
-                    <span>Область выделена — что изменить?</span>
-                  </div>
-                  <textarea className="sce-edit-input" placeholder="Опишите что изменить..."
-                    value={editPrompt} onChange={e => setEditPrompt(e.target.value)} autoFocus rows={2}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmitEdit(); }}} />
-                  <div className="sce-popup-footer">
-                    <button className="sce-back-btn" onClick={() => { setBrushPopup(false); setPaths([]); }}>← Сбросить</button>
-                    <button className="sce-submit-btn" onClick={handleSubmitEdit}
-                      disabled={!editPrompt.trim()}>✨ Применить</button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            </div>
           </div>
         </div>
 
@@ -524,7 +599,7 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
         <div className="sce-footer">
           <span className="sce-footer-tip">
             {mode === EDIT_MODES.SELECT
-              ? '💡 Наведите мышку на элемент — он подсветится. Кликните чтобы редактировать.'
+              ? '💡 Выберите слой справа или наведите мышку на элемент на картинке.'
               : '💡 Закрасьте область кистью, затем опишите что изменить. Ctrl+Z — отменить.'}
           </span>
           <span className="sce-shortcut-hint">Esc — закрыть · Ctrl+Z — отменить</span>
