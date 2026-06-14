@@ -67,9 +67,11 @@ async function saveGenerationLog({ userId, success, imageUrl, error, reqBody, du
 // ═══════════════════════════════════════════════════════════════════
 // SKIN ULTRA-REALISM SYSTEM PROMPT (применяется ГЛОБАЛЬНО)
 // ═══════════════════════════════════════════════════════════════════
-const SKIN_REALISM_PROMPT = `SKIN & FACE ULTRA-REALISM DIRECTIVE (MANDATORY):
-Render skin with extreme photographic authenticity: authentic pores, subtle texture variations, fine lines, micro-cracks, natural asymmetry, barely visible scars, vellus hair, and genuine surface irregularities. Render realistic skin material response — separation of matte and oily zones, natural specularity and micro-shadows — with zero smoothing, softening, or plastic artifacts. Correct only elements that appear broken or AI-distorted, while fully preserving subject identity. STRICTLY preserve the original color grading unchanged.
-Render eyes with high micro-detail fidelity: sharp iris texture, natural radial patterns, subtle chromatic variations, and correct subsurface scattering. Render eyelids, lashes, and tear ducts with anatomical precision — exact lash separation, natural moisture level, micro-shadows, and realistic translucency. Preserve genuine asymmetry. Avoid artificial glow, over-sharpening, and plastic shine.
+const SKIN_REALISM_PROMPT = `SKIN & FACE REALISM DIRECTIVE (MANDATORY):
+Generate highly realistic, authentic human skin texture typical of high-end unedited commercial photography.
+The skin must have natural pores, subtle imperfections, and realistic lighting response without looking overly retouched or plastic.
+DO NOT over-exaggerate flaws, scars, micro-cracks, or vellus hair. Avoid "AI grunge" or excessive hyper-realism. The face must look naturally beautiful, healthy, and biologically authentic.
+Eyes must have natural reflections. Avoid any artificial AI glow, over-sharpening, or plastic shine.
 The final image must be INDISTINGUISHABLE from a real professional photograph taken by a human photographer.`;
 
 const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, backgroundPreset, aspectRatio, hasMultipleGarments, hasModelRef, isCalibration }) => {
