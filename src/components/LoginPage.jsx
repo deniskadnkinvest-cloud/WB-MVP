@@ -25,7 +25,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showBrowserHint] = useState(false);
+
 
   const [showEmailForm, setShowEmailForm] = useState(false);
 
@@ -245,13 +245,6 @@ export default function LoginPage() {
         )}
 
 
-        {showBrowserHint && (
-          <div className="inapp-banner" style={{ borderColor: '#4285F4' }}>
-            <span className="inapp-banner-icon">🌐</span>
-            <div className="inapp-banner-text"><p>Окно открывается в браузере. Если нет — скопируйте ссылку.</p></div>
-          </div>
-        )}
-
         {/* ═══════════════════════════════════════════ */}
         {/*  TELEGRAM MINI APP: TG account + email     */}
         {/* ═══════════════════════════════════════════ */}
@@ -297,6 +290,7 @@ export default function LoginPage() {
                         onPaste={handleOtpPaste}
                         className="otp-input-box"
                         disabled={loading}
+                        autoComplete={idx === 0 ? 'one-time-code' : 'off'}
                       />
                     ))}
                   </div>

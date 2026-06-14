@@ -546,7 +546,7 @@
 }
 
 .result-section h3 {
-  font-family: 'Outfit', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 2px;
@@ -1219,7 +1219,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: 20px;
   color: var(--text-secondary);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.72rem;
   font-weight: 500;
   cursor: pointer;
@@ -1249,7 +1249,7 @@
   border: 1px solid rgba(212,175,55,0.25);
   border-radius: var(--r-sm);
   color: var(--text-secondary);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
@@ -1349,7 +1349,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-sm);
   color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.85rem;
   outline: none;
   transition: border-color var(--fast) ease;
@@ -1453,7 +1453,7 @@
   border: 1px dashed var(--border-subtle);
   color: var(--gold);
   font-size: 0.75rem;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   padding: 6px 14px;
   border-radius: 8px;
   cursor: pointer;
@@ -1479,7 +1479,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: 10px;
   color: var(--text-primary);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.8rem;
   padding: 10px 12px;
   resize: vertical;
@@ -1505,7 +1505,7 @@
   border: none;
   border-radius: 10px;
   padding: 10px 18px;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
@@ -1542,7 +1542,7 @@
   border: none;
   border-radius: 10px;
   padding: 10px 18px;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.8rem;
   font-weight: 700;
   cursor: pointer;
@@ -1593,7 +1593,7 @@
   border: none;
   border-radius: 12px;
   padding: 14px 18px;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.9rem;
   font-weight: 700;
   cursor: pointer;
@@ -2074,7 +2074,7 @@
   border: none;
   border-radius: 10px;
   padding: 10px 24px;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-weight: 700;
   font-size: 0.85rem;
   cursor: pointer;
@@ -2141,7 +2141,7 @@
   background: transparent;
   border: 1px solid var(--gold);
   color: var(--gold);
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.78rem;
   font-weight: 600;
   border-radius: var(--r-sm);
@@ -3859,7 +3859,7 @@ button[onclick*="signOut"],
 }
 
 .card-examples-modal {
-  background: var(--surface-primary);
+  background: var(--bg-elevated);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--r-xl);
   max-width: 800px;
@@ -4055,7 +4055,7 @@ button[onclick*="signOut"],
 
 /* ═══ CARD COUNT MODAL ═══ */
 .card-count-modal {
-  background: var(--surface-primary);
+  background: var(--bg-elevated);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--r-xl);
   padding: 28px;

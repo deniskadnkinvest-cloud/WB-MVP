@@ -43,6 +43,19 @@ const PLAN_CREDITS = {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
 
+  // ═══ SECURITY: Verify Telegram Webhook Secret Token ═══
+  // Telegram присылает заголовок X-Telegram-Bot-Api-Secret-Token
+  // с секретом, который мы задали при регистрации webhook через setWebhook.
+  // Без этой проверки любой может подделать вебхук и получить бесплатный тариф.
+  const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (WEBHOOK_SECRET) {
+    const incomingSecret = req.headers['x-telegram-bot-api-secret-token'];
+    if (incomingSecret !== WEBHOOK_SECRET) {
+      console.warn('[Webhook] ❌ Invalid or missing secret token — rejecting request');
+      return res.status(403).json({ ok: false, error: 'Forbidden' });
+    }
+  }
+
   const update = req.body;
 
   // Handle pre-checkout query (must answer within 10s)
@@ -173,7 +186,7 @@ export default async function handler(req, res) {
         text: `Привет${firstName ? ', ' + firstName : ''}! 👋\n\nДобро пожаловать в Селлер-Студию — ИИ-фотостудию для маркетплейсов.\n\n📸 Загрузите фото одежды → получите готовые кадры с моделью за 30 секунд.\n\nНажмите кнопку ниже, чтобы начать ↓`,
         reply_markup: {
           inline_keyboard: [[
-            { text: '🚀 Открыть Студию', web_app: { url: 'https://seller-studio-ai.ru' } }
+            { text: '🚀 Открыть Студию', web_app: { url: APP_URL } }
           ]]
         }
       }),

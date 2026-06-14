@@ -86,7 +86,7 @@ export default function TerminalOfMagic({ isActive, customMessage }) {
             <span className="terminal-dot red" />
             <span className="terminal-dot yellow" />
             <span className="terminal-dot green" />
-            <span className="terminal-title">PANX Neural Engine v2.0</span>
+            <span className="terminal-title">Seller Studio AI Engine v2.0</span>
             <motion.span
               className="terminal-pulse"
               animate={{ opacity: [0.3, 1, 0.3] }}

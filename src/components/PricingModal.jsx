@@ -75,8 +75,12 @@ export default function PricingModal({
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.1, duration: 0.4 }}
                   >
-                    {isBest && <div className="pricing-badge">⭐ Best Seller</div>}
-                    {isActive && <div className="pricing-badge pricing-badge--active">✓ Активен</div>}
+                    {isActive 
+                      ? <div className="pricing-badge pricing-badge--active">✓ Активен</div>
+                      : isBest 
+                        ? <div className="pricing-badge">⭐ Best Seller</div>
+                        : null
+                    }
 
                     <div className="pricing-card-emoji">{plan.emoji}</div>
                     <h3 className="pricing-card-name">{plan.label}</h3>

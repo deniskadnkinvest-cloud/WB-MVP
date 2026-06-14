@@ -12,7 +12,7 @@ import { alertOnError } from './_admin-alerts.js';
 
 ensureFirebaseAdmin();
 
-const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID || '1373290';
+const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID;
 const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY;
 const VITE_APP_URL = process.env.VITE_APP_URL || 'https://seller-studio-ai.ru';
 

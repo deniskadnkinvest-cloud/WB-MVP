@@ -56,7 +56,7 @@ function App() {
 
   // Product mode selections
   const [selectedProductCategory, setSelectedProductCategory] = useState(PRODUCT_CATEGORIES[0]);
-  const [selectedProductComposition, setSelectedProductComposition] = useState(PRODUCT_COMPOSITIONS[0]);
+  const [selectedProductCompositions, setSelectedProductCompositions] = useState([PRODUCT_COMPOSITIONS[0]]);
   const [selectedProductBg, setSelectedProductBg] = useState(PRODUCT_BACKGROUNDS[0]);
   const [selectedProductEffect, setSelectedProductEffect] = useState(PRODUCT_EFFECTS[0]);
   const [customProductEffectText, setCustomProductEffectText] = useState('');
@@ -487,7 +487,7 @@ function App() {
     'Худощавое': 'BODY TYPE: slim lean body with thin limbs, narrow bony shoulders, visible collarbones and wrist bones, very low body fat, elongated proportions, delicate frame. The person must look noticeably thin.',
     'Спортивное': 'BODY TYPE: athletic fit body with visibly toned muscles, defined arms and shoulders, flat toned stomach, healthy skin glow. Body of a person who exercises regularly. NOT overweight, NOT skinny.',
     'Среднее': 'BODY TYPE: average normal healthy body build, neither thin nor heavy, standard proportions, BMI 20-25. Natural everyday person, not a fitness model.',
-    'Полное': 'BODY TYPE: visibly overweight plus-size body, BMI 33+, large round belly, thick heavy arms and thighs, double chin, wide torso, US clothing size 2XL-3XL, heavy-set build with visible body fat and round full face. The person MUST look noticeably fat.',
+    'Полное': 'BODY TYPE: obese plus-size body, BMI 35+, large round fat belly, thick heavy neck, prominent double chin, chubby cheeks, wide thick torso, US clothing size 3XL, heavy-set build with visible body fat and round chubby face. The person MUST look explicitly fat and overweight, not slim.',
     'Мускулистое': 'BODY TYPE: muscular body with clearly visible muscle definition on arms, shoulders, chest and legs. Broad powerful shoulders, narrow waist (V-taper), low body fat 12-18%. Veins visible on forearms. Strong thick neck. The body MUST look like a fitness competitor or bodybuilder — NOT soft, NOT average, NOT overweight.',
 
     // ─── HAIR COLOR (specific tones, not generic words) ───
@@ -593,7 +593,7 @@ function App() {
       if (appMode === 'product') {
         // Режим предметной съемки товаров
         modelPrompt = customProductPrompt.trim() || selectedProductCategory.defaultPrompt;
-        posePrompt = customPoseText.trim() || selectedProductComposition.prompt;
+        posePrompt = customPoseText.trim() || selectedProductCompositions[0].prompt;
         bgPrompt = customProductBg.trim() || selectedProductBg.prompt;
         
         if (selectedProductEffect && selectedProductEffect.id !== 'none') {
@@ -603,7 +603,7 @@ function App() {
           if (effectPrompt) bgPrompt += `. Additionally: ${effectPrompt}`;
         }
         if (productWithModel) {
-          let humanPrompt = customProductModelPrompt.trim() || productModelPreset.prompt;
+          let humanPrompt = customProductModelPrompt.trim() || (productModelPreset.prompt + buildDetailString(productModelDetails));
           if (productSavedModelId) {
             const sm = myModels.find(m => m.id === productSavedModelId);
             if (sm) { humanPrompt = sm.prompt || humanPrompt; modelRefImages = sm.imageUrls || []; }
@@ -656,50 +656,104 @@ function App() {
 
       setProcessingMsg('🚀 Отправляем в Nano Banano 2...');
 
-      // Generate N variants in parallel based on user choice
-      const seeds = Array.from({ length: variantCount }, () =>
-        Math.random().toString(36).substring(2, 10).toUpperCase()
-      );
-      const buildBody = (seed) => JSON.stringify({
-        userId: user?.uid || null,
-        garmentImageUrls: garmentUrls, modelPreset: modelPrompt, posePreset: posePrompt,
-        cameraAngle: selectedCamera.prompt, backgroundPreset: bgPrompt,
-        aspectRatio: selectedRatio.id, modelReferenceImages: modelRefImages,
-        locationImages: locImages, customPoseText: customPoseText.trim() || undefined,
-        attributes: appMode === 'product' ? productModelDetails : modelDetails, isBeautyMode, biometricSeed: seed,
-        isProductMode: appMode === 'product',
-        categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
-        withHumanModel: appMode === 'product' && productWithModel,
-        humanModelPrompt: window.__humanModelPrompt || undefined,
-        humanModelRefImages: window.__humanModelRefImages || undefined,
-      });
+      let results = [];
+      let tasks = [];
 
-      const results = await Promise.all(seeds.map(seed =>
-        authFetch('/api/generate-image', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: buildBody(seed),
-        }).then(r => safeParseJSON(r)).catch(err => ({ success: false, error: err.message }))
-      ));
+      if (appMode === 'product' && !customPoseText.trim()) {
+        // Множественная генерация для каждой выбранной композиции в предметке
+        selectedProductCompositions.forEach(comp => {
+          for (let i = 0; i < variantCount; i++) {
+            const seed = Math.random().toString(36).substring(2, 10).toUpperCase();
+            tasks.push({ comp, seed, variantIndex: i + 1 });
+          }
+        });
+
+        const buildBodyProduct = (comp, seed) => JSON.stringify({
+          userId: user?.uid || null,
+          garmentImageUrls: garmentUrls, 
+          modelPreset: modelPrompt, 
+          posePreset: comp.prompt,
+          cameraAngle: selectedCamera.prompt, 
+          backgroundPreset: bgPrompt,
+          aspectRatio: selectedRatio.id, 
+          modelReferenceImages: modelRefImages,
+          locationImages: locImages, 
+          customPoseText: undefined,
+          attributes: productModelDetails, 
+          isBeautyMode, 
+          biometricSeed: seed,
+          isProductMode: true,
+          categoryId: selectedProductCategory.id,
+          withHumanModel: productWithModel,
+          humanModelPrompt: window.__humanModelPrompt || undefined,
+          humanModelRefImages: window.__humanModelRefImages || undefined,
+        });
+
+        results = await Promise.all(tasks.map(task =>
+          authFetch('/api/generate-image', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: buildBodyProduct(task.comp, task.seed),
+          })
+          .then(r => safeParseJSON(r))
+          .then(data => ({ ...data, task }))
+          .catch(err => ({ success: false, error: err.message, task }))
+        ));
+      } else {
+        // Обычный VTON режим или ручной ввод композиции
+        const seeds = Array.from({ length: variantCount }, () =>
+          Math.random().toString(36).substring(2, 10).toUpperCase()
+        );
+        tasks = seeds.map((seed, i) => ({ seed, variantIndex: i + 1 }));
+
+        const buildBody = (seed) => JSON.stringify({
+          userId: user?.uid || null,
+          garmentImageUrls: garmentUrls, modelPreset: modelPrompt, posePreset: posePrompt,
+          cameraAngle: selectedCamera.prompt, backgroundPreset: bgPrompt,
+          aspectRatio: selectedRatio.id, modelReferenceImages: modelRefImages,
+          locationImages: locImages, customPoseText: customPoseText.trim() || undefined,
+          attributes: appMode === 'product' ? productModelDetails : modelDetails, isBeautyMode, biometricSeed: seed,
+          isProductMode: appMode === 'product',
+          categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
+          withHumanModel: appMode === 'product' && productWithModel,
+          humanModelPrompt: window.__humanModelPrompt || undefined,
+          humanModelRefImages: window.__humanModelRefImages || undefined,
+        });
+
+        results = await Promise.all(tasks.map(task =>
+          authFetch('/api/generate-image', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: buildBody(task.seed),
+          })
+          .then(r => safeParseJSON(r))
+          .then(data => ({ ...data, task }))
+          .catch(err => ({ success: false, error: err.message, task }))
+        ));
+      }
+
       clearInterval(iv);
 
-      const successImages = results
-        .filter(d => d.success)
-        .map(d => d.imageUrl || d.imageBase64);
+      const successItems = results.filter(r => r.success);
+      if (successItems.length > 0) {
+        const firstSuccess = successItems[0];
+        refreshCreditsFromResponse(firstSuccess);
 
-      if (successImages.length > 0) {
-        // Кредиты уже списаны бэкендом — обновляем баланс из Firestore
-        const firstSuccess = results.find(d => d.success);
-        refreshCreditsFromResponse(firstSuccess || {});
+        const newImages = successItems.map(r => r.imageUrl || r.imageBase64);
+        setGeneratedImage(newImages[0]);
 
-        const VARIANT_LABELS = ['A', 'B', 'C', 'D'];
-        setGeneratedImage(successImages[0]);
         setImageHistory(prev => {
-          const h = [...prev, ...successImages.map((img, i) => ({ image: img, label: `🎨 Вариант ${VARIANT_LABELS[i] || (i + 1)}` }))];
-          setHistoryIndex(h.length - successImages.length);
+          const h = [...prev, ...successItems.map(r => {
+            const img = r.imageUrl || r.imageBase64;
+            const label = r.task.comp 
+              ? `🎨 ${r.task.comp.label} (${r.task.variantIndex})` 
+              : `🎨 Вариант ${r.task.variantIndex}`;
+            return { image: img, label };
+          })];
+          setHistoryIndex(h.length - newImages.length);
           return h;
         });
-        const pluralForm = successImages.length === 1 ? '' : (successImages.length < 5 ? 'а — листайте ◀▶' : ' — листайте ◀▶');
-        setStatusText(`Готово! ${successImages.length} вариант${pluralForm}`); setStatusType('success');
+
+        const pluralForm = newImages.length === 1 ? '' : (newImages.length < 5 ? 'а — листайте ◀▶' : ' — листайте ◀▶');
+        setStatusText(`Готово! ${newImages.length} вариант${pluralForm}`); setStatusType('success');
       }
       else { setStatusText(`Ошибка: ${results[0]?.details||results[0]?.error||'unknown'}`); setStatusType('error'); }
     } catch (err) { setStatusText(`Ошибка: ${err.message}`); setStatusType('error'); clearInterval(iv);
@@ -973,7 +1027,7 @@ function App() {
       if (appMode === 'product') {
         // Товарный режим
         modelPrompt = customProductPrompt.trim() || selectedProductCategory.defaultPrompt;
-        posePrompt = customPoseText.trim() || selectedProductComposition.prompt;
+        posePrompt = customPoseText.trim() || selectedProductCompositions[0].prompt;
         bgPrompt = customProductBg.trim() || selectedProductBg.prompt;
         
         if (selectedProductEffect && selectedProductEffect.id !== 'none') {
@@ -1358,7 +1412,7 @@ function App() {
         }
         // Модель-человек в фотосессии товаров
         if (productWithModel) {
-          let humanPrompt = customProductModelPrompt.trim() || productModelPreset.prompt;
+          let humanPrompt = customProductModelPrompt.trim() || (productModelPreset.prompt + buildDetailString(productModelDetails));
           if (productSavedModelId) {
             const sm = myModels.find(m => m.id === productSavedModelId);
             if (sm) { humanPrompt = sm.prompt || humanPrompt; modelRefImages = sm.imageUrls || []; }
@@ -2000,12 +2054,24 @@ function App() {
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.45,duration:0.5,ease:[0.16,1,0.3,1]}}>
           <div className="section-title"><span className="icon">📐</span> Композиция кадра</div>
           <div className="preset-grid">
-            {PRODUCT_COMPOSITIONS.map(p => (
-              <div key={p.id} className={`preset-card ${selectedProductComposition.id===p.id&&!customPoseText?'active':''}`}
-                onClick={() => { setSelectedProductComposition(p); setCustomPoseText(''); }}>
-                <span className="emoji">{p.emoji}</span><span className="label">{p.label}</span>
-              </div>
-            ))}
+            {PRODUCT_COMPOSITIONS.map(p => {
+              const isActive = selectedProductCompositions.some(c => c.id === p.id) && !customPoseText;
+              return (
+                <div key={p.id} className={`preset-card ${isActive ? 'active' : ''}`}
+                  onClick={() => {
+                    setCustomPoseText('');
+                    setSelectedProductCompositions(prev => {
+                      if (prev.some(c => c.id === p.id)) {
+                        if (prev.length <= 1) return prev;
+                        return prev.filter(c => c.id !== p.id);
+                      }
+                      return [...prev, p];
+                    });
+                  }}>
+                  <span className="emoji">{p.emoji}</span><span className="label">{p.label}</span>
+                </div>
+              );
+            })}
           </div>
           <div className="custom-variant-row">
             <input className="custom-variant-input" type="text" placeholder="Или опишите свою композицию: «Товар лежит на зеркальной поверхности под углом»"

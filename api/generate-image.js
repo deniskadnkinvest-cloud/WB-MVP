@@ -201,7 +201,7 @@ async function uploadBase64ToKie(base64DataUrl, apiKey, index = 0) {
   }
 }
 
-async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana-2") {
+async function executeKieTask(prompt, imageInputs = [], modelName = "gpt-image-2") {
   const rawKey = process.env.KIE_API_KEY;
   if (!rawKey) throw new Error("API key missing. Set KIE_API_KEY in .env");
   // Strip BOM, zero-width chars, and whitespace that PowerShell/editors inject
@@ -347,7 +347,7 @@ const DICT_FEMALE = {
   'Худощавое': '<BODY_OVERRIDE>TARGET: SLENDER PETITE FEMALE. Very thin feminine frame, delicate narrow shoulders, slender limbs, visible collarbones. Deform clothing to drape over a noticeably thin female body.</BODY_OVERRIDE>',
   'Спортивное': '<BODY_OVERRIDE>TARGET: FIT FEMALE / YOGA BODY. Toned feminine figure, subtle healthy muscle definition on arms and core. Maintain soft feminine curves and female breast contour. Adjust clothing for an active female fit.</BODY_OVERRIDE>',
   'Среднее': '<BODY_OVERRIDE>TARGET: AVERAGE NORMAL FEMALE. Standard healthy feminine proportions, natural female curves, soft body lines.</BODY_OVERRIDE>',
-  'Полное': '<BODY_OVERRIDE>TARGET: PLUS-SIZE FEMALE. Voluptuous curvy feminine figure, heavy-set. Full hips, thick feminine thighs, larger bust. Expand clothing heavily to naturally fit a confident plus-size woman (XXL).</BODY_OVERRIDE>',
+  'Полное': '<BODY_OVERRIDE>TARGET: OBESE PLUS-SIZE FEMALE. Very heavy-set, visibly fat body, thick heavy neck, prominent double chin, chubby cheeks, round chubby face, wide thick waist, large round belly, heavy arms, thick thighs. Expand all clothing extremely to fit a very heavy plus-size woman (US clothing size 3XL, BMI 35+). Do NOT make her waist slim or face thin. She must look explicitly fat.</BODY_OVERRIDE>',
   'Мускулистое': '<BODY_OVERRIDE>TARGET: STRONG FEMALE ATHLETE / CROSSFIT BUILD. Strictly retain FEMININE body structure. Defined abdominal muscles, strong toned female arms. ABSOLUTELY NO masculine chest, NO thick male neck. Deform clothing to fit a very muscular BIOLOGICAL WOMAN.</BODY_OVERRIDE>',
   'Брюнетка': '<HAIR_COLOR>Deep rich dark brunette brown female hair</HAIR_COLOR>',
   'Шатенка': '<HAIR_COLOR>Warm chestnut brown female hair</HAIR_COLOR>',
@@ -376,7 +376,7 @@ const DICT_MALE = {
   'Худощавое': '<BODY_OVERRIDE>TARGET: LEAN/SLIM MALE. Lanky boyish build, narrow shoulders, thin masculine arms, low body fat. Force clothing to drape loosely on a thin male frame.</BODY_OVERRIDE>',
   'Спортивное': '<BODY_OVERRIDE>TARGET: FIT ATHLETIC MALE. Gym-goer / swimmer physique, defined masculine chest and arms, flat core, broad shoulders. Reshape clothing to highlight athletic male contours.</BODY_OVERRIDE>',
   'Среднее': '<BODY_OVERRIDE>TARGET: AVERAGE MALE. Standard everyday male body, regular build, healthy proportions.</BODY_OVERRIDE>',
-  'Полное': '<BODY_OVERRIDE>TARGET: HEAVY-SET MALE. Stocky, large male frame, broad thick waist, visible belly, thick arms. Expand clothing heavily to fit a large male figure (XXL).</BODY_OVERRIDE>',
+  'Полное': '<BODY_OVERRIDE>TARGET: OBESE HEAVY-SET MALE. Visibly overweight fat man, thick heavy neck, prominent double chin, round chubby face, large portly belly, broad heavy waist, thick arms. Expand all clothing extremely to fit a very heavy male figure (US clothing size 3XL, BMI 35+). He must look explicitly fat.</BODY_OVERRIDE>',
   'Мускулистое': '<BODY_OVERRIDE>TARGET: HYPER-MUSCULAR MALE BODYBUILDER. Massive masculine build. Hyper-defined biceps, broad powerful shoulders (V-taper), thick masculine neck, heavy chest muscles. Stretch clothing extremely tightly across massive male muscles.</BODY_OVERRIDE>',
   'Брюнет': '<HAIR_COLOR>Deep rich dark brunette brown male hair</HAIR_COLOR>',
   'Шатен': '<HAIR_COLOR>Warm chestnut brown male hair</HAIR_COLOR>',
@@ -774,9 +774,12 @@ function buildProductPrompt({
   aspectRatio = '1:1',
   withHumanModel = false,
   humanModelPrompt = '',
-  isBeautyMode = false
+  isBeautyMode = false,
+  attributes = null
 }) {
   const category = CATEGORY_CONFIGS[categoryId] || CATEGORY_CONFIGS.default;
+  const gender = detectGender(humanModelPrompt);
+  const attrDirectives = attributes ? buildAttributeDirectives(attributes, gender) : '';
 
   // Блок модели-человека: когда продавец хочет показать товар вместе с живой моделью
   const humanModelBlock = withHumanModel && humanModelPrompt ? `
@@ -789,6 +792,10 @@ HUMAN MODEL PROFILE: "${humanModelPrompt}"
 - The model must naturally interact with the product: holding it, demonstrating it, using it, or presenting it.
 - The PRODUCT remains the HERO — the model is the SUPPORTING ACTOR. The product must be clearly visible, unobstructed, and prominently featured.
 - Do NOT let the model's hands, arms, or body obscure the product label, brand, or key visual features.
+
+${attrDirectives ? `<APPLIED_CHARACTERISTICS>
+${attrDirectives}
+</APPLIED_CHARACTERISTICS>` : ''}
 
 ${isBeautyMode ? SKIN_BEAUTY_PROMPT : SKIN_REALISM_PROMPT}
 
@@ -1156,7 +1163,7 @@ ABSOLUTE REQUIREMENTS:
 
 Return ONLY the edited photograph.`;
 
-        const resultUrl = await executeKieTask(editPrompt, [`data:${sourceData.mimeType};base64,${sourceData.base64str}`], 'nano-banana-2');
+        const resultUrl = await executeKieTask(editPrompt, [`data:${sourceData.mimeType};base64,${sourceData.base64str}`], 'gpt-image-2');
         console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Photo edit complete. Downloading result...`);
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error("Failed to download edited image");
@@ -1224,7 +1231,7 @@ Return ONLY the edited photograph.`;
         }
       }
       console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Отправляем калибровку в KIE.ai...`);
-      const resultUrl = await executeKieTask(calibPrompt, imageInputs, 'nano-banana-2');
+      const resultUrl = await executeKieTask(calibPrompt, imageInputs, 'gpt-image-2');
       console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Калибровка успешна. Downloading result...`);
       const dl = await downloadToBase64(resultUrl);
       if (!dl) throw new Error("Failed to download generated image");
@@ -1271,8 +1278,8 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
 
         const cardPrompt = cardStyle === 'epic' ? EPIC_CARD_PROMPT : NATURAL_CARD_PROMPT;
 
-        console.log(`🎴 [${elapsed()}s] Sending to KIE.ai nano-banana-2...`);
-        const resultUrl = await executeKieTask(cardPrompt, cardImageInputs, 'nano-banana-2');
+        console.log(`🎴 [${elapsed()}s] Sending to KIE.ai gpt-image-2...`);
+        const resultUrl = await executeKieTask(cardPrompt, cardImageInputs, 'gpt-image-2');
         console.log(`✅ [${elapsed()}s] Card design ready. Downloading...`);
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download card design from KIE.ai');
@@ -1304,7 +1311,8 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
         aspectRatio,
         withHumanModel,
         humanModelPrompt,
-        isBeautyMode
+        isBeautyMode,
+        attributes
       });
 
       let imageInputs = [];
@@ -1335,8 +1343,8 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
         }
       }
 
-      console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product Mode → KIE.ai (nano-banana-2), ${imageInputs.length} image(s), model=${withHumanModel}...`);
-      const resultUrl = await executeKieTask(productPromptText, imageInputs, 'nano-banana-2');
+      console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product Mode → KIE.ai (gpt-image-2), ${imageInputs.length} image(s), model=${withHumanModel}...`);
+      const resultUrl = await executeKieTask(productPromptText, imageInputs, 'gpt-image-2');
       console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product shot ready. Downloading...`);
       const dl = await downloadToBase64(resultUrl);
       if (!dl) throw new Error("Failed to download product image from KIE.ai");
@@ -1465,9 +1473,9 @@ ${skinPrompt}
 <trigger>FINAL EXECUTION: Generate the photorealistic render based strictly on the SCHEMA. Execute now.</trigger>
 </schema_generation_directive>`;
 
-    console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Отправляем запрос в KIE.ai (nano-banana-2)...`);
+    console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Отправляем запрос в KIE.ai (gpt-image-2)...`);
     
-    const resultUrl = await executeKieTask(promptText, imageInputs, 'nano-banana-2');
+    const resultUrl = await executeKieTask(promptText, imageInputs, 'gpt-image-2');
     console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Картинка сгенерирована. Downloading result...`);
     const dl = await downloadToBase64(resultUrl);
     if (!dl) throw new Error("Failed to download final generated image from KIE.ai");

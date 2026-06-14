@@ -34,7 +34,7 @@ const QUICK_ACTIONS = [
   { id: 'remove',     icon: '🗑️', label: 'Убрать элемент',   placeholder: '' },
 ];
 
-export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
+export default function SmartCardEditor({ imageUrl, onClose, onEdit, getAuthToken }) {
   const imageRef         = useRef(null);
   const maskCanvasRef    = useRef(null);
 
@@ -68,9 +68,14 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
     setIsScanning(true);
     setScanError(false);
     try {
+      console.log('[SmartCardEditor] Starting element scan, image length:', imageUrl.length);
+      const token = typeof getAuthToken === 'function' ? await getAuthToken() : null;
       const resp = await fetch('/api/generate-image', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           action: 'detect-elements',
           imageBase64: imageUrl,
@@ -81,9 +86,17 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit }) {
       if (resp.ok) {
         const data = await resp.json();
         if (signal?.aborted) return;
+        console.log('[SmartCardEditor] Scan response:', data.elements?.length || 0, 'elements');
         if (data.elements?.length) {
           setElements(data.elements);
+        } else {
+          console.warn('[SmartCardEditor] No elements detected');
+          setScanError(true);
         }
+      } else {
+        const errText = await resp.text().catch(() => 'unknown');
+        console.error('[SmartCardEditor] Scan HTTP error:', resp.status, errText.substring(0, 200));
+        setScanError(true);
       }
     } catch (err) {
       if (err.name === 'AbortError') return;
