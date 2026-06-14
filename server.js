@@ -16,6 +16,7 @@ import sendOtpHandler from './api/send-otp.js';
 import verifyOtpHandler from './api/verify-otp.js';
 import createTgSessionHandler from './api/create-tg-session.js';
 import completeTgAuthHandler from './api/complete-tg-auth.js';
+import reveEditHandler from './api/reve-edit.js';
 
 dotenv.config();
 
@@ -64,6 +65,10 @@ app.post('/api/create-tg-session', async (req, res) => {
 
 app.post('/api/complete-tg-auth', async (req, res) => {
   return completeTgAuthHandler(req, res);
+});
+
+app.post('/api/reve-edit', async (req, res) => {
+  return reveEditHandler(req, res);
 });
 
 // Dynamic Admin API Routing using unified router matching all paths starting with /api/admin
