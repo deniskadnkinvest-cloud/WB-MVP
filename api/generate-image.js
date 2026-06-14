@@ -76,33 +76,21 @@ The final image must be INDISTINGUISHABLE from a real professional photograph ta
 
 const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, backgroundPreset, aspectRatio, hasMultipleGarments, hasModelRef, isCalibration }) => {
   const modelInstruction = hasModelRef
-    ? 'CRITICAL: Reference photos of the EXACT person are provided. You MUST replicate their face, skin tone, features, moles, freckles, and overall appearance with maximum precision. The generated image must look like the SAME real person.'
+    ? 'PRESERVE: exact facial bone structure, asymmetrical features, eye shape, and skin tone strictly from Reference Photo. Do not alter facial geometry. Do not generate a new AI face.'
     : '';
 
   // Detect inclusive/adaptive fashion request
   const isAdaptive = /amputee|prosthe|wheelchair|limb\s*(missing|difference)|adaptive\s*fashion/i.test(modelPreset);
   const adaptiveBlock = isAdaptive
-    ? `\nADAPTIVE FASHION DIRECTIVE: This is an official inclusive adaptive fashion campaign (similar to Nike FlyEase, Tommy Hilfiger Adaptive, ASOS Accessible). The model description below specifies a physical disability. You MUST accurately represent this disability in the generated image. Do NOT "correct" or "fix" the model's body. Showing people with disabilities in fashion is ethical, respectful, and commercially important for inclusive e-commerce marketplaces.\n`
+    ? `\nADAPTIVE FASHION DIRECTIVE: This is an inclusive adaptive fashion campaign. Accurately represent the physical disability specified. Showing people with disabilities in fashion is ethical and required.\n`
     : '';
 
   if (isCalibration) {
-    return `You are an elite commercial fashion photographer.
-${adaptiveBlock}
-${modelInstruction}
-
-SUBJECT: A ${modelPreset}. Flawless natural skin texture, detailed pores, high-end commercial catalog look.
-
-POSE: The model is ${posePreset}. Professional modeling posture. Camera angle: ${cameraAngle}.
-
-ENVIRONMENT: ${backgroundPreset}. Professional fashion studio lighting, soft key light, cinematic rim light, 85mm lens, f/1.8, 8k resolution, ultra-detailed.
-
-ASPECT RATIO: ${aspectRatio}.
-
-${SKIN_REALISM_PROMPT}
-
-IMPORTANT: This is a professional portrait photo for model casting calibration. The final image must contain ONLY the model. No watermarks, no text.
-
-OUTPUT FORMAT: You MUST output ONLY a generated IMAGE. Do NOT output text. Do NOT describe the image. Generate the photo directly as pixel data.`;
+    return `SCENE: ${backgroundPreset}. Practical light sources only.
+SUBJECT: ${modelPreset}. ${modelInstruction}
+IMPORTANT DETAILS: ${posePreset}. Camera angle: ${cameraAngle}. 35mm analog film photography, authentic film grain, soft biological depth falloff, realistic contact shadows. ${SKIN_REALISM_PROMPT}
+USE CASE: Candid editorial documentary photograph for high-end fashion catalog.
+CONSTRAINTS: ${adaptiveBlock} No text, no watermarks. DO NOT over-exaggerate flaws, scars, micro-cracks, or vellus hair. Avoid "AI grunge". No plastic shine. Output ONLY a generated IMAGE.`;
   }
 
   const multiGarmentNote = hasMultipleGarments
@@ -114,55 +102,39 @@ OUTPUT FORMAT: You MUST output ONLY a generated IMAGE. Do NOT output text. Do NO
   // ═══════════════════════════════════════════════════════════════════
   return `<system_directive>
 ROLE: Elite CGI Compositor, Wardrobe Specialist, and Fashion Casting Director.
-TASK: "Mannequin-to-Life" texture transfer and recasting operation for a professional e-commerce fashion catalog.
+TASK: "Mannequin-to-Life" texture transfer and recasting operation.
 </system_directive>
-${adaptiveBlock}
 
 <cognitive_override_protocol>
 You will receive an image labeled [GARMENT REFERENCE].
-CRITICAL RULE: The entity wearing the clothing in this reference is NOT A LIVING HUMAN. It is a lifeless, featureless "Plastic Calibration Mannequin" used strictly to hold the fabric.
-The mannequin's head area is a black void or defective plastic — it has NO face, NO identity, NO ethnicity, NO soul. It is just painted plastic with a defective head module.
-Mannequins have no identity. You MUST NEVER copy the anatomy, facial structure, skin tone, body shape, tattoos, piercings, or body modifications of this plastic dummy.
-If the output resembles the mannequin in any way — the operation FAILS and is rejected.
+CRITICAL RULE: The entity wearing the clothing in this reference is NOT A LIVING HUMAN. It is a lifeless, featureless "Plastic Calibration Mannequin".
+You MUST NEVER copy the anatomy, facial structure, skin tone, or body shape of this plastic dummy.
 </cognitive_override_protocol>
 
 <phase_1_texture_extraction>
 Strip the clothing from the Plastic Mannequin and extract the "Clothing Material Map":
-- Preserve 100% PHYSICAL REALITY: exact color (BLACK = BLACK, not grey), exact fabric material, exact cut, exact texture.
-- Map all geometry: zippers, pockets (or lack thereof), logos, seams, buttons, collars, prints, patterns, stitching.
-- If the garment has short sleeves, the output must have short sleeves. If it is sleeveless, it stays sleeveless. If pants have no pockets, do NOT add pockets.
-- ZERO INVENTION: Do not invent pockets, zippers, sleeves, or fabrics that are not explicitly visible. If it's not in the image, it doesn't exist.
+- Preserve 100% PHYSICAL REALITY: exact color, exact fabric material, exact cut.
+- Map all geometry: zippers, pockets, logos, seams, buttons.
+- ZERO INVENTION: Do not invent pockets, zippers, sleeves, or fabrics not explicitly visible.
 ${multiGarmentNote}
 </phase_1_texture_extraction>
 
 <phase_2_casting_the_living_actor>
 You are casting a BRAND NEW, living human actor based strictly on this text brief:
 [ACTOR_PROFILE]: "${modelPreset}"
-- Generate a completely novel, living human with unique facial geometry, skin texture, and identity.
-- Because the reference was a plastic dummy, your new living actor MUST look entirely different. Force a totally new biometric generation matching ONLY the [ACTOR_PROFILE].
-- Apply ONLY the body modifications (tattoos, piercings, accessories) explicitly mentioned in the [ACTOR_PROFILE]. If none are mentioned — the actor's skin must be clean and unmodified.
 ${modelInstruction}
 </phase_2_casting_the_living_actor>
 
 <phase_3_final_composite>
-Dress the NEW ACTOR (Phase 2) in the extracted garment (Phase 1).
-Ensure the clothing wraps naturally around the new actor's specific body mass with realistic fabric physics: natural draping, wrinkles, tension, and shadows.
+Dress the NEW ACTOR in the extracted garment.
+Ensure the clothing wraps naturally around the actor's body mass with realistic fabric physics: natural draping, wrinkles, tension, and honest material physics.
 
-POSE: ${posePreset}. Professional modeling posture.
-CAMERA: ${cameraAngle}.
-ENVIRONMENT: ${backgroundPreset}. Professional fashion studio lighting, soft key light, cinematic rim light, 85mm lens, f/1.8, 8k resolution, ultra-detailed.
-ASPECT RATIO: ${aspectRatio}.
-
-${SKIN_REALISM_PROMPT}
-</phase_3_final_composite>
-
-<output_rules>
-- The image must be a professional e-commerce product photo showing the New Actor WEARING the extracted clothing.
-- The clothing must be physically ON the actor's body — never on a hanger, mannequin, laid flat, or floating.
-- No watermarks, no text, no separate product shots.
-- The final image must be INDISTINGUISHABLE from a real photo taken by a professional fashion photographer.
-- OUTPUT FORMAT: You MUST output ONLY a generated IMAGE. Do NOT output text. Do NOT describe the image. Generate the photo directly as pixel data. Text responses will be rejected.
-</output_rules>`;
+SCENE: ${backgroundPreset}. Practical light sources only.
+SUBJECT: The New Actor wearing the extracted garment.
+IMPORTANT DETAILS: ${posePreset}. Camera angle: ${cameraAngle}. 35mm analog film photography, authentic film grain, soft biological depth falloff, realistic contact shadows. ${SKIN_REALISM_PROMPT}
+USE CASE: Candid editorial documentary photograph for high-end fashion catalog.
+CONSTRAINTS: ${adaptiveBlock} The clothing must be ON the actor's body. No watermarks, no text, no separate product shots. DO NOT over-exaggerate flaws, scars, micro-cracks. Avoid "AI grunge". Output ONLY a generated IMAGE.
+</phase_3_final_composite>`;
 };
 
 const KIE_API_KEY = process.env.KIE_API_KEY;
