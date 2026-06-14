@@ -2264,26 +2264,52 @@ function App() {
         </div>
 
         {/* Селектор количества вариантов */}
-        <div className="variant-count-section">
-          <div className="variant-count-title">🎯 Количество вариантов</div>
-          <div className="variant-count-grid">
-            {[1, 2, 3, 4].map(n => (
-              <button
-                key={n}
-                className={`variant-count-btn ${variantCount === n ? 'active' : ''}`}
-                onClick={() => setVariantCount(n)}
-              >
-                <span className="variant-count-number">{n}</span>
-                <span className="variant-count-label">{n === 1 ? 'кадр' : (n < 5 ? 'кадра' : 'кадров')}</span>
-                <span className="variant-count-credits">{n} {n === 1 ? 'кредит' : (n < 5 ? 'кредита' : 'кредитов')}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        {(() => {
+          const compCount = (appMode === 'product' && !customPoseText.trim()) ? selectedProductCompositions.length : 1;
+          const totalShots = compCount * variantCount;
+          const totalCredits = totalShots;
+          return (
+            <div className="variant-count-section">
+              <div className="variant-count-title">🎯 Количество вариантов</div>
+              {compCount > 1 && (
+                <div style={{fontSize:'0.75rem',color:'var(--gold)',textAlign:'center',marginBottom:8,opacity:0.8}}>
+                  {compCount} композиц{compCount < 5 ? 'ии' : 'ий'} × {variantCount} вариант{variantCount === 1 ? '' : (variantCount < 5 ? 'а' : 'ов')} = <strong>{totalShots} кадр{totalShots === 1 ? '' : (totalShots < 5 ? 'а' : 'ов')}</strong>
+                </div>
+              )}
+              <div className="variant-count-grid">
+                {[1, 2, 3, 4].map(n => {
+                  const total = compCount * n;
+                  return (
+                    <button
+                      key={n}
+                      className={`variant-count-btn ${variantCount === n ? 'active' : ''}`}
+                      onClick={() => setVariantCount(n)}
+                    >
+                      <span className="variant-count-number">{n}</span>
+                      <span className="variant-count-label">{n === 1 ? 'кадр' : (n < 5 ? 'кадра' : 'кадров')}</span>
+                      <span className="variant-count-credits">{total} {total === 1 ? 'кредит' : (total < 5 ? 'кредита' : 'кредитов')}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
         
-        <div style={{display: 'flex', gap: '10px', flexDirection: 'column'}}>
-          <button className="generate-btn" onClick={handleGenerate} onMouseEnter={() => { fetch('/api/generate-image', { method: 'OPTIONS', keepalive: true }).catch(() => {}); }} disabled={!garmentUrls.length||isProcessing||isUploading}>{isUploading ? '☁️ Загрузка в облако...' : `✨ Сгенерировать ${variantCount > 1 ? variantCount + ' варианта' : 'студийный кадр'}`}</button>
-          <button className="generate-btn" style={{background: 'linear-gradient(135deg, #18181b, #27272a)', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#fafafa'}} onClick={handleAutoCatalog} disabled={!garmentUrls.length||isProcessing||isUploading}>{isUploading ? '☁️ Загрузка...' : '🏭 Отправить в Auto-Catalog (Batch)'}</button>
+        <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
+          {(() => {
+            const compCount = (appMode === 'product' && !customPoseText.trim()) ? selectedProductCompositions.length : 1;
+            const totalShots = compCount * variantCount;
+            return (
+              <button className="generate-btn" style={{flex:1}} onClick={handleGenerate} onMouseEnter={() => { fetch('/api/generate-image', { method: 'OPTIONS', keepalive: true }).catch(() => {}); }} disabled={!garmentUrls.length||isProcessing||isUploading}>{isUploading ? '☁️ Загрузка в облако...' : `✨ Сгенерировать ${totalShots > 1 ? totalShots + ' кадр' + (totalShots < 5 ? 'а' : 'ов') : 'студийный кадр'}`}</button>
+            );
+          })()}
+          <button
+            className="auto-catalog-mini-btn"
+            onClick={handleAutoCatalog}
+            disabled={!garmentUrls.length||isProcessing||isUploading}
+            title="Отправить в Auto-Catalog (Batch)"
+          >🏭</button>
         </div>
 
         <div className="status-bar">{statusText && <p className={`status-text ${statusType}`}>{statusText}</p>}</div>

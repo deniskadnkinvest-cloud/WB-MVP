@@ -507,6 +507,40 @@
   animation: none;
 }
 
+/* ═══ AUTO-CATALOG MINI BUTTON ═══ */
+.auto-catalog-mini-btn {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(135deg, #18181b, #27272a);
+  color: #fafafa;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.auto-catalog-mini-btn:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: linear-gradient(135deg, #27272a, #3f3f46);
+  transform: scale(1.05);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+.auto-catalog-mini-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.auto-catalog-mini-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* в•ђв•ђв•ђ STATUS BAR в•ђв•ђв•ђ */
 .status-bar {
   text-align: center;
