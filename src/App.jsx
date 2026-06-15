@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MODEL_PRESETS, POSE_PRESETS, BACKGROUND_PRESETS, ASPECT_RATIOS, CAMERA_ANGLES, getModelDetails, PRODUCT_CATEGORIES, PRODUCT_COMPOSITIONS, PRODUCT_BACKGROUNDS, PRODUCT_EFFECTS } from './data/presets';
-import { NATURAL_CARD_PROMPT, EPIC_CARD_PROMPT } from './data/cardPrompts';
+// Card prompts now live on the backend only (generate-image.js)
 import ModelCalibrationWizard from './components/ModelCalibrationWizard';
 import GenderToggle from './components/GenderToggle';
 import DetailPanel from './components/DetailPanel';
@@ -15,7 +15,7 @@ import { useAuth } from './contexts/AuthContext';
 import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt } from './lib/firestoreService';
 import { uploadBase64Image, compressImage, uploadImage, deleteImage } from './lib/storageService';
 import { getSubscription, checkFeature, canGenerate, activatePlan } from './lib/subscriptionService';
-import CardLayerStudio from './components/CardLayerStudio';
+// CardLayerStudio removed — replaced by text-based card editing
 import './App.css';
 
 const MSGS = ['Анализируем текстуру ткани...','Выставляем студийный свет...','Строим 3D-модель фигуры...','Натягиваем одежду с учетом физики...','Рендерим финальный кадр...'];
@@ -184,12 +184,20 @@ function App() {
   const [quickCardStyle, setQuickCardStyle] = useState('natural');
   const [quickWithModel, setQuickWithModel] = useState(false);
   const [quickCardText, setQuickCardText] = useState(null);
-  // [REVE_CANVAS] — Interactive AI Canvas states
-  const [showSmartCanvas, setShowSmartCanvas] = useState(false);
-  const [showReveCanvas, setShowReveCanvas] = useState(false);
-  const [quickCleanPhoto, setQuickCleanPhoto] = useState(null); // Original clean photo before card design
-  const [quickCleanPhotoUrl, setQuickCleanPhotoUrl] = useState(null); // URL for Gemini analysis
-  const [reveCardImage, setReveCardImage] = useState(null); // Full Reve-generated marketplace card
+  // [QUICK_MODE_V2] — Card generation + text-based editing
+  const [quickMode, setQuickMode] = useState('card'); // 'photo' | 'card'
+  const [quickCardImage, setQuickCardImage] = useState(null); // Generated card image
+  const [cardEditHistory, setCardEditHistory] = useState([]); // [{image, editText}]
+  const [cardEditText, setCardEditText] = useState(''); // Current edit text input
+  const [isCardEditing, setIsCardEditing] = useState(false); // Edit in progress
+  const [userProductInfo, setUserProductInfo] = useState(''); // Optional product info from seller
+
+  // Results cache + abort
+  const [quickResults, setQuickResults] = useState({});
+  const abortControllerRef = useRef(null);
+  const [isGalleryGenerating, setIsGalleryGenerating] = useState(false);
+  const [isAbGenerating, setIsAbGenerating] = useState(false);
+  const [confirmModal, setConfirmModal] = useState(null); // null | { type, cost, onConfirm }
 
   // Lightbox (gallery mode)
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -326,7 +334,7 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ planId, uid: user.uid }),
       });
-      const invoiceData = await invoiceResp.json();
+      const invoiceData = await safeParseJSON(invoiceResp);
 
       if (!invoiceData.ok || !invoiceData.invoiceLink) {
         throw new Error(invoiceData.error || 'Не удалось создать платеж');
@@ -1189,7 +1197,7 @@ function App() {
               ? { sourceImageBase64: generatedImage }
               : { sourceImageUrl: generatedImage }),
           }),
-        }).then(r => r.json())
+        }).then(r => safeParseJSON(r))
       );
       
       const results = await Promise.all(promises);
@@ -1218,95 +1226,538 @@ function App() {
     }
   };
 
-  // ═══ QUICK MODE — one-step card generation ═══
+  // ═══ GALLERY GENERATION ═══
+  const handleGenerateGallery = async () => {
+    if (!garmentUrls.length) {
+      setStatusText('Сначала загрузите фото товара'); setStatusType('error');
+      return;
+    }
+    const creditsNeeded = 5;
+    const creditsAvailable = subscription?.credits || 0;
+    if (creditsAvailable < creditsNeeded && !subscription?.local) {
+      setShowPricing(true);
+      setStatusText(`⚡ Для генерации галереи нужно 5 кредитов`); setStatusType('error');
+      return;
+    }
+    if (subscription?.local && creditsAvailable < creditsNeeded) {
+      setStatusText(`⚡ Для генерации галереи нужно 5 кредитов`); setStatusType('error');
+      return;
+    }
+    
+    setIsGalleryGenerating(true);
+    setIsProcessing(true);
+    setStatusType('processing');
+    setStatusText('📋 Начинаем сборку галереи (4 слайда)...');
+
+    // Списываем 5 кредитов
+    try {
+      const deductResp = await authFetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'deduct-credit',
+          amount: 5,
+        }),
+      });
+      const deductData = await safeParseJSON(deductResp);
+      if (!deductData.success) {
+        throw new Error(deductData.error || 'Не удалось списать кредиты');
+      }
+      refreshCreditsFromResponse(deductData);
+    } catch (deductErr) {
+      setStatusText(`⚠️ Ошибка списания кредитов: ${deductErr.message}`);
+      setStatusType('error');
+      setIsGalleryGenerating(false);
+      setIsProcessing(false);
+      return;
+    }
+
+    const gallerySlides = [
+      quickCardImage || generatedImage || garmentUrls[0] // Слайд 1: текущая обложка
+    ];
+
+    try {
+      const isFashion = appMode === 'fashion';
+
+      // Слайд 2: Крупный план
+      setStatusText('🔍 Шаг 1/3: Генерируем крупный план деталей...');
+      const detailPose = isFashion
+        ? 'extreme close-up macro, focusing on fabric texture, stitching details, seams, organic texture'
+        : 'extreme close-up macro, focusing on product details, premium material texture, high-end commercial shot';
+
+      const respDetail = await authFetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.uid,
+          isProductMode: true,
+          categoryId: 'default',
+          posePreset: detailPose,
+          backgroundPreset: 'minimalist clean solid color studio background',
+          aspectRatio: '3:4',
+          garmentImageUrls: garmentUrls,
+          skipCreditDeduction: true,
+        }),
+      });
+      const dataDetail = await safeParseJSON(respDetail);
+      if (!dataDetail.success) throw new Error(dataDetail.error || 'Не удалось создать крупный план');
+      const imgDetail = dataDetail.imageBase64 || dataDetail.imageUrl;
+      gallerySlides.push(imgDetail);
+
+      // Слайд 3: Размеры (Инфографика)
+      setStatusText('📐 Шаг 2/3: Достраиваем инфографику с размерами...');
+      const infoText = isFashion
+        ? (userProductInfo && userProductInfo.trim()
+            ? `ИНФОРМАЦИЯ О ТОВАРЕ:
+${userProductInfo.trim()}
+
+РАЗМЕРНАЯ СЕТКА:
+S (42-44), M (44-46), L (46-48), XL (48-50)`
+            : `ТАБЛИЦА РАЗМЕРОВ:
+S (42-44)
+M (44-46)
+L (46-48)
+XL (48-50)
+Премиальный материал, идеальный крой.`)
+        : (userProductInfo && userProductInfo.trim()
+            ? `ИНФОРМАЦИЯ О ТОВАРЕ:
+${userProductInfo.trim()}
+
+ГАБАРИТЫ ТОВАРА:
+Высота, ширина, глубина, эргономичный премиум дизайн.`
+            : `ГАБАРИТЫ И ХАРАКТЕРИСТИКИ:
+Оптимальный размер
+Высота: 30 см
+Ширина: 28 см
+Глубина: 10 см
+Премиальные материалы, максимальное удобство.`);
+      
+      const respSize = await authFetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.uid,
+          isQuickCard: true,
+          quickCardStyle: 'natural',
+          userProductInfo: infoText,
+          garmentImageUrls: garmentUrls,
+          skipCreditDeduction: true,
+        }),
+      });
+      const dataSize = await safeParseJSON(respSize);
+      if (!dataSize.success) throw new Error(dataSize.error || 'Не удалось создать инфографику размеров');
+      const imgSize = dataSize.imageBase64 || dataSize.imageUrl;
+      gallerySlides.push(imgSize);
+
+      // Слайд 4: Lifestyle
+      setStatusText(isFashion ? '🌳 Шаг 3/3: Генерируем фото модели на улице (Lifestyle)...' : '🏠 Шаг 3/3: Генерируем фото в интерьере (Lifestyle)...');
+      
+      let slide4Payload = {};
+      if (isFashion) {
+        slide4Payload = {
+          userId: user.uid,
+          isProductMode: false,
+          modelPreset: 'young european model',
+          posePreset: 'natural candid lifestyle pose walking',
+          backgroundPreset: 'cozy beautiful sunlit city street, soft warm city bokeh background, cinematic lighting',
+          aspectRatio: '3:4',
+          garmentImageUrls: garmentUrls,
+          skipCreditDeduction: true,
+        };
+      } else {
+        const categoryId = selectedProductCategory?.id || 'default';
+        let lifestyleBg = 'modern luxury living room interior, cozy natural morning sunlight, blurred background';
+        if (categoryId === 'cosmetics' || categoryId === 'fragrance') {
+          lifestyleBg = 'chic elegant bathroom vanity marble table with flowers, soft sunbeams, luxury spa aesthetic';
+        } else if (categoryId === 'electronics') {
+          lifestyleBg = 'modern wooden workspace desk with keyboard and coffee cup, cozy window light';
+        } else if (categoryId === 'food' || categoryId === 'decor_candles') {
+          lifestyleBg = 'cozy wooden kitchen table next to a window, breakfast setting, warm home atmosphere';
+        } else if (categoryId === 'sports') {
+          lifestyleBg = 'sunlit modern yoga studio floor, minimalist aesthetic, plants and warm light';
+        } else if (categoryId === 'pet_supplies') {
+          lifestyleBg = 'cozy rug in a sunlit living room, warm friendly home environment';
+        }
+
+        slide4Payload = {
+          userId: user.uid,
+          isProductMode: true,
+          categoryId: categoryId,
+          posePreset: 'natural lifestyle integration, hero placement, placed on a surface',
+          backgroundPreset: lifestyleBg,
+          aspectRatio: '3:4',
+          garmentImageUrls: garmentUrls,
+          withHumanModel: false,
+          skipCreditDeduction: true,
+        };
+      }
+
+      const respLife = await authFetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(slide4Payload),
+      });
+      const dataLife = await safeParseJSON(respLife);
+      if (!dataLife.success) throw new Error(dataLife.error || 'Не удалось создать lifestyle фото');
+      const imgLife = dataLife.imageBase64 || dataLife.imageUrl;
+      gallerySlides.push(imgLife);
+
+      setQuickResults(prev => ({ ...prev, gallery: gallerySlides }));
+      setStatusText('✅ Галерея из 4-х слайдов успешно собрана!');
+      setStatusType('success');
+    } catch (err) {
+      console.error('Gallery generation error:', err);
+      setStatusText(`⚠️ Ошибка при генерации галереи: ${err.message}`);
+      setStatusType('error');
+    } finally {
+      setIsGalleryGenerating(false);
+      setIsProcessing(false);
+    }
+  };
+
+  // ═══ A/B TEST GENERATION ═══
+  const handleGenerateABTest = async () => {
+    if (!garmentUrls.length) {
+      setStatusText('Сначала загрузите фото товара'); setStatusType('error');
+      return;
+    }
+    const creditsNeeded = 2;
+    const creditsAvailable = subscription?.credits || 0;
+    if (creditsAvailable < creditsNeeded && !subscription?.local) {
+      setShowPricing(true);
+      setStatusText(`⚡ Для запуска A/B теста нужно 2 кредита`); setStatusType('error');
+      return;
+    }
+    if (subscription?.local && creditsAvailable < creditsNeeded) {
+      setStatusText(`⚡ Для запуска A/B теста нужно 2 кредита`); setStatusType('error');
+      return;
+    }
+
+    setIsAbGenerating(true);
+    setIsProcessing(true);
+    setStatusType('processing');
+    setStatusText('⚖️ Запускаем A/B Тестирование (2 обложки)...');
+
+    // Списываем 2 кредита
+    try {
+      const deductResp = await authFetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'deduct-credit',
+          amount: 2,
+        }),
+      });
+      const deductData = await safeParseJSON(deductResp);
+      if (!deductData.success) {
+        throw new Error(deductData.error || 'Не удалось списать кредиты');
+      }
+      refreshCreditsFromResponse(deductData);
+    } catch (deductErr) {
+      setStatusText(`⚠️ Ошибка списания кредитов: ${deductErr.message}`);
+      setStatusType('error');
+      setIsAbGenerating(false);
+      setIsProcessing(false);
+      return;
+    }
+
+    try {
+      // Вариант A (Natural)
+      setStatusText('⚖️ Шаг 1/2: Генерируем светлый вариант (Natural)...');
+      const seedA = Math.floor(Math.random() * 1000000);
+      const respA = await authFetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.uid,
+          isQuickCard: true,
+          quickCardStyle: 'natural',
+          userProductInfo: userProductInfo.trim() || '',
+          garmentImageUrls: garmentUrls,
+          biometricSeed: seedA,
+          skipCreditDeduction: true, // Пропускаем списание кредитов на бэкенде
+        }),
+      });
+      const dataA = await safeParseJSON(respA);
+      if (!dataA.success) throw new Error(dataA.error || 'Не удалось создать вариант А');
+      const imgA = dataA.imageBase64 || dataA.imageUrl;
+
+      // Вариант B (Epic)
+      setStatusText('⚖️ Шаг 2/2: Генерируем тёмный вариант (Epic)...');
+      const seedB = Math.floor(Math.random() * 1000000) + 7; // Другой сид для уникальности
+      const respB = await authFetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.uid,
+          isQuickCard: true,
+          quickCardStyle: 'epic',
+          userProductInfo: userProductInfo.trim() || '',
+          garmentImageUrls: garmentUrls,
+          biometricSeed: seedB,
+          skipCreditDeduction: true, // Пропускаем списание кредитов на бэкенде
+        }),
+      });
+      const dataB = await safeParseJSON(respB);
+      if (!dataB.success) throw new Error(dataB.error || 'Не удалось создать вариант B');
+      const imgB = dataB.imageBase64 || dataB.imageUrl;
+
+      setQuickResults(prev => ({ ...prev, abTest: [imgA, imgB] }));
+      setStatusText('✅ Альтернативные обложки для A/B Теста готовы!');
+      setStatusType('success');
+    } catch (err) {
+      console.error('A/B test generation error:', err);
+      setStatusText(`⚠️ Ошибка при A/B тестировании: ${err.message}`);
+      setStatusType('error');
+    } finally {
+      setIsAbGenerating(false);
+      setIsProcessing(false);
+    }
+  };
+
+  const triggerConfirm = (type, cost, onConfirm) => {
+    setConfirmModal({ type, cost, onConfirm });
+  };
+
+  // ═══ QUICK MODE V2 — GPT Image 2 card generation ═══
   const handleQuickGenerate = async () => {
     if (!garmentUrls.length) {
       setStatusText('Сначала загрузите фото товара'); setStatusType('error');
       return;
     }
+    const isCardMode = quickMode === 'card';
+    const isUgcMode = quickMode === 'ugc';
+    const isModelMode = quickMode === 'model';
+    const creditsNeeded = (isCardMode || isModelMode) ? 2 : 1;
     const creditsAvailable = subscription?.credits || 0;
-    if (creditsAvailable < 1 && !subscription?.local) {
+    if (creditsAvailable < creditsNeeded && !subscription?.local) {
       setShowPricing(true);
-      setStatusText('⚡ Для генерации нужен 1 кредит'); setStatusType('error');
+      setStatusText(`⚡ Для генерации нужно ${creditsNeeded} кредит${creditsNeeded > 1 ? 'а' : ''}`); setStatusType('error');
       return;
     }
-    if (subscription?.local && creditsAvailable < 1) {
-      setStatusText('⚡ Для генерации нужен 1 кредит'); setStatusType('error');
+    if (subscription?.local && creditsAvailable < creditsNeeded) {
+      setStatusText(`⚡ Для генерации нужно ${creditsNeeded} кредит${creditsNeeded > 1 ? 'а' : ''}`); setStatusType('error');
       return;
     }
+
+    // Save current result to cache before clearing
+    if (quickCardImage) {
+      setQuickResults(prev => ({...prev, [quickMode]: { image: quickCardImage, editHistory: cardEditHistory }}));
+    } else if (generatedImage) {
+      setQuickResults(prev => ({...prev, [quickMode]: { image: generatedImage }}));
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     setIsProcessing(true);
     setGeneratedImage(null);
     setCardResult(null);
-    setQuickCardText(null); 
-    setShowSmartCanvas(false); 
-    setReveCardImage(null);
-    setShowReveCanvas(false); 
-    setStatusText('🪄 Reve создаёт карточку маркетплейса...');
+    setQuickCardImage(null);
+    setCardEditHistory([]);
+    setCardEditText('');
+    setStatusText(isCardMode ? '📋 Создаём карточку маркетплейса...' : isUgcMode ? '📱 Создаём фото от покупателя...' : isModelMode ? '👤 Создаём карточку с моделью...' : '🎨 Генерируем студийный кадр...');
     setStatusType('processing');
 
-    // Анимированные статус-сообщения
-    const cardMessages = ['🎨 Reve анализирует продукт...', '✍️ Генерируем дизайн и тексты...', '📐 Финализируем карточку...', '🔥 Почти готово...'];
-    let cardMsgIdx = 0;
-    const cardIv = setInterval(() => {
-      cardMsgIdx = (cardMsgIdx + 1) % cardMessages.length;
-      setStatusText(cardMessages[cardMsgIdx]);
-    }, 5000);
+    const statusMessages = isCardMode
+      ? ['📋 Анализируем товар...', '🎨 Подбираем дизайн и тексты...', '📐 Компонуем карточку...', '✨ Финальная полировка...']
+      : isModelMode
+      ? ['👤 Анализируем товар...', '👗 Подбираем модель...', '🎨 Компонуем карточку...', '✨ Финальная полировка...']
+      : isUgcMode
+      ? ['📱 Распознаём товар...', '🏠 Подбираем домашнюю сцену...', '📷 Имитируем снимок на смартфон...', '✨ Добавляем реализм...']
+      : ['📸 Выставляем свет...', '🎨 Рендерим кадр...', '✨ Финальная полировка...'];
+    let msgIdx = 0;
+    const statusIv = setInterval(() => {
+      msgIdx = (msgIdx + 1) % statusMessages.length;
+      setStatusText(statusMessages[msgIdx]);
+    }, 6000);
 
     try {
-      // Отправляем фото НАПРЯМУЮ в Reve с полным профессиональным промптом
-      // Reve сам анализирует продукт и генерирует текст — без Gemini
-      const revePrompt = quickCardStyle === 'epic' ? EPIC_CARD_PROMPT : NATURAL_CARD_PROMPT;
-        
-      const reveResp = await authFetch('/api/reve-edit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'remix',
-          prompt: revePrompt,
-          imageUrl: garmentUrls[0],
-        }),
-      });
-      clearInterval(cardIv);
-      const reveData = await reveResp.json();
+      if (isModelMode) {
+        // ═══ MODEL MODE: карточка с моделью через GPT Image 2 ═══
+        const resp = await authFetch('/api/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            userId: user.uid,
+            isModelCard: true,
+            quickCardStyle: quickCardStyle,
+            userProductInfo: userProductInfo.trim() || '',
+            garmentImageUrls: garmentUrls,
+          }),
+        });
+        clearInterval(statusIv);
+        const data = await safeParseJSON(resp);
 
-      if (reveData.success && reveData.imageBase64) {
-        // Списание 1 кредита
-        const updatedCredits = Math.max(0, creditsAvailable - 1);
-        setSubscription(prev => prev ? { ...prev, credits: updatedCredits } : prev);
-        
-        setReveCardImage(reveData.imageBase64);
-        setGeneratedImage(reveData.imageBase64); 
-        setShowReveCanvas(true);
-        setStatusText('✅ Карточка готова! Редактируйте элементы через панель слоёв.');
-        setStatusType('success');
+        if (data.success && (data.imageBase64 || data.imageUrl)) {
+          const img = data.imageBase64 || data.imageUrl;
+          refreshCreditsFromResponse(data);
+          setQuickCardImage(img);
+          setGeneratedImage(img);
+          setCardEditHistory([{ image: img, editText: 'Оригинал' }]);
+          setQuickResults(prev => ({...prev, model: { image: img, editHistory: [{ image: img, editText: 'Оригинал' }] }}));
+          setStatusText('✅ Карточка с моделью готова!');
+          setStatusType('success');
+        } else {
+          setStatusText(`⚠️ ${data.error || 'Не удалось создать карточку с моделью'}`);
+          setStatusType('error');
+        }
+      } else if (isUgcMode) {
+        // ═══ UGC MODE: реалистичное фото «от покупателя» через GPT Image 2 ═══
+        const resp = await authFetch('/api/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            userId: user.uid,
+            isUgcMode: true,
+            garmentImageUrls: garmentUrls,
+          }),
+        });
+        clearInterval(statusIv);
+        const data = await safeParseJSON(resp);
+
+        if (data.success && (data.imageBase64 || data.imageUrl)) {
+          const img = data.imageBase64 || data.imageUrl;
+          refreshCreditsFromResponse(data);
+          setGeneratedImage(img);
+          setQuickResults(prev => ({...prev, ugc: { image: img }}));
+          setStatusText('✅ Фото «от покупателя» готово!');
+          setStatusType('success');
+        } else {
+          setStatusText(`⚠️ ${data.error || 'Не удалось создать UGC-фото'}`);
+          setStatusType('error');
+        }
+      } else if (isCardMode) {
+        // ═══ CARD MODE: полноценная карточка маркетплейса через GPT Image 2 ═══
+        const resp = await authFetch('/api/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            userId: user.uid,
+            isQuickCard: true,
+            quickCardStyle: quickCardStyle,
+            userProductInfo: userProductInfo.trim() || '',
+            garmentImageUrls: garmentUrls,
+          }),
+        });
+        clearInterval(statusIv);
+        const data = await safeParseJSON(resp);
+
+        if (data.success && (data.imageBase64 || data.imageUrl)) {
+          const img = data.imageBase64 || data.imageUrl;
+          refreshCreditsFromResponse(data);
+          setQuickCardImage(img);
+          setGeneratedImage(img);
+          setCardEditHistory([{ image: img, editText: 'Оригинал' }]);
+          setQuickResults(prev => ({...prev, card: { image: img, editHistory: [{ image: img, editText: 'Оригинал' }] }}));
+          setStatusText('✅ Карточка готова! Вы можете отредактировать результат.');
+          setStatusType('success');
+        } else {
+          setStatusText(`⚠️ ${data.error || 'Не удалось создать карточку'}`);
+          setStatusType('error');
+        }
       } else {
-        console.error('[Reve] Card generation failed:', reveData.error);
-        setStatusText(`⚠️ Reve не смог создать карточку: ${reveData.error || 'неизвестная ошибка'}`);
-        setStatusType('error');
+        // ═══ PHOTO MODE: красивый студийный кадр (Product Mode pipeline) ═══
+        const modelPrompt = quickWithModel
+          ? (customProductModelPrompt || productModelPreset?.prompt || 'young European female model')
+          : '';
+        const resp = await authFetch('/api/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            userId: user.uid,
+            isProductMode: true,
+            categoryId: 'default',
+            modelPreset: 'product photo',
+            posePreset: 'centered product, hero composition',
+            backgroundPreset: 'clean minimalist white cyclorama',
+            aspectRatio: '3:4',
+            garmentImageUrls: garmentUrls,
+            withHumanModel: quickWithModel,
+            humanModelPrompt: modelPrompt,
+            attributes: quickWithModel ? productModelDetails : undefined,
+            isBeautyMode: false,
+          }),
+        });
+        clearInterval(statusIv);
+        const data = await safeParseJSON(resp);
+
+        if (data.success && (data.imageBase64 || data.imageUrl)) {
+          const img = data.imageBase64 || data.imageUrl;
+          refreshCreditsFromResponse(data);
+          setGeneratedImage(img);
+          setQuickResults(prev => ({...prev, photo: { image: img }}));
+          setStatusText('✅ Студийное фото готово!');
+          setStatusType('success');
+        } else {
+          setStatusText(`⚠️ ${data.error || 'Не удалось создать фото'}`);
+          setStatusType('error');
+        }
       }
     } catch (err) {
-      clearInterval(cardIv);
+      clearInterval(statusIv);
       if (err.name === 'AbortError') {
-        setStatusText('❌ Генерация отменена. Кредиты не списаны.');
+        const cached = quickResults[modeToUse];
+        if (cached) {
+          setGeneratedImage(cached.image);
+          if (cached.editHistory) { setQuickCardImage(cached.image); setCardEditHistory(cached.editHistory); }
+        }
+        setStatusText('⛔ Генерация отменена');
+        setStatusType('error');
       } else {
-        console.error('[Reve] Card generation error:', err);
-        setStatusText(`⚠️ Ошибка Reve: ${err.message}`);
+        setStatusText(`⚠️ Ошибка: ${err.message}`);
+        setStatusType('error');
       }
-      setStatusType('error');
     } finally {
       setIsProcessing(false);
+      abortControllerRef.current = null;
     }
   };
 
-  // [SMART_QUICK_MODE_2.0] — Lazy Typography: triggered ONLY by user click
-  const handleAddDesign = async () => {
-    if (reveCardImage) {
-      setShowReveCanvas(true);
+  // ═══ CARD EDIT — текстовое редактирование карточки через GPT Image 2 ═══
+  const handleCardEdit = async () => {
+    if (!cardEditText.trim() || !quickCardImage) return;
+    const creditsAvailable = subscription?.credits || 0;
+    if (creditsAvailable < 1 && !subscription?.local) {
+      setShowPricing(true);
+      setStatusText('⚡ Для редактирования нужен 1 кредит'); setStatusType('error');
       return;
     }
-    if (!garmentUrls.length) return;
-    handleQuickGenerate();
+
+    setIsCardEditing(true);
+    setStatusText('✏️ Применяем изменения...'); setStatusType('processing');
+
+    try {
+      const resp = await authFetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'edit-card',
+          sourceImageBase64: quickCardImage,
+          editInstruction: cardEditText.trim(),
+        }),
+      });
+      const data = await safeParseJSON(resp);
+
+      if (data.success && (data.imageBase64 || data.imageUrl)) {
+        const newImg = data.imageBase64 || data.imageUrl;
+        refreshCreditsFromResponse(data);
+        setQuickCardImage(newImg);
+        setGeneratedImage(newImg);
+        setCardEditHistory(prev => [...prev, { image: newImg, editText: cardEditText.trim() }]);
+        setCardEditText('');
+        setStatusText('✅ Изменения применены!'); setStatusType('success');
+      } else {
+        setStatusText(`⚠️ ${data.error || 'Ошибка редактирования'}`); setStatusType('error');
+      }
+    } catch (err) {
+      setStatusText(`⚠️ Ошибка: ${err.message}`); setStatusType('error');
+    } finally {
+      setIsCardEditing(false);
+    }
   };
 
 
@@ -1350,7 +1801,7 @@ function App() {
           vibe: customBgText.trim() || selectedBg.prompt
         })
       });
-      const data = await resp.json();
+      const data = await safeParseJSON(resp);
       if (data.success) {
         // Списание 3 кредитов (локальный сервер — используем оптимистичное списание)
         setSubscription(prev => ({ ...prev, credits: Math.max(0, (prev.credits || 0) - 3) }));
@@ -1627,19 +2078,19 @@ function App() {
             />
             <button
               className={`mode-btn ${appMode === 'fashion' ? 'active' : ''}`}
-              onClick={() => setAppMode('fashion')}
+              onClick={() => { setAppMode('fashion'); setQuickCardImage(null); setCardEditHistory([]); }}
             >
               👕 Одежда
             </button>
             <button
               className={`mode-btn ${appMode === 'product' ? 'active' : ''}`}
-              onClick={() => setAppMode('product')}
+              onClick={() => { setAppMode('product'); setQuickCardImage(null); setCardEditHistory([]); }}
             >
               📦 Предметка
             </button>
             <button
               className={`mode-btn ${appMode === 'quick' ? 'active' : ''}`}
-              onClick={() => setAppMode('quick')}
+              onClick={() => { setAppMode('quick'); setGeneratedImage(null); }}
             >
               ⚡ В два клика
             </button>
@@ -1667,6 +2118,142 @@ function App() {
         onCancelAutoRenew={handleCancelAutoRenew}
         canceling={cancelingSubscription}
       />
+
+      {/* ═══ CONFIRM MODAL ═══ */}
+      {confirmModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(3,3,5,0.85)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 99999,
+          padding: 20
+        }}>
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25, mass: 0.5 }}
+            style={{
+              background: 'rgba(255,255,255,0.02)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 24,
+              padding: 30,
+              maxWidth: 440,
+              width: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.6)',
+              position: 'relative'
+            }}
+          >
+            <h3 style={{ margin: '0 0 10px 0', fontSize: 22, fontWeight: 800, color: '#fff', textAlign: 'center' }}>
+              {confirmModal.type === 'gallery' ? '📸 Собрать галерею?' : 
+               confirmModal.type === 'ab' ? '⚖️ Запустить A/B Тест?' : 
+               confirmModal.type === 'video' ? '🎬 Оживить в Видеообложку?' : 
+               '📱 Создать фото от покупателей?'}
+            </h3>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: '0 0 20px 0', textAlign: 'center', lineHeight: 1.5 }}>
+              {confirmModal.type === 'gallery' ? 'ИИ сгенерирует 3 дополнительных слайда воронки (крупный план деталей, размеры и lifestyle-кадр) на основе выбранного кадра.' : 
+               confirmModal.type === 'ab' ? 'ИИ создаст 2 альтернативных варианта обложки (светлый и темный стили) для тестирования CTR.' : 
+               confirmModal.type === 'video' ? 'ИИ создаст 3D-анимацию и motion-эффекты для видеообложки.' : 
+               'ИИ перенесет товар с выбранного кадра в домашнюю реалистичную обстановку.'}
+            </p>
+
+            {/* Preview of active frame */}
+            <div style={{
+              width: 140,
+              aspectRatio: '3/4',
+              borderRadius: 12,
+              overflow: 'hidden',
+              border: '2px solid #ffd700',
+              boxShadow: '0 4px 20px rgba(255,215,0,0.25)',
+              marginBottom: 10,
+              background: '#000',
+              position: 'relative'
+            }}>
+              <img 
+                src={quickCardImage || generatedImage} 
+                alt="Исходный кадр" 
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+              />
+              <div style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                background: 'rgba(0,0,0,0.7)',
+                color: '#ffd700',
+                fontSize: 9,
+                fontWeight: 800,
+                padding: '4px 0',
+                textAlign: 'center',
+                textTransform: 'uppercase'
+              }}>
+                Исходный кадр
+              </div>
+            </div>
+
+            <div style={{ margin: '15px 0 25px 0', textAlign: 'center' }}>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>Стоимость генерации</div>
+              <div style={{ fontSize: 28, fontWeight: 900, color: '#ffd700', marginTop: 4 }}>
+                {confirmModal.cost} кр.
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, width: '100%' }}>
+              <button 
+                onClick={() => setConfirmModal(null)}
+                style={{
+                  flex: 1, 
+                  background: 'rgba(255,255,255,0.05)', 
+                  color: '#fff', 
+                  border: '1px solid rgba(255,255,255,0.15)', 
+                  padding: '12px', 
+                  borderRadius: 12, 
+                  fontSize: 14, 
+                  fontWeight: 600, 
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+              >
+                Отмена
+              </button>
+              <button 
+                onClick={() => {
+                  const cb = confirmModal.onConfirm;
+                  setConfirmModal(null);
+                  cb();
+                }}
+                style={{
+                  flex: 1, 
+                  background: '#ffd700', 
+                  color: '#000', 
+                  border: 'none', 
+                  padding: '12px', 
+                  borderRadius: 12, 
+                  fontSize: 14, 
+                  fontWeight: 800, 
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 15px rgba(255,215,0,0.3)',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                Да, создать
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* ═══ МОИ РАБОТЫ ═══ */}
       {showHistory && <MyHistoryPage onClose={() => setShowHistory(false)} onReuseSettings={handleReuseSettings} />}
@@ -1699,92 +2286,250 @@ function App() {
             )}
           </div>
 
-          {/* Model toggle */}
-          <div className="quick-model-toggle">
-            <label className="quick-toggle-label">
-              <input
-                type="checkbox"
-                checked={quickWithModel}
-                onChange={e => setQuickWithModel(e.target.checked)}
-              />
-              <span className="quick-toggle-text">👤 Добавить модель-человека</span>
-            </label>
+          {/* ═══ MODE TOGGLE: Красивый кадр / Готовая карточка / UGC ═══ */}
+          <div className="card-style-picker" style={{marginBottom: 16}}>
+            <div className="card-style-label">Что создаём:</div>
+            <div className="card-style-options">
+              <button
+                className={`card-style-btn ${quickMode === 'photo' ? 'active' : ''}`}
+                onClick={() => setQuickMode('photo')}
+              >
+                <span className="card-style-icon">🎨</span>
+                <span className="card-style-name">Красивый кадр</span>
+                <span className="card-style-desc">Студийное фото товара</span>
+              </button>
+              <button
+                className={`card-style-btn ${quickMode === 'card' ? 'active' : ''}`}
+                onClick={() => setQuickMode('card')}
+              >
+                <span className="card-style-icon">📋</span>
+                <span className="card-style-name">Готовая карточка</span>
+                <span className="card-style-desc">Инфографика для маркетплейса</span>
+              </button>
+              <button
+                className={`card-style-btn ${quickMode === 'ugc' ? 'active' : ''}`}
+                onClick={() => setQuickMode('ugc')}
+              >
+                <span className="card-style-icon">📱</span>
+                <span className="card-style-name">Фото от покупателей</span>
+                <span className="card-style-desc">Реалистичные фото для отзывов</span>
+              </button>
+              <button
+                className={`card-style-btn ${quickMode === 'model' ? 'active' : ''}`}
+                onClick={() => setQuickMode('model')}
+              >
+                <span className="card-style-icon">👤</span>
+                <span className="card-style-name">Фото с моделью</span>
+                <span className="card-style-desc">Модель позирует с товаром</span>
+              </button>
+            </div>
           </div>
 
+          {/* ═══ CARD MODE: стиль + информация о товаре ═══ */}
           <AnimatePresence mode="wait">
-            {quickWithModel && (
+            {quickMode === 'card' && (
               <motion.div
-                key="model-settings"
+                key="card-settings"
                 initial={{opacity:0,height:0}} animate={{opacity:1,height:'auto'}} exit={{opacity:0,height:0}}
                 transition={{type:'spring',stiffness:400,damping:25,mass:0.5}}
-                style={{overflow:'hidden', marginTop: 16, marginBottom: 16, background: 'rgba(255,255,255,0.02)', padding: 16, borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)'}}
+                style={{overflow:'hidden'}}
               >
-                <div className="tabs-row" style={{marginBottom: 16}}>
-                  <button className={`tab-btn ${productModelTab==='presets'?'active':''}`} onClick={()=>{setProductModelTab('presets');setProductSavedModelId(null);}}>🎭 Пресеты</button>
-                  <button className={`tab-btn ${productModelTab==='my_models'?'active':''}`} onClick={()=>setProductModelTab('my_models')}>⭐ Мои Модели{myModels.length>0?` (${myModels.length})`:''}</button>
+                {/* Card info banner */}
+                <div style={{background:'rgba(255,215,0,0.06)', border:'1px solid rgba(255,215,0,0.15)', borderRadius:12, padding:'12px 16px', marginBottom:16}}>
+                  <p style={{margin:0, fontSize:13, color:'rgba(255,255,255,0.7)', lineHeight:'1.5'}}>
+                    ⚡ Система автоматически создаст профессиональную карточку товара с текстами, дизайном и типографикой. Стоимость: <strong style={{color:'#ffd700'}}>2 кредита</strong>. После генерации вы сможете отредактировать результат (<strong>1 кредит</strong> за правку).
+                  </p>
                 </div>
-                {productModelTab === 'presets' ? (
-                  <>
-                    <GenderToggle gender={productModelGender} setGender={setProductModelGender} />
-                    <div className="preset-grid" style={{marginTop: 12}}>
-                      {MODEL_PRESETS.filter(m => m.gender === productModelGender).map(m => (
-                        <div key={m.id} className={`preset-card ${productModelPreset.id===m.id&&!customProductModelPrompt&&!productSavedModelId?'active':''}`}
-                          onClick={() => { setProductModelPreset(m); setCustomProductModelPrompt(''); setProductSavedModelId(null); setShowProductModelDetails(true); }}>
-                          <span className="emoji">{m.emoji}</span><span className="label">{m.label}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <DetailPanel modelDetails={productModelDetails} setModelDetails={setProductModelDetails} visible={showProductModelDetails && !customProductModelPrompt && !productSavedModelId} gender={productModelGender} extraPrompt={''} setExtraPrompt={() => {}} />
-                    <div className="custom-variant-row" style={{marginTop: 16}}>
-                      <input className="custom-variant-input" type="text" placeholder="Описать модель: «рыжая девушка 25 лет с веснушками»"
-                        value={customProductModelPrompt}
-                        onFocus={() => { setShowProductModelDetails(false); setProductSavedModelId(null); }}
-                        onChange={e => { setCustomProductModelPrompt(e.target.value); setProductSavedModelId(null); setShowProductModelDetails(false); }} />
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    {myModels.length > 0 ? (
-                      <div className="model-avatar-grid">
-                        {myModels.map(m => (
-                          <div key={m.id} className={`model-avatar ${productSavedModelId===m.id?'active':''}`}
-                            onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
-                            <img src={m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
-                            <div className="avatar-name">{m.name}</div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="section-hint" style={{textAlign:'center',padding:'20px 0'}}>У вас пока нет сохранённых моделей.</p>
-                    )}
-                  </>
-                )}
+
+                {/* Card style picker */}
+                <div className="card-style-picker">
+                  <div className="card-style-label">Стиль карточки:</div>
+                  <div className="card-style-options">
+                    <button
+                      className={`card-style-btn ${quickCardStyle === 'natural' ? 'active' : ''}`}
+                      onClick={() => setQuickCardStyle('natural')}
+                    >
+                      <span className="card-style-icon">🌿</span>
+                      <span className="card-style-name">Естественная</span>
+                      <span className="card-style-desc">Элегантная, минимализм</span>
+                    </button>
+                    <button
+                      className={`card-style-btn ${quickCardStyle === 'epic' ? 'active' : ''}`}
+                      onClick={() => setQuickCardStyle('epic')}
+                    >
+                      <span className="card-style-icon">🔥</span>
+                      <span className="card-style-name">Эпичная</span>
+                      <span className="card-style-desc">Кинематограф, wow</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Optional product info */}
+                <div style={{marginTop: 16}}>
+                  <div className="detail-label" style={{marginBottom: 8}}>
+                    💡 Информация о товаре <span style={{color:'rgba(255,255,255,0.4)', fontSize:12}}>(необязательно)</span>
+                  </div>
+                  <textarea
+                    className="modifier-input"
+                    rows={3}
+                    placeholder="Например: «Офисный стул, стальной каркас, до 120 кг, ткань оксфорд». ИИ сам определит товар по фото — здесь можно уточнить детали, чтобы тексты на карточке были точнее."
+                    value={userProductInfo}
+                    onChange={e => setUserProductInfo(e.target.value)}
+                    style={{width:'100%', resize:'vertical'}}
+                  />
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* Card style picker */}
-          <div className="card-style-picker">
-            <div className="card-style-label">Стиль карточки:</div>
-            <div className="card-style-options">
-              <button
-                className={`card-style-btn ${quickCardStyle === 'natural' ? 'active' : ''}`}
-                onClick={() => setQuickCardStyle('natural')}
+          {/* ═══ PHOTO MODE: модель-человек ═══ */}
+          <AnimatePresence mode="wait">
+            {quickMode === 'photo' && (
+              <motion.div
+                key="photo-settings"
+                initial={{opacity:0,height:0}} animate={{opacity:1,height:'auto'}} exit={{opacity:0,height:0}}
+                transition={{type:'spring',stiffness:400,damping:25,mass:0.5}}
+                style={{overflow:'hidden'}}
               >
-                <span className="card-style-icon">🌿</span>
-                <span className="card-style-name">Естественная</span>
-                <span className="card-style-desc">Элегантная, минимализм, чистый дизайн</span>
-              </button>
-              <button
-                className={`card-style-btn ${quickCardStyle === 'epic' ? 'active' : ''}`}
-                onClick={() => setQuickCardStyle('epic')}
+                {/* Model toggle */}
+                <div className="quick-model-toggle">
+                  <label className="quick-toggle-label">
+                    <input
+                      type="checkbox"
+                      checked={quickWithModel}
+                      onChange={e => setQuickWithModel(e.target.checked)}
+                    />
+                    <span className="quick-toggle-text">👤 Добавить модель-человека</span>
+                  </label>
+                </div>
+
+                <AnimatePresence mode="wait">
+                  {quickWithModel && (
+                    <motion.div
+                      key="model-settings"
+                      initial={{opacity:0,height:0}} animate={{opacity:1,height:'auto'}} exit={{opacity:0,height:0}}
+                      transition={{type:'spring',stiffness:400,damping:25,mass:0.5}}
+                      style={{overflow:'hidden', marginTop: 16, marginBottom: 16, background: 'rgba(255,255,255,0.02)', padding: 16, borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)'}}
+                    >
+                      <div className="tabs-row" style={{marginBottom: 16}}>
+                        <button className={`tab-btn ${productModelTab==='presets'?'active':''}`} onClick={()=>{setProductModelTab('presets');setProductSavedModelId(null);}}>🎭 Пресеты</button>
+                        <button className={`tab-btn ${productModelTab==='my_models'?'active':''}`} onClick={()=>setProductModelTab('my_models')}>⭐ Мои Модели{myModels.length>0?` (${myModels.length})`:''}</button>
+                      </div>
+                      {productModelTab === 'presets' ? (
+                        <>
+                          <GenderToggle gender={productModelGender} setGender={setProductModelGender} />
+                          <div className="preset-grid" style={{marginTop: 12}}>
+                            {MODEL_PRESETS.filter(m => m.gender === productModelGender).map(m => (
+                              <div key={m.id} className={`preset-card ${productModelPreset.id===m.id&&!customProductModelPrompt&&!productSavedModelId?'active':''}`}
+                                onClick={() => { setProductModelPreset(m); setCustomProductModelPrompt(''); setProductSavedModelId(null); setShowProductModelDetails(true); }}>
+                                <span className="emoji">{m.emoji}</span><span className="label">{m.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <DetailPanel modelDetails={productModelDetails} setModelDetails={setProductModelDetails} visible={showProductModelDetails && !customProductModelPrompt && !productSavedModelId} gender={productModelGender} extraPrompt={''} setExtraPrompt={() => {}} />
+                          <div className="custom-variant-row" style={{marginTop: 16}}>
+                            <input className="custom-variant-input" type="text" placeholder="Описать модель: «рыжая девушка 25 лет с веснушками»"
+                              value={customProductModelPrompt}
+                              onFocus={() => { setShowProductModelDetails(false); setProductSavedModelId(null); }}
+                              onChange={e => { setCustomProductModelPrompt(e.target.value); setProductSavedModelId(null); setShowProductModelDetails(false); }} />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          {myModels.length > 0 ? (
+                            <div className="model-avatar-grid">
+                              {myModels.map(m => (
+                                <div key={m.id} className={`model-avatar ${productSavedModelId===m.id?'active':''}`}
+                                  onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
+                                  <img src={m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
+                                  <div className="avatar-name">{m.name}</div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="section-hint" style={{textAlign:'center',padding:'20px 0'}}>У вас пока нет сохранённых моделей.</p>
+                          )}
+                        </>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ═══ MODEL MODE: стиль карточки (естественная/эпичная) ═══ */}
+          <AnimatePresence mode="wait">
+            {quickMode === 'model' && (
+              <motion.div
+                key="model-card-settings"
+                initial={{opacity:0,height:0}} animate={{opacity:1,height:'auto'}} exit={{opacity:0,height:0}}
+                transition={{type:'spring',stiffness:400,damping:25,mass:0.5}}
+                style={{overflow:'hidden'}}
               >
-                <span className="card-style-icon">🔥</span>
-                <span className="card-style-name">Эпичная</span>
-                <span className="card-style-desc">Кинематограф, драма, wow-эффект</span>
-              </button>
-            </div>
-          </div>
+                <div style={{background:'rgba(168,85,247,0.06)', border:'1px solid rgba(168,85,247,0.15)', borderRadius:12, padding:'12px 16px', marginBottom:16}}>
+                  <p style={{margin:0, fontSize:13, color:'rgba(255,255,255,0.7)', lineHeight:1.5}}>
+                    👤 <strong>ИИ поместит товар в руки модели</strong> — сам определит, как человек будет держать, носить или использовать ваш товар.
+                  </p>
+                </div>
+                <div className="card-style-picker" style={{marginBottom: 0}}>
+                  <div className="card-style-label">Стиль карточки:</div>
+                  <div className="card-style-options">
+                    <button
+                      className={`card-style-btn ${quickCardStyle === 'natural' ? 'active' : ''}`}
+                      onClick={() => setQuickCardStyle('natural')}
+                    >
+                      <span className="card-style-icon">🌿</span>
+                      <span className="card-style-name">Естественная</span>
+                      <span className="card-style-desc">Элегантная, минимализм</span>
+                    </button>
+                    <button
+                      className={`card-style-btn ${quickCardStyle === 'epic' ? 'active' : ''}`}
+                      onClick={() => setQuickCardStyle('epic')}
+                    >
+                      <span className="card-style-icon">🔥</span>
+                      <span className="card-style-name">Эпичная</span>
+                      <span className="card-style-desc">Кинематограф, wow</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Optional product info */}
+                <div style={{marginTop: 16}}>
+                  <div className="detail-label" style={{marginBottom: 8}}>
+                    💡 Информация о товаре <span style={{color:'rgba(255,255,255,0.4)', fontSize:12}}>(необязательно)</span>
+                  </div>
+                  <textarea
+                    className="modifier-input"
+                    rows={3}
+                    placeholder="Например: «Офисный стул, стальной каркас, до 120 кг». ИИ сам определит товар по фото."
+                    value={userProductInfo}
+                    onChange={e => setUserProductInfo(e.target.value)}
+                    style={{width:'100%', resize:'vertical'}}
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* ═══ UGC MODE: настройки фото от покупателей ═══ */}
+          <AnimatePresence mode="wait">
+            {quickMode === 'ugc' && (
+              <motion.div
+                key="ugc-settings"
+                initial={{opacity:0,height:0}} animate={{opacity:1,height:'auto'}} exit={{opacity:0,height:0}}
+                transition={{type:'spring',stiffness:400,damping:25,mass:0.5}}
+                style={{overflow:'hidden'}}
+              >
+                <div style={{background:'rgba(34,197,94,0.06)', border:'1px solid rgba(34,197,94,0.15)', borderRadius:12, padding:'12px 16px', marginBottom:16}}>
+                  <p style={{margin:0, fontSize:13, color:'rgba(255,255,255,0.7)', lineHeight:1.5}}>
+                    📱 <strong>ИИ создаст реалистичные фото товара</strong>, похожие на снимки реальных покупателей — с домашним фоном, естественным светом и лёгким шумом смартфона.
+                    Стоимость: <strong style={{color:'#22c55e'}}>1 кредит</strong> за фото.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Examples button */}
           <button className="card-examples-btn" onClick={() => setShowCardExamples(true)}>
@@ -1798,12 +2543,13 @@ function App() {
               onClick={handleQuickGenerate}
               disabled={isProcessing || !garmentUrls.length}
             >
-              {isProcessing ? '⏳ Генерируем...' : '⚡ Создать карточку'}
+              {isProcessing ? '⏳ Генерируем...' : (quickMode === 'card' ? '📋 Создать карточку' : quickMode === 'ugc' ? '📱 Создать фото от покупателя' : quickMode === 'model' ? '👤 Создать карточку с моделью' : '🎨 Создать фото')}
             </button>
-            <span className="quick-credits-hint">1 кредит</span>
+            <span className="quick-credits-hint">{(quickMode === 'card' || quickMode === 'model') ? '2 кредита' : '1 кредит'}</span>
           </div>
         </motion.div>
       )}
+
 
       {/* 1. МУЛЬТИЗАГРУЗКА */}
       {appMode !== 'quick' && <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.15,duration:0.5,ease:[0.16,1,0.3,1]}}>
@@ -2320,67 +3066,552 @@ function App() {
       {appMode === 'quick' && statusText && (
         <div className="status-bar" style={{textAlign:'center',padding:'12px 0'}}>
           <p className={`status-text ${statusType}`}>{statusText}</p>
+          {isProcessing && (
+            <button
+              onClick={() => abortControllerRef.current?.abort()}
+              style={{marginTop: 8, background: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.4)', padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'}}
+              onMouseEnter={e => {e.currentTarget.style.background = 'rgba(239,68,68,0.3)'}}
+              onMouseLeave={e => {e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}}
+            >
+              ✕ Отменить генерацию
+            </button>
+          )}
         </div>
       )}
 
-      {/* 8а. QUICK MODE RESULT — Hero-First: чистое фото + upsell */}
-      {generatedImage && appMode === 'quick' && !showReveCanvas && (
+      {/* 8а. QUICK MODE RESULT — Photo or Card */}
+      {generatedImage && appMode === 'quick' && !quickCardImage && (
         <motion.div className="section result-section quick-hero-result" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} transition={{duration:0.5}}>
-          <h3>📸 Ваше студийное фото</h3>
+          <h3>{quickMode === 'ugc' ? '📱 Фото от покупателя' : '📸 Ваше студийное фото'}</h3>
           <div className="result-image-wrap" style={{position:'relative'}}>
-            <img src={generatedImage} alt="Студийное фото" onClick={() => setLightboxSrc(generatedImage)} style={{cursor:'pointer'}} />
+            <img src={generatedImage} alt={quickMode === 'ugc' ? "Фото от покупателя" : "Студийное фото"} onClick={() => setLightboxSrc(generatedImage)} style={{cursor:'pointer'}} />
           </div>
           <div className="quick-hero-actions">
-            <button className="download-btn" onClick={() => {
-              const link = document.createElement('a');
-              link.download = `studio-photo-${Date.now()}.png`;
-              link.href = generatedImage;
-              link.click();
+            <button className="download-btn" onClick={async () => {
+              const filename = quickMode === 'ugc' ? `ugc-photo-${Date.now()}.png` : `studio-photo-${Date.now()}.png`;
+              if (generatedImage.startsWith('data:')) {
+                const link = document.createElement('a');
+                link.href = generatedImage;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              } else {
+                try {
+                  const resp = await fetch(generatedImage, { mode: 'cors' });
+                  const blob = await resp.blob();
+                  const blobUrl = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = blobUrl;
+                  link.download = filename;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  URL.revokeObjectURL(blobUrl);
+                } catch (err) {
+                  window.open(generatedImage, '_blank');
+                }
+              }
             }}>⬇️ Скачать фото</button>
-            <button
-              className="generate-btn quick-add-design-btn"
-              onClick={handleAddDesign}
-              disabled={isCardGenerating}
-            >
-              {reveCardImage ? '🎨 Открыть редактор карточки' : (isCardGenerating ? '⏳ Генерируем карточку...' : '✨ Создать карточку + редактор')}
-            </button>
-            <span className="quick-credits-hint" style={{marginTop: 4}}>Создаст готовую карточку с текстами, которую можно редактировать</span>
           </div>
-          <button className="sc-btn-close" style={{marginTop: 16}} onClick={() => {
-            setGeneratedImage(null);
-            setReveCardImage(null);
-            setQuickCleanPhoto(null);
-            setQuickCleanPhotoUrl(null);
-          }}>← Новая генерация</button>
+          {/* Nav between cached results */}
+          {Object.keys(quickResults).length > 0 && (
+            <div style={{display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16, flexWrap: 'wrap'}}>
+              {quickResults.card && (
+                <button onClick={() => { setQuickMode('card'); setQuickCardImage(quickResults.card.image); setGeneratedImage(quickResults.card.image); setCardEditHistory(quickResults.card.editHistory || []); }}
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.08)', color: '#ffd700', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>📋 Карточка</button>
+              )}
+              {quickResults.ugc && quickMode !== 'ugc' && (
+                <button onClick={() => { setQuickMode('ugc'); setQuickCardImage(null); setGeneratedImage(quickResults.ugc.image); setCardEditHistory([]); }}
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)', color: '#4ade80', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>📱 UGC</button>
+              )}
+              {quickResults.photo && quickMode !== 'photo' && (
+                <button onClick={() => { setQuickMode('photo'); setQuickCardImage(null); setGeneratedImage(quickResults.photo.image); setCardEditHistory([]); }}
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>📸 Студийное</button>
+              )}
+              {quickResults.model && quickMode !== 'model' && (
+                <button onClick={() => { setQuickMode('model'); setQuickCardImage(quickResults.model.image); setGeneratedImage(quickResults.model.image); setCardEditHistory(quickResults.model.editHistory || []); }}
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: '#d8b4fe', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>👤 С моделью</button>
+              )}
+            </div>
+          )}
+          <button className="sc-btn-close" style={{marginTop: 12}} onClick={() => {
+            if (quickResults.card && quickMode !== 'card') {
+              setQuickMode('card');
+              setQuickCardImage(quickResults.card.image);
+              setGeneratedImage(quickResults.card.image);
+              setCardEditHistory(quickResults.card.editHistory || []);
+            } else {
+              setGeneratedImage(null);
+              setQuickCardImage(null);
+            }
+          }}>{quickResults.card && quickMode !== 'card' ? '← Назад к обложке' : '← Новая генерация'}</button>
         </motion.div>
       )}
 
-      {/* 8а-2. CARD LAYER STUDIO — полноценный редактор слоёв (только quick-режим) */}
-      {reveCardImage && appMode === 'quick' && showReveCanvas && (
-        <CardLayerStudio
-          imageUrl={reveCardImage}
-          onClose={() => {
-            setShowReveCanvas(false);
-          }}
-          onAiEdit={async (prompt, srcImage) => {
-            const resp = await authFetch('/api/reve-edit', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                action: 'edit',
-                prompt,
-                imageBase64: srcImage,
-              }),
-            });
-            const data = await resp.json();
-            if (data.success && data.imageBase64) return data.imageBase64;
-            throw new Error(data.error || 'Ошибка редактирования');
-          }}
-          onSaveToProject={async () => {
-            // Mock: реальное сохранение в Storage подключим позже; тост показывает сама студия.
-            await new Promise((r) => setTimeout(r, 350));
-          }}
-        />
+      {/* 8а-2. QUICK MODE CARD RESULT — карточка + текстовое редактирование */}
+      {quickCardImage && appMode === 'quick' && (
+        <motion.div className="section result-section" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} transition={{duration:0.5}} style={{maxWidth: 900, margin: '0 auto', padding: '10px 20px'}}>
+                    {/* Nav between cached results */}
+          {Object.keys(quickResults).filter(k => k !== quickMode && quickResults[k]).length > 0 && (
+            <div style={{display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 16, flexWrap: 'wrap'}}>
+              {quickResults.ugc && quickMode !== 'ugc' && (
+                <button onClick={() => { setQuickMode('ugc'); setQuickCardImage(null); setGeneratedImage(quickResults.ugc.image); setCardEditHistory([]); }}
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)', color: '#4ade80', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>📱 UGC</button>
+              )}
+              {quickResults.photo && quickMode !== 'photo' && (
+                <button onClick={() => { setQuickMode('photo'); setQuickCardImage(null); setGeneratedImage(quickResults.photo.image); setCardEditHistory([]); }}
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>📸 Студийное</button>
+              )}
+              {quickResults.model && quickMode !== 'model' && (
+                <button onClick={() => { setQuickMode('model'); setQuickCardImage(quickResults.model.image); setGeneratedImage(quickResults.model.image); setCardEditHistory(quickResults.model.editHistory || []); }}
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: '#d8b4fe', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>👤 С моделью</button>
+              )}
+            </div>
+          )}
+
+          <div style={{textAlign: 'center', marginBottom: 30}}>
+            <h3 style={{fontSize: 28, margin: '0 0 10px 0', textTransform: 'uppercase', letterSpacing: 1}}>🔥 Обложка готова!</h3>
+            <p style={{color: 'rgba(255,255,255,0.5)', margin: 0, fontSize: 15}}>Карточка успешно сгенерирована. Что делаем дальше?</p>
+          </div>
+
+          {/* MAIN STAGE */}
+          <div style={{position: 'relative', background: 'rgba(0,0,0,0.4)', borderRadius: 24, padding: 20, border: '1px solid rgba(255,255,255,0.08)', marginBottom: 40}}>
+            <div className="result-image-wrap" style={{position:'relative', borderRadius: 16, overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.5)'}}>
+              <img src={quickCardImage} alt="Карточка товара" onClick={() => setLightboxSrc(quickCardImage)} style={{cursor:'pointer', width: '100%', display: 'block'}} />
+            </div>
+            {/* Action buttons BELOW image */}
+            <div style={{display: 'flex', justifyContent: 'center', gap: 16, padding: '20px 0 0', flexWrap: 'wrap'}}>
+              <button 
+                onClick={async () => {
+                  const filename = `marketplace-card-${Date.now()}.png`;
+                  if (quickCardImage.startsWith('data:')) {
+                    const link = document.createElement('a'); link.href = quickCardImage; link.download = filename;
+                    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                  } else {
+                    try {
+                      const resp = await fetch(quickCardImage, { mode: 'cors' });
+                      const blob = await resp.blob(); const blobUrl = URL.createObjectURL(blob);
+                      const link = document.createElement('a'); link.href = blobUrl; link.download = filename;
+                      document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(blobUrl);
+                    } catch (err) { window.open(quickCardImage, '_blank'); }
+                  }
+                }}
+                style={{
+                  background: '#ffd700', color: '#000', border: 'none', borderRadius: 12, padding: '14px 28px', fontSize: 16, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 20px rgba(255,215,0,0.4)', transition: 'transform 0.2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                📥 Скачать HD
+              </button>
+              <button 
+                onClick={() => {
+                  const el = document.getElementById('edit-panel');
+                  if (el) {
+                    el.style.display = 'block';
+                    el.scrollIntoView({behavior: 'smooth', block: 'center'});
+                  }
+                }}
+                style={{
+                  background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 12, padding: '14px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.2s'
+                }}
+                onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'}}
+                onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'}}
+              >
+                🪄 Точечная правка (1 кр.)
+              </button>
+            </div>
+          </div>
+
+          <div style={{display: 'flex', alignItems: 'center', margin: '0 0 30px 0'}}>
+            <div style={{flex: 1, height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.1))'}}></div>
+            <div style={{padding: '0 20px', color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 2}}>Прокачать карточку для ТОПа</div>
+            <div style={{flex: 1, height: 1, background: 'linear-gradient(-90deg, transparent, rgba(255,255,255,0.1))'}}></div>
+          </div>
+
+          {/* UPSELL DASHBOARD */}
+          <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 20, marginBottom: 40}}>
+            
+            {/* Widget 1: Funnel */}
+            <div style={{background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column'}}>
+              <div style={{fontSize: 28, marginBottom: 12}}>📸</div>
+              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Собрать галерею (4 слайда)</h4>
+              <p style={{fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 20px 0', lineHeight: 1.5}}>
+                ИИ достроит воронку: крупный план, габариты, интерьер. 100% единый стиль.
+              </p>
+              
+              {/* Examples / Real Images */}
+              <div style={{display: 'flex', gap: 8, marginBottom: 20}}>
+                {quickResults.gallery ? (
+                  quickResults.gallery.map((img, idx) => {
+                    const isActive = (quickCardImage === img) || (generatedImage === img && !quickCardImage);
+                    return (
+                      <div key={idx} style={{
+                        flex: 1, 
+                        aspectRatio: '3/4', 
+                        position: 'relative', 
+                        borderRadius: 8, 
+                        overflow: 'hidden', 
+                        border: isActive ? '2px solid #ffd700' : '1px solid rgba(255,255,255,0.15)', 
+                        boxShadow: isActive ? '0 0 12px rgba(255,215,0,0.35)' : 'none',
+                        background: 'rgba(0,0,0,0.3)', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        justifyContent: 'flex-end',
+                        transition: 'all 0.2s'
+                      }}>
+                        <img 
+                          src={img} 
+                          alt={`Слайд ${idx+1}`} 
+                          style={{width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, cursor: 'pointer'}} 
+                          onClick={() => {
+                            if (idx === 0 || idx === 2) {
+                              setQuickCardImage(img);
+                              setGeneratedImage(img);
+                              setQuickMode('card');
+                            } else {
+                              setQuickCardImage(null);
+                              setGeneratedImage(img);
+                              setQuickMode('photo');
+                            }
+                          }} 
+                        />
+                        <div style={{position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 50%)', pointerEvents: 'none'}} />
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const filename = `gallery-slide-${idx+1}-${Date.now()}.png`;
+                            if (img.startsWith('data:')) {
+                              const link = document.createElement('a'); link.href = img; link.download = filename;
+                              document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                            } else {
+                              fetch(img, { mode: 'cors' }).then(r => r.blob()).then(b => {
+                                const u = URL.createObjectURL(b);
+                                const link = document.createElement('a'); link.href = u; link.download = filename;
+                                document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(u);
+                              }).catch(() => window.open(img, '_blank'));
+                            }
+                          }}
+                          style={{position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10}}
+                          title="Скачать"
+                        >
+                          📥
+                        </button>
+                        <span style={{position: 'relative', zIndex: 1, color: '#fff', fontSize: 9, fontWeight: 600, padding: '4px 6px', textAlign: 'center', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', width: '100%'}}>
+                          {idx === 0 ? 'Обложка' : idx === 1 ? 'Детали' : idx === 2 ? 'Размеры' : 'Lifestyle'}
+                        </span>
+                        {isActive && (
+                          <div style={{position: 'absolute', top: 4, left: 4, background: '#ffd700', color: '#000', fontSize: 7, fontWeight: 900, padding: '1px 3px', borderRadius: 3, textTransform: 'uppercase', zIndex: 10}}>Активен</div>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  [
+                    { title: 'Обложка', src: '/examples/gallery/slide1_cover.png' },
+                    { title: 'Детали', src: '/examples/gallery/slide2_detail.png' },
+                    { title: 'Размеры', src: '/examples/gallery/slide3_size.png' },
+                    { title: 'Lifestyle', src: '/examples/gallery/slide4_lifestyle.png' }
+                  ].map((slide, idx) => (
+                    <div key={idx} style={{flex: 1, aspectRatio: '3/4', position: 'relative', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', opacity: 0.75}}>
+                      <img src={slide.src} alt={slide.title} style={{width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0}} />
+                      <div style={{position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 50%)'}} />
+                      <span style={{position: 'relative', zIndex: 1, color: 'rgba(255,255,255,0.95)', fontSize: 8, fontWeight: 600, padding: '4px 4px', textAlign: 'center', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', width: '100%'}}>
+                        {slide.title}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {quickResults.gallery ? (
+                <div style={{display: 'flex', gap: 8, marginTop: 'auto'}}>
+                  <button 
+                    onClick={() => openLightboxGallery(quickResults.gallery, 0)}
+                    style={{flex: 1, background: 'rgba(255,215,0,0.2)', color: '#ffd700', border: '1px solid rgba(255,215,0,0.4)', padding: '12px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'}}
+                    onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.3)'}}
+                    onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.2)'}}
+                  >
+                    👁️ Просмотр
+                  </button>
+                  <button 
+                    onClick={() => triggerConfirm('gallery', 5, handleGenerateGallery)}
+                    style={{background: 'rgba(255,215,0,0.08)', color: '#ffd700', border: '1px solid rgba(255,215,0,0.3)', padding: '12px 16px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'}}
+                    onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.18)'}}
+                    onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.08)'}}
+                    title="Пересоздать галерею"
+                  >
+                    🔄
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => triggerConfirm('gallery', 5, handleGenerateGallery)}
+                  disabled={isGalleryGenerating}
+                  style={{width: '100%', background: 'rgba(255,215,0,0.1)', color: '#ffd700', border: '1px solid rgba(255,215,0,0.3)', padding: '12px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', marginTop: 'auto'}}
+                  onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.2)'}}
+                  onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.1)'}}
+                >
+                  {isGalleryGenerating ? '⏳ Создаём...' : <>Создать за 5 кр. <span style={{textDecoration: 'line-through', opacity: 0.5, fontSize: 11, marginLeft: 6, fontWeight: 400}}>8 кр.</span></>}
+                </button>
+              )}
+            </div>
+
+            {/* Widget 2: Video */}
+            <div style={{background: 'linear-gradient(145deg, rgba(167, 139, 250, 0.08) 0%, rgba(0,0,0,0) 100%)', border: '1px solid rgba(167, 139, 250, 0.2)', borderRadius: 20, padding: 24, position: 'relative', display: 'flex', flexDirection: 'column'}}>
+              <div style={{position: 'absolute', top: 20, right: 20, background: 'rgba(167, 139, 250, 0.2)', color: '#d8b4fe', fontSize: 10, fontWeight: 800, padding: '4px 8px', borderRadius: 6, textTransform: 'uppercase', border: '1px solid rgba(167, 139, 250, 0.3)'}}>Тренд 2026</div>
+              <div style={{fontSize: 28, marginBottom: 12}}>🎬</div>
+              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Оживить в Видеообложку</h4>
+              <p style={{fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 20px 0', lineHeight: 1.5}}>
+                Алгоритмы WB обожают Motion. Добавим 3D-параллакс, игру света и анимацию УТП.
+              </p>
+              <button 
+                onClick={() => triggerConfirm('video', 4, () => { setStatusText('🎬 Видеогенерация скоро будет доступна! Мы уже работаем над этим.'); setStatusType('processing'); })}
+                style={{width: '100%', background: 'rgba(167, 139, 250, 0.15)', color: '#d8b4fe', border: '1px solid rgba(167, 139, 250, 0.4)', padding: '12px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', marginTop: 'auto'}}
+                onMouseEnter={e => {e.currentTarget.style.background = 'rgba(167, 139, 250, 0.25)'}}
+                onMouseLeave={e => {e.currentTarget.style.background = 'rgba(167, 139, 250, 0.15)'}}
+              >
+                Создать видео за 4 кр.
+              </button>
+            </div>
+
+            {/* Widget 3: A/B Test */}
+            <div style={{background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column'}}>
+              <div style={{fontSize: 28, marginBottom: 12}}>⚖️</div>
+              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Найти лучший CTR (A/B Тест)</h4>
+              <p style={{fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 20px 0', lineHeight: 1.5}}>
+                Не гадайте. ИИ сгенерирует 2 альтернативные обложки с другими хуками и композицией.
+              </p>
+
+              {/* A/B Test Variants view */}
+              {quickResults.abTest ? (
+                <div style={{display: 'flex', gap: 12, marginBottom: 20}}>
+                  {quickResults.abTest.map((img, idx) => {
+                    const isActive = quickCardImage === img;
+                    return (
+                      <div key={idx} style={{
+                        flex: 1, 
+                        aspectRatio: '3/4', 
+                        position: 'relative', 
+                        borderRadius: 8, 
+                        overflow: 'hidden', 
+                        border: isActive ? '2px solid #ffd700' : '1px solid rgba(255,255,255,0.15)', 
+                        boxShadow: isActive ? '0 0 12px rgba(255,215,0,0.35)' : 'none',
+                        background: 'rgba(0,0,0,0.3)',
+                        transition: 'all 0.2s'
+                      }}>
+                        <img 
+                          src={img} 
+                          alt={`Вариант ${idx === 0 ? 'A' : 'B'}`} 
+                          style={{width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer'}} 
+                          onClick={() => {
+                            setQuickCardImage(img);
+                            setGeneratedImage(img);
+                            setQuickMode('card');
+                            setQuickResults(prev => ({
+                              ...prev, 
+                              card: { image: img, editHistory: [{ image: img, editText: `Выбран вариант ${idx === 0 ? 'A' : 'B'}` }] }
+                            }));
+                          }} 
+                        />
+                        <div style={{position: 'absolute', top: 4, left: 4, background: idx === 0 ? '#4ade80' : '#3b82f6', color: '#000', fontSize: 8, fontWeight: 900, padding: '2px 4px', borderRadius: 4, zIndex: 10}}>
+                          {idx === 0 ? 'A' : 'B'}
+                        </div>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const filename = `ab-test-variant-${idx === 0 ? 'A' : 'B'}-${Date.now()}.png`;
+                            if (img.startsWith('data:')) {
+                              const link = document.createElement('a'); link.href = img; link.download = filename;
+                              document.body.appendChild(link); link.click(); document.body.removeChild(link);
+                            } else {
+                              fetch(img, { mode: 'cors' }).then(r => r.blob()).then(b => {
+                                const u = URL.createObjectURL(b);
+                                const link = document.createElement('a'); link.href = u; link.download = filename;
+                                document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(u);
+                              }).catch(() => window.open(img, '_blank'));
+                            }
+                          }}
+                          style={{position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10}}
+                          title="Скачать"
+                        >
+                          📥
+                        </button>
+                        {isActive && (
+                          <div style={{position: 'absolute', bottom: 4, left: 4, right: 4, background: '#ffd700', color: '#000', fontSize: 7, fontWeight: 900, padding: '1px 0', borderRadius: 3, textTransform: 'uppercase', textAlign: 'center', zIndex: 10}}>Активен</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              {quickResults.abTest ? (
+                <div style={{display: 'flex', gap: 8, marginTop: 'auto'}}>
+                  <button 
+                    onClick={() => openLightboxGallery(quickResults.abTest, 0)}
+                    style={{flex: 1, background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', padding: '12px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'}}
+                    onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}}
+                    onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}}
+                  >
+                    ⚖️ Сравнить
+                  </button>
+                  <button 
+                    onClick={() => triggerConfirm('ab', 2, handleGenerateABTest)}
+                    style={{background: 'rgba(255,255,255,0.03)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', padding: '12px 16px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'}}
+                    onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}}
+                    onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}}
+                    title="Пересоздать A/B Тест"
+                  >
+                    🔄
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => triggerConfirm('ab', 2, handleGenerateABTest)}
+                  disabled={isAbGenerating}
+                  style={{width: '100%', background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', padding: '12px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', marginTop: 'auto'}}
+                  onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}}
+                  onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}}
+                >
+                  {isAbGenerating ? '⏳ Создаём...' : 'Создать за 2 кр.'}
+                </button>
+              )}
+            </div>
+
+            {/* Widget 4: UGC Photo */}
+            <div style={{background: 'linear-gradient(145deg, rgba(34, 197, 94, 0.08) 0%, rgba(0,0,0,0) 100%)', border: '1px solid rgba(34, 197, 94, 0.2)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column'}}>
+              <div style={{fontSize: 28, marginBottom: 12}}>📱</div>
+              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Фото от покупателей</h4>
+              <p style={{fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 20px 0', lineHeight: 1.5}}>
+                Реалистичные фото товара в домашней или естественной обстановке — как из отзывов.
+              </p>
+              {quickResults.ugc ? (
+                <div style={{display: 'flex', gap: 8, marginTop: 'auto'}}>
+                  <button 
+                    onClick={() => { setQuickMode('ugc'); setQuickCardImage(null); setGeneratedImage(quickResults.ugc.image); setCardEditHistory([]); }}
+                    style={{flex: 1, background: 'rgba(34, 197, 94, 0.2)', color: '#4ade80', border: '1px solid rgba(34, 197, 94, 0.4)', padding: '12px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s'}}
+                    onMouseEnter={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.35)'}}
+                    onMouseLeave={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.2)'}}
+                  >
+                    📱 Показать
+                  </button>
+                  <button 
+                    onClick={() => triggerConfirm('ugc', 1, () => handleQuickGenerate('ugc'))}
+                    style={{background: 'rgba(34, 197, 94, 0.08)', color: '#4ade80', border: '1px solid rgba(34, 197, 94, 0.3)', padding: '12px 16px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'}}
+                    onMouseEnter={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.2)'}}
+                    onMouseLeave={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.08)'}}
+                    title="Создать новое UGC-фото"
+                  >
+                    🔄
+                  </button>
+                </div>
+              ) : (
+                <button 
+                  onClick={() => triggerConfirm('ugc', 1, () => handleQuickGenerate('ugc'))}
+                  style={{width: '100%', background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', border: '1px solid rgba(34, 197, 94, 0.4)', padding: '12px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', marginTop: 'auto'}}
+                  onMouseEnter={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.25)'}}
+                  onMouseLeave={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.15)'}}
+                >
+                  Создать за 1 кр.
+                </button>
+              )}
+            </div>
+
+          </div>
+
+          {/* EDIT PANEL (Hidden by default, shown via button) */}
+          <div id="edit-panel" style={{display: 'none', background: 'rgba(255,255,255,0.02)', borderRadius: 24, padding: '24px', border: '1px dashed rgba(255,255,255,0.1)', marginBottom: 40}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12}}>
+              <div style={{fontSize: 18, fontWeight: 700, color: 'rgba(255,255,255,0.95)'}}>
+                🪄 Точечная правка
+              </div>
+              <button 
+                onClick={() => document.getElementById('edit-panel').style.display = 'none'}
+                style={{background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 24, padding: '0 10px'}}
+              >×</button>
+            </div>
+            <p style={{fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: '0 0 20px 0', lineHeight: '1.5'}}>
+              Опишите текстом, что нужно изменить. Каждая правка стоит <strong style={{color:'#ffd700'}}>1 кредит</strong>.
+            </p>
+            <div style={{display:'flex', flexDirection: 'column', gap: 16}}>
+              <textarea
+                className="modifier-input"
+                rows={3}
+                placeholder="Например: «Убери текст справа вверху» или «Сделай фон темнее»"
+                value={cardEditText}
+                onChange={e => setCardEditText(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCardEdit(); } }}
+                style={{width: '100%', minHeight: 80, resize: 'vertical', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: 16, color: '#fff'}}
+                disabled={isCardEditing}
+              />
+              <div style={{display: 'flex', justifyContent: 'flex-end'}}>
+                <button
+                  className="generate-btn"
+                  onClick={handleCardEdit}
+                  disabled={isCardEditing || !cardEditText.trim()}
+                  style={{padding: '12px 28px', width: 'auto', minWidth: 200, whiteSpace: 'nowrap'}}
+                >
+                  {isCardEditing ? '⏳ Применяем...' : '🔄 Применить — 1 кр.'}
+                </button>
+              </div>
+            </div>
+
+            {/* Edit history */}
+            {cardEditHistory.length > 1 && (
+              <div style={{marginTop: 24}}>
+                <div style={{fontSize: 12, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12}}>История правок</div>
+                <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+                  {cardEditHistory.map((entry, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setQuickCardImage(entry.image);
+                        setGeneratedImage(entry.image);
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 8,
+                        border: `1px solid ${quickCardImage === entry.image ? 'rgba(255,215,0,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                        background: quickCardImage === entry.image ? 'rgba(255,215,0,0.1)' : 'rgba(255,255,255,0.03)',
+                        color: quickCardImage === entry.image ? '#ffd700' : 'rgba(255,255,255,0.6)',
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                      }}
+                    >
+                      {idx === 0 ? '🎨 Оригинал' : `v${idx + 1}: ${entry.editText.substring(0, 25)}${entry.editText.length > 25 ? '...' : ''}`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* BOTTOM ACTION */}
+          <div style={{textAlign: 'center'}}>
+            <button
+              onClick={() => {
+                setGeneratedImage(null);
+                setQuickCardImage(null);
+                setCardEditHistory([]);
+                setCardEditText('');
+                setUserProductInfo('');
+                setQuickResults({});
+              }}
+              style={{
+                background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 14, cursor: 'pointer', transition: 'all 0.2s', textDecoration: 'underline'
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.8)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
+            >
+              Сбросить и начать заново с другим фото
+            </button>
+          </div>
+
+        </motion.div>
       )}
 
       {/* 8б. РЕЗУЛЬТАТ — режимы Одежда / Предметка */}

@@ -22,6 +22,8 @@ const TYPE_LABELS = {
   fashion: '👗 Одежда',
   product: '📦 Предметка',
   quick: '⚡ В два клика',
+  ugc: '📱 Фото от покупателей',
+  model: '👤 Фото с моделью',
   autocatalog: '🏭 Авто-каталог',
   calibration: '🎯 Калибровка',
 };
@@ -29,6 +31,8 @@ const TYPE_COLORS = {
   fashion: '#f59e0b',
   product: '#22d3ee',
   quick: '#a78bfa',
+  ugc: '#22c55e',
+  model: '#c084fc',
   autocatalog: '#34d399',
   calibration: '#fb923c',
 };
@@ -37,6 +41,8 @@ const FILTERS = [
   { key: 'fashion', label: '👗 Одежда' },
   { key: 'product', label: '📦 Предметка' },
   { key: 'quick', label: '⚡ В два клика' },
+  { key: 'ugc', label: '📱 UGC-отзывы' },
+  { key: 'model', label: '👤 С моделью' },
   { key: 'autocatalog', label: '🏭 Авто-каталог' },
 ];
 
@@ -239,17 +245,18 @@ export default function MyHistoryPage({ onClose, onReuseSettings }) {
           details.push({ icon: ratioPreset?.icon || '📐', label: 'Формат', value: ratioPreset?.label || gen.aspectRatio });
         }
 
-        // Модель
-        if (gen.modelPreset) {
-          const label = findPresetLabel(gen.modelPreset, MODEL_PRESETS);
-          details.push({ icon: '👤', label: 'Модель', value: label || gen.modelPreset.slice(0, 60) });
-        }
-
-        // Детальные характеристики модели
-        const isFashion = gen.type === 'fashion' || gen.type === 'quick' || !gen.type;
+        // Детальные характеристики модели — ТОЛЬКО для fashion и предметки с моделью
+        const isFashion = gen.type === 'fashion' || !gen.type;
         const isProductWithModel = gen.type === 'product' && gen.withHumanModel;
+        const isQuick = gen.type === 'quick';
 
         if (isFashion || isProductWithModel) {
+          // Модель
+          if (gen.modelPreset) {
+            const label = findPresetLabel(gen.modelPreset, MODEL_PRESETS);
+            details.push({ icon: '👤', label: 'Модель', value: label || gen.modelPreset.slice(0, 60) });
+          }
+
           const attrs = gen.attributes || {};
           
           details.push({ icon: '📏', label: 'Телосложение', value: attrs.bodyType || 'По умолчанию' });
@@ -268,34 +275,67 @@ export default function MyHistoryPage({ onClose, onReuseSettings }) {
             ? attrs.piercing.filter(x => x !== 'Нет').join(', ')
             : (attrs.piercing !== 'Нет' ? attrs.piercing : '');
           details.push({ icon: '💎', label: 'Пирсинг', value: piercingVal || 'Нет' });
+
+          // Поза — только для fashion/product с моделью
+          if (gen.posePreset) {
+            const label = findPresetLabel(gen.posePreset, POSE_PRESETS);
+            details.push({ icon: '🧍', label: 'Поза', value: label || gen.posePreset.slice(0, 60) });
+          }
+          if (gen.customPoseText) details.push({ icon: '✍️', label: 'Кастомная поза', value: gen.customPoseText });
+
+          // Камера — только для fashion/product
+          if (gen.cameraAngle) {
+            const label = findPresetLabel(gen.cameraAngle, CAMERA_ANGLES);
+            details.push({ icon: '📷', label: 'Камера', value: label || gen.cameraAngle });
+          }
+
+          // Фон — только для fashion/product
+          if (gen.backgroundPreset) {
+            const allBgs = [...BACKGROUND_PRESETS, ...PRODUCT_BACKGROUNDS];
+            const label = findPresetLabel(gen.backgroundPreset, allBgs);
+            details.push({ icon: '🖼️', label: 'Фон', value: label || gen.backgroundPreset.slice(0, 60) });
+          }
         }
 
-        // Поза
-        if (gen.posePreset) {
-          const label = findPresetLabel(gen.posePreset, POSE_PRESETS);
-          details.push({ icon: '🧍', label: 'Поза', value: label || gen.posePreset.slice(0, 60) });
+        // Quick Mode — показать релевантные для карточки настройки
+        if (isQuick) {
+          // Стиль карточки — без проверки isCardDesign (для quick это всегда карточка)
+          const quickStyleLabel = gen.cardStyle === 'epic' ? '⚡ Эпичная' 
+            : gen.cardStyle === 'natural' ? '🌿 Естественная' 
+            : gen.cardStyle || 'Естественная (по умолчанию)';
+          details.push({ icon: '🎨', label: 'Стиль карточки', value: quickStyleLabel });
+
+          // Описание товара — если пользователь что-то ввёл
+          if (gen.userProductInfo && gen.userProductInfo.trim()) {
+            details.push({ icon: '📝', label: 'Описание товара', value: gen.userProductInfo });
+          } else {
+            details.push({ icon: '📝', label: 'Описание товара', value: 'Не заполнено (ИИ определил сам)' });
+          }
+
+          // Промпт-шаблон — если был выбран
+          if (gen.quickPromptName) details.push({ icon: '📋', label: 'Промпт-шаблон', value: gen.quickPromptName });
         }
 
-        // Кастомная поза
-        if (gen.customPoseText) details.push({ icon: '✍️', label: 'Кастомная поза', value: gen.customPoseText });
+        // Предметка без модели — показать товарные настройки
+        if (gen.type === 'product' && !gen.withHumanModel) {
+          // Категория (предметка)
+          if (gen.categoryId && gen.categoryId !== 'default') {
+            const catPreset = PRODUCT_CATEGORIES.find(c => c.id === gen.categoryId);
+            details.push({ icon: catPreset?.emoji || '📦', label: 'Категория', value: catPreset?.label || gen.categoryId });
+          }
 
-        // Камера
-        if (gen.cameraAngle) {
-          const label = findPresetLabel(gen.cameraAngle, CAMERA_ANGLES);
-          details.push({ icon: '📷', label: 'Камера', value: label || gen.cameraAngle });
-        }
+          // Фон — для предметки
+          if (gen.backgroundPreset) {
+            const allBgs = [...BACKGROUND_PRESETS, ...PRODUCT_BACKGROUNDS];
+            const label = findPresetLabel(gen.backgroundPreset, allBgs);
+            details.push({ icon: '🖼️', label: 'Фон', value: label || gen.backgroundPreset.slice(0, 60) });
+          }
 
-        // Фон
-        if (gen.backgroundPreset) {
-          const allBgs = [...BACKGROUND_PRESETS, ...PRODUCT_BACKGROUNDS];
-          const label = findPresetLabel(gen.backgroundPreset, allBgs);
-          details.push({ icon: '🖼️', label: 'Фон', value: label || gen.backgroundPreset.slice(0, 60) });
-        }
-
-        // Категория (предметка)
-        if (gen.categoryId && gen.categoryId !== 'default') {
-          const catPreset = PRODUCT_CATEGORIES.find(c => c.id === gen.categoryId);
-          details.push({ icon: catPreset?.emoji || '📦', label: 'Категория', value: catPreset?.label || gen.categoryId });
+          // Камера — для предметки
+          if (gen.cameraAngle) {
+            const label = findPresetLabel(gen.cameraAngle, CAMERA_ANGLES);
+            details.push({ icon: '📷', label: 'Камера', value: label || gen.cameraAngle });
+          }
         }
 
         // С моделью (предметка)
@@ -304,8 +344,8 @@ export default function MyHistoryPage({ onClose, onReuseSettings }) {
         // Бьюти-режим
         if (gen.isBeautyMode) details.push({ icon: '💄', label: 'Бьюти-режим', value: 'Да' });
 
-        // Дизайн-карточка
-        if (gen.isCardDesign) details.push({ icon: '🎨', label: 'Карточка', value: gen.cardStyle || 'стандарт' });
+        // Дизайн-карточка (для fashion/product)
+        if (!isQuick && gen.isCardDesign) details.push({ icon: '🎨', label: 'Карточка', value: gen.cardStyle || 'стандарт' });
 
         // Фоторедактирование
         if (gen.isPhotoEdit && gen.editInstruction) details.push({ icon: '✏️', label: 'Фоторедактирование', value: gen.editInstruction });
