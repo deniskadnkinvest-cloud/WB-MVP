@@ -85,7 +85,7 @@ const DEFAULT_SUB = {
 //  GET SUBSCRIPTION
 // ═══════════════════════════════════════════
 
-export const getSubscription = async (uid, email = null) => {
+export const getSubscription = async (uid, email = null, telegramId = null) => {
   const ref = doc(db, 'users', uid, 'subscription', 'current');
   const snap = await getDoc(ref);
   let data = snap.exists() ? snap.data() : { ...DEFAULT_SUB };
@@ -150,6 +150,63 @@ export const getSubscription = async (uid, email = null) => {
       }
     } catch (err) {
       console.error('[SubscriptionService] Ошибка проверки pending_grants:', err);
+    }
+  }
+
+  // ═══════════════════════════════════════════
+  //  MIGRATION: Merge or Apply Telegram ID Subscription
+  // ═══════════════════════════════════════════
+  if (telegramId) {
+    try {
+      const tgIdStr = String(telegramId).trim();
+      if (tgIdStr && tgIdStr !== uid) {
+        const tgSubRef = doc(db, 'users', tgIdStr, 'subscription', 'current');
+        const tgSubSnap = await getDoc(tgSubRef);
+        
+        if (tgSubSnap.exists()) {
+          const tgSubData = tgSubSnap.data();
+          console.log(`[SubscriptionService] Найдена подписка на TG ID ${tgIdStr}. Переносим на UID ${uid}:`, tgSubData);
+          
+          let newSub;
+          if (data.plan === 'none') {
+            newSub = {
+              ...tgSubData,
+              migratedFromTgId: tgIdStr,
+              updatedAt: serverTimestamp(),
+            };
+          } else {
+            // Сливаем подписки, если у юзера уже есть план
+            newSub = {
+              ...data,
+              plan: tgSubData.plan !== 'none' ? tgSubData.plan : data.plan,
+              credits: (data.credits || 0) + (tgSubData.credits || 0),
+              creditsTotal: (data.creditsTotal || 0) + (tgSubData.creditsTotal || 0),
+              migratedFromTgId: tgIdStr,
+              updatedAt: serverTimestamp(),
+              grantedByAdmin: data.grantedByAdmin || tgSubData.grantedByAdmin,
+              payments: [...(data.payments || []), ...(tgSubData.payments || [])],
+            };
+            if (tgSubData.plan !== 'none') {
+              newSub.planActivatedAt = tgSubData.planActivatedAt || data.planActivatedAt;
+              newSub.planExpiresAt = tgSubData.planExpiresAt || data.planExpiresAt;
+            }
+          }
+          
+          await setDoc(ref, newSub);
+          
+          // Удаляем старую подписку с Telegram ID
+          try {
+            await deleteDoc(tgSubRef);
+            console.log(`[SubscriptionService] Старая подписка на TG ID ${tgIdStr} удалена.`);
+          } catch (delErr) {
+            console.warn('[SubscriptionService] Не удалось удалить подписку с TG ID:', delErr);
+          }
+          
+          data = newSub; // Обновляем локальные данные перед возвратом
+        }
+      }
+    } catch (err) {
+      console.error('[SubscriptionService] Ошибка миграции подписки по Telegram ID:', err);
     }
   }
 

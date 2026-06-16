@@ -52,7 +52,9 @@ function App() {
   const [cancelingSubscription, setCancelingSubscription] = useState(false);
 
   // App mode: 'fashion' | 'product'
-  const [appMode, setAppMode] = useState('fashion');
+  const [appMode, setAppMode] = useState(() => {
+    return localStorage.getItem('vton_appMode') || 'fashion';
+  });
 
   // Product mode selections
   const [selectedProductCategory, setSelectedProductCategory] = useState(PRODUCT_CATEGORIES[0]);
@@ -121,13 +123,29 @@ function App() {
 
   // Multi-upload garments
   const [imageFiles, setImageFiles] = useState([]);
-  const [previewUrls, setPreviewUrls] = useState([]);
-  const [garmentUrls, setGarmentUrls] = useState([]); // Firebase Storage URLs (lightweight)
+  const [garmentUrls, setGarmentUrls] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vton_garmentUrls');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  }); // Firebase Storage URLs (lightweight)
+  const [previewUrls, setPreviewUrls] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vton_garmentUrls');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
 
   // Processing
-  const [generatedImage, setGeneratedImage] = useState(null);
+  const [generatedImage, setGeneratedImage] = useState(() => {
+    return localStorage.getItem('vton_generatedImage') || null;
+  });
   const [imageHistory, setImageHistory] = useState([]); // all generated renders
   const [historyIndex, setHistoryIndex] = useState(-1); // current position in history
   const [isProcessing, setIsProcessing] = useState(false);
@@ -185,19 +203,80 @@ function App() {
   const [quickWithModel, setQuickWithModel] = useState(false);
   const [quickCardText, setQuickCardText] = useState(null);
   // [QUICK_MODE_V2] — Card generation + text-based editing
-  const [quickMode, setQuickMode] = useState('card'); // 'photo' | 'card'
-  const [quickCardImage, setQuickCardImage] = useState(null); // Generated card image
-  const [cardEditHistory, setCardEditHistory] = useState([]); // [{image, editText}]
+  const [quickMode, setQuickMode] = useState(() => {
+    return localStorage.getItem('vton_quickMode') || 'card';
+  }); // 'photo' | 'card'
+  const [quickCardImage, setQuickCardImage] = useState(() => {
+    return localStorage.getItem('vton_quickCardImage') || null;
+  }); // Generated card image
+  const [cardEditHistory, setCardEditHistory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vton_cardEditHistory');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  }); // [{image, editText}]
   const [cardEditText, setCardEditText] = useState(''); // Current edit text input
   const [isCardEditing, setIsCardEditing] = useState(false); // Edit in progress
-  const [userProductInfo, setUserProductInfo] = useState(''); // Optional product info from seller
+  const [userProductInfo, setUserProductInfo] = useState(() => {
+    return localStorage.getItem('vton_userProductInfo') || '';
+  }); // Optional product info from seller
 
   // Results cache + abort
-  const [quickResults, setQuickResults] = useState({});
+  const [quickResults, setQuickResults] = useState(() => {
+    try {
+      const saved = localStorage.getItem('vton_quickResults');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
   const abortControllerRef = useRef(null);
   const [isGalleryGenerating, setIsGalleryGenerating] = useState(false);
   const [isAbGenerating, setIsAbGenerating] = useState(false);
   const [confirmModal, setConfirmModal] = useState(null); // null | { type, cost, onConfirm }
+
+  // ═══ LOCALSTORAGE SYNC EFFECTS ═══
+  useEffect(() => {
+    localStorage.setItem('vton_appMode', appMode);
+  }, [appMode]);
+
+  useEffect(() => {
+    localStorage.setItem('vton_quickMode', quickMode);
+  }, [quickMode]);
+
+  useEffect(() => {
+    if (generatedImage) {
+      localStorage.setItem('vton_generatedImage', generatedImage);
+    } else {
+      localStorage.removeItem('vton_generatedImage');
+    }
+  }, [generatedImage]);
+
+  useEffect(() => {
+    if (quickCardImage) {
+      localStorage.setItem('vton_quickCardImage', quickCardImage);
+    } else {
+      localStorage.removeItem('vton_quickCardImage');
+    }
+  }, [quickCardImage]);
+
+  useEffect(() => {
+    localStorage.setItem('vton_cardEditHistory', JSON.stringify(cardEditHistory));
+  }, [cardEditHistory]);
+
+  useEffect(() => {
+    localStorage.setItem('vton_quickResults', JSON.stringify(quickResults));
+  }, [quickResults]);
+
+  useEffect(() => {
+    localStorage.setItem('vton_garmentUrls', JSON.stringify(garmentUrls));
+  }, [garmentUrls]);
+
+  useEffect(() => {
+    localStorage.setItem('vton_userProductInfo', userProductInfo);
+  }, [userProductInfo]);
 
   // Lightbox (gallery mode)
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -263,7 +342,7 @@ function App() {
       })
       .catch((err) => console.error('Ошибка загрузки локаций:', err));
 
-    getSubscription(user.uid, user.email)
+    getSubscription(user.uid, user.email, user.telegramId)
       .then((sub) => {
 
         if (sub) setSubscription(sub);
@@ -279,7 +358,7 @@ function App() {
   const refreshCreditsFromResponse = async (_responseData) => {
     if (!user?.uid) return;
     try {
-      const fresh = await getSubscription(user.uid, user.email);
+      const fresh = await getSubscription(user.uid, user.email, user.telegramId);
       if (fresh) setSubscription(fresh);
     } catch (_e) {
       // Silent fail — UI balance stays until next reload
@@ -304,7 +383,7 @@ function App() {
         const interval = setInterval(async () => {
           attempts++;
           try {
-            const sub = await getSubscription(user.uid, user.email);
+            const sub = await getSubscription(user.uid, user.email, user.telegramId);
             if (sub && sub.plan === plan) {
               setSubscription(sub);
               setStatusText(`✅ Тариф «${plan.toUpperCase()}» успешно активирован! Начислено ${sub.credits} кадров.`);
@@ -458,9 +537,11 @@ function App() {
   const removeFile = (idx) => {
     const nf = imageFiles.filter((_,i) => i !== idx);
     const nu = garmentUrls.filter((_,i) => i !== idx);
-    setImageFiles(nf); setPreviewUrls(nf.map(f => URL.createObjectURL(f)));
+    const np = previewUrls.filter((_,i) => i !== idx);
+    setImageFiles(nf);
+    setPreviewUrls(np);
     setGarmentUrls(nu);
-    if (!nf.length) setStatusText('');
+    if (!nu.length) setStatusText('');
   };
 
   const blobToBase64 = (blob, maxSize = 1200) => new Promise((res, rej) => {
@@ -573,7 +654,7 @@ function App() {
   };
 
   const handleGenerate = async () => {
-    if (!imageFiles.length) return;
+    if (!garmentUrls.length) return;
 
     // ═══ SUBSCRIPTION CHECK ═══
     if (!canGenerate(subscription)) {
@@ -1008,7 +1089,7 @@ function App() {
 
   // Re-generate with shot modifier (iterative editing)
   const handleRegenerate = async () => {
-    if (!shotModifier.trim() || !imageFiles.length) return;
+    if (!shotModifier.trim() || !garmentUrls.length) return;
 
     // ═══ SUBSCRIPTION CHECK ═══
     if (!canGenerate(subscription)) {
@@ -1836,7 +1917,7 @@ ${userProductInfo.trim()}
   ];
 
   const handlePhotoshoot = async (count = 5) => {
-    if (!imageFiles.length || isPhotoshooting) return;
+    if (!garmentUrls.length || isPhotoshooting) return;
     setIsPhotoshooting(true);
     
     const angles = appMode === 'product'
@@ -2261,8 +2342,49 @@ ${userProductInfo.trim()}
       {/* ═══ QUICK MODE PANEL ═══ */}
       {appMode === 'quick' && !generatedImage && (
         <motion.div className="section quick-mode-panel" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.1,duration:0.5,ease:[0.16,1,0.3,1]}}>
-          <div className="section-title">
-            <span className="icon">⚡</span> В два клика
+          <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: '8px' }}>
+            <span><span className="icon">⚡</span> В два клика</span>
+            {Object.keys(quickResults).length > 0 && (
+              <button
+                onClick={() => {
+                  if (quickResults.card) {
+                    setQuickMode('card');
+                    setQuickCardImage(quickResults.card.image);
+                    setGeneratedImage(quickResults.card.image);
+                    setCardEditHistory(quickResults.card.editHistory || []);
+                  } else {
+                    const firstKey = Object.keys(quickResults)[0];
+                    setQuickMode(firstKey);
+                    if (firstKey === 'card' || firstKey === 'model') {
+                      setQuickCardImage(quickResults[firstKey].image);
+                    } else {
+                      setQuickCardImage(null);
+                    }
+                    setGeneratedImage(quickResults[firstKey].image);
+                    setCardEditHistory(quickResults[firstKey].editHistory || []);
+                  }
+                }}
+                className="restore-results-btn"
+                style={{
+                  background: 'rgba(255, 215, 0, 0.08)',
+                  border: '1px solid rgba(255, 215, 0, 0.3)',
+                  borderRadius: '10px',
+                  color: '#ffd700',
+                  padding: '6px 14px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255, 215, 0, 0.18)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'rgba(255, 215, 0, 0.08)'}
+              >
+                👁️ Показать созданное
+              </button>
+            )}
           </div>
           <p className="quick-mode-subtitle">Загрузите фото товара — получите готовую карточку для маркетплейса</p>
 
@@ -3177,8 +3299,49 @@ ${userProductInfo.trim()}
 
           {/* MAIN STAGE */}
           <div style={{position: 'relative', background: 'rgba(0,0,0,0.4)', borderRadius: 24, padding: 20, border: '1px solid rgba(255,255,255,0.08)', marginBottom: 40}}>
-            <div className="result-image-wrap" style={{position:'relative', borderRadius: 16, overflow: 'hidden', boxShadow: '0 10px 40px rgba(0,0,0,0.5)'}}>
-              <img src={quickCardImage} alt="Карточка товара" onClick={() => setLightboxSrc(quickCardImage)} style={{cursor:'pointer', width: '100%', display: 'block'}} />
+            <div className="result-image-wrap" style={{
+              position:'relative', 
+              borderRadius: 16, 
+              overflow: 'hidden', 
+              boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+              aspectRatio: '3/4',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(0,0,0,0.6)'
+            }}>
+              {isCardEditing ? (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 16,
+                  padding: 20,
+                  textAlign: 'center'
+                }}>
+                  <div style={{
+                    width: 50,
+                    height: 50,
+                    borderRadius: '50%',
+                    border: '3px solid rgba(255, 215, 0, 0.1)',
+                    borderTopColor: '#ffd700',
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                  <style>{`
+                    @keyframes spin {
+                      to { transform: rotate(360deg); }
+                    }
+                  `}</style>
+                  <div style={{color: '#ffd700', fontSize: 16, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1}}>
+                    ✏️ Применяем изменения...
+                  </div>
+                  <div style={{color: 'rgba(255,255,255,0.5)', fontSize: 13}}>
+                    ИИ перерисовывает карточку по вашему описанию
+                  </div>
+                </div>
+              ) : (
+                <img src={quickCardImage} alt="Карточка товара" onClick={() => setLightboxSrc(quickCardImage)} style={{cursor:'pointer', width: '100%', height: '100%', objectFit: 'contain', display: 'block'}} />
+              )}
             </div>
             {/* Action buttons BELOW image */}
             <div style={{display: 'flex', justifyContent: 'center', gap: 16, padding: '20px 0 0', flexWrap: 'wrap'}}>
@@ -3197,11 +3360,12 @@ ${userProductInfo.trim()}
                     } catch (err) { window.open(quickCardImage, '_blank'); }
                   }
                 }}
+                disabled={isCardEditing}
                 style={{
-                  background: '#ffd700', color: '#000', border: 'none', borderRadius: 12, padding: '14px 28px', fontSize: 16, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 20px rgba(255,215,0,0.4)', transition: 'transform 0.2s'
+                  background: '#ffd700', color: '#000', border: 'none', borderRadius: 12, padding: '14px 28px', fontSize: 16, fontWeight: 800, cursor: isCardEditing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 20px rgba(255,215,0,0.4)', transition: 'transform 0.2s', opacity: isCardEditing ? 0.5 : 1
                 }}
-                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                onMouseEnter={e => { if (!isCardEditing) e.currentTarget.style.transform = 'scale(1.05)'; }}
+                onMouseLeave={e => { if (!isCardEditing) e.currentTarget.style.transform = 'scale(1)'; }}
               >
                 📥 Скачать HD
               </button>
@@ -3213,11 +3377,12 @@ ${userProductInfo.trim()}
                     el.scrollIntoView({behavior: 'smooth', block: 'center'});
                   }
                 }}
+                disabled={isCardEditing}
                 style={{
-                  background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 12, padding: '14px 24px', fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.2s'
+                  background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 12, padding: '14px 24px', fontSize: 15, fontWeight: 600, cursor: isCardEditing ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.2s', opacity: isCardEditing ? 0.5 : 1
                 }}
-                onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'}}
-                onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'}}
+                onMouseEnter={e => { if (!isCardEditing) { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; } }}
+                onMouseLeave={e => { if (!isCardEditing) { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; } }}
               >
                 🪄 Точечная правка (1 кр.)
               </button>
@@ -3358,24 +3523,6 @@ ${userProductInfo.trim()}
               )}
             </div>
 
-            {/* Widget 2: Video */}
-            <div style={{background: 'linear-gradient(145deg, rgba(167, 139, 250, 0.08) 0%, rgba(0,0,0,0) 100%)', border: '1px solid rgba(167, 139, 250, 0.2)', borderRadius: 20, padding: 24, position: 'relative', display: 'flex', flexDirection: 'column'}}>
-              <div style={{position: 'absolute', top: 20, right: 20, background: 'rgba(167, 139, 250, 0.2)', color: '#d8b4fe', fontSize: 10, fontWeight: 800, padding: '4px 8px', borderRadius: 6, textTransform: 'uppercase', border: '1px solid rgba(167, 139, 250, 0.3)'}}>Тренд 2026</div>
-              <div style={{fontSize: 28, marginBottom: 12}}>🎬</div>
-              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Оживить в Видеообложку</h4>
-              <p style={{fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 20px 0', lineHeight: 1.5}}>
-                Алгоритмы WB обожают Motion. Добавим 3D-параллакс, игру света и анимацию УТП.
-              </p>
-              <button 
-                onClick={() => triggerConfirm('video', 4, () => { setStatusText('🎬 Видеогенерация скоро будет доступна! Мы уже работаем над этим.'); setStatusType('processing'); })}
-                style={{width: '100%', background: 'rgba(167, 139, 250, 0.15)', color: '#d8b4fe', border: '1px solid rgba(167, 139, 250, 0.4)', padding: '12px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', marginTop: 'auto'}}
-                onMouseEnter={e => {e.currentTarget.style.background = 'rgba(167, 139, 250, 0.25)'}}
-                onMouseLeave={e => {e.currentTarget.style.background = 'rgba(167, 139, 250, 0.15)'}}
-              >
-                Создать видео за 4 кр.
-              </button>
-            </div>
-
             {/* Widget 3: A/B Test */}
             <div style={{background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column'}}>
               <div style={{fontSize: 28, marginBottom: 12}}>⚖️</div>
@@ -3478,6 +3625,24 @@ ${userProductInfo.trim()}
                   {isAbGenerating ? '⏳ Создаём...' : 'Создать за 2 кр.'}
                 </button>
               )}
+            </div>
+
+            {/* Widget 2: Video */}
+            <div style={{background: 'linear-gradient(145deg, rgba(167, 139, 250, 0.08) 0%, rgba(0,0,0,0) 100%)', border: '1px solid rgba(167, 139, 250, 0.2)', borderRadius: 20, padding: 24, position: 'relative', display: 'flex', flexDirection: 'column'}}>
+              <div style={{position: 'absolute', top: 20, right: 20, background: 'rgba(167, 139, 250, 0.2)', color: '#d8b4fe', fontSize: 10, fontWeight: 800, padding: '4px 8px', borderRadius: 6, textTransform: 'uppercase', border: '1px solid rgba(167, 139, 250, 0.3)'}}>Тренд 2026</div>
+              <div style={{fontSize: 28, marginBottom: 12}}>🎬</div>
+              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Оживить в Видеообложку</h4>
+              <p style={{fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 20px 0', lineHeight: 1.5}}>
+                Алгоритмы WB обожают Motion. Добавим 3D-параллакс, игру света и анимацию УТП.
+              </p>
+              <button 
+                onClick={() => triggerConfirm('video', 4, () => { setStatusText('🎬 Видеогенерация скоро будет доступна! Мы уже работаем над этим.'); setStatusType('processing'); })}
+                style={{width: '100%', background: 'rgba(167, 139, 250, 0.15)', color: '#d8b4fe', border: '1px solid rgba(167, 139, 250, 0.4)', padding: '12px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', marginTop: 'auto'}}
+                onMouseEnter={e => {e.currentTarget.style.background = 'rgba(167, 139, 250, 0.25)'}}
+                onMouseLeave={e => {e.currentTarget.style.background = 'rgba(167, 139, 250, 0.15)'}}
+              >
+                Создать видео за 4 кр.
+              </button>
             </div>
 
             {/* Widget 4: UGC Photo */}
@@ -3600,6 +3765,15 @@ ${userProductInfo.trim()}
                 setCardEditText('');
                 setUserProductInfo('');
                 setQuickResults({});
+                setImageFiles([]);
+                setGarmentUrls([]);
+                setPreviewUrls([]);
+                localStorage.removeItem('vton_generatedImage');
+                localStorage.removeItem('vton_quickCardImage');
+                localStorage.removeItem('vton_cardEditHistory');
+                localStorage.removeItem('vton_quickResults');
+                localStorage.removeItem('vton_garmentUrls');
+                localStorage.removeItem('vton_userProductInfo');
               }}
               style={{
                 background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 14, cursor: 'pointer', transition: 'all 0.2s', textDecoration: 'underline'

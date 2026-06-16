@@ -262,6 +262,9 @@ async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana
     if (!pollResp.ok) continue;
     const pollData = await pollResp.json();
     
+    if (pollData?.code && pollData.code !== 200) {
+      throw new Error(`KIE.ai API error code ${pollData.code}: ${pollData.msg || 'Unknown error'}`);
+    }
     if (pollData?.data?.state === 'success') {
        const resultStr = pollData.data.resultJson;
        if (!resultStr) throw new Error("Task success but no resultJson");

@@ -241,7 +241,16 @@ export function AuthProvider({ children }) {
       // ("missing initial state" error due to storage partitioning)
       
       const unsub = onAuthStateChanged(auth, (u) => {
-        setUser(u);
+        if (u) {
+          if (telegramUser) {
+            u.telegramId = telegramUser.id;
+            u.telegramUsername = telegramUser.username;
+            u.isTelegramUser = true;
+          }
+          setUser(u);
+        } else {
+          setUser(null);
+        }
         setLoading(false);
       });
       return unsub;
@@ -292,6 +301,11 @@ export function AuthProvider({ children }) {
       // Listen for auth state changes (will fire after signInWithCustomToken)
       const unsub = onAuthStateChanged(auth, (u) => {
         if (u) {
+          if (telegramUser) {
+            u.telegramId = telegramUser.id;
+            u.telegramUsername = telegramUser.username;
+            u.isTelegramUser = true;
+          }
           setUser(u);
           setLoading(false);
         }
@@ -327,7 +341,16 @@ export function AuthProvider({ children }) {
       // Standalone mode: use Firebase Auth normally
 
       const unsub = onAuthStateChanged(auth, (u) => {
-        setUser(u);
+        if (u) {
+          if (telegramUser) {
+            u.telegramId = telegramUser.id;
+            u.telegramUsername = telegramUser.username;
+            u.isTelegramUser = true;
+          }
+          setUser(u);
+        } else {
+          setUser(null);
+        }
         setLoading(false);
       });
       return unsub;
