@@ -299,6 +299,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchVal, setSearchVal] = useState('');
+  const [quickId, setQuickId] = useState('');
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -418,12 +419,41 @@ export default function UsersPage() {
 
   return (
     <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+
+      {/* ═══ БЫСТРАЯ ВЫДАЧА ДОСТУПА ═══ */}
+      <Card
+        size="small"
+        title={<><GiftOutlined style={{ color: '#818cf8' }} /> Быстрая выдача доступа</>}
+        style={{ marginBottom: '16px', border: '1px solid rgba(129,140,248,0.3)' }}
+      >
+        <Text type="secondary" style={{ display: 'block', marginBottom: '12px' }}>
+          Введи Telegram ID, Email или Firebase UID — откроется профиль с кнопками выдачи тарифа и начисления кредитов.
+        </Text>
+        <Space.Compact style={{ width: '100%' }}>
+          <Input
+            prefix={<SearchOutlined />}
+            placeholder="Telegram ID / Email / Firebase UID"
+            size="large"
+            value={quickId}
+            onChange={e => setQuickId(e.target.value)}
+            onPressEnter={() => { if (quickId.trim()) openUser(quickId.trim()); }}
+          />
+          <Button
+            type="primary"
+            size="large"
+            icon={<UserOutlined />}
+            onClick={() => { if (quickId.trim()) openUser(quickId.trim()); }}
+          >
+            Найти и открыть
+          </Button>
+        </Space.Compact>
+      </Card>
+
       {/* Search + Actions */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
         <Search
-          placeholder="Поиск по Telegram ID, Email, UID..."
+          placeholder="Фильтр по таблице..."
           allowClear
-          enterButton={<><SearchOutlined /> Найти</>}
           onSearch={handleSearch}
           onChange={e => { if (!e.target.value) setSearchVal(''); }}
           style={{ maxWidth: '400px', flex: 1 }}
