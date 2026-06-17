@@ -1892,36 +1892,6 @@ export default async function handler(req, res) {
 - Фон
 - Цена (если есть)
 - Иконки
-
-Ответь СТРОГО в JSON формате, без markdown:
-[{"name":"Заголовок","bbox":[10,5,80,8]},{"name":"Бейдж: Мягкая фактура","bbox":[5,25,25,6]}]
-
-ВАЖНО:
-- bbox в ПРОЦЕНТАХ от размеров картинки (0-100)
-- Не включай элемент "Вся карточка" 
-- Минимум 4, максимум 15 элементов
-- Сортируй сверху вниз` }
-            ]
-          }],
-          config: { temperature: 0.1, maxOutputTokens: 1500 },
-        });
-
-        let text = (resp.text || '').trim();
-        // Убираем markdown обертку если есть
-        text = text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '');
-        
-        let elements = [];
-        try {
-          elements = JSON.parse(text);
-          // Валидируем формат
-          elements = elements.filter(el =>
-            el.name && Array.isArray(el.bbox) && el.bbox.length === 4 &&
-            el.bbox.every(v => typeof v === 'number' && v >= 0 && v <= 100)
-          );
-        } catch {
-          console.error('[detect-elements] JSON parse error:', text);
-        }
-
         return res.status(200).json({ success: true, elements });
       } catch (err) {
         console.error('[detect-elements]', err.message);
@@ -1974,35 +1944,45 @@ export default async function handler(req, res) {
     }
 
 
-    // ═══ CREATE PERSONA — генерация comp card (8 ракурсов) из реальных фото ═══
+    // ═══ CREATE PERSONA — генерация 5-frame casting card по описанию + опциональные фото ═══
     if (req.body?.action === 'create-persona') {
-      const { photos } = req.body;
-      if (!photos || typeof photos !== 'object') {
-        return res.status(400).json({ success: false, error: 'photos object is required with front, left34, right34, fullbody keys' });
+      const { photos, personaDescription, modelName: personaName } = req.body;
+      const photoKeys = photos && typeof photos === 'object' ? Object.keys(photos).filter(k => photos[k]) : [];
+      const hasDescription = personaDescription && personaDescription.trim().length > 5;
+      const hasPhotos = photoKeys.length > 0;
+
+      // Нужно хотя бы описание ИЛИ фото
+      if (!hasDescription && !hasPhotos) {
+        return res.status(400).json({ success: false, error: 'Нужно описание персонажа или хотя бы одна фотография' });
       }
 
       const elapsed = () => ((Date.now() - startTime) / 1000).toFixed(1);
-      const photoKeys = Object.keys(photos).filter(k => photos[k]);
-      console.log(`🧑 [${elapsed()}s] Create Persona: ${photoKeys.length} photos provided (${photoKeys.join(', ')})`);
-
-      if (photoKeys.length < 2) {
-        return res.status(400).json({ success: false, error: 'Нужно минимум 2 фотографии для создания персонажа' });
-      }
+      console.log(`🧑 [${elapsed()}s] Create Persona: name="${personaName || 'unknown'}", photos=${photoKeys.length}, hasDesc=${hasDescription}`);
 
       try {
-        // Collect all provided photos as image inputs
+        // Collect photos as image inputs
         const imageInputs = [];
-        for (const key of ['front', 'left34', 'right34', 'fullbody']) {
-          if (photos[key]) {
-            const img = photos[key];
-            imageInputs.push(img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`);
+        if (hasPhotos) {
+          for (const key of ['front', 'left34', 'right34', 'fullbody']) {
+            if (photos[key]) {
+              const img = photos[key];
+              imageInputs.push(img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`);
+            }
           }
         }
+        // ── Build persona prompt based on available inputs ──
+        const descBlock = hasDescription
+          ? `\n═══ CHARACTER DESCRIPTION (PRIMARY SUBJECT) ═══\n${personaDescription.trim()}${personaName ? `\nName: ${personaName}` : ''}\n`
+          : '';
+        const refBlock = hasPhotos
+          ? `\n═══ REFERENCE PHOTOS PROVIDED ═══\nYou have received ${imageInputs.length} reference photo(s). Use them to match the person's EXACT facial features, skin tone, hair, and body type. The generated character MUST look like the person in the reference photos.\n`
+          : '';
+        const subjectInstruction = hasPhotos
+          ? `REPLICATE the EXACT facial features from the reference photos. ZERO creative liberty with the face.`
+          : `CREATE this character FROM SCRATCH based on the description above. Generate a unique, photorealistic human being matching the description exactly.`;
 
         const personaPrompt = `You are an elite fashion agency photographer and casting director creating a PROFESSIONAL MODEL CASTING CARD.
-
-You have received ${photoKeys.length} reference photo(s) of a REAL PERSON. Create a single image with EXACTLY 5 frames in this layout:
-
+${descBlock}${refBlock}
 ═══ LAYOUT: TOP ROW (4 face close-ups) + BOTTOM (1 large full-body) ═══
 
 TOP ROW — 4 equal portrait frames side by side:
@@ -2024,16 +2004,17 @@ TOTAL: Exactly 5 frames. NO MORE. NO LESS. Top row: 4 small portraits. Bottom: 1
 - The result must look like a real photograph, NOT an AI illustration
 
 ═══ ABSOLUTE IDENTITY LOCK (CRITICAL — ZERO TOLERANCE) ═══
-This is the #1 priority. The person in ALL 5 frames must be PIXEL-PERFECT IDENTICAL to the reference photos:
+${subjectInstruction}
+The person in ALL 5 frames must be CONSISTENT — same person across every frame:
 - FACE: Exact bone structure — cheekbones, jawline angle, chin shape, forehead size
 - EYES: Same exact eye shape, color, distance, eyelid crease, piercing gaze
 - NOSE: Same exact nose bridge width, nostril shape, tip angle
 - LIPS: Same exact lip fullness, cupid's bow, natural lip color
-- SKIN: Same exact skin tone, texture, any visible moles/marks/freckles
+- SKIN: Same exact skin tone, texture, any moles/marks/freckles
 - HAIR: Same exact color, length, texture, parting, style — NO hairstyle changes
 - BODY: Same exact build, height proportions, shoulder width, muscle definition
-- AGE: Same age across all 5 frames
-If ANY frame shows a generic AI face instead of this specific person — REJECTED.
+- AGE: Consistent age across all 5 frames
+If ANY frame shows a different-looking person — REJECTED.
 
 ═══ WARDROBE & BACKGROUND ═══
 - Wardrobe: Simple black fitted clothing (black crew-neck t-shirt + black slim pants). No logos.
@@ -2053,7 +2034,7 @@ Bottom: "Full Body Front"
 OUTPUT: One single 4K image. Casting card with 5 frames. Masterpiece cinematic photography quality.`;
 
 
-        console.log(`🧑 [${elapsed()}s] Sending ${imageInputs.length} photos to KIE.ai for comp card generation...`);
+        console.log(`🧑 [${elapsed()}s] Sending ${imageInputs.length} photo(s) to KIE.ai for persona casting card...`);
         const resultUrl = await executeKieTask(personaPrompt, imageInputs, 'nano-banana-2', '16:9', '4K');
         console.log(`✅ [${elapsed()}s] Comp card generated. Downloading...`);
         const dl = await downloadToBase64(resultUrl);
