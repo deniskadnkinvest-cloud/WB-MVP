@@ -1999,55 +1999,62 @@ export default async function handler(req, res) {
           }
         }
 
-        const personaPrompt = `You are an elite fashion agency photographer creating a PROFESSIONAL MODEL COMP CARD (also known as a "zed card" or "sed card").
+        const personaPrompt = `You are an elite fashion agency photographer and casting director creating a PROFESSIONAL MODEL CASTING CARD.
 
-You have received ${photoKeys.length} reference photo(s) of a REAL PERSON. Create a single image showing a 4-column × 2-row grid (exactly 8 frames total, NO MORE, NO LESS).
+You have received ${photoKeys.length} reference photo(s) of a REAL PERSON. Create a single image with EXACTLY 5 frames in this layout:
+
+═══ LAYOUT: TOP ROW (4 face close-ups) + BOTTOM (1 large full-body) ═══
+
+TOP ROW — 4 equal portrait frames side by side:
+  [1] Face Front — head & shoulders, looking directly at camera, serious/neutral expression
+  [2] Face 3/4 Left — head & shoulders, turned ~30° to subject's left
+  [3] Face 3/4 Right — head & shoulders, turned ~30° to subject's right
+  [4] Face Profile — head & shoulders, full 90° side profile view
+
+BOTTOM — 1 wide full-body frame (same width as all 4 top frames combined):
+  [5] Full Body Front — standing straight, arms relaxed at sides, facing camera, head to toe
+
+TOTAL: Exactly 5 frames. NO MORE. NO LESS. Top row: 4 small portraits. Bottom: 1 large full-body.
+
+═══ PHOTOGRAPHIC REALISM (CRITICAL — NO PLASTIC SKIN) ═══
+- DO NOT apply AI smoothing, plastic skin filters, or generic CGI rendering
+- PRESERVE raw photographic texture: skin pores, micro-details, natural imperfections
+- Lighting: cinematic, dramatic with depth and micro-contrast — NOT flat studio lighting
+- Render hyper-realistic skin, natural hair strands, authentic human texture
+- The result must look like a real photograph, NOT an AI illustration
 
 ═══ ABSOLUTE IDENTITY LOCK (CRITICAL — ZERO TOLERANCE) ═══
-This is the #1 priority. The person in ALL 8 frames must be PIXEL-PERFECT IDENTICAL to the reference photos:
-- FACE: Replicate the EXACT bone structure — cheekbones, jawline angle, chin shape, forehead size
-- EYES: Same exact eye shape, color, distance between eyes, eyelid crease
+This is the #1 priority. The person in ALL 5 frames must be PIXEL-PERFECT IDENTICAL to the reference photos:
+- FACE: Exact bone structure — cheekbones, jawline angle, chin shape, forehead size
+- EYES: Same exact eye shape, color, distance, eyelid crease, piercing gaze
 - NOSE: Same exact nose bridge width, nostril shape, tip angle
-- LIPS: Same exact lip fullness, cupid's bow, lip color
-- EYEBROWS: Same exact arch, thickness, spacing
-- SKIN: Same exact skin tone, texture, any visible moles/freckles/marks
-- HAIR: Same exact color, length, texture, parting, style — do NOT change the hairstyle
+- LIPS: Same exact lip fullness, cupid's bow, natural lip color
+- SKIN: Same exact skin tone, texture, any visible moles/marks/freckles
+- HAIR: Same exact color, length, texture, parting, style — NO hairstyle changes
 - BODY: Same exact build, height proportions, shoulder width, muscle definition
-- AGE: The person must look the SAME AGE across all 8 frames
-If ANY frame shows a different-looking person, the entire comp card is REJECTED.
+- AGE: Same age across all 5 frames
+If ANY frame shows a generic AI face instead of this specific person — REJECTED.
 
-═══ WARDROBE ═══
-Simple black fitted clothing in ALL frames: plain black crew-neck t-shirt + black slim pants. No logos, no patterns.
-
-═══ GRID LAYOUT — EXACTLY 4 COLUMNS × 2 ROWS = 8 FRAMES ═══
-ROW 1 (Head & shoulders close-up portraits):
-  [1] Face Front — looking directly at camera, neutral expression
-  [2] Face 3/4 Left — head turned ~30° to subject's left
-  [3] Face 3/4 Right — head turned ~30° to subject's right
-  [4] Face Profile — full 90° side profile view
-
-ROW 2 (Full body standing shots):
-  [5] Full Body Front — standing straight, arms relaxed at sides, facing camera
-  [6] Full Body 3/4 — standing at ~30° angle
-  [7] Full Body Side — full side profile standing
-  [8] Full Body Back — standing with back to camera, head slightly turned
+═══ WARDROBE & BACKGROUND ═══
+- Wardrobe: Simple black fitted clothing (black crew-neck t-shirt + black slim pants). No logos.
+- Background: Dark cinematic charcoal/slate with subtle vignette, matching the dramatic mood of input photos. Uniform across all frames.
 
 ═══ LABELS ═══
-Small white text below each frame:
-Row 1: "Face Front" | "Face 3/4 Left" | "Face 3/4 Right" | "Face Profile"
-Row 2: "Full Body Front" | "Full Body 3/4" | "Full Body Side" | "Full Body Back"
+Small elegant white text label below each frame:
+Top: "Face Front" | "Face 3/4 Left" | "Face 3/4 Right" | "Face Profile"
+Bottom: "Full Body Front"
 
 ═══ TECHNICAL ═══
-- Background: neutral dark charcoal gray (#2a2a2a) studio backdrop, uniform across all frames
-- Lighting: professional 3-point studio lighting, soft fill, no harsh shadows
-- Grid: clean thin borders between frames, no gaps
-- ABSOLUTELY NO extra rows, NO 3rd row, NO additional frames. Only 2 rows of 4 = 8 total.
+- Clean thin dark borders between frames
+- Top 4 frames: equal width, portrait orientation (roughly 1:1.2 ratio)
+- Bottom 1 frame: full width, landscape orientation showing entire body
+- ABSOLUTELY NO 3rd row, NO 6th frame, NO 8-frame grid. Only 5 frames total.
 
-OUTPUT: One single image. 4×2 grid. 8 frames. Professional comp card quality. No text other than labels.`;
+OUTPUT: One single 4K image. Casting card with 5 frames. Masterpiece cinematic photography quality.`;
 
 
         console.log(`🧑 [${elapsed()}s] Sending ${imageInputs.length} photos to KIE.ai for comp card generation...`);
-        const resultUrl = await executeKieTask(personaPrompt, imageInputs, 'nano-banana-2', '16:9', '2K');
+        const resultUrl = await executeKieTask(personaPrompt, imageInputs, 'nano-banana-2', '16:9', '4K');
         console.log(`✅ [${elapsed()}s] Comp card generated. Downloading...`);
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download comp card');

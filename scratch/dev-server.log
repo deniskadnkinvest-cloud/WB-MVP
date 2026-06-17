@@ -65,3 +65,29 @@
 [VITE] [2m08:46:03[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LoraModal.jsx[22m
 [VITE] [2m08:46:26[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LoraModal.jsx[22m
 [VITE] [2m08:48:32[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LoraModal.jsx[22m
+[VITE] [2m09:05:43[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LoraModal.jsx[22m
+[VITE] [2m10:39:24[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LoraModal.jsx[22m
+[VITE] [2m10:39:24[22m [31m[1m[vite][22m[39m [31mInternal server error: Transform failed with 1 error:
+[VITE] 
+[VITE] [31m[PARSE_ERROR] Error:[0m A module cannot have multiple default exports.
+[VITE]      [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m src/components/LoraModal.jsx:13:8 [38;5;246m][0m
+[VITE]      [38;5;246m│[0m
+[VITE]  [38;5;246m 13 │[0m [38;5;249me[0m[38;5;249mx[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m [0mdefault[38;5;249m [0m[38;5;249mf[0m[38;5;249mu[0m[38;5;249mn[0m[38;5;249mc[0m[38;5;249mt[0m[38;5;249mi[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249m [0m[38;5;249mL[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249ma[0m[38;5;249mM[0m[38;5;249mo[0m[38;5;249md[0m[38;5;249ma[0m[38;5;249ml[0m[38;5;249m([0m[38;5;249m{[0m
+[VITE]  [38;5;240m    │[0m        ───┬───  
+[VITE]  [38;5;240m    │[0m           ╰───── 
+[VITE]  [38;5;240m    │[0m 
+[VITE]  [38;5;246m344 │[0m [38;5;249me[0m[38;5;249mx[0m[38;5;249mp[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249mt[0m[38;5;249m [0mdefault[38;5;249m [0m[38;5;249mf[0m[38;5;249mu[0m[38;5;249mn[0m[38;5;249mc[0m[38;5;249mt[0m[38;5;249mi[0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249m [0m[38;5;249mL[0m[38;5;249mo[0m[38;5;249mr[0m[38;5;249ma[0m[38;5;249mM[0m[38;5;249mo[0m[38;5;249md[0m[38;5;249ma[0m[38;5;249ml[0m[38;5;249m([0m[38;5;249m{[0m
+[VITE]  [38;5;240m    │[0m        ───┬───  
+[VITE]  [38;5;240m    │[0m           ╰───── 
+[VITE] [38;5;246m─────╯[0m
+[VITE] [39m
+[VITE]   Plugin: [35mvite:oxc[39m
+[VITE]   File: [36mC:/Users/LORD-KSON/Kson Project/Все мои APPы/VTON-MVP/src/components/LoraModal.jsx[39m
+[VITE]       at transformWithOxc (file:///C:/Users/LORD-KSON/Kson%20Project/%D0%92%D1%81%D0%B5%20%D0%BC%D0%BE%D0%B8%20APP%D1%8B/VTON-MVP/node_modules/vite/dist/node/chunks/node.js:3745:19)
+[VITE]       at TransformPluginContext.transform (file:///C:/Users/LORD-KSON/Kson%20Project/%D0%92%D1%81%D0%B5%20%D0%BC%D0%BE%D0%B8%20APP%D1%8B/VTON-MVP/node_modules/vite/dist/node/chunks/node.js:3813:26)
+[VITE]       at EnvironmentPluginContainer.transform (file:///C:/Users/LORD-KSON/Kson%20Project/%D0%92%D1%81%D0%B5%20%D0%BC%D0%BE%D0%B8%20APP%D1%8B/VTON-MVP/node_modules/vite/dist/node/chunks/node.js:30143:51)
+[VITE]       at async loadAndTransform (file:///C:/Users/LORD-KSON/Kson%20Project/%D0%92%D1%81%D0%B5%20%D0%BC%D0%BE%D0%B8%20APP%D1%8B/VTON-MVP/node_modules/vite/dist/node/chunks/node.js:24468:26)
+[VITE]       at async viteTransformMiddleware (file:///C:/Users/LORD-KSON/Kson%20Project/%D0%92%D1%81%D0%B5%20%D0%BC%D0%BE%D0%B8%20APP%D1%8B/VTON-MVP/node_modules/vite/dist/node/chunks/node.js:24262:20)
+[VITE] [2m10:39:24[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[vite] Failed to reload /src/components/LoraModal.jsx. This could be due to syntax errors or importing non-existent modules. (see errors above)
+[VITE] [2m10:40:36[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LoraModal.jsx[22m
+[VITE] [2m10:42:24[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m

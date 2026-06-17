@@ -901,7 +901,8 @@ function App() {
       }));
       const imageUrls = uploads.map(u => u.url);
       const storagePaths = uploads.map(u => u.path);
-      await saveModel(user.uid, { name: loraName.trim(), type: 'lora', imageUrls, storagePaths, prompt: '' });
+      // modelType='own_model' — маркер для VTON pipeline: все фото идут напрямую как референсы
+      await saveModel(user.uid, { name: loraName.trim(), type: 'lora', modelType: 'own_model', imageUrls, storagePaths, prompt: '' });
       const models = await getModels(user.uid);
       setMyModels(models);
       setShowLoraModal(false); setLoraName(''); setLoraPhotos({ front: null, left34: null, right34: null, fullbody: null });
@@ -982,15 +983,17 @@ function App() {
       await saveModel(user.uid, {
         name,
         type: 'persona',
-        imageUrls: [compUpload.url, ...sourceUploads.map(u => u.url)],
+        modelType: 'persona',  // ← маркер для VTON pipeline
+        // imageUrls = только comp card (1 файл) — именно он уйдёт в GPT Image 2 как референс
+        imageUrls: [compUpload.url],
+        sourcePhotoUrls: sourceUploads.map(u => u.url),
         storagePaths: [compUpload.path, ...sourceUploads.map(u => u.path)],
         compCardUrl: compUpload.url,
-        fullbodyUrl: compUpload.url,
         prompt: '',
       });
       const models = await getModels(user.uid);
       setMyModels(models);
-      setStatusText('`u{2705} Персонаж сохранён!');
+      setStatusText('\u2705 Персонаж сохранён!');
       setStatusType('success');
     } catch (err) {
       console.error('Ошибка сохранения персонажа:', err);
