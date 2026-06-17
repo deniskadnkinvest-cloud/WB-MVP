@@ -178,7 +178,7 @@ async function uploadBase64ToKie(base64DataUrl, apiKey, index = 0) {
   }
 }
 
-async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana-2") {
+async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana-2", aspectRatio = "auto") {
   const rawKey = process.env.KIE_API_KEY;
   if (!rawKey) throw new Error("API key missing. Set KIE_API_KEY in .env");
   // Strip BOM, zero-width chars, and whitespace that PowerShell/editors inject
@@ -200,7 +200,7 @@ async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana
     input: {
       prompt: prompt,
       image_input: uploadedImageUrls,
-      aspect_ratio: "auto",
+      aspect_ratio: aspectRatio,
       resolution: "1K",
       output_format: "png"
     }
@@ -2047,7 +2047,7 @@ OUTPUT: One single image. 4×2 grid. 8 frames. Professional comp card quality. N
 
 
         console.log(`🧑 [${elapsed()}s] Sending ${imageInputs.length} photos to KIE.ai for comp card generation...`);
-        const resultUrl = await executeKieTask(personaPrompt, imageInputs, 'nano-banana-2');
+        const resultUrl = await executeKieTask(personaPrompt, imageInputs, 'nano-banana-2', '16:9');
         console.log(`✅ [${elapsed()}s] Comp card generated. Downloading...`);
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download comp card');

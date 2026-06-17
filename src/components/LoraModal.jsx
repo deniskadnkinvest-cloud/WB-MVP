@@ -131,6 +131,25 @@ export default function LoraModal({
     setVariantIdx(i => ({ ...i, [key]: (i[key] + dir + total) % total }));
   };
 
+  // ── Smart crop: if AI generated 3 rows (nearly square), crop to top 2/3 ──
+  const smartCropCompCard = (dataUrl) => new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const ratio = img.width / img.height;
+      // 2-row result is landscape (≥1.4:1), 3-row result is nearly square (~1.0-1.2:1)
+      if (ratio >= 1.4) { resolve(dataUrl); return; } // Already correct 2-row layout
+      // 3 rows detected — crop to top 2/3 to remove duplicate row
+      const cropH = Math.round(img.height * (2 / 3));
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = cropH;
+      canvas.getContext('2d').drawImage(img, 0, 0, img.width, cropH, 0, 0, img.width, cropH);
+      resolve(canvas.toDataURL('image/jpeg', 0.95));
+    };
+    img.onerror = () => resolve(dataUrl); // fallback: return as-is
+    img.src = dataUrl;
+  });
+
   // ── Generate comp card ──
   const generateCompCard = async () => {
     if (!loraName.trim()) { setSaveError('Введите имя модели'); return; }
@@ -149,8 +168,9 @@ export default function LoraModal({
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Ошибка создания карточки');
+      const croppedImage = await smartCropCompCard(json.imageBase64);
       setCompCards(prev => {
-        const next = [...prev, json.imageBase64];
+        const next = [...prev, croppedImage];
         setActiveCompIdx(next.length - 1);
         return next;
       });
@@ -178,8 +198,9 @@ export default function LoraModal({
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Ошибка');
+      const croppedImage = await smartCropCompCard(json.imageBase64);
       setCompCards(prev => {
-        const next = [...prev, json.imageBase64];
+        const next = [...prev, croppedImage];
         setActiveCompIdx(next.length - 1);
         return next;
       });
