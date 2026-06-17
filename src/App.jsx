@@ -6,6 +6,7 @@ import ModelCalibrationWizard from './components/ModelCalibrationWizard';
 import GenderToggle from './components/GenderToggle';
 import DetailPanel from './components/DetailPanel';
 import LoraModal from './components/LoraModal';
+import PersonaWizard from './components/PersonaWizard';
 import TerminalOfMagic from './components/TerminalOfMagic';
 import LoginPage from './components/LoginPage';
 import PricingModal from './components/PricingModal';
@@ -120,6 +121,9 @@ function App() {
   // Calibration wizard
   const [showCalibWizard, setShowCalibWizard] = useState(false);
   const [calibPurpose, setCalibPurpose] = useState('save'); // 'save' | 'photoshoot'
+  const [showPersonaWizard, setShowPersonaWizard] = useState(false);
+  const [cardWithModel, setCardWithModel] = useState(false);
+  const [viewingCompCard, setViewingCompCard] = useState(null); // comp card URL for lightbox
 
   // Multi-upload garments
   const [imageFiles, setImageFiles] = useState([]);
@@ -965,6 +969,36 @@ function App() {
     }
   };
 
+
+  // Save persona model (from PersonaWizard comp card)
+  const savePersonaModel = async ({ name, type, compCardBase64, compCardUrl, sourcePhotos }) => {
+    if (!user) throw new Error('Не авторизован');
+    setIsSaving(true);
+    try {
+      const compUpload = await uploadBase64Image(user.uid, compCardBase64, 'models');
+      const sourceUploads = await Promise.all(
+        sourcePhotos.map(async (base64) => uploadBase64Image(user.uid, base64, 'models'))
+      );
+      await saveModel(user.uid, {
+        name,
+        type: 'persona',
+        imageUrls: [compUpload.url, ...sourceUploads.map(u => u.url)],
+        storagePaths: [compUpload.path, ...sourceUploads.map(u => u.path)],
+        compCardUrl: compUpload.url,
+        fullbodyUrl: compUpload.url,
+        prompt: '',
+      });
+      const models = await getModels(user.uid);
+      setMyModels(models);
+      setStatusText('`u{2705} Персонаж сохранён!');
+      setStatusType('success');
+    } catch (err) {
+      console.error('Ошибка сохранения персонажа:', err);
+      throw err;
+    } finally {
+      setIsSaving(false);
+    }
+  };
   // Open calibration wizard
   const openCalibration = (purpose = 'save') => {
     setCalibPurpose(purpose);
@@ -1609,7 +1643,7 @@ ${userProductInfo.trim()}
     const isCardMode = quickMode === 'card';
     const isUgcMode = quickMode === 'ugc';
     const isModelMode = quickMode === 'model';
-    const creditsNeeded = (isCardMode || isModelMode) ? 2 : 1;
+    const creditsNeeded = isCardMode ? 2 : 1;
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < creditsNeeded && !subscription?.local) {
       setShowPricing(true);
@@ -1662,8 +1696,7 @@ ${userProductInfo.trim()}
           body: JSON.stringify({
             userId: user.uid,
             isModelCard: true,
-            quickCardStyle: quickCardStyle,
-            userProductInfo: userProductInfo.trim() || '',
+            isPhotoOnly: true,
             garmentImageUrls: garmentUrls,
           }),
         });
@@ -1680,7 +1713,7 @@ ${userProductInfo.trim()}
           setStatusText('✅ Карточка с моделью готова!');
           setStatusType('success');
         } else {
-          setStatusText(`⚠️ ${data.error || 'Не удалось создать карточку с моделью'}`);
+          setStatusText(`⚠️ ${data.error || 'Не удалось создать фото с моделью'}`);
           setStatusType('error');
         }
       } else if (isUgcMode) {
@@ -1717,7 +1750,8 @@ ${userProductInfo.trim()}
           signal: controller.signal,
           body: JSON.stringify({
             userId: user.uid,
-            isQuickCard: true,
+            isQuickCard: !cardWithModel,
+            isModelCard: cardWithModel || false,
             quickCardStyle: quickCardStyle,
             userProductInfo: userProductInfo.trim() || '',
             garmentImageUrls: garmentUrls,
@@ -2631,7 +2665,7 @@ ${userProductInfo.trim()}
             >
               {isProcessing ? '⏳ Генерируем...' : (quickMode === 'card' ? '📋 Создать карточку' : quickMode === 'ugc' ? '📱 Создать фото от покупателя' : quickMode === 'model' ? '👤 Создать карточку с моделью' : '🎨 Создать фото')}
             </button>
-            <span className="quick-credits-hint">{(quickMode === 'card' || quickMode === 'model') ? '2 кредита' : '1 кредит'}</span>
+            <span className="quick-credits-hint">{quickMode === 'card' ? '2 кредита' : '1 кредит'}</span>
           </div>
         </motion.div>
       )}
@@ -2873,9 +2907,9 @@ ${userProductInfo.trim()}
                   )}
                 </>
               )}
-              <div className="add-location-card" style={{marginTop: myModels.length ? 12 : 0}} onClick={() => setShowLoraModal(true)}>
-                <span className="plus-icon">+</span>
-                <span>Добавить свою модель</span>
+              <div className="add-location-card" style={{marginTop: myModels.length ? 12 : 0, background:'rgba(168,85,247,0.08)', borderColor:'rgba(168,85,247,0.2)'}} onClick={() => setShowPersonaWizard(true)}>
+                <span className="plus-icon" style={{color:'#a855f7'}}>🧑</span>
+                <span style={{color:'#a855f7'}}>Создать персонажа</span>
               </div>
             </>
           )}
@@ -4066,6 +4100,29 @@ ${userProductInfo.trim()}
                 <button className="modal-btn-cancel" onClick={()=>{setShowLocModal(false);setLocName('');setLocPreviews([]);}}>Отмена</button>
                 <button className="modal-btn-primary" onClick={saveLoc} disabled={!locName.trim()||locPreviews.length<2}>Сохранить</button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ВИЗАРД: Создание персонажа */}
+      <AnimatePresence>
+        {showPersonaWizard && (
+          <PersonaWizard
+            onClose={() => setShowPersonaWizard(false)}
+            onSave={savePersonaModel}
+            authHeaders={(() => { const token = user?.accessToken || user?.stsTokenManager?.accessToken; return token ? { Authorization: `Bearer ${token}` } : {}; })()}
+            credits={subscription?.credits || 0}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Comp card lightbox */}
+      <AnimatePresence>
+        {viewingCompCard && (
+          <motion.div className="modal-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => setViewingCompCard(null)} style={{zIndex:1000}}>
+            <motion.div initial={{scale:0.8}} animate={{scale:1}} exit={{scale:0.8}} onClick={e => e.stopPropagation()} style={{maxWidth:'90vw', maxHeight:'90vh'}}>
+              <img src={viewingCompCard} alt="Comp Card" style={{maxWidth:'100%', maxHeight:'90vh', borderRadius:16}} />
             </motion.div>
           </motion.div>
         )}

@@ -1687,6 +1687,40 @@ One realistic smartphone photograph of the product in a natural domestic setting
 No text. No watermarks. No studio look. No explanations.
 Just the photograph.`;
 
+// ═══ MODEL PHOTO PROMPT — красивое фото товара с моделью (без инфографики) ═══
+const MODEL_PHOTO_PROMPT = `You are an elite product photographer and creative director.
+
+Your task: Create a stunning, high-quality PHOTOGRAPH of a HUMAN MODEL naturally interacting with the product shown in the reference image(s).
+
+STEP 1 — PRODUCT ANALYSIS:
+Analyze the product image(s). Determine:
+- What category? (clothing, electronics, cosmetics, furniture, food, sport, bags, jewelry, etc.)
+- How should a person naturally wear, hold, use, or demonstrate this product?
+
+STEP 2 — MODEL SELECTION:
+Auto-select the perfect model for this product:
+- Gender matching the product's target audience
+- Age 22-35, attractive but natural
+- Warm, confident expression
+- Clothing that complements (not overshadows) the product
+
+STEP 3 — SCENE & PHOTOGRAPHY:
+- Choose the ideal setting: studio, lifestyle indoor, outdoor — whatever best showcases this product with a person
+- Professional commercial photography lighting
+- The PRODUCT must be clearly visible and be the hero
+- Model complements the product naturally
+- Composition: vertical 3:4, clean and balanced
+- High-end fashion/commercial photography quality
+
+STRICT RULES:
+- NO text, NO typography, NO infographic elements, NO badges, NO benefit chips
+- NO marketplace card layout — this is a PHOTO, not a card
+- NO distorted product — preserve exact shape, color, details
+- NO uncanny valley — model must look natural and photorealistic
+- Product should be recognizable as the exact item from the reference
+
+OUTPUT: One finished vertical product photo with a human model. No explanations. No text overlays.`;
+
 // ═══ MODEL CARD PROMPTS — карточки маркетплейса с человеком-моделью ═══
 const MODEL_CARD_PROMPT_NATURAL = `You are an elite marketplace creative director, product photographer, and Russian copywriter.
 
@@ -1939,6 +1973,154 @@ export default async function handler(req, res) {
       }
     }
 
+
+    // ═══ CREATE PERSONA — генерация comp card (8 ракурсов) из реальных фото ═══
+    if (req.body?.action === 'create-persona') {
+      const { photos } = req.body;
+      if (!photos || typeof photos !== 'object') {
+        return res.status(400).json({ success: false, error: 'photos object is required with front, left34, right34, fullbody keys' });
+      }
+
+      const elapsed = () => ((Date.now() - startTime) / 1000).toFixed(1);
+      const photoKeys = Object.keys(photos).filter(k => photos[k]);
+      console.log(`🧑 [${elapsed()}s] Create Persona: ${photoKeys.length} photos provided (${photoKeys.join(', ')})`);
+
+      if (photoKeys.length < 2) {
+        return res.status(400).json({ success: false, error: 'Нужно минимум 2 фотографии для создания персонажа' });
+      }
+
+      try {
+        // Collect all provided photos as image inputs
+        const imageInputs = [];
+        for (const key of ['front', 'left34', 'right34', 'fullbody']) {
+          if (photos[key]) {
+            const img = photos[key];
+            imageInputs.push(img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`);
+          }
+        }
+
+        const personaPrompt = `You are an elite fashion model agency photographer creating a professional MODEL COMP CARD.
+
+You have received ${photoKeys.length} reference photo(s) of a REAL PERSON. Your job is to create a professional 4x2 grid comp card showing this EXACT SAME PERSON from 8 different angles.
+
+CRITICAL IDENTITY RULES:
+- The person in ALL 8 frames must be IDENTICAL to the reference photos
+- Preserve EXACT facial features: face shape, nose, eyes, eyebrows, lips, jawline, skin tone
+- Preserve EXACT hair: color, length, texture, style
+- Preserve EXACT body proportions: height, build, shoulder width
+- The person must wear simple black fitted clothing (black t-shirt + black pants) in ALL frames
+- Neutral dark gray studio background in ALL frames
+- Professional studio lighting, no harsh shadows
+
+GRID LAYOUT (4 columns x 2 rows):
+ROW 1 (Head/Shoulders portraits, 1:1 crop):
+1. Face Front — looking directly at camera, neutral expression
+2. Face 3/4 Left — head turned ~30° to their left, showing left side of face
+3. Face 3/4 Right — head turned ~30° to their right, showing right side of face
+4. Face Profile — full side profile view (90° turn)
+
+ROW 2 (Full Body shots, 3:4 crop):
+5. Full Body Front — standing straight facing camera, arms at sides
+6. Full Body 3/4 — standing at ~30° angle
+7. Full Body Side — standing in full side profile
+8. Full Body Back — standing with back to camera
+
+LABELS: Add small white text labels below each frame:
+Row 1: "Face Front" | "Face 3/4 Left" | "Face 3/4 Right" | "Face Profile"
+Row 2: "Full Body Front" | "Full Body 3/4" | "Full Body Side" | "Full Body Back"
+
+OUTPUT: One single image containing the 4x2 grid. Professional quality. No explanations.`;
+
+        console.log(`🧑 [${elapsed()}s] Sending ${imageInputs.length} photos to KIE.ai for comp card generation...`);
+        const resultUrl = await executeKieTask(personaPrompt, imageInputs, 'nano-banana-2');
+        console.log(`✅ [${elapsed()}s] Comp card generated. Downloading...`);
+        const dl = await downloadToBase64(resultUrl);
+        if (!dl) throw new Error('Failed to download comp card');
+
+        // Списываем 1 кредит за генерацию comp card
+        const subRef = _db.doc(`users/${verifiedUid}/subscription/current`);
+        if (!req.body?.skipCreditDeduction) {
+          await subRef.update({ credits: FieldValue.increment(-1) });
+        }
+        const subSnap = await subRef.get();
+        const creditsRemaining = subSnap.data()?.credits || 0;
+
+        incrementGlobalCounter('generationsPersona').catch(() => {});
+        saveGenerationLog({ userId: verifiedUid, success: true, imageUrl: resultUrl, reqBody: { action: 'create-persona', photoCount: photoKeys.length }, durationMs: Date.now() - startTime }).catch(() => {});
+
+        return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining });
+      } catch (err) {
+        console.error(`❌ Create Persona error:`, err.message);
+        alertOnError(err, `generate-image [create_persona]`).catch(() => {});
+        return res.status(200).json({ success: false, error: `Ошибка создания персонажа: ${err.message.substring(0, 200)}` });
+      }
+    }
+
+    // ═══ GENERATE MISSING ANGLE — генерация недостающего ракурса из имеющихся фото ═══
+    if (req.body?.action === 'generate-missing-angle') {
+      const { existingPhotos, missingAngle } = req.body;
+      if (!existingPhotos || !Array.isArray(existingPhotos) || existingPhotos.length === 0) {
+        return res.status(400).json({ success: false, error: 'existingPhotos array required' });
+      }
+      if (!missingAngle) {
+        return res.status(400).json({ success: false, error: 'missingAngle required (front, left34, right34, fullbody)' });
+      }
+
+      const elapsed = () => ((Date.now() - startTime) / 1000).toFixed(1);
+      console.log(`📐 [${elapsed()}s] Generate missing angle: ${missingAngle} from ${existingPhotos.length} existing photos`);
+
+      const ANGLE_DESCRIPTIONS = {
+        front: 'a FRONT-FACING portrait photo (looking directly at camera, head and shoulders, neutral expression)',
+        left34: 'a 3/4 LEFT SIDE portrait photo (head turned ~30° to their left, showing more of the left side of face)',
+        right34: 'a 3/4 RIGHT SIDE portrait photo (head turned ~30° to their right, showing more of the right side of face)',
+        fullbody: 'a FULL BODY photo (standing straight, facing camera, showing the entire body from head to feet, arms relaxed at sides)',
+      };
+
+      const angleDesc = ANGLE_DESCRIPTIONS[missingAngle] || ANGLE_DESCRIPTIONS.front;
+
+      try {
+        const imageInputs = existingPhotos.map(img =>
+          img.startsWith('data:') ? img : `data:image/jpeg;base64,${img}`
+        );
+
+        const missingPrompt = `You have received ${existingPhotos.length} reference photo(s) of a REAL PERSON.
+Generate ${angleDesc} of this EXACT SAME PERSON.
+
+CRITICAL IDENTITY RULES:
+- The generated photo must show the EXACT SAME PERSON as in the reference photos
+- Preserve ALL facial features identically: face shape, nose, eyes, eyebrows, lips, jawline, skin tone, wrinkles, moles
+- Preserve EXACT hair: color, length, texture, style, hairline
+- Preserve EXACT body proportions
+- Wear simple black fitted clothing (black t-shirt + black pants)
+- Neutral dark gray studio background
+- Professional studio lighting
+
+OUTPUT: One single high-quality photo. No text. No collage. No explanations.`;
+
+        console.log(`📐 [${elapsed()}s] Sending to KIE.ai for missing angle generation...`);
+        const resultUrl = await executeKieTask(missingPrompt, imageInputs, 'nano-banana-2');
+        console.log(`✅ [${elapsed()}s] Missing angle generated. Downloading...`);
+        const dl = await downloadToBase64(resultUrl);
+        if (!dl) throw new Error('Failed to download generated angle');
+
+        // Списываем 1 кредит
+        const subRef = _db.doc(`users/${verifiedUid}/subscription/current`);
+        if (!req.body?.skipCreditDeduction) {
+          await subRef.update({ credits: FieldValue.increment(-1) });
+        }
+        const subSnap = await subRef.get();
+        const creditsRemaining = subSnap.data()?.credits || 0;
+
+        incrementGlobalCounter('generationsAngle').catch(() => {});
+
+        return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining });
+      } catch (err) {
+        console.error(`❌ Generate missing angle error:`, err.message);
+        alertOnError(err, `generate-image [missing_angle]`).catch(() => {});
+        return res.status(200).json({ success: false, error: `Ошибка генерации ракурса: ${err.message.substring(0, 200)}` });
+      }
+    }
+
     // ═══ EDIT CARD — редактирование карточки маркетплейса через GPT Image 2 ═══
     if (req.body?.action === 'edit-card') {
       const { sourceImageBase64: editSrc, editInstruction: editText } = req.body;
@@ -2091,7 +2273,8 @@ IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation
       cardStyle = 'natural',
       isQuickCard = false,
       isUgcMode = false,
-      isModelCard = false,
+      isModelCard = false,
+      isPhotoOnly = false,
       quickCardStyle = 'natural',
       userProductInfo = '',
     } = req.body;
@@ -2234,7 +2417,7 @@ Return ONLY the edited photograph.`;
           return res.status(200).json({ success: false, error: 'Нет исходного фото для создания карточки с моделью.' });
         }
 
-        const modelPrompt = quickCardStyle === 'epic' ? MODEL_CARD_PROMPT_EPIC : MODEL_CARD_PROMPT_NATURAL;
+        const modelPrompt = isPhotoOnly ? MODEL_PHOTO_PROMPT : (quickCardStyle === 'epic' ? MODEL_CARD_PROMPT_EPIC : MODEL_CARD_PROMPT_NATURAL);
         let finalPrompt = modelPrompt;
         if (userProductInfo && userProductInfo.trim()) {
           finalPrompt += `\n\nUSER PROVIDED PRODUCT INFORMATION (use this for text on the card):\n${userProductInfo.trim()}`;
@@ -2249,7 +2432,7 @@ Return ONLY the edited photograph.`;
         // Списываем 2 кредита
         const subRef = _db.doc(`users/${verifiedUid}/subscription/current`);
         if (!req.body?.skipCreditDeduction) {
-          await subRef.update({ credits: FieldValue.increment(-2) });
+          await subRef.update({ credits: FieldValue.increment(isPhotoOnly ? -1 : -2) });
         }
         const subSnap = await subRef.get();
         const creditsRemaining = subSnap.data()?.credits || 0;
@@ -2357,7 +2540,7 @@ Return ONLY the edited photograph.`;
         // Списываем 2 кредита
         const subRef = _db.doc(`users/${verifiedUid}/subscription/current`);
         if (!req.body?.skipCreditDeduction) {
-          await subRef.update({ credits: FieldValue.increment(-2) });
+          await subRef.update({ credits: FieldValue.increment(isPhotoOnly ? -1 : -2) });
         }
         const subSnap = await subRef.get();
         const creditsRemaining = subSnap.data()?.credits || 0;
