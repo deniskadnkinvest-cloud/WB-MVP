@@ -28,8 +28,15 @@ function formatTimestamp() {
  */
 export async function sendAdminAlert(message, level = 'warning') {
   try {
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+    // По умолчанию используем основной бот и основной чат
+    let botToken = process.env.TELEGRAM_BOT_TOKEN;
+    let chatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+
+    // Если это оплата и заданы специальные переменные для оплат — используем их
+    if (level === 'payment') {
+      botToken = process.env.TELEGRAM_PAYMENTS_BOT_TOKEN || botToken;
+      chatId = process.env.TELEGRAM_PAYMENTS_CHAT_ID || chatId;
+    }
 
     // Если переменные окружения не заданы — тихо выходим
     if (!botToken || !chatId) return;
