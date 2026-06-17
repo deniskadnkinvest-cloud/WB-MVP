@@ -2911,6 +2911,10 @@ ${userProductInfo.trim()}
                 <span className="plus-icon" style={{color:'#a855f7'}}>🧑</span>
                 <span style={{color:'#a855f7'}}>Создать персонажа</span>
               </div>
+              <div className="add-location-card" style={{marginTop: 8}} onClick={() => setShowLoraModal(true)}>
+                <span className="plus-icon">+</span>
+                <span>Добавить свою модель</span>
+              </div>
             </>
           )}
         </motion.div>
