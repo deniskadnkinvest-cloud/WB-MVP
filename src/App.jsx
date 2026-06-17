@@ -113,7 +113,7 @@ function App() {
   const [selectedSavedModelId, setSelectedSavedModelId] = useState(null);
   const [showLoraModal, setShowLoraModal] = useState(false);
   const [loraName, setLoraName] = useState('');
-  const [loraPhotos, setLoraPhotos] = useState({ front: null, left34: null, right34: null });
+  const [loraPhotos, setLoraPhotos] = useState({ front: null, left34: null, right34: null, fullbody: null });
   const [showSaveModelModal, setShowSaveModelModal] = useState(false);
   const [saveModelName, setSaveModelName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -904,7 +904,7 @@ function App() {
       await saveModel(user.uid, { name: loraName.trim(), type: 'lora', imageUrls, storagePaths, prompt: '' });
       const models = await getModels(user.uid);
       setMyModels(models);
-      setShowLoraModal(false); setLoraName(''); setLoraPhotos({ front: null, left34: null, right34: null });
+      setShowLoraModal(false); setLoraName(''); setLoraPhotos({ front: null, left34: null, right34: null, fullbody: null });
     } catch (err) { console.error('Ошибка сохранения модели:', err); }
     finally { setIsSaving(false); }
   };
@@ -4134,8 +4134,9 @@ ${userProductInfo.trim()}
 
       {/* МОДАЛКА: LoRA модель */}
       <AnimatePresence>
-        <LoraModal show={showLoraModal} onClose={()=>{setShowLoraModal(false);setLoraName('');setLoraPhotos({front:null,left34:null,right34:null});}}
-          onSave={saveLoraModel} loraName={loraName} setLoraName={setLoraName} loraPhotos={loraPhotos} setLoraPhotos={setLoraPhotos} />
+        <LoraModal show={showLoraModal} onClose={()=>{setShowLoraModal(false);setLoraName('');setLoraPhotos({front:null,left34:null,right34:null,fullbody:null});}}
+          onSave={saveLoraModel} loraName={loraName} setLoraName={setLoraName} loraPhotos={loraPhotos} setLoraPhotos={setLoraPhotos}
+          authHeaders={(() => { const t = user?.accessToken; return t ? { Authorization: 'Bearer ' + t } : {}; })()} />
       </AnimatePresence>
 
       {/* МОДАЛКА: Сохранить сгенерированную модель */}

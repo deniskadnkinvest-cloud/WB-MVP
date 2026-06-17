@@ -1999,37 +1999,52 @@ export default async function handler(req, res) {
           }
         }
 
-        const personaPrompt = `You are an elite fashion model agency photographer creating a professional MODEL COMP CARD.
+        const personaPrompt = `You are an elite fashion agency photographer creating a PROFESSIONAL MODEL COMP CARD (also known as a "zed card" or "sed card").
 
-You have received ${photoKeys.length} reference photo(s) of a REAL PERSON. Your job is to create a professional 4x2 grid comp card showing this EXACT SAME PERSON from 8 different angles.
+You have received ${photoKeys.length} reference photo(s) of a REAL PERSON. Create a single image showing a 4-column × 2-row grid (exactly 8 frames total, NO MORE, NO LESS).
 
-CRITICAL IDENTITY RULES:
-- The person in ALL 8 frames must be IDENTICAL to the reference photos
-- Preserve EXACT facial features: face shape, nose, eyes, eyebrows, lips, jawline, skin tone
-- Preserve EXACT hair: color, length, texture, style
-- Preserve EXACT body proportions: height, build, shoulder width
-- The person must wear simple black fitted clothing (black t-shirt + black pants) in ALL frames
-- Neutral dark gray studio background in ALL frames
-- Professional studio lighting, no harsh shadows
+═══ ABSOLUTE IDENTITY LOCK (CRITICAL — ZERO TOLERANCE) ═══
+This is the #1 priority. The person in ALL 8 frames must be PIXEL-PERFECT IDENTICAL to the reference photos:
+- FACE: Replicate the EXACT bone structure — cheekbones, jawline angle, chin shape, forehead size
+- EYES: Same exact eye shape, color, distance between eyes, eyelid crease
+- NOSE: Same exact nose bridge width, nostril shape, tip angle
+- LIPS: Same exact lip fullness, cupid's bow, lip color
+- EYEBROWS: Same exact arch, thickness, spacing
+- SKIN: Same exact skin tone, texture, any visible moles/freckles/marks
+- HAIR: Same exact color, length, texture, parting, style — do NOT change the hairstyle
+- BODY: Same exact build, height proportions, shoulder width, muscle definition
+- AGE: The person must look the SAME AGE across all 8 frames
+If ANY frame shows a different-looking person, the entire comp card is REJECTED.
 
-GRID LAYOUT (4 columns x 2 rows):
-ROW 1 (Head/Shoulders portraits, 1:1 crop):
-1. Face Front — looking directly at camera, neutral expression
-2. Face 3/4 Left — head turned ~30° to their left, showing left side of face
-3. Face 3/4 Right — head turned ~30° to their right, showing right side of face
-4. Face Profile — full side profile view (90° turn)
+═══ WARDROBE ═══
+Simple black fitted clothing in ALL frames: plain black crew-neck t-shirt + black slim pants. No logos, no patterns.
 
-ROW 2 (Full Body shots, 3:4 crop):
-5. Full Body Front — standing straight facing camera, arms at sides
-6. Full Body 3/4 — standing at ~30° angle
-7. Full Body Side — standing in full side profile
-8. Full Body Back — standing with back to camera
+═══ GRID LAYOUT — EXACTLY 4 COLUMNS × 2 ROWS = 8 FRAMES ═══
+ROW 1 (Head & shoulders close-up portraits):
+  [1] Face Front — looking directly at camera, neutral expression
+  [2] Face 3/4 Left — head turned ~30° to subject's left
+  [3] Face 3/4 Right — head turned ~30° to subject's right
+  [4] Face Profile — full 90° side profile view
 
-LABELS: Add small white text labels below each frame:
+ROW 2 (Full body standing shots):
+  [5] Full Body Front — standing straight, arms relaxed at sides, facing camera
+  [6] Full Body 3/4 — standing at ~30° angle
+  [7] Full Body Side — full side profile standing
+  [8] Full Body Back — standing with back to camera, head slightly turned
+
+═══ LABELS ═══
+Small white text below each frame:
 Row 1: "Face Front" | "Face 3/4 Left" | "Face 3/4 Right" | "Face Profile"
 Row 2: "Full Body Front" | "Full Body 3/4" | "Full Body Side" | "Full Body Back"
 
-OUTPUT: One single image containing the 4x2 grid. Professional quality. No explanations.`;
+═══ TECHNICAL ═══
+- Background: neutral dark charcoal gray (#2a2a2a) studio backdrop, uniform across all frames
+- Lighting: professional 3-point studio lighting, soft fill, no harsh shadows
+- Grid: clean thin borders between frames, no gaps
+- ABSOLUTELY NO extra rows, NO 3rd row, NO additional frames. Only 2 rows of 4 = 8 total.
+
+OUTPUT: One single image. 4×2 grid. 8 frames. Professional comp card quality. No text other than labels.`;
+
 
         console.log(`🧑 [${elapsed()}s] Sending ${imageInputs.length} photos to KIE.ai for comp card generation...`);
         const resultUrl = await executeKieTask(personaPrompt, imageInputs, 'nano-banana-2');
