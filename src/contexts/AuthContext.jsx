@@ -50,8 +50,12 @@ const isTelegram = (() => {
 const telegramUser = (() => {
   try {
     if (!isTelegram) return null;
-    const tg = window.Telegram.WebApp;
-    const user = tg.initDataUnsafe?.user;
+    const tg = window.Telegram?.WebApp;
+    const user = tg?.initDataUnsafe?.user || (() => {
+      const initData = tg?.initData || new URLSearchParams(window.location.search).get('tgWebAppData') || '';
+      const rawUser = new URLSearchParams(initData).get('user');
+      return rawUser ? JSON.parse(rawUser) : null;
+    })();
     if (!user) return null;
     return {
       id: user.id,
@@ -173,6 +177,21 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }
+
+const otpErrorToRussian = (errorData = {}) => {
+  const message = String(errorData.error || errorData.message || errorData.details || '');
+  if (
+    errorData.code === 'otp_email_send_failed' ||
+    message.includes('Failed to send OTP email') ||
+    message.includes('Resend API error') ||
+    message.includes('No email providers')
+  ) {
+    return 'Не удалось отправить код на email. Попробуйте ещё раз или войдите с паролем.';
+  }
+  if (message.includes('Invalid email')) return 'Некорректный формат email';
+  if (message.includes('Email is required')) return 'Введите email';
+  return message || 'Не удалось отправить код подтверждения';
+};
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -395,8 +414,8 @@ export function AuthProvider({ children }) {
       body: JSON.stringify({ email, tgInitData }),
     });
     if (!resp.ok) {
-      const errData = await resp.json();
-      throw new Error(errData.error || 'Не удалось отправить код подтверждения');
+      const errData = await resp.json().catch(() => ({}));
+      throw new Error(otpErrorToRussian(errData));
     }
     const data = await resp.json();
     if (import.meta.env.DEV && data.debug && data.code) {

@@ -34,6 +34,20 @@ const PLAN_CREDITS = {
   pro: 1000,
 };
 
+const PAID_PLANS = new Set(['base', 'pro']);
+
+function resolveEffectivePlan(plan, existingPlan = 'none') {
+  if (plan !== 'custom') return plan;
+  return existingPlan && existingPlan !== 'none' ? existingPlan : 'trial';
+}
+
+function buildExpiresAt(plan) {
+  if (!PAID_PLANS.has(plan)) return null;
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 30);
+  return expiresAt;
+}
+
 /**
  * Определяет тип идентификатора и возвращает Firebase UID
  */
@@ -133,10 +147,12 @@ export default async function handler(req, res) {
   if (resolvedFrom === 'email_pending') {
     try {
       const now = new Date().toISOString();
+      const effectivePlan = resolveEffectivePlan(plan);
       const pendingRef = db.doc(`pending_grants/${email}`);
       await pendingRef.set({
         email,
         plan,
+        effectivePlan,
         credits: creditsToGrant,
         note: note || '',
         grantedBy: adminAuth.user?.id || 'admin',
@@ -152,6 +168,7 @@ export default async function handler(req, res) {
         resolvedFrom,
         displayInfo,
         plan,
+        effectivePlan,
         creditsGranted: creditsToGrant,
         newCredits: creditsToGrant,
       });
@@ -165,9 +182,13 @@ export default async function handler(req, res) {
     const ref = db.doc(`users/${resolvedUid}/subscription/current`);
     const snap = await ref.get();
     const now = new Date().toISOString();
+    const existing = snap.exists ? snap.data() : {};
+    const effectivePlan = resolveEffectivePlan(plan, existing?.plan || 'none');
+    const planExpiresAt = buildExpiresAt(effectivePlan);
 
     const grantEntry = {
       planId: plan,
+      effectivePlan,
       method: 'admin_grant',
       grantedBy: adminAuth.user?.id || 'admin',
       grantedByName: adminAuth.user?.firstName || 'Admin',
@@ -183,13 +204,16 @@ export default async function handler(req, res) {
 
     if (!snap.exists) {
       await ref.set({
-        plan: plan === 'custom' ? 'trial' : plan,
+        plan: effectivePlan,
         credits: creditsToGrant,
         creditsTotal: creditsToGrant,
         planActivatedAt: FieldValue.serverTimestamp(),
-        planExpiresAt: null,
+        planExpiresAt,
+        subscriptionStatus: 'active',
+        status: 'active',
         payments: [grantEntry],
         grantedByAdmin: true,
+        updatedAt: FieldValue.serverTimestamp(),
         ...(email && { email }),
       });
 
@@ -202,30 +226,39 @@ export default async function handler(req, res) {
         resolvedFrom,
         displayInfo,
         plan,
+        effectivePlan,
         creditsGranted: creditsToGrant,
         newCredits: creditsToGrant,
       });
     } else {
-      const existing = snap.data();
       const currentCredits = existing.credits || 0;
+      const shouldIncrement = plan === 'custom';
 
-      await ref.update({
-        credits: FieldValue.increment(creditsToGrant),
-        creditsTotal: FieldValue.increment(creditsToGrant),
+      await ref.set({
+        plan: effectivePlan,
+        credits: shouldIncrement ? FieldValue.increment(creditsToGrant) : creditsToGrant,
+        creditsTotal: shouldIncrement ? FieldValue.increment(creditsToGrant) : creditsToGrant,
+        planActivatedAt: FieldValue.serverTimestamp(),
+        planExpiresAt,
+        subscriptionStatus: 'active',
+        status: 'active',
         payments: FieldValue.arrayUnion(grantEntry),
         grantedByAdmin: true,
-      });
+        updatedAt: FieldValue.serverTimestamp(),
+        ...(email && { email }),
+      }, { merge: true });
 
-      const newCredits = currentCredits + creditsToGrant;
-      console.log(`✅ [admin/grant] +${creditsToGrant} кред. → ${displayInfo} (было: ${currentCredits}, стало: ${newCredits}). Выдал: ${adminAuth.user?.firstName}`);
+      const newCredits = shouldIncrement ? (currentCredits + creditsToGrant) : creditsToGrant;
+      console.log(`✅ [admin/grant] ${shouldIncrement ? '+' : ''}${creditsToGrant} кред. + plan=${effectivePlan} → ${displayInfo} (было: ${currentCredits}, стало: ${newCredits}). Выдал: ${adminAuth.user?.firstName}`);
 
       return res.status(200).json({
         ok: true,
-        action: 'topup',
+        action: shouldIncrement ? 'topup' : 'plan_updated',
         uid: resolvedUid,
         resolvedFrom,
         displayInfo,
         plan,
+        effectivePlan,
         creditsGranted: creditsToGrant,
         previousCredits: currentCredits,
         newCredits,

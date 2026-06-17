@@ -36,7 +36,7 @@ export const MODEL_PRESETS = [
   {
     id: 'latina_female',
     gender: 'female',
-    label: 'Латиноамериканка',
+    label: 'Латина',
     emoji: '🌺',
     prompt: '20-to-30-year-old Latina female, olive skin, authentic Latin American phenotype, warm brown eyes',
   },
@@ -72,7 +72,7 @@ export const MODEL_PRESETS = [
   {
     id: 'latino_male',
     gender: 'male',
-    label: 'Латиноамериканец',
+    label: 'Латино',
     emoji: '🌺',
     prompt: '22-to-32-year-old Latino male, authentic Latin American phenotype, olive skin, sharp jawline',
   },

@@ -1,0 +1,40 @@
+
+> vton-mvp@0.0.0 dev
+> concurrently --names "VITE,API" --prefix-colors "cyan,yellow" "vite" "node server.js"
+
+[VITE] [32m✔[0m [33mConsole Ninja[0m extension is connected to [33mVite[0m, see [36mhttps://tinyurl.com/2vt8jxzw[0m
+[VITE] 
+[VITE]   [32m[1mVITE[22m v8.0.8[39m  [2mready in [0m[1m469[22m[2m[0m ms[22m
+[VITE] 
+[VITE]   [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5173[22m/[39m
+[VITE]   [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.0.11:[1m5173[22m/[39m
+[VITE]   [32m➜[39m  [1mNetwork[22m: [36mhttp://172.24.16.1:[1m5173[22m/[39m
+[API] 
+[API] ⚠️ [Firebase Admin] Credentials not found (missing FIREBASE_ADMIN_* env vars).
+[API]    Initializing Mock Firebase Admin to prevent crash during local development.
+[API]    Firestore operations on the backend will show warnings but won't crash the server.
+[API] 
+[API] ◇ injected env (6) from .env // tip: ⌁ auth for agents [www.vestauth.com]
+[API] 
+[API] 🔥 PAN.X VTON Backend (KIE.ai) → http://localhost:3001
+[API]    Inngest Endpoint: http://localhost:3001/api/inngest
+[API]    Admin Panel APIs: http://localhost:3001/api/admin/*
+[API]    Подключена ЮKassa: /api/create-payment & /api/payment-webhook-yookassa
+[API]    Ожидаю запросы от фронтенда...
+[API] 
+[VITE] [2m04:10:50[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mApp bootstrap failed: FirebaseError: Firebase: Error (auth/invalid-api-key).
+[VITE]     at createErrorInternal (http://localhost:5173/node_modules/.vite/deps/firebase_auth.js?v=18287b68:413:37)
+[VITE]     at _assert (http://localhost:5173/node_modules/.vite/deps/firebase_auth.js?v=18287b68:416:24)
+[VITE]     at Component.instanceFactory (http://localhost:5173/node_modules/.vite/deps/firebase_auth.js?v=18287b68:9043:3)
+[VITE]     at Provider.getOrInitializeService (http://localhost:5173/node_modules/.vite/deps/index.esm-CZLmQmUT.js?v=18287b68:1089:30)
+[VITE]     at Provider.initialize (http://localhost:5173/node_modules/.vite/deps/index.esm-CZLmQmUT.js?v=18287b68:1049:25)
+[VITE]     at initializeAuth (http://localhost:5173/node_modules/.vite/deps/firebase_auth.js?v=18287b68:2778:18)
+[VITE]     at getAuth (http://localhost:5173/node_modules/.vite/deps/firebase_auth.js?v=18287b68:9089:15)
+[VITE]     at http://localhost:5173/src/lib/firebase.js:15:21
+[VITE] [2m04:14:53[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[VITE] [2m04:23:55[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/contexts/AuthContext.jsx[22m
+[VITE] [2m04:24:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/contexts/AuthContext.jsx[22m
+[VITE] [2m04:35:15[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/PricingModal.jsx, /src/components/SubscriptionBadge.jsx[22m
+[VITE] [2m04:35:34[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/PricingModal.jsx, /src/components/SubscriptionBadge.jsx[22m
+[VITE] [2m04:35:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/PricingModal.jsx, /src/components/SubscriptionBadge.jsx[22m
+[VITE] [2m04:44:16[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m

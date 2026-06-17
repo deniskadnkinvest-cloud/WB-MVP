@@ -12,6 +12,13 @@ import broadcastHandler from './_admin/broadcast.js';
 import broadcastsHandler from './_admin/broadcasts.js';
 import refundHandler from './_admin/refund.js';
 import userHistoryHandler from './_admin/user-history.js';
+import forceGrantHandler from './_admin/force-grant.js';
+import debugFirebaseHandler from './_admin/debug-firebase.js';
+import grantsAnalyticsHandler from './_admin/grants-analytics.js';
+import userControlHandler from './_admin/user-control.js';
+import errorsHandler from './_admin/errors.js';
+import promptsHandler from './_admin/prompts.js';
+import debugSubHandler from './_admin/debug-sub.js';
 
 export default async function handler(req, res) {
   // Разбираем URL-путь (например, "/api/admin/verify?key=..." -> "/api/admin/verify")
@@ -33,6 +40,20 @@ export default async function handler(req, res) {
       return generationsHandler(req, res);
     case 'grant-access':
       return grantAccessHandler(req, res);
+    case 'force-grant':
+      return forceGrantHandler(req, res);
+    case 'debug-firebase':
+      return debugFirebaseHandler(req, res);
+    case 'debug-sub':
+      return debugSubHandler(req, res);
+    case 'grants-analytics':
+      return grantsAnalyticsHandler(req, res);
+    case 'user-control':
+      return userControlHandler(req, res);
+    case 'errors':
+      return errorsHandler(req, res);
+    case 'prompts':
+      return promptsHandler(req, res);
     case 'broadcast':
       return broadcastHandler(req, res);
     case 'broadcasts':

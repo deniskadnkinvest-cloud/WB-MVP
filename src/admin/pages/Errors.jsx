@@ -1,161 +1,195 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useAdmin } from '../AdminApp';
 
 const c = {
-  surface: 'rgba(255,255,255,0.03)',
-  border: 'rgba(255,255,255,0.06)',
-  text1: '#e8e8ed',
-  text2: 'rgba(255,255,255,0.5)',
-  text3: 'rgba(255,255,255,0.25)',
-  accent: '#818cf8',
+  surface: 'rgba(255,255,255,0.035)',
+  border: 'rgba(255,255,255,0.075)',
+  text1: '#f8fafc',
+  text2: 'rgba(248,250,252,0.64)',
+  text3: 'rgba(248,250,252,0.36)',
   green: '#34d399',
   amber: '#fbbf24',
-  red: '#f87171',
+  blue: '#38bdf8',
+  violet: '#a78bfa',
+  red: '#fb7185',
 };
 
-const stagger = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.08 } } };
-const fadeUp = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
+const CATEGORY_LABELS = {
+  quota: 'Лимиты / quota',
+  timeout: 'Таймауты',
+  auth: 'Авторизация',
+  validation: 'Некорректный запрос',
+  download: 'Скачивание результата',
+  generation_provider: 'Провайдер генерации',
+  unknown: 'Неизвестно',
+};
 
-function Section({ title, children, style = {} }) {
+const TYPE_LABELS = {
+  fashion: 'Одежда',
+  product: 'Предметка',
+  quick: 'В два клика',
+  card: 'Карточка',
+  card_edit: 'Правка карточки',
+  photo_edit: 'Правка фото',
+  ugc: 'UGC',
+  model: 'Модель',
+  calibration: 'Калибровка',
+};
+
+function fmtDate(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function fmtNum(value) {
+  return new Intl.NumberFormat('ru-RU').format(Number(value) || 0);
+}
+
+function Stat({ label, value, tone, hint }) {
   return (
-    <motion.div variants={fadeUp} style={{
-      background: c.surface, border: `1px solid ${c.border}`,
-      borderRadius: '16px', padding: '20px', ...style,
-    }}>
-      {title && <div style={{ fontSize: '11px', color: c.text3, textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 600, marginBottom: '14px' }}>{title}</div>}
-      {children}
-    </motion.div>
+    <div style={{ padding: '16px', borderRadius: '18px', border: `1px solid ${tone}24`, background: `${tone}10` }}>
+      <div style={{ color: c.text3, fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.7px' }}>{label}</div>
+      <div style={{ color: c.text1, fontSize: '28px', fontWeight: 950, marginTop: '6px' }}>{value}</div>
+      {hint && <div style={{ color: c.text2, fontSize: '12px', marginTop: '6px' }}>{hint}</div>}
+    </div>
   );
 }
 
-function ServiceStatus({ name, url, status }) {
+function ErrorRow({ item }) {
   return (
-    <a href={url} target="_blank" rel="noreferrer" style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '12px', borderRadius: '12px',
-      background: 'rgba(255,255,255,0.02)', border: `1px solid ${c.border}`,
-      textDecoration: 'none', transition: 'background 0.15s',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <div style={{
-          width: '8px', height: '8px', borderRadius: '50%',
-          background: status === 'ok' ? c.green : status === 'warn' ? c.amber : c.red,
-          boxShadow: `0 0 6px ${status === 'ok' ? 'rgba(52,211,153,0.5)' : status === 'warn' ? 'rgba(251,191,36,0.5)' : 'rgba(248,113,113,0.5)'}`,
-        }} />
-        <span style={{ fontSize: '13px', fontWeight: 600, color: c.text1 }}>{name}</span>
+    <div style={{ padding: '14px 0', borderBottom: `1px solid ${c.border}`, display: 'grid', gridTemplateColumns: '130px 1fr 150px', gap: '12px', alignItems: 'start' }}>
+      <div>
+        <span style={{ display: 'inline-flex', padding: '4px 8px', borderRadius: '99px', background: `${c.red}12`, border: `1px solid ${c.red}30`, color: c.red, fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }}>
+          {CATEGORY_LABELS[item.category] || item.category}
+        </span>
+        <div style={{ color: c.text3, fontSize: '11px', marginTop: '7px' }}>{TYPE_LABELS[item.type] || item.type}</div>
       </div>
-      <span style={{ color: c.text3, fontSize: '14px' }}>↗</span>
-    </a>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ color: c.text1, fontSize: '13px', fontWeight: 850, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.signature}</div>
+        <div style={{ color: c.text3, fontSize: '11px', marginTop: '5px', fontFamily: 'monospace', overflowWrap: 'anywhere' }}>
+          user: {item.userId || '—'} · prompt: {item.promptMeta?.name || '—'} · id: {item.id}
+        </div>
+      </div>
+      <div style={{ color: c.text3, fontSize: '11px', textAlign: 'right' }}>{fmtDate(item.createdAt)}</div>
+    </div>
   );
 }
-
-const LINKS = [
-  { name: 'Vercel Logs', url: 'https://vercel.com/dashboard', status: 'ok', desc: 'Логи функций, ошибки генераций' },
-  { name: 'Firebase Console', url: 'https://console.firebase.google.com', status: 'ok', desc: 'Firestore, Auth, Storage' },
-  { name: 'Inngest Dashboard', url: 'https://app.inngest.com', status: 'ok', desc: 'Очередь задач, ретраи' },
-  { name: 'KIE.ai Dashboard', url: 'https://kie.ai', status: 'ok', desc: 'API usage, rate limits' },
-];
-
-const ROADMAP = [
-  { icon: '📊', text: 'Live Error Rate — процент ошибок за час', phase: 'Supabase' },
-  { icon: '💸', text: 'Waste Analytics — деньги на таймаутах', phase: 'Supabase' },
-  { icon: '🧠', text: 'AI QA Board — фото с низким quality score', phase: 'Supabase' },
-  { icon: '🚨', text: 'Auto-alerts — уведомления при спайке ошибок', phase: 'Inngest Cron' },
-  { icon: '📋', text: 'Generation X-Ray — детальный журнал генераций', phase: 'Supabase' },
-  { icon: '💰', text: 'FinOps — CPG, Cost Breakdown, Waste', phase: 'Supabase' },
-  { icon: '🔄', text: 'Webhook Reconciliation — сверка платежей', phase: 'Supabase' },
-  { icon: '🎯', text: 'LLM-Judge Drift Monitor', phase: 'Phase 3' },
-];
-
-const ARCHITECTURE = [
-  { step: '0', label: 'Прозрение', desc: 'Sentry + Vercel Axiom + TG алерты', status: 'partial', items: ['TG алерты ✅', 'Sentry — не подключён', 'Axiom — не подключён'] },
-  { step: '1', label: 'Сбор данных', desc: 'Supabase + waitUntil() + логирование', status: 'pending', items: ['Supabase — не развёрнут', 'waitUntil() — не внедрён', 'generation_logs — нет'] },
-  { step: '2', label: 'Command Center', desc: 'Next.js + Shadcn + Tremor админка', status: 'current', items: ['Inline-админка (текущая) ✅', 'Отдельный проект — нет'] },
-  { step: '3', label: 'AI-Автоматизация', desc: 'Auto-refunds, QA, Abuse throttling', status: 'pending', items: ['Hallucination Board — нет', 'Auto-refunds — нет'] },
-];
 
 export default function Errors() {
-  const [expandedPhase, setExpandedPhase] = useState(null);
+  const { authHeaders } = useAdmin();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [userId, setUserId] = useState('');
+  const [type, setType] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      let url = '/api/admin/errors?limit=1500';
+      if (userId.trim()) url += `&userId=${encodeURIComponent(userId.trim())}`;
+      if (type) url += `&type=${encodeURIComponent(type)}`;
+      const res = await fetch(url, { headers: { ...authHeaders } });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || 'Не удалось загрузить ошибки');
+      setData(json);
+    } catch (err) {
+      setError(err.message || 'Не удалось загрузить ошибки');
+    } finally {
+      setLoading(false);
+    }
+  }, [authHeaders, type, userId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const summary = data?.summary || {};
+  const categoryRows = useMemo(() => Object.entries(summary.byCategory || {}).sort((a, b) => b[1] - a[1]), [summary.byCategory]);
+  const typeRows = useMemo(() => Object.entries(summary.byType || {}).sort((a, b) => b[1] - a[1]), [summary.byType]);
 
   return (
-    <motion.div variants={stagger} initial="hidden" animate="show" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ padding: '22px', borderRadius: '22px', background: 'radial-gradient(circle at 10% 0%, rgba(251,113,133,0.2), transparent 35%), rgba(255,255,255,0.025)', border: `1px solid ${c.border}` }}>
+        <div style={{ color: c.text3, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 900 }}>Live Error Center</div>
+        <h1 style={{ margin: '8px 0', color: c.text1, fontSize: '28px', letterSpacing: '-0.9px' }}>Ошибки пользователей и генераций</h1>
+        <p style={{ margin: 0, color: c.text2, fontSize: '14px', lineHeight: 1.55 }}>
+          Реальные сбои из журнала генераций: категория, режим, пользователь, prompt fingerprint и повторяющиеся сигнатуры.
+        </p>
+      </div>
 
-      {/* ── Service Status ── */}
-      <Section title="Статус сервисов">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {LINKS.map(link => (
-            <ServiceStatus key={link.name} {...link} />
-          ))}
-        </div>
-      </Section>
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <input value={userId} onChange={e => setUserId(e.target.value)} placeholder="Фильтр по Telegram ID / UID"
+          style={{ flex: '1 1 260px', padding: '12px 14px', borderRadius: '14px', border: `1px solid ${c.border}`, background: c.surface, color: c.text1, outline: 'none', fontFamily: 'monospace' }} />
+        <select value={type} onChange={e => setType(e.target.value)}
+          style={{ flex: '0 1 220px', padding: '12px 14px', borderRadius: '14px', border: `1px solid ${c.border}`, background: '#111827', color: c.text1, outline: 'none' }}>
+          <option value="">Все режимы</option>
+          {Object.entries(TYPE_LABELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+        </select>
+        <button onClick={load} style={{ padding: '12px 14px', borderRadius: '14px', border: `1px solid ${c.border}`, background: c.surface, color: c.text2, cursor: 'pointer', fontWeight: 900 }}>
+          Обновить
+        </button>
+      </div>
 
-      {/* ── Architecture Phases ── */}
-      <Section title="Архитектурный план (Deep Think)">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {ARCHITECTURE.map((phase, i) => {
-            const isExpanded = expandedPhase === i;
-            const statusColors = { partial: c.amber, pending: c.text3, current: c.accent, done: c.green };
-            const statusLabels = { partial: 'Частично', pending: 'Ожидает', current: 'Текущая', done: 'Готово' };
+      {loading ? (
+        <div style={{ padding: '42px', textAlign: 'center', color: c.text2, borderRadius: '18px', border: `1px solid ${c.border}`, background: c.surface }}>Собираю ошибки...</div>
+      ) : error ? (
+        <div style={{ padding: '18px', color: c.red, borderRadius: '18px', border: `1px solid ${c.red}30`, background: `${c.red}10` }}>{error}</div>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+            <Stat label="Просканировано" value={fmtNum(summary.scanned)} tone={c.blue} />
+            <Stat label="Ошибок" value={fmtNum(summary.totalErrors)} tone={c.red} />
+            <Stat label="Error rate" value={`${summary.errorRate || 0}%`} tone={summary.errorRate > 10 ? c.red : c.green} />
+            <Stat label="Сигнатур" value={fmtNum(summary.topSignatures?.length)} tone={c.violet} />
+          </div>
 
-            return (
-              <div key={i}>
-                <button onClick={() => setExpandedPhase(isExpanded ? null : i)} style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: '12px',
-                  padding: '12px', borderRadius: '12px',
-                  background: isExpanded ? 'rgba(129,140,248,0.06)' : 'rgba(255,255,255,0.02)',
-                  border: `1px solid ${isExpanded ? 'rgba(129,140,248,0.15)' : c.border}`,
-                  cursor: 'pointer', textAlign: 'left',
-                }}>
-                  <div style={{
-                    width: '24px', height: '24px', borderRadius: '8px', flexShrink: 0,
-                    background: `${statusColors[phase.status]}22`,
-                    border: `1px solid ${statusColors[phase.status]}44`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '11px', fontWeight: 800, color: statusColors[phase.status],
-                  }}>{phase.step}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: c.text1 }}>{phase.label}</div>
-                    <div style={{ fontSize: '10px', color: c.text3, marginTop: '2px' }}>{phase.desc}</div>
-                  </div>
-                  <span style={{
-                    fontSize: '9px', padding: '2px 6px', borderRadius: '99px',
-                    background: `${statusColors[phase.status]}15`,
-                    color: statusColors[phase.status], fontWeight: 700, letterSpacing: '0.3px',
-                  }}>{statusLabels[phase.status]}</span>
-                </button>
-                {isExpanded && (
-                  <div style={{ padding: '8px 16px 4px 48px' }}>
-                    {phase.items.map((item, j) => (
-                      <div key={j} style={{ fontSize: '11px', color: c.text2, padding: '3px 0', lineHeight: 1.5 }}>
-                        • {item}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </Section>
-
-      {/* ── Roadmap ── */}
-      <Section title="В разработке" style={{ opacity: 0.8 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {ROADMAP.map((item, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: '10px',
-              padding: '10px 12px', borderRadius: '10px',
-              background: 'rgba(255,255,255,0.02)', border: `1px dashed ${c.border}`,
-            }}>
-              <span style={{ fontSize: '14px' }}>{item.icon}</span>
-              <span style={{ fontSize: '12px', color: c.text2, flex: 1, lineHeight: 1.4 }}>{item.text}</span>
-              <span style={{ fontSize: '9px', padding: '2px 6px', borderRadius: '99px', background: 'rgba(129,140,248,0.1)', color: c.accent, fontWeight: 600, letterSpacing: '0.3px', flexShrink: 0 }}>
-                {item.phase}
-              </span>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div style={{ padding: '16px', borderRadius: '18px', background: c.surface, border: `1px solid ${c.border}` }}>
+              <div style={{ color: c.text3, fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px' }}>Категории</div>
+              {categoryRows.length ? categoryRows.map(([name, count]) => (
+                <div key={name} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', color: c.text2, fontSize: '13px' }}>
+                  <span>{CATEGORY_LABELS[name] || name}</span><b style={{ color: c.text1 }}>{count}</b>
+                </div>
+              )) : <div style={{ color: c.text3, fontSize: '13px' }}>Ошибок нет.</div>}
             </div>
-          ))}
-        </div>
-      </Section>
+            <div style={{ padding: '16px', borderRadius: '18px', background: c.surface, border: `1px solid ${c.border}` }}>
+              <div style={{ color: c.text3, fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px' }}>Режимы</div>
+              {typeRows.length ? typeRows.map(([name, count]) => (
+                <div key={name} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', color: c.text2, fontSize: '13px' }}>
+                  <span>{TYPE_LABELS[name] || name}</span><b style={{ color: c.text1 }}>{count}</b>
+                </div>
+              )) : <div style={{ color: c.text3, fontSize: '13px' }}>Ошибок нет.</div>}
+            </div>
+          </div>
+
+          <div style={{ padding: '16px', borderRadius: '18px', background: c.surface, border: `1px solid ${c.border}` }}>
+            <div style={{ color: c.text3, fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '10px' }}>Топ повторяющихся причин</div>
+            {summary.topSignatures?.length ? summary.topSignatures.map(item => (
+              <div key={`${item.category}-${item.signature}`} style={{ padding: '10px 0', borderBottom: `1px solid ${c.border}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                  <span style={{ color: c.text1, fontSize: '13px', fontWeight: 850 }}>{item.signature}</span>
+                  <span style={{ color: c.red, fontWeight: 950 }}>{item.count}</span>
+                </div>
+                <div style={{ color: c.text3, fontSize: '11px', marginTop: '4px' }}>{CATEGORY_LABELS[item.category] || item.category} · last: {fmtDate(item.lastAt)} · user: {item.sampleUserId || '—'}</div>
+              </div>
+            )) : <div style={{ color: c.text3, fontSize: '13px' }}>Повторяющихся ошибок нет.</div>}
+          </div>
+
+          <div style={{ padding: '16px', borderRadius: '18px', background: c.surface, border: `1px solid ${c.border}` }}>
+            <div style={{ color: c.text3, fontSize: '11px', fontWeight: 900, textTransform: 'uppercase', marginBottom: '6px' }}>Последние ошибки</div>
+            {data.errors?.length ? data.errors.map(item => <ErrorRow key={item.id} item={item} />) : (
+              <div style={{ color: c.green, fontSize: '13px', padding: '18px 0' }}>За выбранный период ошибок нет. Редкий приятный зверёк.</div>
+            )}
+          </div>
+        </>
+      )}
+
+      <style>{`@media (max-width: 980px) { div[style*="repeat(4"] { grid-template-columns: repeat(2, 1fr) !important; } div[style*="1fr 1fr"] { grid-template-columns: 1fr !important; } }`}</style>
     </motion.div>
   );
 }

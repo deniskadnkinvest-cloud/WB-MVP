@@ -90,14 +90,22 @@ export const getSubscription = async (uid, email = null, telegramId = null) => {
   const snap = await getDoc(ref);
   let data = snap.exists() ? snap.data() : { ...DEFAULT_SUB };
 
-  // Check expiration for monthly plans (only if auto-renew is not enabled)
-  if (data.planExpiresAt && data.planExpiresAt.toDate() < new Date()) {
-    if (!data.autoRenew) {
-      // Plan expired — downgrade to none, keep remaining credits at 0
-      await updateDoc(ref, { plan: 'none', credits: 0 });
-      data = { ...data, plan: 'none', credits: 0 };
+  // Check expiration for monthly plans
+  // НЕ обнуляем admin-granted подписки — они бессрочные по умолчанию
+  if (data.planExpiresAt && !data.grantedByAdmin && !data.autoRenew) {
+    try {
+      const expiresDate = typeof data.planExpiresAt.toDate === 'function'
+        ? data.planExpiresAt.toDate()
+        : new Date(data.planExpiresAt);
+      if (!isNaN(expiresDate.getTime()) && expiresDate < new Date()) {
+        await updateDoc(ref, { plan: 'none', credits: 0, subscriptionStatus: 'expired' });
+        data = { ...data, plan: 'none', credits: 0, subscriptionStatus: 'expired' };
+      }
+    } catch (e) {
+      console.warn('[SubscriptionService] Ошибка проверки planExpiresAt:', e);
     }
   }
+
 
   // Если подписки нет (none), проверяем наличие предварительно выданного доступа по email
   if (data.plan === 'none' && email && email.includes('@')) {

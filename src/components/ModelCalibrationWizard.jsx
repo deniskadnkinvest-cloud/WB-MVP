@@ -683,7 +683,7 @@ export default function ModelCalibrationWizard({
                 </span>
               </div>
               <div className="calib-cost-subtext">
-                Кастинг в 4 ракурса <span className="calib-cost-dot">·</span> До {MAX_REGENS_PER_STEP} попыток на шаг для идеального кадра
+                Кастинг в 4 ракурса <span className="calib-cost-dot">·</span> До {MAX_REGENS_PER_STEP} попыток на шаг для идеальной генерации
               </div>
             </div>
 
@@ -792,7 +792,7 @@ export default function ModelCalibrationWizard({
           <div className="calib-step">
             <h2 className="calib-title">
               <span className="calib-step-badge">4/4</span>
-              {currentStep.icon} Полный рост — главный кадр
+              {currentStep.icon} Полный рост — финальная генерация
             </h2>
             <p className="calib-desc">
               Финальный шаг. Синтезируем <strong>полный рост модели</strong> на

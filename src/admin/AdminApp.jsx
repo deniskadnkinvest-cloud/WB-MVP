@@ -1,12 +1,6 @@
-import React, { useState, useEffect, createContext, useContext, useMemo } from 'react';
-import AdminLayout from './components/AdminLayout';
-import Dashboard from './pages/Dashboard';
-import Users from './pages/Users';
-import Payments from './pages/Payments';
-import Errors from './pages/Errors';
-import Broadcasts from './pages/Broadcasts';
-import Generations from './pages/Generations';
-import PlaceholderPage from './pages/PlaceholderPage';
+import React, { useState, useEffect, createContext, useContext, useMemo, lazy, Suspense } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import Sidebar from './components/Sidebar';
 
 // ═══════════════════════════════════════════
 //  Admin Context — accessKey для API запросов
@@ -15,51 +9,67 @@ import PlaceholderPage from './pages/PlaceholderPage';
 const AdminContext = createContext(null);
 export const useAdmin = () => useContext(AdminContext);
 
+const SummaryTab      = lazy(() => import('./pages/SummaryTab'));
+const UsersCRM        = lazy(() => import('./pages/UsersCRM'));
+const LogTab          = lazy(() => import('./pages/LogTab'));
+const Errors          = lazy(() => import('./pages/Errors'));
+const Broadcasts      = lazy(() => import('./pages/Broadcasts'));
+const Prompts         = lazy(() => import('./pages/Prompts'));
+const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'));
+
+const PAGE_MAP = {
+  summary:              <SummaryTab />,
+  users:                <UsersCRM />,
+  log:                  <LogTab />,
+  errors:               <Errors />,
+  broadcasts:           <Broadcasts />,
+  prompts:              <Prompts />,
+};
+
+function getPage(id) {
+  return PAGE_MAP[id] || <PlaceholderPage />;
+}
+
 // ═══════════════════════════════════════════
 //  AdminApp
 // ═══════════════════════════════════════════
 
 export default function AdminApp() {
-  const [status, setStatus] = useState('loading');
-  const [adminUser, setAdminUser] = useState(null);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [activePage, setActivePage] = useState('dashboard');
+  const [status, setStatus]         = useState('loading');
+  const [adminUser, setAdminUser]   = useState(null);
+  const [errorMsg, setErrorMsg]     = useState('');
+  const [activePage, setActivePage] = useState('summary');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Получаем accessKey из URL (?key=...) — передаётся ботом
   const accessKey = useMemo(() => new URLSearchParams(window.location.search).get('key') || '', []);
 
-  // Telegram initData (если доступен — для мобильного)
   const initData = useMemo(() => {
     try { return window.Telegram?.WebApp?.initData || ''; }
     catch { return ''; }
   }, []);
 
   useEffect(() => {
-    // Настройка Telegram WebApp
     try {
       const tg = window.Telegram?.WebApp;
       if (tg) {
         tg.expand();
-        tg.setHeaderColor('#030305');
-        tg.setBackgroundColor('#030305');
+        tg.setHeaderColor('#0a0a0f');
+        tg.setBackgroundColor('#0a0a0f');
       }
     } catch { /* ok */ }
 
-    // Dev-режим
     if (!accessKey && !initData && import.meta.env.DEV) {
       setAdminUser({ id: 0, firstName: 'Dev', username: 'devmode' });
       setStatus('ready');
       return;
     }
 
-    // Нет ключа и нет initData — нет доступа
     if (!accessKey && !initData) {
       setErrorMsg('Откройте через Telegram бот командой /admin');
       setStatus('error');
       return;
     }
 
-    // Верифицируем через бэкенд
     fetch('/api/admin/verify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -93,41 +103,142 @@ export default function AdminApp() {
   }), [adminUser, accessKey, authHeaders]);
 
   if (status === 'loading') return <AdminLoader />;
-  if (status === 'error') return <AdminError message={errorMsg} />;
-
-  const pages = {
-    dashboard: <Dashboard />,
-    changelog: <PlaceholderPage title="История изменений" />,
-    docs: <PlaceholderPage title="Документация" />,
-    overview: <Dashboard />, // redirect
-    users: <Users />,
-    generations: <Generations />,
-    complaints: <PlaceholderPage title="Жалобы" />,
-    reviews: <PlaceholderPage title="Отзывы" />,
-    payments: <Payments />,
-    payment_analytics: <PlaceholderPage title="Аналитика оплат" />,
-    certificates: <PlaceholderPage title="Сертификаты" />,
-    certificate_occasions: <PlaceholderPage title="Поводы сертификатов" />,
-    limit_history: <PlaceholderPage title="История лимитов" />,
-    templates: <PlaceholderPage title="Шаблоны" />,
-    prompts: <PlaceholderPage title="GPT Промпты" />,
-    categories: <PlaceholderPage title="Категории" />,
-    broadcasts: <Broadcasts />,
-    funnels: <PlaceholderPage title="Воронки" />,
-    referrals: <PlaceholderPage title="Рефералка" />,
-    ai_limits: <PlaceholderPage title="AI Лимиты" />,
-    api_logs: <PlaceholderPage title="API Логи" />,
-    ai_report: <PlaceholderPage title="AI Отчёт" />,
-    settings: <PlaceholderPage title="Системные настройки" />,
-    errors: <Errors />,
-  };
+  if (status === 'error')   return <AdminError message={errorMsg} />;
 
   return (
     <AdminContext.Provider value={contextValue}>
-      <AdminLayout activePage={activePage} onNavigate={setActivePage}>
-        {pages[activePage] || pages.dashboard}
-      </AdminLayout>
+      <div style={{
+        minHeight: '100vh',
+        maxHeight: '100vh',
+        background: '#0a0a0f',
+        fontFamily: "'Inter', -apple-system, sans-serif",
+        color: '#f0f0f5',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}>
+
+        {/* ── Top Header с кнопкой шторки ── */}
+        <header style={{
+          padding: '12px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+          background: 'rgba(10,10,15,0.95)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          flexShrink: 0,
+          zIndex: 50,
+        }}>
+          {/* Кнопка хамбургера */}
+          <button
+            onClick={() => setSidebarOpen(true)}
+            style={{
+              width: '36px',
+              height: '36px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '5px',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              flexShrink: 0,
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <span style={{ display: 'block', width: '16px', height: '1.5px', background: 'rgba(255,255,255,0.7)', borderRadius: '2px' }} />
+            <span style={{ display: 'block', width: '16px', height: '1.5px', background: 'rgba(255,255,255,0.7)', borderRadius: '2px' }} />
+            <span style={{ display: 'block', width: '16px', height: '1.5px', background: 'rgba(255,255,255,0.7)', borderRadius: '2px' }} />
+          </button>
+
+          {/* Заголовок */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '15px', fontWeight: 700, letterSpacing: '-0.3px', color: '#fff' }}>
+              {PAGE_TITLES[activePage] || 'Seller Bot'}
+            </div>
+          </div>
+
+          {/* Аватар админа */}
+          <div style={{
+            width: '30px',
+            height: '30px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #818cf8, #c084fc)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '12px',
+            fontWeight: 700,
+            color: '#fff',
+            flexShrink: 0,
+          }}>
+            {(adminUser?.firstName || 'A')[0].toUpperCase()}
+          </div>
+        </header>
+
+        {/* ── Боковая шторка ── */}
+        <Sidebar
+          activePage={activePage}
+          onNavigate={(id) => { setActivePage(id); setSidebarOpen(false); }}
+          isMobile={true}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
+
+        {/* ── Контент страницы ── */}
+        <main style={{
+          flex: 1,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+        }}>
+          <Suspense fallback={<PageSpinner />}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activePage}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.18, ease: 'easeOut' }}
+              >
+                {getPage(activePage)}
+              </motion.div>
+            </AnimatePresence>
+          </Suspense>
+        </main>
+      </div>
     </AdminContext.Provider>
+  );
+}
+
+// ── Заголовки страниц ──
+const PAGE_TITLES = {
+  summary:          '📊 Сводка',
+  users:            '👥 Пользователи (CRM)',
+  log:              '⚡ Лог генераций',
+  errors:           '🐛 Ошибки системы',
+  broadcasts:       '📢 Рассылки',
+  prompts:          '🤖 GPT Промпты',
+};
+
+// ── Спиннер загрузки страницы ──
+function PageSpinner() {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '60px' }}>
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+        style={{
+          width: '28px', height: '28px', borderRadius: '50%',
+          border: '2px solid rgba(255,255,255,0.06)',
+          borderTopColor: '#818cf8',
+        }}
+      />
+    </div>
   );
 }
 
@@ -136,7 +247,7 @@ function AdminLoader() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#030305',
+      background: '#0a0a0f',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -144,33 +255,29 @@ function AdminLoader() {
       gap: '16px',
       fontFamily: "'Inter', sans-serif",
     }}>
-      <div style={{
-        width: '48px', height: '48px',
-        borderRadius: '50%',
-        border: '3px solid rgba(139, 92, 246, 0.2)',
-        borderTop: '3px solid #8b5cf6',
-        animation: 'spin 0.8s linear infinite',
-      }} />
-      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px', margin: 0 }}>
-        Загрузка Command Center...
+      <motion.div
+        animate={{ rotate: 360 }}
+        transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+        style={{
+          width: '40px', height: '40px',
+          borderRadius: '50%',
+          border: '3px solid rgba(129, 140, 248, 0.15)',
+          borderTop: '3px solid #818cf8',
+        }}
+      />
+      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', margin: 0 }}>
+        Загрузка…
       </p>
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
 
 // ── Error screen ──
 function AdminError({ message }) {
-  const currentUrl = window.location.href;
-  const hasTelegram = typeof window !== 'undefined' && !!window.Telegram;
-  const hasWebApp = typeof window !== 'undefined' && !!window.Telegram?.WebApp;
-  const initDataLength = (typeof window !== 'undefined' && window.Telegram?.WebApp?.initData?.length) || 0;
-  const searchParams = typeof window !== 'undefined' ? window.location.search : '';
-
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#030305',
+      background: '#0a0a0f',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -192,27 +299,6 @@ function AdminError({ message }) {
       }}>
         {message}
       </p>
-
-      <div style={{
-        marginTop: '32px',
-        padding: '12px',
-        background: 'rgba(255,255,255,0.02)',
-        borderRadius: '8px',
-        border: '1px solid rgba(255,255,255,0.05)',
-        fontSize: '10px',
-        fontFamily: 'monospace',
-        color: 'rgba(255,255,255,0.3)',
-        maxWidth: '90%',
-        wordBreak: 'break-all',
-        textAlign: 'left',
-      }}>
-        <div style={{ fontWeight: 'bold', marginBottom: '4px', color: 'rgba(255,255,255,0.5)' }}>Debug Info:</div>
-        <div>URL: {currentUrl}</div>
-        <div>Params: {searchParams}</div>
-        <div>TG SDK: {hasTelegram ? 'Loaded' : 'Not Loaded'}</div>
-        <div>TG WebApp: {hasWebApp ? 'Yes' : 'No'}</div>
-        <div>initData len: {initDataLength}</div>
-      </div>
     </div>
   );
 }

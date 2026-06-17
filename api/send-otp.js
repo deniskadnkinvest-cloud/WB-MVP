@@ -6,6 +6,30 @@ import nodemailer from 'nodemailer';
 // Initialize Firebase Admin
 ensureFirebaseAdmin();
 
+const DEFAULT_RESEND_FROM_EMAIL = 'Seller Studio <noreply@aigeorank.ru>';
+
+const buildOtpDoc = (email, code, expiresAt) => ({
+  code,
+  expiresAt,
+  email,
+  attempts: 0,
+  createdAt: new Date()
+});
+
+const classifySendError = (sendError = '') => {
+  if (sendError.includes('domain is not verified')) {
+    return {
+      code: 'resend_domain_not_verified',
+      error: 'Email-отправка временно не настроена. Мы уже проверяем домен отправителя.',
+    };
+  }
+
+  return {
+    code: 'otp_email_send_failed',
+    error: 'Не удалось отправить код на email. Попробуйте ещё раз или войдите с паролем.',
+  };
+};
+
 function verifyTelegramInitData(initData) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (!initData || !botToken) return null;
@@ -79,15 +103,9 @@ export default async function handler(req, res) {
     const code = crypto.randomInt(100000, 999999).toString();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes lifetime
 
-    // 2. Save code to Firestore (api rules: bypass client permissions via admin SDK)
+    // 2. Prepare Firestore write. The code is saved only after a delivery channel succeeds.
     const db = getFirestore();
-    await db.collection('otp_codes').doc(email).set({
-      code,
-      expiresAt,
-      email,
-      attempts: 0,
-      createdAt: new Date()
-    });
+    const saveOtpCode = () => db.collection('otp_codes').doc(email).set(buildOtpDoc(email, code, expiresAt));
 
     if (isLocal) {
       console.log(`✉️ [LOCAL] OTP Code generated for ${email} (expires at ${expiresAt.toISOString()})`);
@@ -102,7 +120,7 @@ export default async function handler(req, res) {
     // A. RESEND API
     if (process.env.RESEND_API_KEY) {
       try {
-        const fromEmail = process.env.RESEND_FROM_EMAIL || 'Seller Studio <onboarding@resend.dev>';
+        const fromEmail = process.env.RESEND_FROM_EMAIL || DEFAULT_RESEND_FROM_EMAIL;
         const response = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
@@ -128,11 +146,17 @@ export default async function handler(req, res) {
 
         if (response.ok) {
           emailSent = true;
-          console.log(`✅ Email sent via Resend API to ${email}`);
+          console.log(`✅ Email sent via Resend API to ${email} from ${fromEmail}`);
         } else {
-          const errData = await response.json();
+          const errText = await response.text();
+          let errData;
+          try {
+            errData = JSON.parse(errText);
+          } catch {
+            errData = { message: errText };
+          }
           sendError = `Resend API error: ${JSON.stringify(errData)}`;
-          console.error(`❌ Resend API sending failed:`, errData);
+          console.error(`❌ Resend API sending failed from ${fromEmail}:`, errData);
         }
       } catch (err) {
         sendError = err.message;
@@ -224,6 +248,7 @@ export default async function handler(req, res) {
     // If no provider configured and we are running locally, success is returned and code is logged
     if (!emailSent && isLocal) {
       console.log(`⚠️ [LOCAL DEV FALLBACK] No email providers set. OTP Code for ${email} is: ${code}`);
+      await saveOtpCode();
       return res.status(200).json({
         success: true,
         message: 'OTP generated successfully (debug mode)',
@@ -234,6 +259,7 @@ export default async function handler(req, res) {
 
     if (!emailSent) {
       if (sentToTelegram) {
+        await saveOtpCode();
         return res.status(200).json({
           success: true,
           message: verifiedTelegramUser?.id ? 'OTP sent to Telegram' : 'OTP sent to local support fallback',
@@ -242,8 +268,10 @@ export default async function handler(req, res) {
         });
       }
 
+      const publicError = classifySendError(sendError);
       return res.status(500).json({
-        error: 'Failed to send OTP email',
+        code: publicError.code,
+        error: publicError.error,
         details: sendError || 'No email providers (Resend/SMTP) configured in environment variables. Telegram fallback also failed.'
       });
     }

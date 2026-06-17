@@ -105,7 +105,7 @@ export default function SmartCardEditor({ imageUrl, onClose, onEdit, getAuthToke
     } finally {
       setIsScanning(false);
     }
-  }, [imageUrl]);
+  }, [imageUrl, getAuthToken]);
 
   // Запускаем сканирование при загрузке картинки
   useEffect(() => {

@@ -98,7 +98,7 @@ export default function PricingModal({
                         <span className="pricing-credits-num">Безлимит</span>
                       ) : (
                         <>
-                          <span className="pricing-credits-num">{plan.credits}</span> кадров
+                          <span className="pricing-credits-num">{plan.credits}</span> генераций
                         </>
                       )}
                     </div>
@@ -114,7 +114,7 @@ export default function PricingModal({
                         {plan.canSaveLocations ? '✅' : '🔒'} Свои локации
                       </li>
                       <li className={`pricing-feature ${plan.canPhotoshoot ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
-                        {plan.canPhotoshoot ? '✅' : '🔒'} Пакетная генерация (5 кадров)
+                        {plan.canPhotoshoot ? '✅' : '🔒'} Пакетная генерация (5 генераций)
                       </li>
                       <li className={`pricing-feature ${plan.canUseCustomPrompts ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
                         {plan.canUseCustomPrompts ? '✅' : '🔒'} Свой текст модели
@@ -127,10 +127,17 @@ export default function PricingModal({
                         onClick={() => handleSelect(plan.id)}
                         disabled={isActive || (loading && isSelected)}
                       >
-                        {loading && isSelected ? '⏳ Активация...'
-                          : isActive ? '✓ Активен'
-                          : isBest ? `🚀 Подключить ${plan.label.toUpperCase()} — ${plan.price.toLocaleString('ru-RU')} ₽`
-                          : `Подключить ${plan.label} — ${plan.price.toLocaleString('ru-RU')} ₽`}
+                        {loading && isSelected ? (
+                          '⏳ Активация...'
+                        ) : isActive ? (
+                          '✓ Активен'
+                        ) : (
+                          <>
+                            {isBest ? `🚀 Подключить ${plan.label.toUpperCase()}` : `Подключить ${plan.label}`} —
+                            <br />
+                            {plan.price.toLocaleString('ru-RU')} ₽
+                          </>
+                        )}
                       </button>
 
                       {/* Обязательное уведомление ЮКасса: возможность отмены */}
