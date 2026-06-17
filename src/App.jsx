@@ -329,7 +329,7 @@ function App() {
 
   // Load user data from Firestore (skip for guest users in embedded mode)
   useEffect(() => {
-    if (!user || user.isGuest || user.isAnonymous) return;
+    if (!user || user.isGuest || (user.isAnonymous && !user.isTelegramUser)) return;
     
     // Загружаем данные параллельно и асинхронно, не блокируя отрисовку интерфейса
     getModels(user.uid)
@@ -411,13 +411,20 @@ function App() {
     if (!user) return;
     setPricingLoading(true);
     try {
+      const idToken = await user.getIdToken();
+      console.log('[Payment] Starting payment for plan:', planId, 'uid:', user.uid);
       // Шаг 1: Создаём платёжную сессию ЮKassa на бэкенде
       const invoiceResp = await fetch('/api/create-payment', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
         body: JSON.stringify({ planId, uid: user.uid }),
       });
+      console.log('[Payment] API response status:', invoiceResp.status, invoiceResp.statusText);
       const invoiceData = await safeParseJSON(invoiceResp);
+      console.log('[Payment] API response body:', JSON.stringify(invoiceData));
 
       if (!invoiceData.ok || !invoiceData.invoiceLink) {
         throw new Error(invoiceData.error || 'Не удалось создать платеж');
@@ -425,6 +432,7 @@ function App() {
 
       // Шаг 2: Перенаправляем пользователя на форму оплаты ЮKassa
       const paymentUrl = invoiceData.invoiceLink;
+      console.log('[Payment] Redirecting to:', paymentUrl);
       
       setShowPricing(false);
       setStatusText('⏳ Перенаправляем на защищенную страницу оплаты ЮKassa...');
@@ -438,7 +446,7 @@ function App() {
         window.location.href = paymentUrl;
       }
     } catch (err) {
-      console.error('Ошибка оплаты:', err);
+      console.error('[Payment] Ошибка оплаты:', err);
       setStatusText(`Ошибка: ${err.message}`);
       setStatusType('error');
     } finally {
@@ -4233,7 +4241,7 @@ ${userProductInfo.trim()}
           onClose={() => setShowCalibWizard(false)}
           onSave={saveCalibratedModel}
           onStartCalibration={async () => {
-            if (!user || user.isGuest || user.isAnonymous) {
+            if (!user || user.isGuest || (user.isAnonymous && !user.isTelegramUser)) {
               throw new Error('Для создания модели необходимо авторизоваться');
             }
             // Калибровка модели теперь бесплатна, кредиты не списываются.

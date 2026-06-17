@@ -10,6 +10,7 @@ import {
   RobotOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
+  GiftOutlined,
 } from '@ant-design/icons';
 import ruRU from 'antd/locale/ru_RU';
 
@@ -24,6 +25,7 @@ export const useAdmin = () => useContext(AdminContext);
 // ── Ленивая загрузка страниц ──
 const SummaryPage = lazy(() => import('./pages/SummaryPage'));
 const UsersPage   = lazy(() => import('./pages/UsersPage'));
+const GrantsPage  = lazy(() => import('./pages/GrantsPage'));
 const LogTab      = lazy(() => import('./pages/LogTab'));
 const Errors      = lazy(() => import('./pages/Errors'));
 const Broadcasts  = lazy(() => import('./pages/Broadcasts'));
@@ -31,6 +33,7 @@ const Prompts     = lazy(() => import('./pages/Prompts'));
 
 const PAGES = {
   summary:    { component: SummaryPage,  label: 'Сводка',           icon: <DashboardOutlined /> },
+  grants:     { component: GrantsPage,   label: 'Выдача тарифов',   icon: <GiftOutlined /> },
   users:      { component: UsersPage,    label: 'Пользователи',     icon: <TeamOutlined /> },
   log:        { component: LogTab,       label: 'Лог генераций',    icon: <ThunderboltOutlined /> },
   errors:     { component: Errors,       label: 'Ошибки',           icon: <BugOutlined /> },

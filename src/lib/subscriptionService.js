@@ -221,7 +221,7 @@ export const getSubscription = async (uid, email = null, telegramId = null) => {
   }
 
   // Если telegramId передан, но ещё не записан в Firestore — сохраняем его
-  // чтобы adminPanel мог находить Firebase UID по Telegram ID через collectionGroup query
+  // чтобы adminPanel мог находить Firebase UID по Telegram ID
   if (telegramId && data.plan !== 'none' && !data.telegramId) {
     try {
       const ref2 = doc(db, 'users', uid, 'subscription', 'current');
@@ -229,6 +229,20 @@ export const getSubscription = async (uid, email = null, telegramId = null) => {
       data = { ...data, telegramId: String(telegramId) };
     } catch (e) {
       console.warn('[SubscriptionService] Не удалось сохранить telegramId:', e);
+    }
+  }
+
+  // Создаем плоский маппинг Telegram ID -> Firebase UID для быстрого поиска в админке
+  if (telegramId) {
+    try {
+      const tgIdStr = String(telegramId).trim();
+      const mapRef = doc(db, 'telegram_uid_map', tgIdStr);
+      await setDoc(mapRef, {
+        firebaseUid: uid,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    } catch (e) {
+      console.warn('[SubscriptionService] Не удалось записать маппинг в telegram_uid_map:', e);
     }
   }
 

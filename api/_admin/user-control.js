@@ -45,65 +45,21 @@ async function resolveIdentifier(identifier) {
   }
 
   // ── Числовой идентификатор → Telegram ID ──
-  // Нужно найти реальный Firebase UID пользователя по его Telegram ID.
-  // Telegram ID может быть записан в:
-  //   1. documents users/{firebaseUID}/subscription/current → поле telegramId
-  //   2. documents users/{firebaseUID}/subscription/current → поле migratedFromTgId
-  // Если нашли — возвращаем Firebase UID. Если нет — пишем напрямую по числу (старый путь).
+  // Ищем Firebase UID пользователя в таблице telegram_uid_map по его Telegram ID.
+  // Если не нашли — возвращаем сам Telegram ID в качестве UID (для совместимости с миграцией при первом входе).
   if (/^\d+$/.test(clean)) {
-    // Telegram ID хранится в Firestore иногда как number, иногда как string.
-    // Ищем оба варианта.
-    const cleanNum = Number(clean);
     try {
-      // Поиск по string-версии telegramId
-      const snapStr = await db.collectionGroup('subscription')
-        .where('telegramId', '==', clean)
-        .limit(1)
-        .get();
-      if (!snapStr.empty) {
-        const firebaseUid = snapStr.docs[0].ref.parent.parent.id;
-        console.log(`[admin/user-control] TG ${clean} → Firebase UID ${firebaseUid} (string telegramId)`);
-        return { uid: firebaseUid, resolvedFrom: 'telegram_id', telegramId: clean, displayInfo: `TG ${clean} -> UID ${firebaseUid}` };
+      const mapSnap = await db.doc(`telegram_uid_map/${clean}`).get();
+      if (mapSnap.exists) {
+        const firebaseUid = mapSnap.data()?.firebaseUid;
+        if (firebaseUid) {
+          console.log(`[admin/user-control] TG ${clean} → Firebase UID ${firebaseUid} via telegram_uid_map`);
+          return { uid: firebaseUid, resolvedFrom: 'telegram_id', telegramId: clean, displayInfo: `TG ${clean} -> UID ${firebaseUid}` };
+        }
       }
-
-      // Поиск по number-версии telegramId
-      const snapNum = await db.collectionGroup('subscription')
-        .where('telegramId', '==', cleanNum)
-        .limit(1)
-        .get();
-      if (!snapNum.empty) {
-        const firebaseUid = snapNum.docs[0].ref.parent.parent.id;
-        console.log(`[admin/user-control] TG ${clean} → Firebase UID ${firebaseUid} (number telegramId)`);
-        return { uid: firebaseUid, resolvedFrom: 'telegram_id', telegramId: clean, displayInfo: `TG ${clean} -> UID ${firebaseUid}` };
-      }
-
-      // Поиск по string migratedFromTgId
-      const migStr = await db.collectionGroup('subscription')
-        .where('migratedFromTgId', '==', clean)
-        .limit(1)
-        .get();
-      if (!migStr.empty) {
-        const firebaseUid = migStr.docs[0].ref.parent.parent.id;
-        console.log(`[admin/user-control] TG ${clean} → Firebase UID ${firebaseUid} (string migratedFromTgId)`);
-        return { uid: firebaseUid, resolvedFrom: 'telegram_id', telegramId: clean, displayInfo: `TG ${clean} -> UID ${firebaseUid} (migrated)` };
-      }
-
-      // Поиск по number migratedFromTgId
-      const migNum = await db.collectionGroup('subscription')
-        .where('migratedFromTgId', '==', cleanNum)
-        .limit(1)
-        .get();
-      if (!migNum.empty) {
-        const firebaseUid = migNum.docs[0].ref.parent.parent.id;
-        console.log(`[admin/user-control] TG ${clean} → Firebase UID ${firebaseUid} (number migratedFromTgId)`);
-        return { uid: firebaseUid, resolvedFrom: 'telegram_id', telegramId: clean, displayInfo: `TG ${clean} -> UID ${firebaseUid} (migrated)` };
-      }
-
-      // Firebase UID не найден — пишем напрямую по TG ID
-      // Клиент подхватит через миграцию при следующем входе
-      console.log(`[admin/user-control] TG ${clean} → no Firebase UID found, writing to TG doc (migration will handle on next app open)`);
+      console.log(`[admin/user-control] TG ${clean} → no Firebase UID map found, falling back to direct TG ID`);
     } catch (err) {
-      console.warn('[admin/user-control] collectionGroup query failed, falling back to direct TG ID:', err.message);
+      console.warn('[admin/user-control] telegram_uid_map query failed, falling back to direct TG ID:', err.message);
     }
 
     return { uid: clean, resolvedFrom: 'telegram_id', telegramId: clean, displayInfo: `TG ${clean}` };
@@ -286,6 +242,8 @@ export default async function handler(req, res) {
         isTest: false,
       };
 
+      const telegramIdToSave = resolved.telegramId ? String(resolved.telegramId) : undefined;
+
       await ref.set({
         plan: preservedPlan,
         credits: FieldValue.increment(amount),
@@ -295,6 +253,7 @@ export default async function handler(req, res) {
         payments: FieldValue.arrayUnion(entry),
         grantedByAdmin: true,
         updatedAt: FieldValue.serverTimestamp(),
+        ...(telegramIdToSave ? { telegramId: telegramIdToSave } : {}),
       }, { merge: true });
 
       const result = await lookupUser(identifier);
