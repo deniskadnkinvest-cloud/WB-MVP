@@ -256,13 +256,30 @@ export default function LoraModal({
   const emptyCount = SLOTS.filter(s => !getDisplayPhoto(s.key)).length;
   const isAnyGenerating = generatingSlots.size > 0;
 
+  // ── Close guard ──
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const hasWork = filledCount > 0 || loraName.trim() || step === 'generating' || step === 'review';
+
+  const handleCloseAttempt = () => {
+    if (step === 'generating' || isAnyGenerating || isGeneratingComp || step === 'review' || hasWork) {
+      setShowCloseConfirm(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const confirmClose = () => {
+    setShowCloseConfirm(false);
+    onClose();
+  };
+
   // ══════════════════════════════════════════════
   return (
     <>
       <motion.div
         className="modal-overlay"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        onClick={step === 'review' ? undefined : onClose}
+        onClick={handleCloseAttempt}
         style={{ alignItems: 'flex-start', paddingTop: 20, paddingBottom: 20, overflowY: 'auto' }}
       >
         <motion.div
@@ -418,7 +435,7 @@ export default function LoraModal({
                 {saveError && <div style={{ color: '#f87171', fontSize: 12, textAlign: 'center', marginTop: 8 }}>{saveError}</div>}
 
                 <div className="modal-actions" style={{ marginTop: 16 }}>
-                  <button className="modal-btn-cancel" onClick={onClose}>Отмена</button>
+                  <button className="modal-btn-cancel" onClick={handleCloseAttempt}>Отмена</button>
                   <button
                     className="modal-btn-primary"
                     onClick={generateCompCard}
@@ -434,22 +451,26 @@ export default function LoraModal({
             {step === 'generating' && (
               <motion.div key="generating"
                 initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-                style={{ textAlign: 'center', padding: '40px 20px' }}>
-                <div style={{ fontSize: 48, marginBottom: 20 }}>🧑‍🎨</div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#f0f0f5', marginBottom: 12 }}>
+                style={{ textAlign: 'center', padding: '60px 20px', minHeight: 400, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ fontSize: 56, marginBottom: 24 }}>🧑‍🎨</div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: '#f0f0f5', marginBottom: 14 }}>
                   Создаётся профессиональная<br />карточка персонажа...
                 </div>
-                <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: 24 }}>
-                  ИИ анализирует ваши фото и строит<br />comp card из 8 ракурсов.<br />Подождите, обычно 20–40 секунд.
+                <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, marginBottom: 32 }}>
+                  ИИ анализирует ваши фото и строит<br />comp card из 8 ракурсов.<br />
+                  <span style={{ color: 'rgba(255,255,255,0.3)' }}>Подождите, обычно 20–40 секунд</span>
                 </div>
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                  {[0, 1, 2].map(i => (
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center', marginBottom: 24 }}>
+                  {[0, 1, 2, 3, 4].map(i => (
                     <motion.div key={i}
-                      animate={{ scale: [1, 1.5, 1], opacity: [0.4, 1, 0.4] }}
-                      transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.4 }}
+                      animate={{ scale: [1, 1.4, 1], opacity: [0.3, 1, 0.3] }}
+                      transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.3 }}
                       style={{ width: 10, height: 10, borderRadius: '50%', background: '#a855f7' }}
                     />
                   ))}
+                </div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', padding: '8px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
+                  ⚠️ Не закрывайте это окно
                 </div>
               </motion.div>
             )}
@@ -554,6 +575,51 @@ export default function LoraModal({
               style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', width: 40, height: 40, borderRadius: '50%', cursor: 'pointer', fontSize: 18 }}>
               ✕
             </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Close Confirmation Dialog */}
+      <AnimatePresence>
+        {showCloseConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{ position: 'fixed', inset: 0, zIndex: 10001, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <motion.div
+              initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }}
+              transition={spring}
+              style={{ background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 16, padding: 28, maxWidth: 360, width: '90vw', textAlign: 'center' }}
+            >
+              <div style={{ fontSize: 36, marginBottom: 12 }}>
+                {step === 'generating' ? '⏳' : '⚠️'}
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#f0f0f5', marginBottom: 8 }}>
+                {step === 'generating' ? 'Идёт генерация!' : 'Закрыть без сохранения?'}
+              </div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: 24 }}>
+                {step === 'generating'
+                  ? 'Генерация карточки в процессе. Если закрыть сейчас — результат будет потерян и кредиты спишутся.'
+                  : step === 'review'
+                  ? 'Карточка персонажа создана, но ещё не сохранена. Закрыть и потерять её?'
+                  : 'Загруженные фотографии и введённое имя будут потеряны. Вы уверены?'}
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={() => setShowCloseConfirm(false)}
+                  style={{ flex: 1, padding: '12px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Продолжить
+                </button>
+                <button
+                  onClick={confirmClose}
+                  style={{ flex: 1, padding: '12px', borderRadius: 10, background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Да, закрыть
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
