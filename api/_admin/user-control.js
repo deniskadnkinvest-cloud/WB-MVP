@@ -37,14 +37,53 @@ async function resolveIdentifier(identifier) {
   const clean = String(identifier || '').trim();
   if (!clean) throw new Error('identifier required');
 
+  // ── Email → Firebase UID через Auth ──
   if (clean.includes('@') && clean.includes('.')) {
     const email = clean.toLowerCase();
     const record = await getAuth().getUserByEmail(email);
     return { uid: record.uid, resolvedFrom: 'email', email, displayInfo: `${email} -> ${record.uid}` };
   }
 
+  // ── Числовой идентификатор → Telegram ID ──
+  // Нужно найти реальный Firebase UID пользователя по его Telegram ID.
+  // Telegram ID может быть записан в:
+  //   1. documents users/{firebaseUID}/subscription/current → поле telegramId
+  //   2. documents users/{firebaseUID}/subscription/current → поле migratedFromTgId
+  // Если нашли — возвращаем Firebase UID. Если нет — пишем напрямую по числу (старый путь).
   if (/^\d+$/.test(clean)) {
-    return { uid: clean, resolvedFrom: 'telegram_id', displayInfo: `TG ${clean}` };
+    try {
+      // Ищем в subscriptions по полю telegramId
+      const byTelegramId = await db.collectionGroup('subscription')
+        .where('telegramId', '==', clean)
+        .limit(1)
+        .get();
+
+      if (!byTelegramId.empty) {
+        // путь: users/{uid}/subscription/current → берём uid
+        const firebaseUid = byTelegramId.docs[0].ref.parent.parent.id;
+        console.log(`[admin/user-control] TG ${clean} → Firebase UID ${firebaseUid} (via telegramId field)`);
+        return { uid: firebaseUid, resolvedFrom: 'telegram_id', telegramId: clean, displayInfo: `TG ${clean} -> UID ${firebaseUid}` };
+      }
+
+      // Ищем по полю migratedFromTgId (уже мигрировавшие пользователи)
+      const byMigrated = await db.collectionGroup('subscription')
+        .where('migratedFromTgId', '==', clean)
+        .limit(1)
+        .get();
+
+      if (!byMigrated.empty) {
+        const firebaseUid = byMigrated.docs[0].ref.parent.parent.id;
+        console.log(`[admin/user-control] TG ${clean} → Firebase UID ${firebaseUid} (via migratedFromTgId field)`);
+        return { uid: firebaseUid, resolvedFrom: 'telegram_id', telegramId: clean, displayInfo: `TG ${clean} -> UID ${firebaseUid} (migrated)` };
+      }
+
+      // Пользователь ещё не привязал Firebase аккаунт — записываем напрямую по TG ID
+      console.log(`[admin/user-control] TG ${clean} → no Firebase UID found, writing directly to TG doc`);
+    } catch (err) {
+      console.warn('[admin/user-control] collectionGroup query failed, falling back to direct TG ID:', err.message);
+    }
+
+    return { uid: clean, resolvedFrom: 'telegram_id', telegramId: clean, displayInfo: `TG ${clean}` };
   }
 
   return { uid: clean, resolvedFrom: 'firebase_uid', displayInfo: `UID ${clean}` };

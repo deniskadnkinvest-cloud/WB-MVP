@@ -179,6 +179,7 @@ export const getSubscription = async (uid, email = null, telegramId = null) => {
           if (data.plan === 'none') {
             newSub = {
               ...tgSubData,
+              telegramId: tgIdStr,           // Сохраняем TG ID для поиска в админке
               migratedFromTgId: tgIdStr,
               updatedAt: serverTimestamp(),
             };
@@ -189,6 +190,7 @@ export const getSubscription = async (uid, email = null, telegramId = null) => {
               plan: tgSubData.plan !== 'none' ? tgSubData.plan : data.plan,
               credits: (data.credits || 0) + (tgSubData.credits || 0),
               creditsTotal: (data.creditsTotal || 0) + (tgSubData.creditsTotal || 0),
+              telegramId: tgIdStr,           // Сохраняем TG ID для поиска в админке
               migratedFromTgId: tgIdStr,
               updatedAt: serverTimestamp(),
               grantedByAdmin: data.grantedByAdmin || tgSubData.grantedByAdmin,
@@ -215,6 +217,18 @@ export const getSubscription = async (uid, email = null, telegramId = null) => {
       }
     } catch (err) {
       console.error('[SubscriptionService] Ошибка миграции подписки по Telegram ID:', err);
+    }
+  }
+
+  // Если telegramId передан, но ещё не записан в Firestore — сохраняем его
+  // чтобы adminPanel мог находить Firebase UID по Telegram ID через collectionGroup query
+  if (telegramId && data.plan !== 'none' && !data.telegramId) {
+    try {
+      const ref2 = doc(db, 'users', uid, 'subscription', 'current');
+      await updateDoc(ref2, { telegramId: String(telegramId) });
+      data = { ...data, telegramId: String(telegramId) };
+    } catch (e) {
+      console.warn('[SubscriptionService] Не удалось сохранить telegramId:', e);
     }
   }
 
