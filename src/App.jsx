@@ -2580,7 +2580,7 @@ ${userProductInfo.trim()}
             )}
           </AnimatePresence>
 
-          {/* ═══ MODEL MODE: стиль карточки (естественная/эпичная) ═══ */}
+          {/* ═══ MODEL MODE: инфо-баннер ═══ */}
           <AnimatePresence mode="wait">
             {quickMode === 'model' && (
               <motion.div
@@ -2593,42 +2593,6 @@ ${userProductInfo.trim()}
                   <p style={{margin:0, fontSize:13, color:'rgba(255,255,255,0.7)', lineHeight:1.5}}>
                     👤 <strong>ИИ поместит товар в руки модели</strong> — сам определит, как человек будет держать, носить или использовать ваш товар.
                   </p>
-                </div>
-                <div className="card-style-picker" style={{marginBottom: 0}}>
-                  <div className="card-style-label">Стиль карточки:</div>
-                  <div className="card-style-options">
-                    <button
-                      className={`card-style-btn ${quickCardStyle === 'natural' ? 'active' : ''}`}
-                      onClick={() => setQuickCardStyle('natural')}
-                    >
-                      <span className="card-style-icon">🌿</span>
-                      <span className="card-style-name">Естественная</span>
-                      <span className="card-style-desc">Элегантная, минимализм</span>
-                    </button>
-                    <button
-                      className={`card-style-btn ${quickCardStyle === 'epic' ? 'active' : ''}`}
-                      onClick={() => setQuickCardStyle('epic')}
-                    >
-                      <span className="card-style-icon">🔥</span>
-                      <span className="card-style-name">Эпичная</span>
-                      <span className="card-style-desc">Кинематограф, wow</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Optional product info */}
-                <div style={{marginTop: 16}}>
-                  <div className="detail-label" style={{marginBottom: 8}}>
-                    💡 Информация о товаре <span style={{color:'rgba(255,255,255,0.4)', fontSize:12}}>(необязательно)</span>
-                  </div>
-                  <textarea
-                    className="modifier-input"
-                    rows={3}
-                    placeholder="Например: «Офисный стул, стальной каркас, до 120 кг». ИИ сам определит товар по фото."
-                    value={userProductInfo}
-                    onChange={e => setUserProductInfo(e.target.value)}
-                    style={{width:'100%', resize:'vertical'}}
-                  />
                 </div>
               </motion.div>
             )}

@@ -182,6 +182,7 @@ const otpErrorToRussian = (errorData = {}) => {
   const message = String(errorData.error || errorData.message || errorData.details || '');
   if (
     errorData.code === 'otp_email_send_failed' ||
+    errorData.code === 'resend_domain_not_verified' ||
     message.includes('Failed to send OTP email') ||
     message.includes('Resend API error') ||
     message.includes('No email providers')

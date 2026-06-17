@@ -1,48 +1,51 @@
 import React, { useState, useEffect, createContext, useContext, useMemo, lazy, Suspense } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import Sidebar from './components/Sidebar';
+import { ConfigProvider, theme, Layout, Menu, Spin, Result, Button, Avatar } from 'antd';
+import {
+  DashboardOutlined,
+  TeamOutlined,
+  ThunderboltOutlined,
+  SettingOutlined,
+  SoundOutlined,
+  BugOutlined,
+  RobotOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+} from '@ant-design/icons';
+import ruRU from 'antd/locale/ru_RU';
+
+const { Header, Sider, Content } = Layout;
 
 // ═══════════════════════════════════════════
-//  Admin Context — accessKey для API запросов
+//  Admin Context
 // ═══════════════════════════════════════════
-
 const AdminContext = createContext(null);
 export const useAdmin = () => useContext(AdminContext);
 
-const SummaryTab      = lazy(() => import('./pages/SummaryTab'));
-const UsersCRM        = lazy(() => import('./pages/UsersCRM'));
-const LogTab          = lazy(() => import('./pages/LogTab'));
-const Errors          = lazy(() => import('./pages/Errors'));
-const Broadcasts      = lazy(() => import('./pages/Broadcasts'));
-const Prompts         = lazy(() => import('./pages/Prompts'));
-const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'));
+// ── Ленивая загрузка страниц ──
+const SummaryPage = lazy(() => import('./pages/SummaryPage'));
+const UsersPage   = lazy(() => import('./pages/UsersPage'));
+const LogTab      = lazy(() => import('./pages/LogTab'));
+const Errors      = lazy(() => import('./pages/Errors'));
+const Broadcasts  = lazy(() => import('./pages/Broadcasts'));
+const Prompts     = lazy(() => import('./pages/Prompts'));
 
-const PAGE_MAP = {
-  summary:              <SummaryTab />,
-  users:                <UsersCRM />,
-  log:                  <LogTab />,
-  errors:               <Errors />,
-  broadcasts:           <Broadcasts />,
-  prompts:              <Prompts />,
+const PAGES = {
+  summary:    { component: SummaryPage,  label: 'Сводка',           icon: <DashboardOutlined /> },
+  users:      { component: UsersPage,    label: 'Пользователи',     icon: <TeamOutlined /> },
+  log:        { component: LogTab,       label: 'Лог генераций',    icon: <ThunderboltOutlined /> },
+  errors:     { component: Errors,       label: 'Ошибки',           icon: <BugOutlined /> },
+  prompts:    { component: Prompts,      label: 'Промпты',          icon: <RobotOutlined /> },
+  broadcasts: { component: Broadcasts,   label: 'Рассылки',         icon: <SoundOutlined /> },
 };
-
-function getPage(id) {
-  return PAGE_MAP[id] || <PlaceholderPage />;
-}
-
-// ═══════════════════════════════════════════
-//  AdminApp
-// ═══════════════════════════════════════════
 
 export default function AdminApp() {
   const [status, setStatus]         = useState('loading');
   const [adminUser, setAdminUser]   = useState(null);
   const [errorMsg, setErrorMsg]     = useState('');
   const [activePage, setActivePage] = useState('summary');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed]   = useState(false);
 
   const accessKey = useMemo(() => new URLSearchParams(window.location.search).get('key') || '', []);
-
   const initData = useMemo(() => {
     try { return window.Telegram?.WebApp?.initData || ''; }
     catch { return ''; }
@@ -51,11 +54,7 @@ export default function AdminApp() {
   useEffect(() => {
     try {
       const tg = window.Telegram?.WebApp;
-      if (tg) {
-        tg.expand();
-        tg.setHeaderColor('#0a0a0f');
-        tg.setBackgroundColor('#0a0a0f');
-      }
+      if (tg) { tg.expand(); tg.setHeaderColor('#141414'); tg.setBackgroundColor('#141414'); }
     } catch { /* ok */ }
 
     if (!accessKey && !initData && import.meta.env.DEV) {
@@ -63,7 +62,6 @@ export default function AdminApp() {
       setStatus('ready');
       return;
     }
-
     if (!accessKey && !initData) {
       setErrorMsg('Откройте через Telegram бот командой /admin');
       setStatus('error');
@@ -77,18 +75,10 @@ export default function AdminApp() {
     })
       .then(r => r.json())
       .then(data => {
-        if (data.ok) {
-          setAdminUser(data.user);
-          setStatus('ready');
-        } else {
-          setErrorMsg('Нет доступа');
-          setStatus('error');
-        }
+        if (data.ok) { setAdminUser(data.user); setStatus('ready'); }
+        else { setErrorMsg('Нет доступа'); setStatus('error'); }
       })
-      .catch(() => {
-        setErrorMsg('Ошибка подключения к серверу');
-        setStatus('error');
-      });
+      .catch(() => { setErrorMsg('Ошибка подключения к серверу'); setStatus('error'); });
   }, [accessKey, initData]);
 
   const authHeaders = useMemo(() => ({
@@ -97,208 +87,138 @@ export default function AdminApp() {
   }), [accessKey, initData]);
 
   const contextValue = useMemo(() => ({
-    adminUser,
-    accessKey,
-    authHeaders,
+    adminUser, accessKey, authHeaders,
   }), [adminUser, accessKey, authHeaders]);
 
-  if (status === 'loading') return <AdminLoader />;
-  if (status === 'error')   return <AdminError message={errorMsg} />;
+  if (status === 'loading') {
+    return (
+      <ConfigProvider locale={ruRU} theme={{ algorithm: theme.darkAlgorithm }}>
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#141414' }}>
+          <Spin size="large" tip="Загрузка…" />
+        </div>
+      </ConfigProvider>
+    );
+  }
+
+  if (status === 'error') {
+    return (
+      <ConfigProvider locale={ruRU} theme={{ algorithm: theme.darkAlgorithm }}>
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#141414' }}>
+          <Result status="403" title="Доступ закрыт" subTitle={errorMsg} />
+        </div>
+      </ConfigProvider>
+    );
+  }
+
+  const PageComponent = PAGES[activePage]?.component || SummaryPage;
+
+  const menuItems = Object.entries(PAGES).map(([key, val]) => ({
+    key,
+    icon: val.icon,
+    label: val.label,
+  }));
 
   return (
-    <AdminContext.Provider value={contextValue}>
-      <div style={{
-        minHeight: '100vh',
-        maxHeight: '100vh',
-        background: '#0a0a0f',
-        fontFamily: "'Inter', -apple-system, sans-serif",
-        color: '#f0f0f5',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-      }}>
-
-        {/* ── Top Header с кнопкой шторки ── */}
-        <header style={{
-          padding: '12px 16px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          borderBottom: '1px solid rgba(255,255,255,0.05)',
-          background: 'rgba(10,10,15,0.95)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          flexShrink: 0,
-          zIndex: 50,
-        }}>
-          {/* Кнопка хамбургера */}
-          <button
-            onClick={() => setSidebarOpen(true)}
+    <ConfigProvider
+      locale={ruRU}
+      theme={{
+        algorithm: theme.darkAlgorithm,
+        token: {
+          colorPrimary: '#818cf8',
+          borderRadius: 8,
+          fontFamily: "'Inter', -apple-system, sans-serif",
+        },
+      }}
+    >
+      <AdminContext.Provider value={contextValue}>
+        <Layout style={{ minHeight: '100vh' }}>
+          {/* ── Sidebar ── */}
+          <Sider
+            collapsible
+            collapsed={collapsed}
+            onCollapse={setCollapsed}
+            breakpoint="lg"
+            collapsedWidth={0}
+            trigger={null}
+            width={220}
             style={{
-              width: '36px',
-              height: '36px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '5px',
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: '10px',
-              cursor: 'pointer',
-              flexShrink: 0,
-              WebkitTapHighlightColor: 'transparent',
+              background: '#1a1a1a',
+              borderRight: '1px solid rgba(255,255,255,0.06)',
+              position: 'fixed',
+              height: '100vh',
+              left: 0,
+              top: 0,
+              zIndex: 100,
             }}
           >
-            <span style={{ display: 'block', width: '16px', height: '1.5px', background: 'rgba(255,255,255,0.7)', borderRadius: '2px' }} />
-            <span style={{ display: 'block', width: '16px', height: '1.5px', background: 'rgba(255,255,255,0.7)', borderRadius: '2px' }} />
-            <span style={{ display: 'block', width: '16px', height: '1.5px', background: 'rgba(255,255,255,0.7)', borderRadius: '2px' }} />
-          </button>
-
-          {/* Заголовок */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '15px', fontWeight: 700, letterSpacing: '-0.3px', color: '#fff' }}>
-              {PAGE_TITLES[activePage] || 'Seller Bot'}
+            <div style={{ padding: '20px 16px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: '#fff', letterSpacing: '-0.3px' }}>
+                Seller Bot
+              </div>
+              <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginTop: '2px' }}>
+                Админ-панель
+              </div>
             </div>
-          </div>
+            <Menu
+              theme="dark"
+              mode="inline"
+              selectedKeys={[activePage]}
+              onClick={({ key }) => { setActivePage(key); if (window.innerWidth < 992) setCollapsed(true); }}
+              items={menuItems}
+              style={{ background: 'transparent', borderRight: 'none', marginTop: '8px' }}
+            />
+          </Sider>
 
-          {/* Аватар админа */}
-          <div style={{
-            width: '30px',
-            height: '30px',
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, #818cf8, #c084fc)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '12px',
-            fontWeight: 700,
-            color: '#fff',
-            flexShrink: 0,
-          }}>
-            {(adminUser?.firstName || 'A')[0].toUpperCase()}
-          </div>
-        </header>
+          {/* ── Main Layout ── */}
+          <Layout style={{ marginLeft: collapsed ? 0 : (window.innerWidth < 992 ? 0 : 220), transition: 'margin-left 0.2s' }}>
+            <Header style={{
+              background: '#1a1a1a',
+              padding: '0 16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderBottom: '1px solid rgba(255,255,255,0.06)',
+              position: 'sticky',
+              top: 0,
+              zIndex: 50,
+              height: '56px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <Button
+                  type="text"
+                  icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                  onClick={() => setCollapsed(!collapsed)}
+                  style={{ color: 'rgba(255,255,255,0.65)', fontSize: '18px' }}
+                />
+                <span style={{ fontSize: '15px', fontWeight: 600, color: '#fff' }}>
+                  {PAGES[activePage]?.icon} {PAGES[activePage]?.label || 'Seller Bot'}
+                </span>
+              </div>
+              <Avatar style={{ background: 'linear-gradient(135deg, #818cf8, #c084fc)' }} size={32}>
+                {(adminUser?.firstName || 'A')[0].toUpperCase()}
+              </Avatar>
+            </Header>
 
-        {/* ── Боковая шторка ── */}
-        <Sidebar
-          activePage={activePage}
-          onNavigate={(id) => { setActivePage(id); setSidebarOpen(false); }}
-          isMobile={true}
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-        />
+            <Content style={{ padding: '16px', minHeight: 'calc(100vh - 56px)', overflow: 'auto' }}>
+              <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', paddingTop: '60px' }}><Spin size="large" /></div>}>
+                <PageComponent />
+              </Suspense>
+            </Content>
+          </Layout>
 
-        {/* ── Контент страницы ── */}
-        <main style={{
-          flex: 1,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          WebkitOverflowScrolling: 'touch',
-        }}>
-          <Suspense fallback={<PageSpinner />}>
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activePage}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.18, ease: 'easeOut' }}
-              >
-                {getPage(activePage)}
-              </motion.div>
-            </AnimatePresence>
-          </Suspense>
-        </main>
-      </div>
-    </AdminContext.Provider>
-  );
-}
-
-// ── Заголовки страниц ──
-const PAGE_TITLES = {
-  summary:          '📊 Сводка',
-  users:            '👥 Пользователи (CRM)',
-  log:              '⚡ Лог генераций',
-  errors:           '🐛 Ошибки системы',
-  broadcasts:       '📢 Рассылки',
-  prompts:          '🤖 GPT Промпты',
-};
-
-// ── Спиннер загрузки страницы ──
-function PageSpinner() {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'center', paddingTop: '60px' }}>
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
-        style={{
-          width: '28px', height: '28px', borderRadius: '50%',
-          border: '2px solid rgba(255,255,255,0.06)',
-          borderTopColor: '#818cf8',
-        }}
-      />
-    </div>
-  );
-}
-
-// ── Loading screen ──
-function AdminLoader() {
-  return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#0a0a0f',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '16px',
-      fontFamily: "'Inter', sans-serif",
-    }}>
-      <motion.div
-        animate={{ rotate: 360 }}
-        transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
-        style={{
-          width: '40px', height: '40px',
-          borderRadius: '50%',
-          border: '3px solid rgba(129, 140, 248, 0.15)',
-          borderTop: '3px solid #818cf8',
-        }}
-      />
-      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px', margin: 0 }}>
-        Загрузка…
-      </p>
-    </div>
-  );
-}
-
-// ── Error screen ──
-function AdminError({ message }) {
-  return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#0a0a0f',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '12px',
-      padding: '24px',
-      fontFamily: "'Inter', sans-serif",
-    }}>
-      <div style={{ fontSize: '48px' }}>🔒</div>
-      <h2 style={{ color: '#fff', margin: 0, fontSize: '18px', fontWeight: 600 }}>
-        Доступ закрыт
-      </h2>
-      <p style={{
-        color: 'rgba(255,255,255,0.5)',
-        fontSize: '14px',
-        margin: 0,
-        textAlign: 'center',
-        lineHeight: '1.5',
-      }}>
-        {message}
-      </p>
-    </div>
+          {/* ── Mobile overlay ── */}
+          {!collapsed && window.innerWidth < 992 && (
+            <div
+              onClick={() => setCollapsed(true)}
+              style={{
+                position: 'fixed', inset: 0,
+                background: 'rgba(0,0,0,0.5)',
+                zIndex: 99,
+              }}
+            />
+          )}
+        </Layout>
+      </AdminContext.Provider>
+    </ConfigProvider>
   );
 }

@@ -6,7 +6,7 @@ import nodemailer from 'nodemailer';
 // Initialize Firebase Admin
 ensureFirebaseAdmin();
 
-const DEFAULT_RESEND_FROM_EMAIL = 'Seller Studio <noreply@aigeorank.ru>';
+const DEFAULT_RESEND_FROM_EMAIL = 'Seller Studio <noreply@seller-studio-ai.ru>';
 
 const buildOtpDoc = (email, code, expiresAt) => ({
   code,
@@ -276,6 +276,7 @@ export default async function handler(req, res) {
       });
     }
 
+    await saveOtpCode();
     return res.status(200).json({
       success: true,
       message: 'OTP sent successfully',
