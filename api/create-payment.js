@@ -12,10 +12,6 @@ import { alertOnError } from './_admin-alerts.js';
 
 ensureFirebaseAdmin();
 
-const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID;
-const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY;
-const VITE_APP_URL = process.env.VITE_APP_URL || 'https://seller-studio-ai.ru';
-
 // Цены тарифов в рублях (согласно финансовому плану)
 const PLAN_CONFIG = {
   trial: {
@@ -39,6 +35,12 @@ const PLAN_CONFIG = {
 };
 
 export default async function handler(req, res) {
+  // Читаем env-переменные внутри handler (не на уровне модуля),
+  // чтобы гарантировать загрузку после dotenv.config() в server.js
+  const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID;
+  const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY;
+  const VITE_APP_URL = process.env.VITE_APP_URL || 'https://seller-studio-ai.ru';
+
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -50,6 +52,7 @@ export default async function handler(req, res) {
   }
 
   if (!YOOKASSA_SECRET_KEY) {
+    console.error('[create-payment] YOOKASSA_SECRET_KEY is not configured! Check .env or Vercel env vars.');
     return res.status(500).json({ ok: false, error: 'Yookassa secret key not configured' });
   }
 

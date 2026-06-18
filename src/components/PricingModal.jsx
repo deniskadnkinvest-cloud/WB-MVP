@@ -94,13 +94,7 @@ export default function PricingModal({
                     </div>
 
                     <div className="pricing-credits">
-                      {plan.id === 'pro' ? (
-                        <span className="pricing-credits-num">Безлимит</span>
-                      ) : (
-                        <>
-                          <span className="pricing-credits-num">{plan.credits}</span> генераций
-                        </>
-                      )}
+                      <span className="pricing-credits-num">{plan.credits.toLocaleString('ru-RU')}</span> генераций
                     </div>
 
                     <ul className="pricing-features">

@@ -245,6 +245,7 @@
   margin: 0 0 24px 0;
   width: 100%;
   text-align: left;
+  flex-grow: 1;
 }
 .pricing-feature {
   font-size: 0.72rem;

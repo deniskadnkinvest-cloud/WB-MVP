@@ -1,6 +1,6 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import { serve } from 'inngest/express';
 import { inngest } from './api/_inngest/client.js';
 import { functions } from './api/_inngest/functions.js';
@@ -17,7 +17,6 @@ import verifyOtpHandler from './api/verify-otp.js';
 import createTgSessionHandler from './api/create-tg-session.js';
 import completeTgAuthHandler from './api/complete-tg-auth.js';
 
-dotenv.config();
 
 const app = express();
 app.use(cors());

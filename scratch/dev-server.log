@@ -91,3 +91,37 @@
 [VITE] [2m10:39:24[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22m[vite] Failed to reload /src/components/LoraModal.jsx. This could be due to syntax errors or importing non-existent modules. (see errors above)
 [VITE] [2m10:40:36[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/LoraModal.jsx[22m
 [VITE] [2m10:42:24[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[VITE] [2m10:58:58[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/PricingModal.jsx, /src/components/SubscriptionBadge.jsx[22m
+[VITE] [2m11:11:29[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[VITE] [2m11:59:13[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[VITE] [2m12:07:14[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[VITE] [2m12:07:27[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx, /src/components/PricingModal.jsx, /src/components/SubscriptionBadge.jsx[22m
+[VITE] [2m18:09:01[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
+[VITE] [2m19:43:57[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/PricingModal.jsx[22m
+[VITE] [2m19:48:48[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/PricingModal.css[22m
+[VITE] [2m06:05:19[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mApp bootstrap failed: FirebaseError: Firebase: Error (auth/invalid-api-key).
+[VITE]     at createErrorInternal (http://localhost:5173/node_modules/.vite/deps/firebase_auth.js?v=18287b68:413:37)
+[VITE]     at _assert (http://localhost:5173/node_modules/.vite/deps/firebase_auth.js?v=18287b68:416:24)
+[VITE]     at Component.instanceFactory (http://localhost:5173/node_modules/.vite/deps/firebase_auth.js?v=18287b68:9043:3)
+[VITE]     at Provider.getOrInitializeService (http://localhost:5173/node_modules/.vite/deps/index.esm-CZLmQmUT.js?v=18287b68:1089:30)
+[VITE]     at Provider.initialize (http://localhost:5173/node_modules/.vite/deps/index.esm-CZLmQmUT.js?v=18287b68:1049:25)
+[VITE]     at initializeAuth (http://localhost:5173/node_modules/.vite/deps/firebase_auth.js?v=18287b68:2778:18)
+[VITE]     at getAuth (http://localhost:5173/node_modules/.vite/deps/firebase_auth.js?v=18287b68:9089:15)
+[VITE]     at http://localhost:5173/src/lib/firebase.js:15:21
+[VITE] [2m17:34:27[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mApp bootstrap failed: FirebaseError: Firebase: Error (auth/invalid-api-key).
+[VITE]     at createErrorInternal (http://localhost:5173/node_modules/.vite/deps/firebase_auth.js?v=18287b68:413:37)
+[VITE]     at _assert (http://localhost:5173/node_modules/.vite/deps/firebase_auth.js?v=18287b68:416:24)
+[VITE]     at Component.instanceFactory (http://localhost:5173/node_modules/.vite/deps/firebase_auth.js?v=18287b68:9043:3)
+[VITE]     at Provider.getOrInitializeService (http://localhost:5173/node_modules/.vite/deps/index.esm-CZLmQmUT.js?v=18287b68:1089:30)
+[VITE]     at Provider.initialize (http://localhost:5173/node_modules/.vite/deps/index.esm-CZLmQmUT.js?v=18287b68:1049:25)
+[VITE]     at initializeAuth (http://localhost:5173/node_modules/.vite/deps/firebase_auth.js?v=18287b68:2778:18)
+[VITE]     at getAuth (http://localhost:5173/node_modules/.vite/deps/firebase_auth.js?v=18287b68:9089:15)
+[VITE]     at http://localhost:5173/src/lib/firebase.js:15:21
+[VITE] [2m22:50:06[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/contexts/AuthContext.jsx[22m
+[VITE] [2m22:50:38[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/contexts/AuthContext.jsx[22m
+[VITE] [2m22:51:12[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/contexts/AuthContext.jsx[22m
+[VITE] [2m22:51:46[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/contexts/AuthContext.jsx[22m
+[VITE] [2m22:52:09[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/contexts/AuthContext.jsx[22m
+[VITE] [2m22:52:16[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/contexts/AuthContext.jsx[22m
+[VITE] [2m22:52:41[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/contexts/AuthContext.jsx[22m
+[VITE] [2m22:53:55[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.jsx[22m
