@@ -345,32 +345,17 @@ function App() {
         setMyLocations(locations || []);
       })
       .catch((err) => console.error('Ошибка загрузки локаций:', err));
-
-    // Для Telegram-пользователей: сначала синхронизируем маппинг через серверный API,
-    // затем загружаем подписку. Это создаёт telegram_uid_map через Admin SDK
-    // и мигрирует legacy-подписки на правильный Firebase UID.
-    const loadSubscription = async () => {
-      if (user.isTelegramUser && user.telegramId) {
-        try {
-          const idToken = await user.getIdToken();
-          await fetch('/api/sync-telegram', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ idToken, telegramId: user.telegramId }),
-          });
-        } catch (err) {
-          console.warn('[App] sync-telegram failed (non-critical):', err.message);
-        }
-      }
-      try {
-        const sub = await getSubscription(user.uid, user.email, user.telegramId);
+    // Загрузка подписки
+    // Миграция legacy-подписок теперь происходит в /api/auth-telegram при входе,
+    // поэтому здесь просто читаем подписку по стабильному UID
+    getSubscription(user.uid, user.email, user.telegramId)
+      .then((sub) => {
         if (sub) setSubscription(sub);
-      } catch (err) {
+      })
+      .catch((err) => {
         console.error('Ошибка загрузки подписки:', err);
         setSubscription({ plan: 'none', credits: 0, creditsTotal: 0 });
-      }
-    };
-    loadSubscription();
+      });
   }, [user]);
 
   // Обновляет баланс кредитов после генерации — переполучает подписку из Firestore

@@ -45,58 +45,70 @@ async function resolveIdentifier(identifier) {
   }
 
   // ── Числовой идентификатор → Telegram ID ──
-  // Ищем Firebase UID пользователя в таблице telegram_uid_map по его Telegram ID.
-  // ВАЖНО: если маппинг не найден — НЕ используем Telegram ID как Firebase UID!
-  // Это приводит к записи подписки в неправильный путь Firestore.
+  // ПРИОРИТЕТ 1: Детерминированный UID tg_{telegramId} (новая архитектура)
+  // ПРИОРИТЕТ 2: Маппинг telegram_uid_map (переходный период)
+  // ПРИОРИТЕТ 3: Legacy путь users/{telegramId} (старые записи)
   if (/^\d+$/.test(clean)) {
-    // Шаг 1: Прямой маппинг telegram_uid_map/{tgId} → firebaseUid
+    const stableUid = `tg_${clean}`;
+
+    // Шаг 1: Проверяем детерминированный путь tg_{telegramId}
+    try {
+      const stableSubSnap = await db.doc(`users/${stableUid}/subscription/current`).get();
+      if (stableSubSnap.exists) {
+        console.log(`[admin/user-control] TG ${clean} → stable UID ${stableUid} (direct)`);
+        return { uid: stableUid, resolvedFrom: 'telegram_stable', telegramId: clean, displayInfo: `TG ${clean} → ${stableUid}` };
+      }
+    } catch (err) {
+      console.warn('[admin/user-control] stable UID check failed:', err.message);
+    }
+
+    // Шаг 2: Маппинг telegram_uid_map (для старых пользователей с anonymous UID)
     try {
       const mapSnap = await db.doc(`telegram_uid_map/${clean}`).get();
       if (mapSnap.exists) {
         const firebaseUid = mapSnap.data()?.firebaseUid;
-        if (firebaseUid) {
-          console.log(`[admin/user-control] TG ${clean} → Firebase UID ${firebaseUid} via telegram_uid_map`);
-          return { uid: firebaseUid, resolvedFrom: 'telegram_id', telegramId: clean, displayInfo: `TG ${clean} -> UID ${firebaseUid}` };
+        if (firebaseUid && firebaseUid !== stableUid) {
+          // Старый anonymous UID — мигрируем подписку на стабильный путь
+          const oldSubSnap = await db.doc(`users/${firebaseUid}/subscription/current`).get();
+          if (oldSubSnap.exists && oldSubSnap.data()?.plan !== 'none') {
+            console.log(`[admin/user-control] Migrating sub from ${firebaseUid} → ${stableUid}`);
+            await db.doc(`users/${stableUid}/subscription/current`).set({
+              ...oldSubSnap.data(),
+              telegramId: clean,
+              migratedFrom: `users/${firebaseUid}`,
+              migratedAt: FieldValue.serverTimestamp(),
+            });
+            await db.doc(`users/${firebaseUid}/subscription/current`).delete().catch(() => {});
+          }
+          // Обновляем маппинг на стабильный UID
+          await db.doc(`telegram_uid_map/${clean}`).set({ firebaseUid: stableUid, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
         }
       }
     } catch (err) {
-      console.warn('[admin/user-control] telegram_uid_map lookup failed:', err.message);
+      console.warn('[admin/user-control] telegram_uid_map migration failed:', err.message);
     }
 
-    // Шаг 2: Фоллбэк — ищем subscription документы с полем telegramId == clean
-    // Это покрывает старых пользователей, у которых маппинг ещё не был создан
+    // Шаг 3: Legacy путь users/{telegramId}/subscription/current
     try {
-      const subsQuery = await db.collectionGroup('subscription')
-        .where('telegramId', '==', clean)
-        .limit(1)
-        .get();
-      if (!subsQuery.empty) {
-        // Путь документа: users/{uid}/subscription/current → parent.parent.id = uid
-        const foundDoc = subsQuery.docs[0];
-        const firebaseUid = foundDoc.ref.parent.parent.id;
-        console.log(`[admin/user-control] TG ${clean} → Firebase UID ${firebaseUid} via collectionGroup fallback`);
-        // Создаём маппинг для будущих запросов
-        await db.doc(`telegram_uid_map/${clean}`).set({ firebaseUid, updatedAt: FieldValue.serverTimestamp() }, { merge: true }).catch(() => {});
-        return { uid: firebaseUid, resolvedFrom: 'telegram_id', telegramId: clean, displayInfo: `TG ${clean} -> UID ${firebaseUid}` };
+      const legacySubSnap = await db.doc(`users/${clean}/subscription/current`).get();
+      if (legacySubSnap.exists && legacySubSnap.data()?.plan !== 'none') {
+        console.log(`[admin/user-control] Migrating legacy sub from users/${clean} → users/${stableUid}`);
+        await db.doc(`users/${stableUid}/subscription/current`).set({
+          ...legacySubSnap.data(),
+          telegramId: clean,
+          migratedFrom: `users/${clean}`,
+          migratedAt: FieldValue.serverTimestamp(),
+        });
+        await db.doc(`users/${clean}/subscription/current`).delete().catch(() => {});
       }
     } catch (err) {
-      console.warn('[admin/user-control] collectionGroup fallback failed:', err.message);
+      console.warn('[admin/user-control] legacy path migration failed:', err.message);
     }
 
-    // Шаг 3: Если маппинг не найден вообще — проверяем, существует ли хотя бы документ users/{tgId}
-    // (подписка могла быть записана напрямую по Telegram ID раньше)
-    try {
-      const directSubSnap = await db.doc(`users/${clean}/subscription/current`).get();
-      if (directSubSnap.exists) {
-        console.log(`[admin/user-control] TG ${clean} → found direct subscription at users/${clean} (legacy path)`);
-        return { uid: clean, resolvedFrom: 'telegram_id_legacy', telegramId: clean, displayInfo: `TG ${clean} (legacy direct)` };
-      }
-    } catch (err) {
-      console.warn('[admin/user-control] direct path check failed:', err.message);
-    }
-
-    // Шаг 4: Ничего не найдено — возвращаем ошибку, а не записываем в неправильный путь
-    throw new Error(`Пользователь с Telegram ID ${clean} не найден. Попросите пользователя сначала зайти в приложение через Telegram, чтобы создать аккаунт.`);
+    // ВСЕГДА возвращаем стабильный UID — даже если подписки пока нет
+    // (админ создаст её по этому пути)
+    console.log(`[admin/user-control] TG ${clean} → stable UID ${stableUid}`);
+    return { uid: stableUid, resolvedFrom: 'telegram_stable', telegramId: clean, displayInfo: `TG ${clean} → ${stableUid}` };
   }
 
   return { uid: clean, resolvedFrom: 'firebase_uid', displayInfo: `UID ${clean}` };

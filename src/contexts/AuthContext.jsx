@@ -457,28 +457,53 @@ export function AuthProvider({ children }) {
 
   // ═══════════════════════════════════════════
   //  SIGN IN WITH TELEGRAM ACCOUNT
-  //  Uses Firebase anonymous + Telegram identity
+  //  Uses Firebase Custom Token with deterministic UID: tg_{telegramId}
+  //  Решает корневую проблему: signInAnonymously создавал новый UID
+  //  при каждом входе из-за очистки storage в Telegram WebView.
   // ═══════════════════════════════════════════
   const signInWithTelegramAccount = async () => {
     if (!isTelegram && !telegramUser) {
       throw new Error('Доступно только в Telegram');
     }
-    const result = await signInAnonymously(auth);
+
+    // Получаем initData от Telegram SDK для верификации на сервере
+    const initData = window.Telegram?.WebApp?.initData;
+    if (!initData) {
+      throw new Error('Telegram initData не доступна. Откройте приложение через Telegram.');
+    }
+
+    // Запрашиваем Custom Token с детерминированным UID tg_{telegramId}
+    const resp = await fetch('/api/auth-telegram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData }),
+    });
+
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      throw new Error(errData.error || 'Ошибка авторизации через Telegram');
+    }
+
+    const { customToken } = await resp.json();
+
+    // signInWithCustomToken ВСЕГДА даёт тот же UID = tg_{telegramId}
+    const result = await signInWithCustomToken(auth, customToken);
+
     const tgUser = telegramUser;
     const displayName = tgUser
       ? [tgUser.firstName, tgUser.lastName].filter(Boolean).join(' ')
       : 'Telegram User';
-    
-    // Set user with merged Telegram + Firebase identity
+
     setUser({
       uid: result.user.uid,
       displayName,
       email: tgUser?.username ? `@${tgUser.username}` : null,
       photoURL: tgUser?.photoUrl || null,
-      isAnonymous: true,
+      isAnonymous: false,
       isTelegramUser: true,
       telegramId: tgUser?.id,
       telegramUsername: tgUser?.username,
+      getIdToken: () => result.user.getIdToken(),
     });
     return result;
   };
