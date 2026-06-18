@@ -35,7 +35,9 @@ export default async function handler(req, res) {
   }
 
   // ═══ SECURITY: Verify request comes from YooKassa IPs ═══
-  const YOOKASSA_IP_PREFIXES = ['185.71.76.', '185.71.77.'];
+  // Полный список IP: https://yookassa.ru/developers/using-api/webhooks
+  // IPv4: 185.71.76.0/27, 185.71.77.0/27, 77.75.153.0/25, 77.75.154.128/25
+  const YOOKASSA_IP_PREFIXES = ['185.71.76.', '185.71.77.', '77.75.153.', '77.75.154.'];
   const clientIp = (req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || '').split(',')[0].trim();
   if (!YOOKASSA_IP_PREFIXES.some(prefix => clientIp.startsWith(prefix))) {
     console.warn(`⚠️ [YooKassa Webhook] Rejected non-YooKassa IP: ${clientIp}`);
@@ -56,7 +58,18 @@ export default async function handler(req, res) {
 
   const status = object.status;
   const metadata = object.metadata || {};
-  const { uid, planId } = metadata;
+  let { uid, planId } = metadata;
+  const telegramId = metadata.telegramId;
+
+  // Если в metadata есть telegramId — используем стабильный UID tg_{telegramId}
+  // Это гарантирует запись подписки на правильный путь, даже если uid в metadata старый
+  if (telegramId) {
+    const stableUid = `tg_${telegramId}`;
+    if (uid !== stableUid) {
+      console.log(`[Yookassa webhook] Resolving UID: ${uid} → ${stableUid} (via telegramId)`);
+      uid = stableUid;
+    }
+  }
 
   if (status !== 'succeeded') {
     console.log(`[Yookassa webhook] Ignored status: ${status} for payment ${object.id}`);
@@ -65,7 +78,7 @@ export default async function handler(req, res) {
 
   if (!uid || !planId || !PLAN_CREDITS[planId]) {
     console.error('[Yookassa webhook] Invalid metadata in payment:', object.id, metadata);
-    return res.status(200).json({ ok: true }); // Отвечаем 200, чтобы ЮKassa не слала повторно сломанный запрос
+    return res.status(200).json({ ok: true });
   }
 
   const credits = PLAN_CREDITS[planId];

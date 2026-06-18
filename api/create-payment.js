@@ -113,6 +113,9 @@ export default async function handler(req, res) {
         metadata: {
           uid: uid,
           planId: planId,
+          // Если UID начинается с tg_ — это Telegram-пользователь, передаём telegramId
+          // чтобы вебхук мог записать подписку на правильный стабильный UID
+          ...(uid.startsWith('tg_') ? { telegramId: uid.slice(3) } : {}),
         },
         receipt: {
           customer: {
