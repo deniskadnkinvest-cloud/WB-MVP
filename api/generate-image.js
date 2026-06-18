@@ -1892,6 +1892,25 @@ export default async function handler(req, res) {
 - Фон
 - Цена (если есть)
 - Иконки
+
+Верни ТОЛЬКО JSON массив без пояснений:
+[{"name":"...","bbox":[x,y,w,h]},...]
+Ответ должен быть только JSON, никакого другого текста.` }
+            ]
+          }],
+          config: {
+            temperature: 0.1,
+            maxOutputTokens: 512,
+            responseMimeType: 'application/json'
+          }
+        });
+
+        let elemText = resp.text?.trim() || '[]';
+        if (elemText.startsWith('```')) {
+          elemText = elemText.replace(/^```json\n?/, '').replace(/```$/, '').trim();
+        }
+        let elements = [];
+        try { elements = JSON.parse(elemText); } catch (e) { elements = []; }
         return res.status(200).json({ success: true, elements });
       } catch (err) {
         console.error('[detect-elements]', err.message);
