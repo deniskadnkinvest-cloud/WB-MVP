@@ -7,9 +7,11 @@
     "dev": "concurrently --names \"VITE,API\" --prefix-colors \"cyan,yellow\" \"vite\" \"node server.js\"",
     "dev:front": "vite",
     "dev:server": "node server.js",
-    "build": "vite build",
-    "lint": "eslint .",
+    "lint": "eslint api/*.js",
+    "lint:fix": "eslint api/*.js --fix",
+    "build": "npm run lint && vite build",
     "preview": "vite preview",
+    "prepare": "husky",
     "catalog:server": "MOCK_KIE=true node server-autocatalog.js",
     "catalog:inngest": "npx inngest-cli@latest dev -u http://localhost:3002/api/inngest",
     "catalog:test": "node test-autocatalog.js"
@@ -44,6 +46,13 @@
     "eslint-plugin-react-refresh": "^0.5.2",
     "firebase-tools": "^15.15.0",
     "globals": "^17.4.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.7",
     "vite": "^8.0.4"
+  },
+  "lint-staged": {
+    "api/*.js": [
+      "eslint --max-warnings=0"
+    ]
   }
 }

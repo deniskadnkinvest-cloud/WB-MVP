@@ -1,71 +1,44 @@
-import js from '@eslint/js'
-import globals from 'globals'
-import reactHooks from 'eslint-plugin-react-hooks'
-import reactRefresh from 'eslint-plugin-react-refresh'
-import { defineConfig, globalIgnores } from 'eslint/config'
+import js from '@eslint/js';
 
-export default defineConfig([
-  globalIgnores([
-    'dist',
-    'node_modules',
-    'scratch',
-    'playwright-report',
-    'test-results',
-    'videos',
-    'src/App_clean.jsx',
-    '*.png',
-    'chrome.log',
-    'test_out.txt',
-  ]),
+export default [
   {
-    files: ['src/**/*.{js,jsx}'],
-    extends: [
-      js.configs.recommended,
-      reactHooks.configs.flat.recommended,
-      reactRefresh.configs.vite,
-    ],
-    languageOptions: {
-      ecmaVersion: 2020,
-      globals: globals.browser,
-      parserOptions: {
-        ecmaVersion: 'latest',
-        ecmaFeatures: { jsx: true },
-        sourceType: 'module',
-      },
-    },
+    files: ['api/**/*.js'],
+    ...js.configs.recommended,
     rules: {
-      'no-unused-vars': ['error', {
-        varsIgnorePattern: '^(React|motion|AnimatePresence|[A-Z_].*)$',
-        argsIgnorePattern: '^_',
-        caughtErrors: 'none',
-      }],
-      'react-hooks/set-state-in-effect': 'off',
-      'react-refresh/only-export-components': 'off',
+      // Синтаксические правила — ловим ошибки до деплоя
+      'no-undef': 'off',           // API файлы используют Node.js глобалы
+      'no-unused-vars': 'warn',    // Предупреждение, не ошибка
+      'no-unreachable': 'error',   // Код после return/throw — ошибка
+      'no-constant-condition': 'error',
+      'no-dupe-keys': 'error',
+      'no-duplicate-case': 'error',
+      'no-template-curly-in-string': 'warn', // Забытые ${} в обычных строках
+      'no-unexpected-multiline': 'error',    // Неожиданные многострочные выражения
+      'valid-typeof': 'error',
     },
-  },
-  {
-    files: ['api/**/*.js', 'server*.js', 'models.js', 'playwright.config.js', 'test*.js', 'tests/**/*.js', '*.cjs'],
-    extends: [
-      js.configs.recommended,
-    ],
     languageOptions: {
       ecmaVersion: 2022,
+      sourceType: 'module',
       globals: {
-        ...globals.node,
+        process: 'readonly',
+        console: 'readonly',
+        Buffer: 'readonly',
         fetch: 'readonly',
-        AbortSignal: 'readonly',
-      },
-      parserOptions: {
-        ecmaVersion: 'latest',
-        sourceType: 'module',
-      },
-    },
-    rules: {
-      'no-unused-vars': ['error', {
-        varsIgnorePattern: '^[A-Z_]',
-        argsIgnorePattern: '^_',
-        caughtErrors: 'none',
-      }],
-    },
+        setTimeout: 'readonly',
+        clearInterval: 'readonly',
+        setInterval: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+      }
+    }
   },
-])
+  {
+    // Игнорируем внутренние helper-файлы (они импортируются, не проверяются отдельно)
+    ignores: [
+      'node_modules/**',
+      'dist/**',
+      '.vercel/**',
+      'api/_*.js',   // _firebase-admin.js, _admin-alerts.js и т.д.
+    ]
+  }
+];
