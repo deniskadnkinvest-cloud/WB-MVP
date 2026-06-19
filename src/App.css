@@ -1406,6 +1406,115 @@
   border-color: var(--gold);
 }
 
+/* ═══ DIMMING (preset ↔ custom mutual exclusion) ═══ */
+.preset-grid.dimmed {
+  opacity: 0.2;
+  pointer-events: none;
+  filter: grayscale(0.5);
+  transition: opacity 0.35s ease, filter 0.35s ease;
+}
+.preset-grid:not(.dimmed) {
+  transition: opacity 0.35s ease, filter 0.35s ease;
+}
+.custom-variant-row.dimmed {
+  opacity: 0.2;
+  pointer-events: none;
+  transition: opacity 0.35s ease;
+}
+.custom-variant-row:not(.dimmed) {
+  transition: opacity 0.35s ease;
+}
+
+/* ═══ CUSTOM CHIP CARDS ═══ */
+.custom-chip-card {
+  position: relative;
+  border-style: dashed !important;
+}
+.custom-chip-card .chip-delete-btn {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(255,77,79,0.85);
+  color: #fff;
+  border: none;
+  font-size: 9px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 2;
+}
+.custom-chip-card:hover .chip-delete-btn {
+  opacity: 1;
+}
+
+/* ═══ ADD CUSTOM VARIANT BUTTON ═══ */
+.add-custom-card {
+  border: 2px dashed rgba(212,175,55,0.25) !important;
+  background: rgba(212,175,55,0.03) !important;
+  cursor: pointer;
+  transition: border-color 0.25s ease, background 0.25s ease;
+}
+.add-custom-card:hover {
+  border-color: var(--gold) !important;
+  background: rgba(212,175,55,0.08) !important;
+}
+.add-custom-input-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding: 2px;
+}
+.add-custom-input-wrap input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(212,175,55,0.5);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  padding: 3px 2px;
+  outline: none;
+  text-align: center;
+}
+.add-custom-input-wrap input::placeholder {
+  color: rgba(245,239,225,0.35);
+}
+
+/* ═══ MULTI-SELECT INFO BADGE ═══ */
+.multi-select-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(212,175,55,0.06);
+  border: 1px solid rgba(212,175,55,0.15);
+  border-radius: var(--r-sm);
+  margin-bottom: 10px;
+  font-size: 0.72rem;
+  color: var(--gold);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  animation: badgeFadeIn 0.3s ease;
+}
+.multi-select-info .info-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+@keyframes badgeFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* в•ђв•ђв•ђ LORA PHOTO LABELS в•ђв•ђв•ђ */
 .lora-photo-slots {
   display: grid;

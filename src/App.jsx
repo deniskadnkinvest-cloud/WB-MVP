@@ -98,6 +98,13 @@ function App() {
   const [customPoseText, setCustomPoseText] = useState('');
   const [customBgText, setCustomBgText] = useState('');
 
+  // Custom variant chips (user-created presets alongside preset cards)
+  const [customModelChips, setCustomModelChips] = useState([]);
+  const [customPoseChips, setCustomPoseChips] = useState([]);
+  const [customBgChips, setCustomBgChips] = useState([]);
+  const [addingCustom, setAddingCustom] = useState(null); // 'model'|'pose'|'bg'|null
+  const [newChipText, setNewChipText] = useState('');
+
   // Locations
   const [bgTab, setBgTab] = useState('presets');
   const [myLocations, setMyLocations] = useState([]);
@@ -173,6 +180,28 @@ function App() {
   const [showBatchConfirm, setShowBatchConfirm] = useState(false);
   const [pendingBatchTasks, setPendingBatchTasks] = useState(null);
 
+  // ═══ CUSTOM CHIP HELPERS ═══
+  const IMPROV_POSE = { id: 'improvisation', label: 'Импровизация', emoji: '🎲', prompt: 'random aesthetic fashion pose, natural dynamic body positioning, editorial spontaneous movement, varied creative posture' };
+
+  const addCustomChip = (section) => {
+    if (!newChipText.trim()) { setAddingCustom(null); return; }
+    const chip = { id: `custom_${Date.now()}`, label: newChipText.trim(), prompt: newChipText.trim(), emoji: '✏️', isCustomChip: true };
+    if (section === 'model') { setCustomModelChips(prev => [...prev, chip]); setCustomModelPrompt(''); }
+    else if (section === 'pose') { setCustomPoseChips(prev => [...prev, chip]); setCustomPoseText(''); }
+    else if (section === 'bg') { setCustomBgChips(prev => [...prev, chip]); setCustomBgText(''); }
+    setNewChipText('');
+    setAddingCustom(null);
+  };
+
+  const removeCustomChip = (section, chipId) => {
+    if (section === 'model') setCustomModelChips(prev => prev.filter(c => c.id !== chipId));
+    else if (section === 'pose') setCustomPoseChips(prev => prev.filter(c => c.id !== chipId));
+    else if (section === 'bg') setCustomBgChips(prev => prev.filter(c => c.id !== chipId));
+  };
+
+  // Is multi-model selected? (for showing Импровизация pose)
+  const isMultiModel = !customModelPrompt && !selectedSavedModelId && (selectedModels.length + customModelChips.length) > 1;
+
   // ═══ TOTAL SHOTS CALCULATION ═══
   const totalShots = React.useMemo(() => {
     if (appMode === 'quick') return 1;
@@ -185,10 +214,10 @@ function App() {
       return compCount * bgCount * effectCount * ratioCount * variantCount;
     } else {
       // appMode === 'fashion' (VTON)
-      const modelCount = (customModelPrompt.trim() || selectedSavedModelId) ? 1 : selectedModels.length;
-      const poseCount = customPoseText.trim() ? 1 : selectedPoses.length;
+      const modelCount = (customModelPrompt.trim() || selectedSavedModelId) ? 1 : (selectedModels.length + customModelChips.length);
+      const poseCount = customPoseText.trim() ? 1 : (selectedPoses.length + customPoseChips.length);
       const cameraCount = selectedCameras.length;
-      const bgCount = (customBgText.trim() || selectedLocId) ? 1 : selectedBgs.length;
+      const bgCount = (customBgText.trim() || selectedLocId) ? 1 : (selectedBgs.length + customBgChips.length);
       const ratioCount = selectedRatios.length;
       return modelCount * poseCount * cameraCount * bgCount * ratioCount * variantCount;
     }
@@ -209,7 +238,10 @@ function App() {
     selectedPoses,
     selectedCameras,
     customBgText,
-    selectedBgs
+    selectedBgs,
+    customModelChips,
+    customPoseChips,
+    customBgChips
   ]);
 
   // Extra free-text for preset bg/location
@@ -784,17 +816,17 @@ function App() {
           // Модели
           const modelsToUse = (customModelPrompt.trim() || selectedSavedModelId)
             ? [{ id: selectedSavedModelId || 'custom', prompt: customModelPrompt.trim(), isSaved: !!selectedSavedModelId }]
-            : selectedModels;
+            : [...selectedModels, ...customModelChips];
           // Позы
           const posesToUse = customPoseText.trim()
             ? [{ id: 'custom', prompt: customPoseText.trim(), label: 'Своя поза' }]
-            : selectedPoses;
+            : [...selectedPoses, ...customPoseChips];
           // Ракурсы
           const camerasToUse = selectedCameras;
           // Фоны
           const bgsToUse = (customBgText.trim() || selectedLocId)
             ? [{ id: selectedLocId || 'custom', prompt: customBgText.trim(), isLoc: !!selectedLocId }]
-            : selectedBgs;
+            : [...selectedBgs, ...customBgChips];
           // Форматы
           const ratiosToUse = selectedRatios;
 
@@ -3005,7 +3037,14 @@ ${userProductInfo.trim()}
           {modelTab === 'presets' ? (
             <>
               <GenderToggle gender={gender} setGender={setGender} />
-              <div className="preset-grid">
+              {/* Multi-select info popover */}
+              {!customModelPrompt && !selectedSavedModelId && (selectedModels.length + customModelChips.length) > 1 && (
+                <div className="multi-select-info">
+                  <span className="info-icon">ℹ️</span>
+                  Выбрано {selectedModels.length + customModelChips.length} типов моделей — каждый тип = отдельная генерация. Итого: ×{selectedModels.length + customModelChips.length} к количеству кадров. Максимум 20 за раз.
+                </div>
+              )}
+              <div className={`preset-grid${customModelPrompt && !selectedSavedModelId ? ' dimmed' : ''}`}>
                 {filteredModels.map(m => {
                   const isActive = selectedModels.some(s => s.id === m.id) && !customModelPrompt && !selectedSavedModelId;
                   return (
@@ -3016,7 +3055,7 @@ ${userProductInfo.trim()}
                         } else {
                           setSelectedModels(prev => {
                             if (prev.some(s => s.id === m.id)) {
-                              if (prev.length <= 1) { setShowDetails(v => !v); return prev; }
+                              if (prev.length <= 1 && customModelChips.length === 0) { setShowDetails(v => !v); return prev; }
                               return prev.filter(s => s.id !== m.id);
                             }
                             setShowDetails(true);
@@ -3028,10 +3067,36 @@ ${userProductInfo.trim()}
                     </div>
                   );
                 })}
+                {/* Custom chips */}
+                {customModelChips.map(chip => (
+                  <div key={chip.id} className="preset-card active custom-chip-card">
+                    <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
+                    <button className="chip-delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('model', chip.id); }}>✕</button>
+                  </div>
+                ))}
+                {/* Add custom variant button */}
+                {!customModelPrompt && !selectedSavedModelId && (
+                  addingCustom === 'model' ? (
+                    <div className="preset-card add-custom-card">
+                      <div className="add-custom-input-wrap">
+                        <span className="emoji">✏️</span>
+                        <input autoFocus placeholder="Опишите модель..." value={newChipText}
+                          onChange={e => setNewChipText(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter' && newChipText.trim()) addCustomChip('model'); if (e.key === 'Escape') { setAddingCustom(null); setNewChipText(''); } }}
+                          onBlur={() => { if (newChipText.trim()) addCustomChip('model'); else { setAddingCustom(null); setNewChipText(''); } }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="preset-card add-custom-card" onClick={() => { setAddingCustom('model'); setNewChipText(''); }}>
+                      <span className="emoji">➕</span><span className="label">Свой вариант</span>
+                    </div>
+                  )
+                )}
               </div>
               <DetailPanel modelDetails={modelDetails} setModelDetails={setModelDetails} visible={showDetails && !customModelPrompt && !selectedSavedModelId} gender={gender} extraPrompt={extraModelPrompt} setExtraPrompt={setExtraModelPrompt} />
-              <div className="custom-variant-row">
-                <input className="custom-variant-input" type="text" placeholder="Описать модель с нуля: «рыжая девушка 25 лет с веснушками»"
+              <div className={`custom-variant-row${(selectedModels.length + customModelChips.length) > 1 ? ' dimmed' : ''}`}>
+                <input className="custom-variant-input" type="text" placeholder="Или опишите модель с нуля: «рыжая девушка 25 лет с веснушками»"
                   value={customModelPrompt} 
                   onFocus={() => { setShowDetails(false); setSelectedSavedModelId(null); }}
                   onChange={e => { setCustomModelPrompt(e.target.value); setSelectedSavedModelId(null); setShowDetails(false); }} />
@@ -3131,12 +3196,14 @@ ${userProductInfo.trim()}
       ) : (
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.45,duration:0.5,ease:[0.16,1,0.3,1]}}>
           <div className="section-title"><span className="icon">🧍</span> Поза модели</div>
-          {!customPoseText && selectedPoses.length > 1 && (
-            <div style={{ fontSize: '0.72rem', color: 'var(--gold)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.03em' }}>
-              ✅ {selectedPoses.length} позы выбрано
+          {/* Multi-select info */}
+          {!customPoseText && (selectedPoses.length + customPoseChips.length) > 1 && (
+            <div className="multi-select-info">
+              <span className="info-icon">ℹ️</span>
+              Выбрано {selectedPoses.length + customPoseChips.length} поз — каждая поза = отдельная генерация. Итого: ×{selectedPoses.length + customPoseChips.length} к количеству кадров.
             </div>
           )}
-          <div className="preset-grid">
+          <div className={`preset-grid${customPoseText ? ' dimmed' : ''}`}>
             {POSE_PRESETS.map(p => {
               const isActive = selectedPoses.some(s => s.id === p.id) && !customPoseText;
               return (
@@ -3147,7 +3214,7 @@ ${userProductInfo.trim()}
                     } else {
                       setSelectedPoses(prev => {
                         if (prev.some(s => s.id === p.id)) {
-                          if (prev.length <= 1) return prev;
+                          if (prev.length <= 1 && customPoseChips.length === 0) return prev;
                           return prev.filter(s => s.id !== p.id);
                         }
                         return [...prev, p];
@@ -3158,9 +3225,57 @@ ${userProductInfo.trim()}
                 </div>
               );
             })}
+            {/* Импровизация — only when >1 model selected */}
+            {isMultiModel && (() => {
+              const isImprovActive = selectedPoses.some(s => s.id === IMPROV_POSE.id) && !customPoseText;
+              return (
+                <div className={`preset-card ${isImprovActive ? 'active' : ''}`}
+                  onClick={() => {
+                    if (customPoseText) {
+                      setSelectedPoses([IMPROV_POSE]); setCustomPoseText('');
+                    } else {
+                      setSelectedPoses(prev => {
+                        if (prev.some(s => s.id === IMPROV_POSE.id)) {
+                          if (prev.length <= 1 && customPoseChips.length === 0) return prev;
+                          return prev.filter(s => s.id !== IMPROV_POSE.id);
+                        }
+                        return [...prev, IMPROV_POSE];
+                      });
+                    }
+                  }}>
+                  <span className="emoji">{IMPROV_POSE.emoji}</span><span className="label">{IMPROV_POSE.label}</span>
+                </div>
+              );
+            })()}
+            {/* Custom chips */}
+            {customPoseChips.map(chip => (
+              <div key={chip.id} className="preset-card active custom-chip-card">
+                <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
+                <button className="chip-delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('pose', chip.id); }}>✕</button>
+              </div>
+            ))}
+            {/* Add custom variant */}
+            {!customPoseText && (
+              addingCustom === 'pose' ? (
+                <div className="preset-card add-custom-card">
+                  <div className="add-custom-input-wrap">
+                    <span className="emoji">✏️</span>
+                    <input autoFocus placeholder="Опишите позу..." value={newChipText}
+                      onChange={e => setNewChipText(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && newChipText.trim()) addCustomChip('pose'); if (e.key === 'Escape') { setAddingCustom(null); setNewChipText(''); } }}
+                      onBlur={() => { if (newChipText.trim()) addCustomChip('pose'); else { setAddingCustom(null); setNewChipText(''); } }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="preset-card add-custom-card" onClick={() => { setAddingCustom('pose'); setNewChipText(''); }}>
+                  <span className="emoji">➕</span><span className="label">Свой вариант</span>
+                </div>
+              )
+            )}
           </div>
-          <div className="custom-variant-row">
-            <input className="custom-variant-input" type="text" placeholder="Или опишите свою позу: Модель сидит на барном стуле, закинув ногу на ногу, правая рука касается ключицы"
+          <div className={`custom-variant-row${(selectedPoses.length + customPoseChips.length) > 1 ? ' dimmed' : ''}`}>
+            <input className="custom-variant-input" type="text" placeholder="Или опишите свою позу: Модель сидит на барном стуле, закинув ногу на ногу"
               value={customPoseText} onChange={e => setCustomPoseText(e.target.value)} />
           </div>
         </motion.div>
@@ -3282,12 +3397,14 @@ ${userProductInfo.trim()}
               </>
             ) : (
               <>
-                {!customBgText && !selectedLocId && selectedBgs.length > 1 && (
-                  <div style={{ fontSize: '0.72rem', color: 'var(--gold)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.03em' }}>
-                    ✅ {selectedBgs.length} фона выбрано — будет {selectedBgs.length} варианта с разными фонами
+                {/* Multi-select info */}
+                {!customBgText && !selectedLocId && (selectedBgs.length + customBgChips.length) > 1 && (
+                  <div className="multi-select-info">
+                    <span className="info-icon">ℹ️</span>
+                    Выбрано {selectedBgs.length + customBgChips.length} фонов — каждый фон = отдельная генерация. Итого: ×{selectedBgs.length + customBgChips.length} к количеству кадров.
                   </div>
                 )}
-                <div className="preset-grid">
+                <div className={`preset-grid${customBgText ? ' dimmed' : ''}`}>
                   {BACKGROUND_PRESETS.map(b => {
                     const isActive = selectedBgs.some(s => s.id === b.id) && !selectedLocId && !customBgText;
                     return (
@@ -3298,7 +3415,7 @@ ${userProductInfo.trim()}
                           } else {
                             setSelectedBgs(prev => {
                               if (prev.some(s => s.id === b.id)) {
-                                if (prev.length <= 1) return prev;
+                                if (prev.length <= 1 && customBgChips.length === 0) return prev;
                                 return prev.filter(s => s.id !== b.id);
                               }
                               return [...prev, b];
@@ -3309,12 +3426,38 @@ ${userProductInfo.trim()}
                       </div>
                     );
                   })}
+                  {/* Custom chips */}
+                  {customBgChips.map(chip => (
+                    <div key={chip.id} className="preset-card active custom-chip-card">
+                      <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
+                      <button className="chip-delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('bg', chip.id); }}>✕</button>
+                    </div>
+                  ))}
+                  {/* Add custom variant */}
+                  {!customBgText && !selectedLocId && (
+                    addingCustom === 'bg' ? (
+                      <div className="preset-card add-custom-card">
+                        <div className="add-custom-input-wrap">
+                          <span className="emoji">✏️</span>
+                          <input autoFocus placeholder="Опишите фон..." value={newChipText}
+                            onChange={e => setNewChipText(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter' && newChipText.trim()) addCustomChip('bg'); if (e.key === 'Escape') { setAddingCustom(null); setNewChipText(''); } }}
+                            onBlur={() => { if (newChipText.trim()) addCustomChip('bg'); else { setAddingCustom(null); setNewChipText(''); } }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="preset-card add-custom-card" onClick={() => { setAddingCustom('bg'); setNewChipText(''); }}>
+                        <span className="emoji">➕</span><span className="label">Свой вариант</span>
+                      </div>
+                    )
+                  )}
                 </div>
                 <div className="modifier-block" style={{marginTop:10}}>
                   <textarea className="modifier-input" rows={1} placeholder="Добавить к локации: «закат, мокрый асфальт, неоновые огни»"
                     value={bgExtraText} onChange={e => setBgExtraText(e.target.value)} />
                 </div>
-                <div className="custom-variant-row">
+                <div className={`custom-variant-row${(selectedBgs.length + customBgChips.length) > 1 ? ' dimmed' : ''}`}>
                   <input className="custom-variant-input" placeholder="Локация с нуля: «крыша небоскрёба на закате»"
                     value={customBgText} onChange={e => { setCustomBgText(e.target.value); setSelectedLocId(null); }} />
                 </div>
