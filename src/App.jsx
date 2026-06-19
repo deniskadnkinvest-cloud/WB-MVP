@@ -2882,7 +2882,7 @@ ${userProductInfo.trim()}
           <div className="multi-preview-grid">
             {previewUrls.map((url, i) => (
               <div key={i} className="multi-preview-item">
-                <img src={url} alt={`Объект ${i+1}`} />
+                <img src={url} alt={`Объект ${i+1}`} style={{cursor:'zoom-in'}} onClick={() => setLightboxSrc(url)} />
                 <button className="remove-btn" onClick={() => removeFile(i)}>✕</button>
               </div>
             ))}
@@ -4307,88 +4307,7 @@ ${userProductInfo.trim()}
               )}
             </div>
 
-            {/* ═══ CARD DESIGNER CTA ═══ */}
-            {/* Не показываем в режиме «В два клика» — там результат уже карточка */}
-            {appMode !== 'quick' && <motion.div
-              className="card-designer-section"
-              initial={{opacity:0,y:20}}
-              animate={{opacity:1,y:0}}
-              transition={{delay:0.3,duration:0.5,ease:[0.16,1,0.3,1]}}
-            >
-              <div className="card-designer-header">
-                <span className="card-designer-icon">🎴</span>
-                <div>
-                  <div className="card-designer-title">Оформить карточку для маркетплейса</div>
-                  <div className="card-designer-subtitle">Превратите фото в продающую карточку WB / Ozon</div>
-                </div>
-              </div>
-
-              <div className="card-style-picker">
-                <div className="card-style-options">
-                  <button
-                    className={`card-style-btn ${cardDesignStyle === 'natural' ? 'active' : ''}`}
-                    onClick={() => setCardDesignStyle('natural')}
-                  >
-                    <span className="card-style-icon">🌿</span>
-                    <span className="card-style-name">Естественная</span>
-                    <span className="card-style-desc">Элегантная, минимализм</span>
-                  </button>
-                  <button
-                    className={`card-style-btn ${cardDesignStyle === 'epic' ? 'active' : ''}`}
-                    onClick={() => setCardDesignStyle('epic')}
-                  >
-                    <span className="card-style-icon">🔥</span>
-                    <span className="card-style-name">Эпичная</span>
-                    <span className="card-style-desc">Кинематограф, wow-эффект</span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="card-designer-actions">
-                <button className="card-examples-btn" onClick={() => setShowCardExamples(true)}>
-                  👁 Примеры
-                </button>
-                <button
-                  className="card-generate-btn"
-                  onClick={handleCardDesignClick}
-                  disabled={isCardGenerating}
-                >
-                  {isCardGenerating ? '⏳ Создаём...' : '🎴 Создать карточку'}
-                </button>
-                <span className="card-credits-hint">1 кредит / шт</span>
-              </div>
-
-              {/* Card result */}
-              {cardResult && Array.isArray(cardResult) && cardResult.length > 0 && (
-                <motion.div
-                  className="card-result-block"
-                  initial={{opacity:0,scale:0.95}}
-                  animate={{opacity:1,scale:1}}
-                  transition={{duration:0.4}}
-                >
-                  <h4 className="card-result-title">🎴 {cardResult.length > 1 ? `Готовые карточки (${cardResult.length})` : 'Готовая карточка'}</h4>
-                  <div className={`card-result-grid ${cardResult.length > 1 ? 'multi' : ''}`}>
-                    {cardResult.map((url, ci) => (
-                      <div key={ci} className="card-result-image-wrap">
-                        <img src={url} alt={`Карточка ${ci+1}`} onClick={() => setLightboxSrc(url)} />
-                        <button className="download-btn card-dl" onClick={() => {
-                          const a = document.createElement('a');
-                          a.href = url;
-                          a.download = `card-${cardDesignStyle}-${ci+1}-${Date.now()}.png`;
-                          a.target = '_blank';
-                          a.click();
-                        }}>⬇️</button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="card-result-actions">
-                    <button className="card-generate-btn" onClick={handleCardDesignClick} disabled={isCardGenerating}>
-                      🔄 Ещё варианты
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </motion.div>}
+            {/* CARD DESIGNER CTA — removed from results, lives in "В два клика" mode only */}
 
             {/* Iterative editing */}
             <div className="shot-modifier-block">

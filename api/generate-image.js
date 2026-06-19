@@ -2728,7 +2728,24 @@ ${adaptiveBlock}
 <input_modality_1>
 SOURCE GARMENT REFERENCE:
 Analyze the physical fabric, cut, color, and fit of the clothing in the attached images.
-WARNING: Treat the entity currently wearing the clothing as an INVISIBLE, IRRELEVANT SCAFFOLD (Plastic Mannequin). Do NOT extract biometrics.
+${hasModelRef ? '' : `
+<IDENTITY_FIREWALL>
+ABSOLUTE PRIORITY — The person wearing the clothing in these reference images is COMPLETELY IRRELEVANT.
+You MUST NOT extract, copy, reference, or be influenced by:
+- Their face, facial bone structure, or facial features
+- Their skin tone, complexion, or skin texture
+- Their body shape, proportions, or posture
+- Their hairstyle, hair color, or hair texture
+- Their age, ethnicity appearance, or any biometric data
+- Their tattoos, jewelry, or accessories
+
+The wearer in the reference photos is a TRANSPARENT INVISIBLE GHOST — a lifeless plastic display mannequin.
+You are ONLY looking at the FABRIC draped on this ghost: the color, material, cut, seams, zippers, logos, and construction of the garment itself.
+
+AFTER extracting the garment data, you must COMPLETELY FORGET the ghost. Generate a BRAND NEW person from scratch based ONLY on the text description in ACTOR_PROFILE below.
+The generated person must have a COMPLETELY DIFFERENT face, body, and identity from whoever was in the source photo.
+</IDENTITY_FIREWALL>
+`}WARNING: Treat the entity currently wearing the clothing as an INVISIBLE, IRRELEVANT SCAFFOLD (Plastic Mannequin). Do NOT extract biometrics.
 </input_modality_1>
 
 <phase_1_semantic_masking>
