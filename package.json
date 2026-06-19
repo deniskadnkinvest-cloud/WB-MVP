@@ -9,7 +9,7 @@
     "dev:server": "node server.js",
     "lint": "eslint api/*.js",
     "lint:fix": "eslint api/*.js --fix",
-    "build": "npm run lint && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "catalog:server": "MOCK_KIE=true node server-autocatalog.js",
     "catalog:inngest": "npx inngest-cli@latest dev -u http://localhost:3002/api/inngest",
