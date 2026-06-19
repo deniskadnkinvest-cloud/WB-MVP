@@ -61,6 +61,17 @@ export const uploadImage = async (uid, file, folder = 'models') => {
  * @returns {Promise<{url: string, path: string}>}
  */
 export const uploadBase64Image = async (uid, base64, folder = 'models') => {
+  if (base64.startsWith('http://') || base64.startsWith('https://')) {
+    try {
+      const response = await fetch(base64);
+      const blob = await response.blob();
+      return uploadImage(uid, blob, folder);
+    } catch (err) {
+      console.error('Ошибка при скачивании/загрузке изображения по ссылке:', err);
+      // Если скачивание не удалось (например, из-за CORS или сети), возвращаем саму ссылку
+      return { url: base64, path: `external/${Date.now()}` };
+    }
+  }
   const blob = base64ToBlob(base64);
   return uploadImage(uid, blob, folder);
 };

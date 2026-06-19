@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import './ModelCalibrationWizard.css';
 
@@ -95,8 +95,63 @@ export default function ModelCalibrationWizard({
   const [modelName, setModelName] = useState('');
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [draft, setDraft] = useState(null);
 
   const MAX_REGENS_PER_STEP = 5;
+
+  // Load draft on mount / show / userId change (with fallback to undefined UID)
+  useEffect(() => {
+    if (show) {
+      let saved = null;
+      if (userId) {
+        saved = localStorage.getItem(`calib_wizard_draft_${userId}`);
+      }
+      if (!saved) {
+        saved = localStorage.getItem('calib_wizard_draft_undefined');
+      }
+      if (saved) {
+        try {
+          setDraft(JSON.parse(saved));
+        } catch (e) {
+          console.error('Ошибка загрузки черновика:', e);
+        }
+      } else {
+        setDraft(null);
+      }
+    }
+  }, [show, userId]);
+
+  // Auto-save draft on progress changes
+  useEffect(() => {
+    if (userId && step > 0) {
+      const draftData = {
+        step,
+        lockedImages,
+        modelName,
+        modelPrompt,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(`calib_wizard_draft_${userId}`, JSON.stringify(draftData));
+      setDraft(draftData);
+    }
+  }, [step, lockedImages, modelName, modelPrompt, userId]);
+
+  const handleRestoreDraft = () => {
+    if (draft) {
+      setStep(draft.step);
+      setLockedImages(draft.lockedImages);
+      setModelName(draft.modelName || '');
+      setError('');
+    }
+  };
+
+  const handleDeleteDraft = () => {
+    if (userId) {
+      localStorage.removeItem(`calib_wizard_draft_${userId}`);
+    }
+    localStorage.removeItem('calib_wizard_draft_undefined');
+    setDraft(null);
+  };
 
   // Lightbox
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -140,7 +195,9 @@ export default function ModelCalibrationWizard({
       garmentImagesBase64: [],
       modelPreset:
         modelPrompt +
-        '. Generate an ultra-realistic fashion model portrait wearing a plain white t-shirt. The portrait MUST have photographic-level skin detail: visible pores, natural skin texture variations, micro-imperfections, authentic asymmetry, and zero AI smoothing or plastic artifacts. Render as if captured by a Canon EOS R5 with an 85mm f/1.4 lens.',
+        (stepDef.id === 'fullbody'
+          ? '. Generate an ultra-realistic full-body fashion photograph showing the model from head to toe, wearing a plain white t-shirt and dark pants/jeans. The photograph MUST have photographic-level skin and fabric details: visible pores, natural skin texture variations, micro-imperfections, authentic asymmetry, and zero AI smoothing or plastic artifacts. Render as if captured by a Canon EOS R5 with an 85mm f/1.4 lens.'
+          : '. Generate an ultra-realistic fashion model portrait wearing a plain white t-shirt. The portrait MUST have photographic-level skin detail: visible pores, natural skin texture variations, micro-imperfections, authentic asymmetry, and zero AI smoothing or plastic artifacts. Render as if captured by a Canon EOS R5 with an 85mm f/1.4 lens.'),
       posePreset: stepDef.posePrompt,
       cameraAngle: stepDef.cameraPrompt,
       backgroundPreset:
@@ -302,6 +359,11 @@ export default function ModelCalibrationWizard({
     setError('');
     try {
       await onSave(modelName.trim(), photos, modelPrompt);
+      if (userId) {
+        localStorage.removeItem(`calib_wizard_draft_${userId}`);
+      }
+      localStorage.removeItem('calib_wizard_draft_undefined');
+      setDraft(null);
     } catch (err) {
       console.error('Ошибка сохранения:', err);
       setError(`Ошибка сохранения: ${err.message || 'попробуйте ещё раз'}`);
@@ -572,7 +634,7 @@ export default function ModelCalibrationWizard({
               >
                 🔄
               </button>
-              <div className="comp-card-main-label">FULL BODY</div>
+              <div className="comp-card-main-label">ПОЛНЫЙ РОСТ</div>
             </div>
           ) : (
             <div className="comp-card-main-empty">
@@ -612,6 +674,8 @@ export default function ModelCalibrationWizard({
   // ═══════════════════════════════════════
   //  RENDER
   // ═══════════════════════════════════════
+  if (!show) return null;
+
   return (
     <motion.div
       className="calib-overlay"
@@ -687,6 +751,26 @@ export default function ModelCalibrationWizard({
               </div>
             </div>
 
+            {draft && (
+              <div className="calib-draft-banner">
+                <div className="calib-draft-info">
+                  <span>📋 Найден неиспользованный черновик:</span>
+                  <strong>{draft.modelName || 'Модель без имени'}</strong>
+                  <span className="calib-draft-date">
+                    Шаг {draft.step}/4 • {new Date(draft.timestamp).toLocaleString('ru-RU')}
+                  </span>
+                </div>
+                <div className="calib-draft-actions">
+                  <button className="calib-btn-sm calib-btn-primary" onClick={handleRestoreDraft}>
+                    Восстановить черновик
+                  </button>
+                  <button className="calib-btn-sm calib-btn-danger" onClick={handleDeleteDraft}>
+                    🗑️ Удалить
+                  </button>
+                </div>
+              </div>
+            )}
+
             {error && <p className="calib-error" style={{marginTop:8}}>{error}</p>}
             <div className="calib-actions">
               <button className="calib-btn-secondary" onClick={handleClose}>
@@ -710,7 +794,7 @@ export default function ModelCalibrationWizard({
                   }
                 }}
               >
-                {startingCalibration ? '⏳ Проверяем баланс...' : '🚀 Начать кастинг'}
+                {startingCalibration ? '⏳ Проверяем баланс...' : '🚀 Калибруем'}
               </button>
             </div>
           </div>

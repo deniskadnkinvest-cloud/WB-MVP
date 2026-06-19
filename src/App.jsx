@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MODEL_PRESETS, POSE_PRESETS, BACKGROUND_PRESETS, ASPECT_RATIOS, CAMERA_ANGLES, getModelDetails, PRODUCT_CATEGORIES, PRODUCT_COMPOSITIONS, PRODUCT_BACKGROUNDS, PRODUCT_EFFECTS } from './data/presets';
+import { runBatchQueue, MAX_BATCH_SIZE, BATCH_CONFIRM_THRESHOLD, BATCH_CONCURRENCY } from './utils/batchQueue';
 // Card prompts now live on the backend only (generate-image.js)
 import ModelCalibrationWizard from './components/ModelCalibrationWizard';
 import GenderToggle from './components/GenderToggle';
@@ -60,8 +61,8 @@ function App() {
   // Product mode selections
   const [selectedProductCategory, setSelectedProductCategory] = useState(PRODUCT_CATEGORIES[0]);
   const [selectedProductCompositions, setSelectedProductCompositions] = useState([PRODUCT_COMPOSITIONS[0]]);
-  const [selectedProductBg, setSelectedProductBg] = useState(PRODUCT_BACKGROUNDS[0]);
-  const [selectedProductEffect, setSelectedProductEffect] = useState(PRODUCT_EFFECTS[0]);
+  const [selectedProductBgs, setSelectedProductBgs] = useState([PRODUCT_BACKGROUNDS[0]]);
+  const [selectedProductEffects, setSelectedProductEffects] = useState([PRODUCT_EFFECTS[0]]);
   const [customProductEffectText, setCustomProductEffectText] = useState('');
 
   // Product mode: human model toggle
@@ -79,11 +80,11 @@ function App() {
   const [customProductBg, setCustomProductBg] = useState('');
 
   // Core selections
-  const [selectedModel, setSelectedModel] = useState(MODEL_PRESETS[0]);
-  const [selectedPose, setSelectedPose] = useState(POSE_PRESETS[0]);
-  const [selectedBg, setSelectedBg] = useState(BACKGROUND_PRESETS[0]);
-  const [selectedRatio, setSelectedRatio] = useState(ASPECT_RATIOS[0]);
-  const [selectedCamera, setSelectedCamera] = useState(CAMERA_ANGLES[0]);
+  const [selectedModels, setSelectedModels] = useState([MODEL_PRESETS[0]]);
+  const [selectedPoses, setSelectedPoses] = useState([POSE_PRESETS[0]]);
+  const [selectedBgs, setSelectedBgs] = useState([BACKGROUND_PRESETS[0]]);
+  const [selectedRatios, setSelectedRatios] = useState([ASPECT_RATIOS[0]]);
+  const [selectedCameras, setSelectedCameras] = useState([CAMERA_ANGLES[0]]);
 
   // Gender
   const [gender, setGender] = useState('female');
@@ -125,6 +126,7 @@ function App() {
   const [cardWithModel, setCardWithModel] = useState(false);
   const [viewingCompCard, setViewingCompCard] = useState(null); // comp card URL for lightbox
 
+
   // Multi-upload garments
   const [imageFiles, setImageFiles] = useState([]);
   const [garmentUrls, setGarmentUrls] = useState(() => {
@@ -165,6 +167,50 @@ function App() {
 
   // Variant count (how many generations user wants)
   const [variantCount, setVariantCount] = useState(2);
+
+  // Batch queue progress
+  const [batchProgress, setBatchProgress] = useState({ completed: 0, total: 0, running: 0 });
+  const [showBatchConfirm, setShowBatchConfirm] = useState(false);
+  const [pendingBatchTasks, setPendingBatchTasks] = useState(null);
+
+  // ═══ TOTAL SHOTS CALCULATION ═══
+  const totalShots = React.useMemo(() => {
+    if (appMode === 'quick') return 1;
+
+    if (appMode === 'product') {
+      const compCount = customPoseText.trim() ? 1 : selectedProductCompositions.length;
+      const bgCount = (customProductBg.trim() || selectedLocId) ? 1 : selectedProductBgs.length;
+      const effectCount = customProductEffectText.trim() ? 1 : selectedProductEffects.length;
+      const ratioCount = selectedRatios.length;
+      return compCount * bgCount * effectCount * ratioCount * variantCount;
+    } else {
+      // appMode === 'fashion' (VTON)
+      const modelCount = (customModelPrompt.trim() || selectedSavedModelId) ? 1 : selectedModels.length;
+      const poseCount = customPoseText.trim() ? 1 : selectedPoses.length;
+      const cameraCount = selectedCameras.length;
+      const bgCount = (customBgText.trim() || selectedLocId) ? 1 : selectedBgs.length;
+      const ratioCount = selectedRatios.length;
+      return modelCount * poseCount * cameraCount * bgCount * ratioCount * variantCount;
+    }
+  }, [
+    appMode,
+    customPoseText,
+    selectedProductCompositions,
+    customProductBg,
+    selectedLocId,
+    selectedProductBgs,
+    customProductEffectText,
+    selectedProductEffects,
+    selectedRatios,
+    variantCount,
+    customModelPrompt,
+    selectedSavedModelId,
+    selectedModels,
+    selectedPoses,
+    selectedCameras,
+    customBgText,
+    selectedBgs
+  ]);
 
   // Extra free-text for preset bg/location
   const [bgExtraText, setBgExtraText] = useState('');
@@ -496,7 +542,7 @@ function App() {
   // Reset model selection when gender changes
   useEffect(() => {
     const filtered = MODEL_PRESETS.filter(m => m.gender === gender);
-    if (filtered.length > 0) { setSelectedModel(filtered[0]); setCustomModelPrompt(''); setSelectedSavedModelId(null); }
+    if (filtered.length > 0) { setSelectedModels([filtered[0]]); setCustomModelPrompt(''); setSelectedSavedModelId(null); }
   }, [gender]);
 
   // Helper: convert File/Blob to base64 data URL
@@ -674,192 +720,300 @@ function App() {
       setStatusText('⚡ Для генерации нужен активный тариф'); setStatusType('error');
       return;
     }
-    if ((subscription.credits || 0) < variantCount) {
-      setStatusText(`⚡ Недостаточно кредитов: нужно ${variantCount}, доступно ${subscription.credits || 0}`); setStatusType('error');
+    if ((subscription.credits || 0) < totalShots) {
+      setStatusText(`⚡ Недостаточно кредитов: нужно ${totalShots}, доступно ${subscription.credits || 0}`); setStatusType('error');
       return;
     }
 
-    setIsProcessing(true); setGeneratedImage(null); setStatusText('');
-    let msgI = 0;
-    const iv = setInterval(() => { setProcessingMsg(msgI < MSGS.length ? MSGS[msgI++] : 'Финальные штрихи...'); }, 8000);
-    try {
+    // Лимит 20 генераций за раз
+    if (totalShots > 20) {
+      setStatusText('⚠️ Превышен лимит: максимум 20 генераций за раз.'); setStatusType('error');
+      return;
+    }
+
+    // Если кадров >= 6, запрашиваем подтверждение
+    const isConfirmed = confirmModal?.type === 'batch';
+    if (totalShots >= 6 && !isConfirmed) {
+      triggerConfirm('batch', totalShots, () => handleGenerate());
+      return;
+    }
+
+    const runBatchGeneration = async () => {
+      setIsProcessing(true); setGeneratedImage(null); setStatusText('');
       setProcessingMsg('Подготавливаем исходники...');
-
-      let modelPrompt = '';
-      let posePrompt = '';
-      let bgPrompt = '';
-      let modelRefImages = null;
-      let locImages = null;
-
-      if (appMode === 'product') {
-        // Режим предметной съемки товаров
-        modelPrompt = customProductPrompt.trim() || selectedProductCategory.defaultPrompt;
-        posePrompt = customPoseText.trim() || selectedProductCompositions[0].prompt;
-        bgPrompt = customProductBg.trim() || selectedProductBg.prompt;
-        
-        if (selectedProductEffect && selectedProductEffect.id !== 'none') {
-          const effectPrompt = selectedProductEffect.id === 'custom'
-            ? customProductEffectText.trim()
-            : selectedProductEffect.prompt;
-          if (effectPrompt) bgPrompt += `. Additionally: ${effectPrompt}`;
+      
+      let msgI = 0;
+      const iv = setInterval(() => { 
+        if (totalShots === 1) {
+          setProcessingMsg(msgI < MSGS.length ? MSGS[msgI++] : 'Финальные штрихи...'); 
         }
-        if (productWithModel) {
-          let humanPrompt = customProductModelPrompt.trim() || (productModelPreset.prompt + buildDetailString(productModelDetails));
-          if (productSavedModelId) {
-            const sm = myModels.find(m => m.id === productSavedModelId);
-            if (sm) { humanPrompt = sm.prompt || humanPrompt; modelRefImages = sm.imageUrls || []; }
-          }
-          // humanModelPrompt будет передан отдельно
-          // product description stays as-is
-          // Сохраняем в отдельные переменные для передачи
-          window.__humanModelPrompt = humanPrompt;
-          window.__humanModelRefImages = modelRefImages;
+      }, 8000);
+
+      try {
+        // Формируем плоский список задач
+        const tasks = [];
+
+        if (appMode === 'product') {
+          // Композиции
+          const compsToUse = customPoseText.trim() ? [{ id: 'custom', prompt: customPoseText.trim(), label: 'Своя композиция' }] : selectedProductCompositions;
+          // Фоны
+          const bgsToUse = (customProductBg.trim() || selectedLocId) 
+            ? [{ id: selectedLocId || 'custom', prompt: customProductBg.trim(), isLoc: !!selectedLocId }]
+            : selectedProductBgs;
+          // Спецэффекты
+          const effectsToUse = customProductEffectText.trim()
+            ? [{ id: 'custom', prompt: customProductEffectText.trim(), label: 'Свой эффект' }]
+            : selectedProductEffects;
+          // Форматы
+          const ratiosToUse = selectedRatios;
+
+          compsToUse.forEach(comp => {
+            bgsToUse.forEach(bg => {
+              effectsToUse.forEach(effect => {
+                ratiosToUse.forEach(ratio => {
+                  for (let i = 0; i < variantCount; i++) {
+                    const seed = Math.random().toString(36).substring(2, 10).toUpperCase();
+                    tasks.push({ comp, bg, effect, ratio, variantIndex: i + 1, seed });
+                  }
+                });
+              });
+            });
+          });
         } else {
-          window.__humanModelPrompt = null;
-          window.__humanModelRefImages = null;
+          // appMode === 'fashion' (VTON)
+          // Модели
+          const modelsToUse = (customModelPrompt.trim() || selectedSavedModelId)
+            ? [{ id: selectedSavedModelId || 'custom', prompt: customModelPrompt.trim(), isSaved: !!selectedSavedModelId }]
+            : selectedModels;
+          // Позы
+          const posesToUse = customPoseText.trim()
+            ? [{ id: 'custom', prompt: customPoseText.trim(), label: 'Своя поза' }]
+            : selectedPoses;
+          // Ракурсы
+          const camerasToUse = selectedCameras;
+          // Фоны
+          const bgsToUse = (customBgText.trim() || selectedLocId)
+            ? [{ id: selectedLocId || 'custom', prompt: customBgText.trim(), isLoc: !!selectedLocId }]
+            : selectedBgs;
+          // Форматы
+          const ratiosToUse = selectedRatios;
+
+          modelsToUse.forEach(model => {
+            posesToUse.forEach(pose => {
+              camerasToUse.forEach(camera => {
+                bgsToUse.forEach(bg => {
+                  ratiosToUse.forEach(ratio => {
+                    for (let i = 0; i < variantCount; i++) {
+                      const seed = Math.random().toString(36).substring(2, 10).toUpperCase();
+                      tasks.push({ model, pose, camera, bg, ratio, variantIndex: i + 1, seed });
+                    }
+                  });
+                });
+              });
+            });
+          });
         }
-        
-        // Поддержка оцифрованных локаций для товаров
-        if (selectedLocId) {
-          const loc = myLocations.find(l => l.id === selectedLocId);
-          if (loc) {
-            locImages = loc.imageUrls;
-            bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
-            if (selectedProductEffect && selectedProductEffect.id !== 'none') {
-              const effectPrompt = selectedProductEffect.id === 'custom'
-                ? customProductEffectText.trim()
-                : selectedProductEffect.prompt;
-              if (effectPrompt) bgPrompt += `. Additionally: ${effectPrompt}`;
+
+        // 1. Бронируем/списываем кредиты пакетно перед запуском
+        setProcessingMsg('⚡ Бронируем кредиты...');
+        const deductResp = await authFetch('/api/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'deduct-credit',
+            amount: totalShots
+          })
+        });
+        const deductData = await safeParseJSON(deductResp);
+        if (!deductData.success) {
+          throw new Error(deductData.error || 'Не удалось списать кредиты');
+        }
+        refreshCreditsFromResponse(deductData);
+
+        // 2. Очередь выполнения задач с конкурентностью = 3
+        let completedCount = 0;
+        let failedCount = 0;
+        const results = [];
+
+        const updateProgressText = () => {
+          if (totalShots > 1) {
+            setProcessingMsg(`📸 Генерация: готово ${completedCount} из ${totalShots} кадров` + 
+              (failedCount > 0 ? ` (ошибок: ${failedCount})` : '') + 
+              `...\nПожалуйста, не закрывайте вкладку.`);
+          }
+        };
+
+        const runTask = async (taskIndex) => {
+          const task = tasks[taskIndex];
+          try {
+            let body = {};
+            if (appMode === 'product') {
+              let taskBgPrompt = task.bg.prompt;
+              if (task.effect.id !== 'none') {
+                const effectPrompt = task.effect.id === 'custom' ? customProductEffectText.trim() : task.effect.prompt;
+                if (effectPrompt) taskBgPrompt += `. Additionally: ${effectPrompt}`;
+              }
+
+              let locImages = null;
+              if (task.bg.isLoc) {
+                const loc = myLocations.find(l => l.id === task.bg.id);
+                if (loc) {
+                  locImages = loc.imageUrls;
+                  taskBgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
+                  if (task.effect.id !== 'none') {
+                    const effectPrompt = task.effect.id === 'custom' ? customProductEffectText.trim() : task.effect.prompt;
+                    if (effectPrompt) taskBgPrompt += `. Additionally: ${effectPrompt}`;
+                  }
+                }
+              }
+
+              let modelRefImages = null;
+              let humanPrompt = undefined;
+              if (productWithModel) {
+                humanPrompt = customProductModelPrompt.trim() || (productModelPreset.prompt + buildDetailString(productModelDetails));
+                if (productSavedModelId) {
+                  const sm = myModels.find(m => m.id === productSavedModelId);
+                  if (sm) {
+                    humanPrompt = sm.prompt || humanPrompt;
+                    modelRefImages = sm.imageUrls || [];
+                  }
+                }
+              }
+
+              body = {
+                userId: user?.uid || null,
+                garmentImageUrls: garmentUrls, 
+                modelPreset: customProductPrompt.trim() || selectedProductCategory.defaultPrompt, 
+                posePreset: task.comp.prompt,
+                compositionId: task.comp.id,
+                cameraAngle: selectedCameras[0].prompt, 
+                backgroundPreset: taskBgPrompt,
+                sceneId: task.bg.id,
+                aspectRatio: task.ratio.id, 
+                modelReferenceImages: modelRefImages,
+                locationImages: locImages,
+                attributes: productModelDetails, 
+                isBeautyMode, 
+                biometricSeed: task.seed,
+                isProductMode: true,
+                categoryId: selectedProductCategory.id,
+                withHumanModel: productWithModel,
+                humanModelPrompt: humanPrompt || undefined,
+                humanModelRefImages: modelRefImages || undefined,
+                skipCreditDeduction: true
+              };
+            } else {
+              // appMode === 'fashion' (VTON)
+              let modelPrompt = task.model.isSaved ? task.model.prompt : (customModelPrompt.trim() || (task.model.prompt + buildDetailString()));
+              let modelRefImages = null;
+              if (task.model.isSaved) {
+                const sm = myModels.find(m => m.id === task.model.id);
+                if (sm) {
+                  modelPrompt = sm.prompt || modelPrompt;
+                  modelRefImages = sm.imageUrls || [];
+                }
+              }
+              if (modelModifier.trim()) modelPrompt += `. Additionally: ${modelModifier.trim()}`;
+
+              let taskBgPrompt = task.bg.prompt;
+              let locImages = null;
+              if (task.bg.isLoc) {
+                const loc = myLocations.find(l => l.id === task.bg.id);
+                if (loc) {
+                  locImages = loc.imageUrls;
+                  taskBgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
+                }
+              }
+              if (locModifier.trim()) taskBgPrompt += `. Additionally: ${locModifier.trim()}`;
+              if (bgExtraText.trim() && !customBgText.trim()) taskBgPrompt += `. MANDATORY SCENE ADDITION (must be visible): ${bgExtraText.trim()}`;
+
+              body = {
+                userId: user?.uid || null,
+                garmentImageUrls: garmentUrls,
+                modelPreset: modelPrompt,
+                posePreset: task.pose.prompt,
+                cameraAngle: task.camera.prompt,
+                backgroundPreset: taskBgPrompt,
+                sceneId: task.bg.id,
+                aspectRatio: task.ratio.id,
+                modelReferenceImages: modelRefImages,
+                locationImages: locImages,
+                customPoseText: customPoseText.trim() || undefined,
+                attributes: modelDetails,
+                isBeautyMode,
+                biometricSeed: task.seed,
+                isProductMode: false,
+                skipCreditDeduction: true
+              };
             }
+
+            const resp = await authFetch('/api/generate-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body)
+            });
+            const data = await safeParseJSON(resp);
+            results.push({ ...data, task });
+
+            if (data.success) {
+              completedCount++;
+              const img = data.imageBase64 || data.imageUrl;
+              setGeneratedImage(img);
+              setImageHistory(prev => {
+                const label = appMode === 'product'
+                  ? `🎨 ${task.comp.label || 'Кадр'} (${task.variantIndex})`
+                  : `🎨 ${task.pose.label || 'Поза'} (${task.variantIndex})`;
+                const h = [...prev, { image: img, label }];
+                setHistoryIndex(h.length - 1);
+                return h;
+              });
+            } else {
+              failedCount++;
+              console.error('Task failed:', data.error || data.details);
+            }
+          } catch (taskErr) {
+            failedCount++;
+            results.push({ success: false, error: taskErr.message, task });
+            console.error('Task execution error:', taskErr.message);
+          } finally {
+            updateProgressText();
           }
-        }
-      } else {
-        // Режим одежды (VTON)
-        modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
-        if (selectedSavedModelId) {
-          const sm = myModels.find(m => m.id === selectedSavedModelId);
-          if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
-        }
-        if (modelModifier.trim()) modelPrompt += `. Additionally: ${modelModifier.trim()}`;
+        };
 
-        posePrompt = customPoseText.trim() || selectedPose.prompt;
-        bgPrompt = customBgText.trim() || selectedBg.prompt;
-        if (selectedLocId) {
-          const loc = myLocations.find(l => l.id === selectedLocId);
-          if (loc) {
-            locImages = loc.imageUrls;
-            bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
+        // Запуск очереди с concurrency = 3
+        let taskIndex = 0;
+        const worker = async () => {
+          while (taskIndex < tasks.length) {
+            const currentIdx = taskIndex++;
+            await runTask(currentIdx);
           }
+        };
+
+        const workers = [];
+        for (let i = 0; i < Math.min(3, tasks.length); i++) {
+          workers.push(worker());
         }
-        if (locModifier.trim()) bgPrompt += `. Additionally: ${locModifier.trim()}`;
-        if (bgExtraText.trim() && !customBgText.trim()) bgPrompt += `. MANDATORY SCENE ADDITION (must be visible): ${bgExtraText.trim()}`;
+        await Promise.all(workers);
+
+        clearInterval(iv);
+
+        const successItems = results.filter(r => r.success);
+        if (successItems.length > 0) {
+          const pluralForm = successItems.length === 1 ? '' : (successItems.length < 5 ? 'а — листайте ◀▶' : ' — листайте ◀▶');
+          setStatusText(`Готово! ${successItems.length} вариант${pluralForm}`); setStatusType('success');
+        } else {
+          setStatusText(`Ошибка: ${results[0]?.details || results[0]?.error || 'Неизвестная ошибка'}`); setStatusType('error');
+        }
+
+      } catch (err) {
+        setStatusText(`Ошибка: ${err.message}`); setStatusType('error');
+        clearInterval(iv);
+      } finally {
+        setIsProcessing(false);
       }
+    };
 
-      setProcessingMsg('🚀 Отправляем в Nano Banano 2...');
-
-      let results = [];
-      let tasks = [];
-
-      if (appMode === 'product' && !customPoseText.trim()) {
-        // Множественная генерация для каждой выбранной композиции в предметке
-        selectedProductCompositions.forEach(comp => {
-          for (let i = 0; i < variantCount; i++) {
-            const seed = Math.random().toString(36).substring(2, 10).toUpperCase();
-            tasks.push({ comp, seed, variantIndex: i + 1 });
-          }
-        });
-
-        const buildBodyProduct = (comp, seed) => JSON.stringify({
-          userId: user?.uid || null,
-          garmentImageUrls: garmentUrls, 
-          modelPreset: modelPrompt, 
-          posePreset: comp.prompt,
-          compositionId: comp.id,
-          cameraAngle: selectedCamera.prompt, 
-          backgroundPreset: bgPrompt,
-          aspectRatio: selectedRatio.id, 
-          modelReferenceImages: modelRefImages,
-          locationImages: locImages, 
-          customPoseText: undefined,
-          attributes: productModelDetails, 
-          isBeautyMode, 
-          biometricSeed: seed,
-          isProductMode: true,
-          categoryId: selectedProductCategory.id,
-          withHumanModel: productWithModel,
-          humanModelPrompt: window.__humanModelPrompt || undefined,
-          humanModelRefImages: window.__humanModelRefImages || undefined,
-        });
-
-        results = await Promise.all(tasks.map(task =>
-          authFetch('/api/generate-image', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: buildBodyProduct(task.comp, task.seed),
-          })
-          .then(r => safeParseJSON(r))
-          .then(data => ({ ...data, task }))
-          .catch(err => ({ success: false, error: err.message, task }))
-        ));
-      } else {
-        // Обычный VTON режим или ручной ввод композиции
-        const seeds = Array.from({ length: variantCount }, () =>
-          Math.random().toString(36).substring(2, 10).toUpperCase()
-        );
-        tasks = seeds.map((seed, i) => ({ seed, variantIndex: i + 1 }));
-
-        const buildBody = (seed) => JSON.stringify({
-          userId: user?.uid || null,
-          garmentImageUrls: garmentUrls, modelPreset: modelPrompt, posePreset: posePrompt,
-          cameraAngle: selectedCamera.prompt, backgroundPreset: bgPrompt,
-          aspectRatio: selectedRatio.id, modelReferenceImages: modelRefImages,
-          locationImages: locImages, customPoseText: customPoseText.trim() || undefined,
-          attributes: appMode === 'product' ? productModelDetails : modelDetails, isBeautyMode, biometricSeed: seed,
-          isProductMode: appMode === 'product',
-          categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
-          withHumanModel: appMode === 'product' && productWithModel,
-          humanModelPrompt: window.__humanModelPrompt || undefined,
-          humanModelRefImages: window.__humanModelRefImages || undefined,
-        });
-
-        results = await Promise.all(tasks.map(task =>
-          authFetch('/api/generate-image', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: buildBody(task.seed),
-          })
-          .then(r => safeParseJSON(r))
-          .then(data => ({ ...data, task }))
-          .catch(err => ({ success: false, error: err.message, task }))
-        ));
-      }
-
-      clearInterval(iv);
-
-      const successItems = results.filter(r => r.success);
-      if (successItems.length > 0) {
-        const firstSuccess = successItems[0];
-        refreshCreditsFromResponse(firstSuccess);
-
-        const newImages = successItems.map(r => r.imageBase64 || r.imageUrl);
-        setGeneratedImage(newImages[0]);
-
-        setImageHistory(prev => {
-          const h = [...prev, ...successItems.map(r => {
-            const img = r.imageBase64 || r.imageUrl;
-            const label = r.task.comp 
-              ? `🎨 ${r.task.comp.label} (${r.task.variantIndex})` 
-              : `🎨 Вариант ${r.task.variantIndex}`;
-            return { image: img, label };
-          })];
-          setHistoryIndex(h.length - newImages.length);
-          return h;
-        });
-
-        const pluralForm = newImages.length === 1 ? '' : (newImages.length < 5 ? 'а — листайте ◀▶' : ' — листайте ◀▶');
-        setStatusText(`Готово! ${newImages.length} вариант${pluralForm}`); setStatusType('success');
-      }
-      else { setStatusText(`Ошибка: ${results[0]?.details||results[0]?.error||'unknown'}`); setStatusType('error'); }
-    } catch (err) { setStatusText(`Ошибка: ${err.message}`); setStatusType('error'); clearInterval(iv);
-    } finally { setIsProcessing(false); }
+    await runBatchGeneration();
   };
 
   const handleDownload = () => { if (!generatedImage) return; const a = document.createElement('a'); a.href = generatedImage; a.download = `SellerStudio_${Date.now()}.jpg`; a.click(); };
@@ -924,7 +1078,7 @@ function App() {
     setIsSaving(true);
     try {
       const { url, path } = await uploadBase64Image(user.uid, generatedImage, 'models');
-      const mp = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
+      const mp = customModelPrompt.trim() || (selectedModels[0].prompt + buildDetailString());
       await saveModel(user.uid, { name: saveModelName.trim(), type: 'generated', imageUrls: [url], storagePaths: [path], prompt: mp });
       const models = await getModels(user.uid);
       setMyModels(models);
@@ -1035,7 +1189,7 @@ function App() {
       const sm = myModels.find(m => m.id === selectedSavedModelId);
       if (sm?.prompt) return sm.prompt;
     }
-    return selectedModel.prompt + buildDetailString();
+    return selectedModels[0].prompt + buildDetailString();
   };
 
   // Get current model ref images for calibration
@@ -1163,7 +1317,7 @@ function App() {
         // Товарный режим
         modelPrompt = customProductPrompt.trim() || selectedProductCategory.defaultPrompt;
         posePrompt = customPoseText.trim() || selectedProductCompositions[0].prompt;
-        bgPrompt = customProductBg.trim() || selectedProductBg.prompt;
+        bgPrompt = customProductBg.trim() || selectedProductBgs[0].prompt;
         
         if (selectedProductEffect && selectedProductEffect.id !== 'none') {
           const effectPrompt = selectedProductEffect.id === 'custom'
@@ -1194,19 +1348,19 @@ function App() {
         }
       } else {
         // Режим одежды (VTON)
-        modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
+        modelPrompt = customModelPrompt.trim() || (selectedModels[0].prompt + buildDetailString());
         if (selectedSavedModelId) {
           const sm = myModels.find(m => m.id === selectedSavedModelId);
           if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
         }
 
-        posePrompt = customPoseText.trim() || selectedPose.prompt;
+        posePrompt = customPoseText.trim() || selectedPoses[0].prompt;
         const poseKeywords = /(?:поз[аеуы]|сид(?:ит|я|еть)|стоит|лежит|идёт|идет|ходит|бежит|танцу|прыга|lotus|sitting|standing|lying|walking|running|dancing|crouching|leaning|kneeling|jumping|squat)/i;
         if (poseKeywords.test(mod)) {
           posePrompt = `${mod}. ${posePrompt}`;
         }
 
-        bgPrompt = customBgText.trim() || selectedBg.prompt;
+        bgPrompt = customBgText.trim() || selectedBgs[0].prompt;
         if (selectedLocId) {
           const loc = myLocations.find(l => l.id === selectedLocId);
           if (loc) {
@@ -1237,8 +1391,8 @@ function App() {
         body: JSON.stringify({
           userId: user?.uid || null,
           garmentImageUrls: garmentUrls, modelPreset: modelPrompt, posePreset: posePrompt,
-          cameraAngle: selectedCamera.prompt, backgroundPreset: bgPrompt,
-          aspectRatio: selectedRatio.id, modelReferenceImages: editRefImages.length > 0 ? editRefImages : null,
+          cameraAngle: selectedCameras[0].prompt, backgroundPreset: bgPrompt,
+          aspectRatio: selectedRatios[0].id, modelReferenceImages: editRefImages.length > 0 ? editRefImages : null,
           locationImages: locImages,
           editInstruction: mod,
           attributes: appMode === 'product' ? productModelDetails : modelDetails, isBeautyMode, biometricSeed,
@@ -1924,7 +2078,7 @@ ${userProductInfo.trim()}
         body: JSON.stringify({
           items,
           sellerId: user?.uid || 'test_seller_001',
-          vibe: customBgText.trim() || selectedBg.prompt
+          vibe: customBgText.trim() || selectedBgs[0].prompt
         })
       });
       const data = await safeParseJSON(resp);
@@ -1981,7 +2135,7 @@ ${userProductInfo.trim()}
 
       if (appMode === 'product') {
         modelPrompt = customProductPrompt.trim() || selectedProductCategory.defaultPrompt;
-        bgPrompt = customProductBg.trim() || selectedProductBg.prompt;
+        bgPrompt = customProductBg.trim() || selectedProductBgs[0].prompt;
         if (selectedProductEffect && selectedProductEffect.id !== 'none') {
           const effectPrompt = selectedProductEffect.id === 'custom'
             ? customProductEffectText.trim()
@@ -2015,12 +2169,12 @@ ${userProductInfo.trim()}
           }
         }
       } else {
-        modelPrompt = customModelPrompt.trim() || (selectedModel.prompt + buildDetailString());
+        modelPrompt = customModelPrompt.trim() || (selectedModels[0].prompt + buildDetailString());
         if (selectedSavedModelId) {
           const sm = myModels.find(m => m.id === selectedSavedModelId);
           if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
         }
-        bgPrompt = customBgText.trim() || selectedBg.prompt;
+        bgPrompt = customBgText.trim() || selectedBgs[0].prompt;
         if (selectedLocId) {
           const loc = myLocations.find(l => l.id === selectedLocId);
           if (loc) { locImages = loc.imageUrls; bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos'; }
@@ -2036,7 +2190,7 @@ ${userProductInfo.trim()}
             userId: user?.uid || null,
             garmentImageUrls: garmentUrls, modelPreset: modelPrompt,
             posePreset: angle.pose, cameraAngle: angle.camera,
-            backgroundPreset: bgPrompt, aspectRatio: selectedRatio.id,
+            backgroundPreset: bgPrompt, aspectRatio: selectedRatios[0].id,
             modelReferenceImages: modelRefImages, locationImages: locImages,
             attributes: appMode === 'product' ? productModelDetails : modelDetails, isBeautyMode, biometricSeed,
             isProductMode: appMode === 'product',
@@ -2137,7 +2291,7 @@ ${userProductInfo.trim()}
     }
     if (gen.cameraAngle) {
       const cam = CAMERA_ANGLES.find(c => c.id === gen.cameraAngle || c.prompt === gen.cameraAngle);
-      if (cam) setSelectedCamera(cam);
+      if (cam) setSelectedCameras([cam]);
     }
 
     if (gen.type === 'product') {
@@ -2147,8 +2301,8 @@ ${userProductInfo.trim()}
       }
       if (gen.backgroundPreset) {
         const bg = [...PRODUCT_BACKGROUNDS, ...BACKGROUND_PRESETS].find(b => b.prompt === gen.backgroundPreset || b.id === gen.backgroundPreset);
-        if (bg) { setSelectedProductBg(bg); setCustomProductBg(''); }
-        else { setCustomProductBg(gen.backgroundPreset); setSelectedProductBg(null); }
+        if (bg) { setSelectedProductBgs([bg]); setCustomProductBg(''); }
+        else { setCustomProductBg(gen.backgroundPreset); setSelectedProductBgs([PRODUCT_BACKGROUNDS[0]]); }
       }
       if (gen.attributes && typeof gen.attributes === 'object') {
         setProductModelDetails({ ...initDetails(), ...gen.attributes });
@@ -2159,8 +2313,8 @@ ${userProductInfo.trim()}
     } else {
       if (gen.modelPreset) {
         const m = MODEL_PRESETS.find(p => p.prompt === gen.modelPreset || p.id === gen.modelPreset);
-        if (m) { setSelectedModel(m); setCustomModelPrompt(''); }
-        else { setCustomModelPrompt(gen.modelPreset); setSelectedModel(null); }
+        if (m) { setSelectedModels([m]); setCustomModelPrompt(''); }
+        else { setCustomModelPrompt(gen.modelPreset); setSelectedModels([MODEL_PRESETS[0]]); }
       }
       if (gen.attributes && typeof gen.attributes === 'object') {
         setModelDetails({ ...initDetails(), ...gen.attributes });
@@ -2170,15 +2324,15 @@ ${userProductInfo.trim()}
       
       if (gen.posePreset) {
         const p = POSE_PRESETS.find(x => x.prompt === gen.posePreset || x.id === gen.posePreset);
-        if (p) { setSelectedPose(p); setCustomPoseText(''); }
-        else { setCustomPoseText(gen.posePreset); setSelectedPose(null); }
+        if (p) { setSelectedPoses([p]); setCustomPoseText(''); }
+        else { setCustomPoseText(gen.posePreset); setSelectedPoses([POSE_PRESETS[0]]); }
       }
       if (gen.customPoseText) setCustomPoseText(gen.customPoseText);
       
       if (gen.backgroundPreset) {
         const bg = BACKGROUND_PRESETS.find(b => b.prompt === gen.backgroundPreset || b.id === gen.backgroundPreset);
-        if (bg) { setSelectedBg(bg); setCustomBgText(''); }
-        else { setCustomBgText(gen.backgroundPreset); setSelectedBg(null); }
+        if (bg) { setSelectedBgs([bg]); setCustomBgText(''); }
+        else { setCustomBgText(gen.backgroundPreset); setSelectedBgs([BACKGROUND_PRESETS[0]]); }
       }
     }
     
@@ -2282,32 +2436,35 @@ ${userProductInfo.trim()}
               {confirmModal.type === 'gallery' ? '📸 Собрать галерею?' : 
                confirmModal.type === 'ab' ? '⚖️ Запустить A/B Тест?' : 
                confirmModal.type === 'video' ? '🎬 Оживить в Видеообложку?' : 
+               confirmModal.type === 'batch' ? '📸 Запустить серию генераций?' :
                '📱 Создать фото от покупателей?'}
             </h3>
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: '0 0 20px 0', textAlign: 'center', lineHeight: 1.5 }}>
               {confirmModal.type === 'gallery' ? 'ИИ сгенерирует 3 дополнительных слайда воронки (крупный план деталей, размеры и lifestyle-кадр) на основе выбранного кадра.' : 
                confirmModal.type === 'ab' ? 'ИИ создаст 2 альтернативных варианта обложки (светлый и темный стили) для тестирования CTR.' : 
                confirmModal.type === 'video' ? 'ИИ создаст 3D-анимацию и motion-эффекты для видеообложки.' : 
+               confirmModal.type === 'batch' ? `ИИ сгенерирует серию из ${confirmModal.cost} кадров на основе ваших настроек мультивыбора. Кадры будут создаваться параллельно.` :
                'ИИ перенесет товар с выбранного кадра в домашнюю реалистичную обстановку.'}
             </p>
 
             {/* Preview of active frame */}
-            <div style={{
-              width: 140,
-              aspectRatio: '3/4',
-              borderRadius: 12,
-              overflow: 'hidden',
-              border: '2px solid #ffd700',
-              boxShadow: '0 4px 20px rgba(255,215,0,0.25)',
-              marginBottom: 10,
-              background: '#000',
-              position: 'relative'
-            }}>
-              <img 
-                src={quickCardImage || generatedImage} 
-                alt="Исходный кадр" 
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-              />
+            {confirmModal.type !== 'batch' && (quickCardImage || generatedImage) && (
+              <div style={{
+                width: 140,
+                aspectRatio: '3/4',
+                borderRadius: 12,
+                overflow: 'hidden',
+                border: '2px solid #ffd700',
+                boxShadow: '0 4px 20px rgba(255,215,0,0.25)',
+                marginBottom: 10,
+                background: '#000',
+                position: 'relative'
+              }}>
+                <img 
+                  src={quickCardImage || generatedImage} 
+                  alt="Исходный кадр" 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                />
               <div style={{
                 position: 'absolute',
                 bottom: 0,
@@ -2324,6 +2481,7 @@ ${userProductInfo.trim()}
                 Исходный кадр
               </div>
             </div>
+            )}
 
             <div style={{ margin: '15px 0 25px 0', textAlign: 'center' }}>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>Стоимость генерации</div>
@@ -2848,18 +3006,28 @@ ${userProductInfo.trim()}
             <>
               <GenderToggle gender={gender} setGender={setGender} />
               <div className="preset-grid">
-                {filteredModels.map(m => (
-                  <div key={m.id} className={`preset-card ${selectedModel.id===m.id&&!customModelPrompt&&!selectedSavedModelId?'active':''}`}
-                    onClick={() => { 
-                      if (selectedModel.id === m.id && showDetails && !customModelPrompt && !selectedSavedModelId) {
-                        setShowDetails(false);
-                      } else {
-                        setSelectedModel(m); setCustomModelPrompt(''); setSelectedSavedModelId(null); setShowDetails(true); 
-                      }
-                    }}>
-                    <span className="emoji">{m.emoji}</span><span className="label">{m.label}</span>
-                  </div>
-                ))}
+                {filteredModels.map(m => {
+                  const isActive = selectedModels.some(s => s.id === m.id) && !customModelPrompt && !selectedSavedModelId;
+                  return (
+                    <div key={m.id} className={`preset-card ${isActive ? 'active' : ''}`}
+                      onClick={() => { 
+                        if (customModelPrompt || selectedSavedModelId) {
+                          setSelectedModels([m]); setCustomModelPrompt(''); setSelectedSavedModelId(null); setShowDetails(true);
+                        } else {
+                          setSelectedModels(prev => {
+                            if (prev.some(s => s.id === m.id)) {
+                              if (prev.length <= 1) { setShowDetails(v => !v); return prev; }
+                              return prev.filter(s => s.id !== m.id);
+                            }
+                            setShowDetails(true);
+                            return [...prev, m];
+                          });
+                        }
+                      }}>
+                      <span className="emoji">{m.emoji}</span><span className="label">{m.label}</span>
+                    </div>
+                  );
+                })}
               </div>
               <DetailPanel modelDetails={modelDetails} setModelDetails={setModelDetails} visible={showDetails && !customModelPrompt && !selectedSavedModelId} gender={gender} extraPrompt={extraModelPrompt} setExtraPrompt={setExtraModelPrompt} />
               <div className="custom-variant-row">
@@ -2963,13 +3131,33 @@ ${userProductInfo.trim()}
       ) : (
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.45,duration:0.5,ease:[0.16,1,0.3,1]}}>
           <div className="section-title"><span className="icon">🧍</span> Поза модели</div>
+          {!customPoseText && selectedPoses.length > 1 && (
+            <div style={{ fontSize: '0.72rem', color: 'var(--gold)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.03em' }}>
+              ✅ {selectedPoses.length} позы выбрано
+            </div>
+          )}
           <div className="preset-grid">
-            {POSE_PRESETS.map(p => (
-              <div key={p.id} className={`preset-card ${selectedPose.id===p.id&&!customPoseText?'active':''}`}
-                onClick={() => { setSelectedPose(p); setCustomPoseText(''); }}>
-                <span className="emoji">{p.emoji}</span><span className="label">{p.label}</span>
-              </div>
-            ))}
+            {POSE_PRESETS.map(p => {
+              const isActive = selectedPoses.some(s => s.id === p.id) && !customPoseText;
+              return (
+                <div key={p.id} className={`preset-card ${isActive ? 'active' : ''}`}
+                  onClick={() => {
+                    if (customPoseText) {
+                      setSelectedPoses([p]); setCustomPoseText('');
+                    } else {
+                      setSelectedPoses(prev => {
+                        if (prev.some(s => s.id === p.id)) {
+                          if (prev.length <= 1) return prev;
+                          return prev.filter(s => s.id !== p.id);
+                        }
+                        return [...prev, p];
+                      });
+                    }
+                  }}>
+                  <span className="emoji">{p.emoji}</span><span className="label">{p.label}</span>
+                </div>
+              );
+            })}
           </div>
           <div className="custom-variant-row">
             <input className="custom-variant-input" type="text" placeholder="Или опишите свою позу: Модель сидит на барном стуле, закинув ногу на ногу, правая рука касается ключицы"
@@ -2982,12 +3170,29 @@ ${userProductInfo.trim()}
       {appMode === 'fashion' && (
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.6,duration:0.5,ease:[0.16,1,0.3,1]}}>
           <div className="section-title"><span className="icon">📷</span> Ракурс камеры</div>
+          {selectedCameras.length > 1 && (
+            <div style={{ fontSize: '0.72rem', color: 'var(--gold)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.03em' }}>
+              ✅ {selectedCameras.length} ракурса выбрано
+            </div>
+          )}
           <div className="preset-grid">
-            {CAMERA_ANGLES.map(c => (
-              <div key={c.id} className={`preset-card ${selectedCamera.id===c.id?'active':''}`} onClick={() => setSelectedCamera(c)}>
-                <span className="label">{c.label}</span>
-              </div>
-            ))}
+            {CAMERA_ANGLES.map(c => {
+              const isActive = selectedCameras.some(s => s.id === c.id);
+              return (
+                <div key={c.id} className={`preset-card ${isActive ? 'active' : ''}`}
+                  onClick={() => {
+                    setSelectedCameras(prev => {
+                      if (prev.some(s => s.id === c.id)) {
+                        if (prev.length <= 1) return prev;
+                        return prev.filter(s => s.id !== c.id);
+                      }
+                      return [...prev, c];
+                    });
+                  }}>
+                  <span className="label">{c.label}</span>
+                </div>
+              );
+            })}
           </div>
         </motion.div>
       )}
@@ -3003,13 +3208,33 @@ ${userProductInfo.trim()}
           <>
             {appMode === 'product' ? (
               <>
+                {!customProductBg && !selectedLocId && selectedProductBgs.length > 1 && (
+                  <div style={{ fontSize: '0.72rem', color: 'var(--gold)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.03em' }}>
+                    ✅ {selectedProductBgs.length} сцены выбрано — сгенерируется {selectedProductBgs.length * selectedProductCompositions.length} {selectedProductBgs.length * selectedProductCompositions.length === 1 ? 'вариант' : 'варианта'}
+                  </div>
+                )}
                 <div className="preset-grid">
-                  {PRODUCT_BACKGROUNDS.map(b => (
-                    <div key={b.id} className={`preset-card ${selectedProductBg.id===b.id&&!selectedLocId&&!customProductBg?'active':''}`}
-                      onClick={() => { setSelectedProductBg(b); setSelectedLocId(null); setCustomProductBg(''); }}>
-                      <span className="emoji">{b.emoji}</span><span className="label">{b.label}</span>
-                    </div>
-                  ))}
+                  {PRODUCT_BACKGROUNDS.map(b => {
+                    const isActive = selectedProductBgs.some(s => s.id === b.id) && !selectedLocId && !customProductBg;
+                    return (
+                      <div key={b.id} className={`preset-card ${isActive ? 'active' : ''}`}
+                        onClick={() => {
+                          if (customProductBg || selectedLocId) {
+                            setSelectedProductBgs([b]); setSelectedLocId(null); setCustomProductBg('');
+                          } else {
+                            setSelectedProductBgs(prev => {
+                              if (prev.some(s => s.id === b.id)) {
+                                if (prev.length <= 1) return prev;
+                                return prev.filter(s => s.id !== b.id);
+                              }
+                              return [...prev, b];
+                            });
+                          }
+                        }}>
+                        <span className="emoji">{b.emoji}</span><span className="label">{b.label}</span>
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="custom-variant-row" style={{marginTop: 12}}>
                   <input className="custom-variant-input" placeholder="Локация с нуля: «деревянный стол в скандинавском стиле, на фоне размытое окно»"
@@ -3019,14 +3244,32 @@ ${userProductInfo.trim()}
                   <span>✨</span> Добавить спецэффект
                 </div>
                 <div className="preset-grid">
-                  {PRODUCT_EFFECTS.map(e => (
-                    <div key={e.id} className={`preset-card ${selectedProductEffect.id===e.id?'active':''}`}
-                      onClick={() => setSelectedProductEffect(e)}>
-                      <span className="emoji">{e.emoji}</span><span className="label">{e.label}</span>
-                    </div>
-                  ))}
+                  {PRODUCT_EFFECTS.map(e => {
+                    const isActive = selectedProductEffects.some(s => s.id === e.id);
+                    return (
+                      <div key={e.id} className={`preset-card ${isActive ? 'active' : ''}`}
+                        onClick={() => {
+                          if (e.id === 'none') {
+                            setSelectedProductEffects([e]);
+                          } else {
+                            setSelectedProductEffects(prev => {
+                              const filtered = prev.filter(s => s.id !== 'none');
+                              if (filtered.some(s => s.id === e.id)) {
+                                if (filtered.length <= 1) {
+                                  return [PRODUCT_EFFECTS.find(x => x.id === 'none')];
+                                }
+                                return filtered.filter(s => s.id !== e.id);
+                              }
+                              return [...filtered, e];
+                            });
+                          }
+                        }}>
+                        <span className="emoji">{e.emoji}</span><span className="label">{e.label}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-                {selectedProductEffect.id === 'custom' && (
+                {selectedProductEffects.some(s => s.id === 'custom') && (
                   <div className="custom-variant-row" style={{marginTop:10}}>
                     <input
                       className="custom-variant-input"
@@ -3039,13 +3282,33 @@ ${userProductInfo.trim()}
               </>
             ) : (
               <>
+                {!customBgText && !selectedLocId && selectedBgs.length > 1 && (
+                  <div style={{ fontSize: '0.72rem', color: 'var(--gold)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.03em' }}>
+                    ✅ {selectedBgs.length} фона выбрано — будет {selectedBgs.length} варианта с разными фонами
+                  </div>
+                )}
                 <div className="preset-grid">
-                  {BACKGROUND_PRESETS.map(b => (
-                    <div key={b.id} className={`preset-card ${selectedBg.id===b.id&&!selectedLocId&&!customBgText?'active':''}`}
-                      onClick={() => { setSelectedBg(b); setSelectedLocId(null); setCustomBgText(''); }}>
-                      <span className="emoji">{b.emoji}</span><span className="label">{b.label}</span>
-                    </div>
-                  ))}
+                  {BACKGROUND_PRESETS.map(b => {
+                    const isActive = selectedBgs.some(s => s.id === b.id) && !selectedLocId && !customBgText;
+                    return (
+                      <div key={b.id} className={`preset-card ${isActive ? 'active' : ''}`}
+                        onClick={() => {
+                          if (customBgText || selectedLocId) {
+                            setSelectedBgs([b]); setSelectedLocId(null); setCustomBgText('');
+                          } else {
+                            setSelectedBgs(prev => {
+                              if (prev.some(s => s.id === b.id)) {
+                                if (prev.length <= 1) return prev;
+                                return prev.filter(s => s.id !== b.id);
+                              }
+                              return [...prev, b];
+                            });
+                          }
+                        }}>
+                        <span className="emoji">{b.emoji}</span><span className="label">{b.label}</span>
+                      </div>
+                    );
+                  })}
                 </div>
                 <div className="modifier-block" style={{marginTop:10}}>
                   <textarea className="modifier-input" rows={1} placeholder="Добавить к локации: «закат, мокрый асфальт, неоновые огни»"
@@ -3092,14 +3355,32 @@ ${userProductInfo.trim()}
                   <span>✨</span> Добавить спецэффект
                 </div>
                 <div className="preset-grid">
-                  {PRODUCT_EFFECTS.map(e => (
-                    <div key={e.id} className={`preset-card ${selectedProductEffect.id===e.id?'active':''}`}
-                      onClick={() => setSelectedProductEffect(e)}>
-                      <span className="emoji">{e.emoji}</span><span className="label">{e.label}</span>
-                    </div>
-                  ))}
+                  {PRODUCT_EFFECTS.map(e => {
+                    const isActive = selectedProductEffects.some(s => s.id === e.id);
+                    return (
+                      <div key={e.id} className={`preset-card ${isActive ? 'active' : ''}`}
+                        onClick={() => {
+                          if (e.id === 'none') {
+                            setSelectedProductEffects([e]);
+                          } else {
+                            setSelectedProductEffects(prev => {
+                              const filtered = prev.filter(s => s.id !== 'none');
+                              if (filtered.some(s => s.id === e.id)) {
+                                if (filtered.length <= 1) {
+                                  return [PRODUCT_EFFECTS.find(x => x.id === 'none')];
+                                }
+                                return filtered.filter(s => s.id !== e.id);
+                              }
+                              return [...filtered, e];
+                            });
+                          }
+                        }}>
+                        <span className="emoji">{e.emoji}</span><span className="label">{e.label}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-                {selectedProductEffect.id === 'custom' && (
+                {selectedProductEffects.some(s => s.id === 'custom') && (
                   <div className="custom-variant-row" style={{marginTop:10}}>
                     <input
                       className="custom-variant-input"
@@ -3118,12 +3399,29 @@ ${userProductInfo.trim()}
       {/* 6. ФОРМАТ */}
       {appMode !== 'quick' && <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.9,duration:0.5,ease:[0.16,1,0.3,1]}}>
         <div className="section-title"><span className="icon">📐</span> Формат изображения</div>
+        {selectedRatios.length > 1 && (
+          <div style={{ fontSize: '0.72rem', color: 'var(--gold)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.03em' }}>
+            ✅ {selectedRatios.length} формата выбрано — будет создано несколько копий для каждого формата
+          </div>
+        )}
         <div className="preset-grid">
-          {ASPECT_RATIOS.map(r => (
-            <div key={r.id} className={`preset-card ${selectedRatio.id===r.id?'active':''}`} onClick={() => setSelectedRatio(r)}>
-              <span className="emoji">{r.icon}</span><span className="label">{r.label}</span>
-            </div>
-          ))}
+          {ASPECT_RATIOS.map(r => {
+            const isActive = selectedRatios.some(s => s.id === r.id);
+            return (
+              <div key={r.id} className={`preset-card ${isActive ? 'active' : ''}`}
+                onClick={() => {
+                  setSelectedRatios(prev => {
+                    if (prev.some(s => s.id === r.id)) {
+                      if (prev.length <= 1) return prev;
+                      return prev.filter(s => s.id !== r.id);
+                    }
+                    return [...prev, r];
+                  });
+                }}>
+                <span className="emoji">{r.icon}</span><span className="label">{r.label}</span>
+              </div>
+            );
+          })}
         </div>
       </motion.div>}
 
@@ -3147,20 +3445,18 @@ ${userProductInfo.trim()}
 
         {/* Селектор количества вариантов */}
         {(() => {
-          const compCount = (appMode === 'product' && !customPoseText.trim()) ? selectedProductCompositions.length : 1;
-          const totalShots = compCount * variantCount;
-          const totalCredits = totalShots;
           return (
             <div className="variant-count-section">
-              <div className="variant-count-title">🎯 Количество вариантов</div>
-              {compCount > 1 && (
+              <div className="variant-count-title">🎯 Количество вариантов на одну комбинацию</div>
+              {totalShots > variantCount && (
                 <div style={{fontSize:'0.75rem',color:'var(--gold)',textAlign:'center',marginBottom:8,opacity:0.8}}>
-                  {compCount} композиц{compCount < 5 ? 'ии' : 'ий'} × {variantCount} вариант{variantCount === 1 ? '' : (variantCount < 5 ? 'а' : 'ов')} = <strong>{totalShots} кадр{totalShots === 1 ? '' : (totalShots < 5 ? 'а' : 'ов')}</strong>
+                  Комбинаций параметров × {variantCount} вариант{variantCount === 1 ? '' : (variantCount < 5 ? 'а' : 'ов')} = <strong>{totalShots} кадр{totalShots === 1 ? '' : (totalShots < 5 ? 'а' : 'ов')}</strong>
                 </div>
               )}
               <div className="variant-count-grid">
                 {[1, 2, 3, 4].map(n => {
-                  const total = compCount * n;
+                  const multiplier = totalShots / variantCount;
+                  const total = Math.round(multiplier * n);
                   return (
                     <button
                       key={n}
@@ -3168,7 +3464,7 @@ ${userProductInfo.trim()}
                       onClick={() => setVariantCount(n)}
                     >
                       <span className="variant-count-number">{n}</span>
-                      <span className="variant-count-label">{n === 1 ? 'кадр' : (n < 5 ? 'кадра' : 'кадров')}</span>
+                      <span className="variant-count-label">{n === 1 ? 'вариант' : (n < 5 ? 'варианта' : 'вариантов')}</span>
                       <span className="variant-count-credits">{total} {total === 1 ? 'кредит' : (total < 5 ? 'кредита' : 'кредитов')}</span>
                     </button>
                   );
@@ -3178,20 +3474,31 @@ ${userProductInfo.trim()}
           );
         })()}
         
-        <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
-          {(() => {
-            const compCount = (appMode === 'product' && !customPoseText.trim()) ? selectedProductCompositions.length : 1;
-            const totalShots = compCount * variantCount;
-            return (
-              <button className="generate-btn" style={{flex:1}} onClick={handleGenerate} onMouseEnter={() => { fetch('/api/generate-image', { method: 'OPTIONS', keepalive: true }).catch(() => {}); }} disabled={!garmentUrls.length||isProcessing||isUploading}>{isUploading ? '☁️ Загрузка в облако...' : `✨ Сгенерировать ${totalShots > 1 ? totalShots + ' кадр' + (totalShots < 5 ? 'а' : 'ов') : 'студийный кадр'}`}</button>
-            );
-          })()}
-          <button
-            className="auto-catalog-mini-btn"
-            onClick={handleAutoCatalog}
-            disabled={!garmentUrls.length||isProcessing||isUploading}
-            title="Отправить в Auto-Catalog (Batch)"
-          >🏭</button>
+        <div style={{display: 'flex', flexDirection: 'column', gap: '8px'}}>
+          <div style={{display: 'flex', gap: '10px', alignItems: 'center', width: '100%'}}>
+            <button 
+              className="generate-btn" 
+              style={{flex:1}} 
+              onClick={handleGenerate} 
+              onMouseEnter={() => { fetch('/api/generate-image', { method: 'OPTIONS', keepalive: true }).catch(() => {}); }} 
+              disabled={!garmentUrls.length||isProcessing||isUploading||totalShots > 20}
+            >
+              {isUploading 
+                ? '☁️ Загрузка в облако...' 
+                : `✨ Сгенерировать ${totalShots > 1 ? totalShots + ' кадр' + (totalShots < 5 ? 'а' : 'ов') : 'студийный кадр'}`}
+            </button>
+            <button
+              className="auto-catalog-mini-btn"
+              onClick={handleAutoCatalog}
+              disabled={!garmentUrls.length||isProcessing||isUploading}
+              title="Отправить в Auto-Catalog (Batch)"
+            >🏭</button>
+          </div>
+          {totalShots > 20 && (
+            <div style={{color:'var(--gold)',fontSize:'0.75rem',textAlign:'center',fontWeight:500}}>
+              ⚠️ Выбрано {totalShots} генераций. Лимит — 20 за один раз. Пожалуйста, снимите выделение с некоторых параметров.
+            </div>
+          )}
         </div>
 
         <div className="status-bar">{statusText && <p className={`status-text ${statusType}`}>{statusText}</p>}</div>
@@ -4236,21 +4543,23 @@ ${userProductInfo.trim()}
 
       {/* CALIBRATION WIZARD */}
       <AnimatePresence>
-        <ModelCalibrationWizard
-          show={showCalibWizard}
-          onClose={() => setShowCalibWizard(false)}
-          onSave={saveCalibratedModel}
-          onStartCalibration={async () => {
-            if (!user || user.isGuest || (user.isAnonymous && !user.isTelegramUser)) {
-              throw new Error('Для создания модели необходимо авторизоваться');
-            }
-            // Калибровка модели теперь бесплатна, кредиты не списываются.
-          }}
-          modelPrompt={getCurrentModelPrompt()}
-          modelRefImages={getCurrentModelRefs()}
-          userId={user?.uid}
-          getAuthToken={async () => user?.getIdToken?.()}
-        />
+        {showCalibWizard && (
+          <ModelCalibrationWizard
+            show={showCalibWizard}
+            onClose={() => setShowCalibWizard(false)}
+            onSave={saveCalibratedModel}
+            onStartCalibration={async () => {
+              if (!user || user.isGuest || (user.isAnonymous && !user.isTelegramUser)) {
+                throw new Error('Для создания модели необходимо авторизоваться');
+              }
+              // Калибровка модели теперь бесплатна, кредиты не списываются.
+            }}
+            modelPrompt={getCurrentModelPrompt()}
+            modelRefImages={getCurrentModelRefs()}
+            userId={user?.uid}
+            getAuthToken={async () => user?.getIdToken?.()}
+          />
+        )}
       </AnimatePresence>
 
       {/* ═══ CARD COUNT SELECTION MODAL ═══ */}
