@@ -829,6 +829,14 @@ HUMAN MODEL PROFILE: "${humanModelPrompt}"
 - The PRODUCT remains the HERO — the model is the SUPPORTING ACTOR. The product must be clearly visible, unobstructed, and prominently featured.
 - Do NOT let the model's hands, arms, or body obscure the product label, brand, or key visual features.
 
+<ANATOMICAL_INTEGRITY — ABSOLUTE RULE>
+The human model has EXACTLY TWO hands and EXACTLY TWO arms.
+ALL visible hands in the image MUST be anatomically connected to the model's body — attached at the wrist, forearm, and shoulder.
+Do NOT generate any disembodied, floating, detached, or extra hands/arms.
+NO phantom limbs. NO third hand. Every hand visible in the frame belongs to the single human model.
+If the product needs to be held — the model holds it with ONE or BOTH of her own two hands.
+</ANATOMICAL_INTEGRITY>
+
 ${attrDirectives ? `<APPLIED_CHARACTERISTICS>
 ${attrDirectives}
 </APPLIED_CHARACTERISTICS>` : ''}
@@ -842,7 +850,7 @@ INTERACTION STYLE:
 - For sports gear: model demonstrates athletic use of the product in an active pose.
 - For jewelry: extreme close-up of the product ON the model's body (wrist, neck, ear, finger).
 - For supplements: model holds the container confidently, health-conscious lifestyle vibe.
-- Default: model holds and presents the product at chest level, making eye contact with camera.
+- Default: model holds and presents the product at chest level with one hand, making eye contact with camera.
 </human_model_integration>
 ` : '';
 
@@ -851,9 +859,11 @@ INTERACTION STYLE:
     ? bgPrompt.replace(/,?\s*(elegant\s+)?marble\s+podium\s+platform/gi, '').replace(/,?\s*pedestal/gi, '').replace(/,?\s*platform/gi, '').replace(/,?\s*podium/gi, '').trim()
     : bgPrompt;
 
-  const integrationText = compositionId === 'in_hand'
-    ? 'The product is held in a human hand. No surface contact. No ground plane. The hand is the only support.'
-    : 'Ground the product naturally onto the surface with accurate contact shadows, ambient occlusion, and bounced environmental light. Do NOT let the product float.';
+  const integrationText = withHumanModel
+    ? 'The human model holds and interacts with the product naturally. The product is supported by the model\'s own hands — NOT placed on any surface. All hands visible belong to one single human body.'
+    : compositionId === 'in_hand'
+      ? 'The product is held in a human hand. No surface contact. No ground plane. The hand is the only support.'
+      : 'Ground the product naturally onto the surface with accurate contact shadows, ambient occlusion, and bounced environmental light. Do NOT let the product float.';
 
   return `<system_directive>
 ROLE: Elite Commercial Product Photographer, Master CGI Compositor & Material Specialist.
@@ -866,6 +876,12 @@ CRITICAL PROTOCOL: The input image is the ABSOLUTE TRUTH ("Sacred Blueprint").
 - PRESERVE 1:1: Brand colors, label layout, typography, barcode, and logo placement.
 - PRODUCT DESCRIPTION: ${productPrompt}
 </product_identity_lock>
+
+${withHumanModel ? `<image_roles>
+IMAGE ROLE ASSIGNMENT:
+- The FIRST input image(s) are PRODUCT REFERENCE photos ("Sacred Blueprint") — preserve their appearance 1:1.
+- Any SUBSEQUENT input image(s) are HUMAN MODEL APPEARANCE REFERENCE — use ONLY for the model's face, hair, body type. Do NOT extract hands, limbs, or body parts from these reference images into the scene separately.
+</image_roles>` : ''}
 
 <zero_invention_products>
 RESTRICTION PROTOCOL: ZERO INVENTION.
@@ -1856,6 +1872,18 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, newCredits: subDoc.data()?.credits || 0 });
     }
 
+    // ═══ REFUND CREDITS (для возврата кредитов при неудачных генерациях) ═══
+    if (req.body?.action === 'refund-credit') {
+      const { amount = 0 } = req.body;
+      if (!verifiedUid) return res.status(401).json({ success: false, error: 'Unauthorized' });
+      if (amount <= 0) return res.status(200).json({ success: true, refunded: 0 });
+      const subRef = _db.doc(`users/${verifiedUid}/subscription/current`);
+      await subRef.update({ credits: FieldValue.increment(amount) });
+      const subDoc = await subRef.get();
+      console.log(`💰 [refund] Returned ${amount} credit(s) to ${verifiedUid}`);
+      return res.status(200).json({ success: true, refunded: amount, newCredits: subDoc.data()?.credits || 0 });
+    }
+
     // ═══ DETECT ALL ELEMENTS (Gemini Vision — bounding boxes) ═══
     if (req.body?.action === 'detect-elements') {
       const { imageBase64 } = req.body;
@@ -2690,7 +2718,17 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
       console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product shot ready. Downloading...`);
       const dl = await downloadToBase64(resultUrl);
       if (!dl) throw new Error("Failed to download product image from KIE.ai");
-      return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl });
+
+      // ═══ СПИСАНИЕ КРЕДИТА (Product Mode) ═══
+      const subRefProd = _db.doc(`users/${verifiedUid}/subscription/current`);
+      await subRefProd.update({ credits: FieldValue.increment(-1) });
+      const subSnapProd = await subRefProd.get();
+      const creditsRemainingProd = subSnapProd.data()?.credits ?? 0;
+
+      incrementGlobalCounter('generationsProduct').catch(() => {});
+      saveGenerationLog({ userId: verifiedUid, success: true, imageUrl: resultUrl, reqBody: req.body, durationMs: Date.now() - startTime }).catch(() => {});
+
+      return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining: creditsRemainingProd });
     }
 
     const isAdaptive = /amputee|prosthe|wheelchair|limb\s*(missing|difference)|adaptive\s*fashion/i.test(modelPreset);
@@ -2839,8 +2877,14 @@ ${skinPrompt}
     const dl = await downloadToBase64(resultUrl);
     if (!dl) throw new Error("Failed to download final generated image from KIE.ai");
 
+    // ═══ СПИСАНИЕ КРЕДИТА (Fashion / VTON Mode) ═══
+    const subRefFashion = _db.doc(`users/${verifiedUid}/subscription/current`);
+    await subRefFashion.update({ credits: FieldValue.increment(-1) });
+    const subSnapFashion = await subRefFashion.get();
+    const creditsRemainingFashion = subSnapFashion.data()?.credits ?? 0;
+
     // ═══ STATS: атомарно инкрементируем счётчик генераций ═══
-    const mode = req.body?.isProductMode ? 'generationsProduct' : req.body?.isCalibration ? 'generationsCalibration' : 'generationsFashion';
+    const mode = req.body?.isCalibration ? 'generationsCalibration' : 'generationsFashion';
     incrementGlobalCounter('generationsTotal').catch(() => {});
     incrementGlobalCounter(mode).catch(() => {});
 
@@ -2853,7 +2897,7 @@ ${skinPrompt}
       durationMs: Date.now() - startTime
     }).catch(() => {});
 
-    return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl });
+    return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining: creditsRemainingFashion });
   } catch (error) {
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     console.error(`❌ [${elapsed}s] Ошибка:`, error.message);

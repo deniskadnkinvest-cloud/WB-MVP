@@ -1,4 +1,4 @@
-﻿import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const SLOTS = [
@@ -119,7 +119,7 @@ export default function LoraModal({
           merged[s.key] = slotVariants[s.key][variantIdx[s.key]];
       }
       setLoraPhotos(merged);
-      await onSave();
+      await onSave(merged);
       onClose();
     } catch (err) { setSaveError(err.message || 'Ошибка сохранения'); }
     finally { setIsSaving(false); }

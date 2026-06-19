@@ -104,6 +104,8 @@ function App() {
   const [customBgChips, setCustomBgChips] = useState([]);
   const [addingCustom, setAddingCustom] = useState(null); // 'model'|'pose'|'bg'|null
   const [newChipText, setNewChipText] = useState('');
+  const [editingChipId, setEditingChipId] = useState(null);
+  const [editingChipText, setEditingChipText] = useState('');
 
   // Locations
   const [bgTab, setBgTab] = useState('presets');
@@ -197,6 +199,24 @@ function App() {
     if (section === 'model') setCustomModelChips(prev => prev.filter(c => c.id !== chipId));
     else if (section === 'pose') setCustomPoseChips(prev => prev.filter(c => c.id !== chipId));
     else if (section === 'bg') setCustomBgChips(prev => prev.filter(c => c.id !== chipId));
+  };
+
+  const saveEditCustomChip = (section, chipId) => {
+    if (!editingChipText.trim()) {
+      setEditingChipId(null);
+      return;
+    }
+    const updater = (prev) =>
+      prev.map((c) =>
+        c.id === chipId
+          ? { ...c, label: editingChipText.trim(), prompt: editingChipText.trim() }
+          : c
+      );
+    if (section === 'model') setCustomModelChips(updater);
+    else if (section === 'pose') setCustomPoseChips(updater);
+    else if (section === 'bg') setCustomBgChips(updater);
+    setEditingChipId(null);
+    setEditingChipText('');
   };
 
   // Is multi-model selected? (for showing Импровизация pose)
@@ -743,7 +763,7 @@ function App() {
     });
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (skipConfirm = false) => {
     if (!garmentUrls.length) return;
 
     // ═══ SUBSCRIPTION CHECK ═══
@@ -764,9 +784,8 @@ function App() {
     }
 
     // Если кадров >= 6, запрашиваем подтверждение
-    const isConfirmed = confirmModal?.type === 'batch';
-    if (totalShots >= 6 && !isConfirmed) {
-      triggerConfirm('batch', totalShots, () => handleGenerate());
+    if (totalShots >= 6 && !skipConfirm) {
+      triggerConfirm('batch', totalShots, () => handleGenerate(true));
       return;
     }
 
@@ -1029,12 +1048,30 @@ function App() {
 
         clearInterval(iv);
 
+        // ═══ REFUND кредитов за неудачные генерации ═══
+        if (failedCount > 0) {
+          try {
+            const refundResp = await authFetch('/api/generate-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'refund-credit', amount: failedCount })
+            });
+            const refundData = await safeParseJSON(refundResp);
+            if (refundData.success) {
+              refreshCreditsFromResponse(refundData);
+              console.log(`💰 Refunded ${failedCount} credit(s) for failed generations`);
+            }
+          } catch (refundErr) {
+            console.warn('Failed to refund credits:', refundErr.message);
+          }
+        }
+
         const successItems = results.filter(r => r.success);
         if (successItems.length > 0) {
           const pluralForm = successItems.length === 1 ? '' : (successItems.length < 5 ? 'а — листайте ◀▶' : ' — листайте ◀▶');
-          setStatusText(`Готово! ${successItems.length} вариант${pluralForm}`); setStatusType('success');
+          setStatusText(`Готово! ${successItems.length} вариант${pluralForm}${failedCount > 0 ? ` (${failedCount} не удалось — кредиты возвращены)` : ''}`); setStatusType('success');
         } else {
-          setStatusText(`Ошибка: ${results[0]?.details || results[0]?.error || 'Неизвестная ошибка'}`); setStatusType('error');
+          setStatusText(`Ошибка: ${results[0]?.details || results[0]?.error || 'Неизвестная ошибка'}. Кредиты возвращены.`); setStatusType('error');
         }
 
       } catch (err) {
@@ -1085,11 +1122,12 @@ function App() {
   };
 
   // LoRA model save (Firebase)
-  const saveLoraModel = async () => {
+  const saveLoraModel = async (photosOverride) => {
     if (!loraName.trim() || !user) return;
     setIsSaving(true);
     try {
-      const photoEntries = Object.entries(loraPhotos).filter(([, v]) => v);
+      const photos = photosOverride || loraPhotos;
+      const photoEntries = Object.entries(photos).filter(([, v]) => v);
       const uploads = await Promise.all(photoEntries.map(async ([, base64]) => {
         return uploadBase64Image(user.uid, base64, 'models');
       }));
@@ -3069,10 +3107,29 @@ ${userProductInfo.trim()}
                 })}
                 {/* Custom chips */}
                 {customModelChips.map(chip => (
-                  <div key={chip.id} className="preset-card active custom-chip-card">
-                    <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
-                    <button className="chip-delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('model', chip.id); }}>✕</button>
-                  </div>
+                  editingChipId === chip.id ? (
+                    <div key={chip.id} className="preset-card add-custom-card editing-chip-card">
+                      <div className="add-custom-input-wrap">
+                        <span className="emoji">✏️</span>
+                        <input autoFocus placeholder="Опишите модель..." value={editingChipText}
+                          onChange={e => setEditingChipText(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && editingChipText.trim()) saveEditCustomChip('model', chip.id);
+                            if (e.key === 'Escape') { setEditingChipId(null); setEditingChipText(''); }
+                          }}
+                          onBlur={() => {
+                            if (editingChipText.trim()) saveEditCustomChip('model', chip.id);
+                            else { setEditingChipId(null); setEditingChipText(''); }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={chip.id} className="preset-card active custom-chip-card" onClick={() => { setEditingChipId(chip.id); setEditingChipText(chip.label); }}>
+                      <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
+                      <button className="chip-delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('model', chip.id); }}>✕</button>
+                    </div>
+                  )
                 ))}
                 {/* Add custom variant button */}
                 {!customModelPrompt && !selectedSavedModelId && (
@@ -3095,13 +3152,7 @@ ${userProductInfo.trim()}
                 )}
               </div>
               <DetailPanel modelDetails={modelDetails} setModelDetails={setModelDetails} visible={showDetails && !customModelPrompt && !selectedSavedModelId} gender={gender} extraPrompt={extraModelPrompt} setExtraPrompt={setExtraModelPrompt} />
-              <div className={`custom-variant-row${(selectedModels.length + customModelChips.length) > 1 ? ' dimmed' : ''}`}>
-                <input className="custom-variant-input" type="text" placeholder="Или опишите модель с нуля: «рыжая девушка 25 лет с веснушками»"
-                  value={customModelPrompt} 
-                  onFocus={() => { setShowDetails(false); setSelectedSavedModelId(null); }}
-                  onChange={e => { setCustomModelPrompt(e.target.value); setSelectedSavedModelId(null); setShowDetails(false); }} />
-              </div>
-              {/тату|tattoo/i.test(customModelPrompt) && (
+              {(customModelChips.some(c => /тату|tattoo/i.test(c.prompt)) || /тату|tattoo/i.test(customModelPrompt)) && (
                 <div className="tattoo-warning">⚠️ Татуировка отлично получится на одиночном фото, но в серии (фотосессия) может искажаться. Для стабильной модели старайтесь не использовать тату.</div>
               )}
             </>
@@ -3249,10 +3300,29 @@ ${userProductInfo.trim()}
             })()}
             {/* Custom chips */}
             {customPoseChips.map(chip => (
-              <div key={chip.id} className="preset-card active custom-chip-card">
-                <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
-                <button className="chip-delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('pose', chip.id); }}>✕</button>
-              </div>
+              editingChipId === chip.id ? (
+                <div key={chip.id} className="preset-card add-custom-card editing-chip-card">
+                  <div className="add-custom-input-wrap">
+                    <span className="emoji">✏️</span>
+                    <input autoFocus placeholder="Опишите позу..." value={editingChipText}
+                      onChange={e => setEditingChipText(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && editingChipText.trim()) saveEditCustomChip('pose', chip.id);
+                        if (e.key === 'Escape') { setEditingChipId(null); setEditingChipText(''); }
+                      }}
+                      onBlur={() => {
+                        if (editingChipText.trim()) saveEditCustomChip('pose', chip.id);
+                        else { setEditingChipId(null); setEditingChipText(''); }
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div key={chip.id} className="preset-card active custom-chip-card" onClick={() => { setEditingChipId(chip.id); setEditingChipText(chip.label); }}>
+                  <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
+                  <button className="chip-delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('pose', chip.id); }}>✕</button>
+                </div>
+              )
             ))}
             {/* Add custom variant */}
             {!customPoseText && (
@@ -3273,10 +3343,6 @@ ${userProductInfo.trim()}
                 </div>
               )
             )}
-          </div>
-          <div className={`custom-variant-row${(selectedPoses.length + customPoseChips.length) > 1 ? ' dimmed' : ''}`}>
-            <input className="custom-variant-input" type="text" placeholder="Или опишите свою позу: Модель сидит на барном стуле, закинув ногу на ногу"
-              value={customPoseText} onChange={e => setCustomPoseText(e.target.value)} />
           </div>
         </motion.div>
       ))}
@@ -3428,10 +3494,29 @@ ${userProductInfo.trim()}
                   })}
                   {/* Custom chips */}
                   {customBgChips.map(chip => (
-                    <div key={chip.id} className="preset-card active custom-chip-card">
-                      <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
-                      <button className="chip-delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('bg', chip.id); }}>✕</button>
-                    </div>
+                    editingChipId === chip.id ? (
+                      <div key={chip.id} className="preset-card add-custom-card editing-chip-card">
+                        <div className="add-custom-input-wrap">
+                          <span className="emoji">✏️</span>
+                          <input autoFocus placeholder="Опишите фон..." value={editingChipText}
+                            onChange={e => setEditingChipText(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter' && editingChipText.trim()) saveEditCustomChip('bg', chip.id);
+                              if (e.key === 'Escape') { setEditingChipId(null); setEditingChipText(''); }
+                            }}
+                            onBlur={() => {
+                              if (editingChipText.trim()) saveEditCustomChip('bg', chip.id);
+                              else { setEditingChipId(null); setEditingChipText(''); }
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div key={chip.id} className="preset-card active custom-chip-card" onClick={() => { setEditingChipId(chip.id); setEditingChipText(chip.label); }}>
+                        <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
+                        <button className="chip-delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('bg', chip.id); }}>✕</button>
+                      </div>
+                    )
                   ))}
                   {/* Add custom variant */}
                   {!customBgText && !selectedLocId && (
@@ -3456,10 +3541,6 @@ ${userProductInfo.trim()}
                 <div className="modifier-block" style={{marginTop:10}}>
                   <textarea className="modifier-input" rows={1} placeholder="Добавить к локации: «закат, мокрый асфальт, неоновые огни»"
                     value={bgExtraText} onChange={e => setBgExtraText(e.target.value)} />
-                </div>
-                <div className={`custom-variant-row${(selectedBgs.length + customBgChips.length) > 1 ? ' dimmed' : ''}`}>
-                  <input className="custom-variant-input" placeholder="Локация с нуля: «крыша небоскрёба на закате»"
-                    value={customBgText} onChange={e => { setCustomBgText(e.target.value); setSelectedLocId(null); }} />
                 </div>
               </>
             )}
