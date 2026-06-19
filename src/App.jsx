@@ -89,9 +89,18 @@ function App() {
   // Gender
   const [gender, setGender] = useState('female');
 
-  // Model details
-  const [modelDetails, setModelDetails] = useState(initDetails);
+  // Model details map (saves details per model ID)
+  const [modelDetailsMap, setModelDetailsMap] = useState({});
+  const [activeModelDetailsId, setActiveModelDetailsId] = useState(MODEL_PRESETS[0]?.id || 'slavya');
   const [showDetails, setShowDetails] = useState(false);
+
+  const modelDetails = modelDetailsMap[activeModelDetailsId] || initDetails();
+  const setModelDetails = (updatedFields) => {
+    setModelDetailsMap(prev => ({
+      ...prev,
+      [activeModelDetailsId]: typeof updatedFields === 'function' ? updatedFields(prev[activeModelDetailsId] || initDetails()) : updatedFields
+    }));
+  };
 
   // Custom text inputs
   const [customModelPrompt, setCustomModelPrompt] = useState('');
@@ -104,8 +113,8 @@ function App() {
   const [customBgChips, setCustomBgChips] = useState([]);
   const [addingCustom, setAddingCustom] = useState(null); // 'model'|'pose'|'bg'|null
   const [newChipText, setNewChipText] = useState('');
-  const [editingChipId, setEditingChipId] = useState(null);
-  const [editingChipText, setEditingChipText] = useState('');
+  const [customChipModalSection, setCustomChipModalSection] = useState(null);
+  const [editingChip, setEditingChip] = useState(null); // { id, label, section } | null
 
   // Locations
   const [bgTab, setBgTab] = useState('presets');
@@ -188,7 +197,12 @@ function App() {
   const addCustomChip = (section) => {
     if (!newChipText.trim()) { setAddingCustom(null); return; }
     const chip = { id: `custom_${Date.now()}`, label: newChipText.trim(), prompt: newChipText.trim(), emoji: '✏️', isCustomChip: true };
-    if (section === 'model') { setCustomModelChips(prev => [...prev, chip]); setCustomModelPrompt(''); }
+    if (section === 'model') { 
+      setCustomModelChips(prev => [...prev, chip]); 
+      setCustomModelPrompt(''); 
+      setActiveModelDetailsId(chip.id);
+      setShowDetails(true);
+    }
     else if (section === 'pose') { setCustomPoseChips(prev => [...prev, chip]); setCustomPoseText(''); }
     else if (section === 'bg') { setCustomBgChips(prev => [...prev, chip]); setCustomBgText(''); }
     setNewChipText('');
@@ -201,22 +215,38 @@ function App() {
     else if (section === 'bg') setCustomBgChips(prev => prev.filter(c => c.id !== chipId));
   };
 
-  const saveEditCustomChip = (section, chipId) => {
-    if (!editingChipText.trim()) {
-      setEditingChipId(null);
+  const openEditChipModal = (section, chip) => {
+    setEditingChip({ id: chip.id, label: chip.label, section });
+    setNewChipText(chip.label);
+  };
+
+  const saveEditCustomChip = () => {
+    if (!editingChip || !newChipText.trim()) {
+      setEditingChip(null);
+      setNewChipText('');
       return;
     }
+    const section = editingChip.section;
+    const chipId = editingChip.id;
     const updater = (prev) =>
       prev.map((c) =>
         c.id === chipId
-          ? { ...c, label: editingChipText.trim(), prompt: editingChipText.trim() }
+          ? { ...c, label: newChipText.trim(), prompt: newChipText.trim() }
           : c
       );
     if (section === 'model') setCustomModelChips(updater);
     else if (section === 'pose') setCustomPoseChips(updater);
     else if (section === 'bg') setCustomBgChips(updater);
-    setEditingChipId(null);
-    setEditingChipText('');
+    setEditingChip(null);
+    setNewChipText('');
+  };
+
+  const getActiveModelLabel = () => {
+    const foundPreset = MODEL_PRESETS.find(m => m.id === activeModelDetailsId);
+    if (foundPreset) return foundPreset.label;
+    const foundCustom = customModelChips.find(c => c.id === activeModelDetailsId);
+    if (foundCustom) return foundCustom.label;
+    return 'выбранной модели';
   };
 
   // Is multi-model selected? (for showing Импровизация pose)
@@ -955,7 +985,7 @@ function App() {
               };
             } else {
               // appMode === 'fashion' (VTON)
-              let modelPrompt = task.model.isSaved ? task.model.prompt : (customModelPrompt.trim() || (task.model.prompt + buildDetailString()));
+              let modelPrompt = task.model.isSaved ? task.model.prompt : (customModelPrompt.trim() || (task.model.prompt + buildDetailString(modelDetailsMap[task.model.id])));
               let modelRefImages = null;
               if (task.model.isSaved) {
                 const sm = myModels.find(m => m.id === task.model.id);
@@ -990,7 +1020,7 @@ function App() {
                 modelReferenceImages: modelRefImages,
                 locationImages: locImages,
                 customPoseText: customPoseText.trim() || undefined,
-                attributes: modelDetails,
+                attributes: modelDetailsMap[task.model.id] || initDetails(),
                 isBeautyMode,
                 biometricSeed: task.seed,
                 isProductMode: false,
@@ -1148,7 +1178,7 @@ function App() {
     setIsSaving(true);
     try {
       const { url, path } = await uploadBase64Image(user.uid, generatedImage, 'models');
-      const mp = customModelPrompt.trim() || (selectedModels[0].prompt + buildDetailString());
+      const mp = customModelPrompt.trim() || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
       await saveModel(user.uid, { name: saveModelName.trim(), type: 'generated', imageUrls: [url], storagePaths: [path], prompt: mp });
       const models = await getModels(user.uid);
       setMyModels(models);
@@ -1259,7 +1289,7 @@ function App() {
       const sm = myModels.find(m => m.id === selectedSavedModelId);
       if (sm?.prompt) return sm.prompt;
     }
-    return selectedModels[0].prompt + buildDetailString();
+    return selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]);
   };
 
   // Get current model ref images for calibration
@@ -1418,7 +1448,7 @@ function App() {
         }
       } else {
         // Режим одежды (VTON)
-        modelPrompt = customModelPrompt.trim() || (selectedModels[0].prompt + buildDetailString());
+        modelPrompt = customModelPrompt.trim() || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
         if (selectedSavedModelId) {
           const sm = myModels.find(m => m.id === selectedSavedModelId);
           if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
@@ -2239,7 +2269,7 @@ ${userProductInfo.trim()}
           }
         }
       } else {
-        modelPrompt = customModelPrompt.trim() || (selectedModels[0].prompt + buildDetailString());
+        modelPrompt = customModelPrompt.trim() || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
         if (selectedSavedModelId) {
           const sm = myModels.find(m => m.id === selectedSavedModelId);
           if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
@@ -2381,15 +2411,31 @@ ${userProductInfo.trim()}
       }
       if (gen.withHumanModel !== undefined) setProductWithModel(gen.withHumanModel);
     } else {
+      let targetModelId = MODEL_PRESETS[0].id;
       if (gen.modelPreset) {
         const m = MODEL_PRESETS.find(p => p.prompt === gen.modelPreset || p.id === gen.modelPreset);
-        if (m) { setSelectedModels([m]); setCustomModelPrompt(''); }
-        else { setCustomModelPrompt(gen.modelPreset); setSelectedModels([MODEL_PRESETS[0]]); }
+        if (m) { 
+          setSelectedModels([m]); 
+          setCustomModelPrompt(''); 
+          setActiveModelDetailsId(m.id);
+          targetModelId = m.id;
+        } else { 
+          setCustomModelPrompt(gen.modelPreset); 
+          setSelectedModels([MODEL_PRESETS[0]]); 
+          setActiveModelDetailsId(MODEL_PRESETS[0].id);
+          targetModelId = MODEL_PRESETS[0].id;
+        }
       }
       if (gen.attributes && typeof gen.attributes === 'object') {
-        setModelDetails({ ...initDetails(), ...gen.attributes });
+        setModelDetailsMap(prev => ({
+          ...prev,
+          [targetModelId]: { ...initDetails(), ...gen.attributes }
+        }));
       } else {
-        setModelDetails(initDetails());
+        setModelDetailsMap(prev => ({
+          ...prev,
+          [targetModelId]: initDetails()
+        }));
       }
       
       if (gen.posePreset) {
@@ -3085,20 +3131,33 @@ ${userProductInfo.trim()}
               <div className={`preset-grid${customModelPrompt && !selectedSavedModelId ? ' dimmed' : ''}`}>
                 {filteredModels.map(m => {
                   const isActive = selectedModels.some(s => s.id === m.id) && !customModelPrompt && !selectedSavedModelId;
+                  const isHighlighted = activeModelDetailsId === m.id;
                   return (
-                    <div key={m.id} className={`preset-card ${isActive ? 'active' : ''}`}
+                    <div key={m.id} className={`preset-card ${isActive ? 'active' : ''} ${isHighlighted ? 'active-highlight' : ''}`}
                       onClick={() => { 
                         if (customModelPrompt || selectedSavedModelId) {
-                          setSelectedModels([m]); setCustomModelPrompt(''); setSelectedSavedModelId(null); setShowDetails(true);
+                          setSelectedModels([m]); 
+                          setCustomModelPrompt(''); 
+                          setSelectedSavedModelId(null); 
+                          setActiveModelDetailsId(m.id);
+                          setShowDetails(true);
                         } else {
-                          setSelectedModels(prev => {
-                            if (prev.some(s => s.id === m.id)) {
-                              if (prev.length <= 1 && customModelChips.length === 0) { setShowDetails(v => !v); return prev; }
-                              return prev.filter(s => s.id !== m.id);
+                          const alreadySelected = selectedModels.some(s => s.id === m.id);
+                          if (alreadySelected) {
+                            if (activeModelDetailsId === m.id) {
+                              setShowDetails(v => !v);
+                            } else {
+                              setActiveModelDetailsId(m.id);
+                              setShowDetails(true);
                             }
+                            if (selectedModels.length + customModelChips.length > 1) {
+                              setSelectedModels(prev => prev.filter(s => s.id !== m.id));
+                            }
+                          } else {
+                            setSelectedModels(prev => [...prev, m]);
+                            setActiveModelDetailsId(m.id);
                             setShowDetails(true);
-                            return [...prev, m];
-                          });
+                          }
                         }
                       }}>
                       <span className="emoji">{m.emoji}</span><span className="label">{m.label}</span>
@@ -3106,52 +3165,34 @@ ${userProductInfo.trim()}
                   );
                 })}
                 {/* Custom chips */}
-                {customModelChips.map(chip => (
-                  editingChipId === chip.id ? (
-                    <div key={chip.id} className="preset-card add-custom-card editing-chip-card">
-                      <div className="add-custom-input-wrap">
-                        <span className="emoji">✏️</span>
-                        <input autoFocus placeholder="Опишите модель..." value={editingChipText}
-                          onChange={e => setEditingChipText(e.target.value)}
-                          onKeyDown={e => {
-                            if (e.key === 'Enter' && editingChipText.trim()) saveEditCustomChip('model', chip.id);
-                            if (e.key === 'Escape') { setEditingChipId(null); setEditingChipText(''); }
-                          }}
-                          onBlur={() => {
-                            if (editingChipText.trim()) saveEditCustomChip('model', chip.id);
-                            else { setEditingChipId(null); setEditingChipText(''); }
-                          }}
-                        />
+                {customModelChips.map(chip => {
+                  const isHighlighted = activeModelDetailsId === chip.id;
+                  return (
+                    <div key={chip.id} className={`preset-card active custom-chip-card ${isHighlighted ? 'active-highlight' : ''}`}
+                      onClick={() => {
+                        if (activeModelDetailsId === chip.id) {
+                          setShowDetails(v => !v);
+                        } else {
+                          setActiveModelDetailsId(chip.id);
+                          setShowDetails(true);
+                        }
+                      }}>
+                      <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
+                      <div className="chip-actions">
+                        <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('model', chip); }}>✏️</button>
+                        <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('model', chip.id); }}>✕</button>
                       </div>
                     </div>
-                  ) : (
-                    <div key={chip.id} className="preset-card active custom-chip-card" onClick={() => { setEditingChipId(chip.id); setEditingChipText(chip.label); }}>
-                      <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
-                      <button className="chip-delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('model', chip.id); }}>✕</button>
-                    </div>
-                  )
-                ))}
+                  );
+                })}
                 {/* Add custom variant button */}
                 {!customModelPrompt && !selectedSavedModelId && (
-                  addingCustom === 'model' ? (
-                    <div className="preset-card add-custom-card">
-                      <div className="add-custom-input-wrap">
-                        <span className="emoji">✏️</span>
-                        <input autoFocus placeholder="Опишите модель..." value={newChipText}
-                          onChange={e => setNewChipText(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Enter' && newChipText.trim()) addCustomChip('model'); if (e.key === 'Escape') { setAddingCustom(null); setNewChipText(''); } }}
-                          onBlur={() => { if (newChipText.trim()) addCustomChip('model'); else { setAddingCustom(null); setNewChipText(''); } }}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="preset-card add-custom-card" onClick={() => { setAddingCustom('model'); setNewChipText(''); }}>
-                      <span className="emoji">➕</span><span className="label">Свой вариант</span>
-                    </div>
-                  )
+                  <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('model'); setNewChipText(''); }}>
+                    <span className="emoji">➕</span><span className="label">Свой вариант</span>
+                  </div>
                 )}
               </div>
-              <DetailPanel modelDetails={modelDetails} setModelDetails={setModelDetails} visible={showDetails && !customModelPrompt && !selectedSavedModelId} gender={gender} extraPrompt={extraModelPrompt} setExtraPrompt={setExtraModelPrompt} />
+              <DetailPanel modelDetails={modelDetails} setModelDetails={setModelDetails} visible={showDetails && !customModelPrompt && !selectedSavedModelId} gender={gender} extraPrompt={extraModelPrompt} setExtraPrompt={setExtraModelPrompt} title={getActiveModelLabel()} />
               {(customModelChips.some(c => /тату|tattoo/i.test(c.prompt)) || /тату|tattoo/i.test(customModelPrompt)) && (
                 <div className="tattoo-warning">⚠️ Татуировка отлично получится на одиночном фото, но в серии (фотосессия) может искажаться. Для стабильной модели старайтесь не использовать тату.</div>
               )}
@@ -3300,48 +3341,19 @@ ${userProductInfo.trim()}
             })()}
             {/* Custom chips */}
             {customPoseChips.map(chip => (
-              editingChipId === chip.id ? (
-                <div key={chip.id} className="preset-card add-custom-card editing-chip-card">
-                  <div className="add-custom-input-wrap">
-                    <span className="emoji">✏️</span>
-                    <input autoFocus placeholder="Опишите позу..." value={editingChipText}
-                      onChange={e => setEditingChipText(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && editingChipText.trim()) saveEditCustomChip('pose', chip.id);
-                        if (e.key === 'Escape') { setEditingChipId(null); setEditingChipText(''); }
-                      }}
-                      onBlur={() => {
-                        if (editingChipText.trim()) saveEditCustomChip('pose', chip.id);
-                        else { setEditingChipId(null); setEditingChipText(''); }
-                      }}
-                    />
-                  </div>
+              <div key={chip.id} className="preset-card active custom-chip-card">
+                <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
+                <div className="chip-actions">
+                  <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('pose', chip); }}>✏️</button>
+                  <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('pose', chip.id); }}>✕</button>
                 </div>
-              ) : (
-                <div key={chip.id} className="preset-card active custom-chip-card" onClick={() => { setEditingChipId(chip.id); setEditingChipText(chip.label); }}>
-                  <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
-                  <button className="chip-delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('pose', chip.id); }}>✕</button>
-                </div>
-              )
+              </div>
             ))}
             {/* Add custom variant */}
             {!customPoseText && (
-              addingCustom === 'pose' ? (
-                <div className="preset-card add-custom-card">
-                  <div className="add-custom-input-wrap">
-                    <span className="emoji">✏️</span>
-                    <input autoFocus placeholder="Опишите позу..." value={newChipText}
-                      onChange={e => setNewChipText(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter' && newChipText.trim()) addCustomChip('pose'); if (e.key === 'Escape') { setAddingCustom(null); setNewChipText(''); } }}
-                      onBlur={() => { if (newChipText.trim()) addCustomChip('pose'); else { setAddingCustom(null); setNewChipText(''); } }}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="preset-card add-custom-card" onClick={() => { setAddingCustom('pose'); setNewChipText(''); }}>
-                  <span className="emoji">➕</span><span className="label">Свой вариант</span>
-                </div>
-              )
+              <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('pose'); setNewChipText(''); }}>
+                <span className="emoji">➕</span><span className="label">Свой вариант</span>
+              </div>
             )}
           </div>
         </motion.div>
@@ -3494,48 +3506,19 @@ ${userProductInfo.trim()}
                   })}
                   {/* Custom chips */}
                   {customBgChips.map(chip => (
-                    editingChipId === chip.id ? (
-                      <div key={chip.id} className="preset-card add-custom-card editing-chip-card">
-                        <div className="add-custom-input-wrap">
-                          <span className="emoji">✏️</span>
-                          <input autoFocus placeholder="Опишите фон..." value={editingChipText}
-                            onChange={e => setEditingChipText(e.target.value)}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter' && editingChipText.trim()) saveEditCustomChip('bg', chip.id);
-                              if (e.key === 'Escape') { setEditingChipId(null); setEditingChipText(''); }
-                            }}
-                            onBlur={() => {
-                              if (editingChipText.trim()) saveEditCustomChip('bg', chip.id);
-                              else { setEditingChipId(null); setEditingChipText(''); }
-                            }}
-                          />
-                        </div>
+                    <div key={chip.id} className="preset-card active custom-chip-card">
+                      <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
+                      <div className="chip-actions">
+                        <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('bg', chip); }}>✏️</button>
+                        <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('bg', chip.id); }}>✕</button>
                       </div>
-                    ) : (
-                      <div key={chip.id} className="preset-card active custom-chip-card" onClick={() => { setEditingChipId(chip.id); setEditingChipText(chip.label); }}>
-                        <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
-                        <button className="chip-delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('bg', chip.id); }}>✕</button>
-                      </div>
-                    )
+                    </div>
                   ))}
                   {/* Add custom variant */}
                   {!customBgText && !selectedLocId && (
-                    addingCustom === 'bg' ? (
-                      <div className="preset-card add-custom-card">
-                        <div className="add-custom-input-wrap">
-                          <span className="emoji">✏️</span>
-                          <input autoFocus placeholder="Опишите фон..." value={newChipText}
-                            onChange={e => setNewChipText(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter' && newChipText.trim()) addCustomChip('bg'); if (e.key === 'Escape') { setAddingCustom(null); setNewChipText(''); } }}
-                            onBlur={() => { if (newChipText.trim()) addCustomChip('bg'); else { setAddingCustom(null); setNewChipText(''); } }}
-                          />
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="preset-card add-custom-card" onClick={() => { setAddingCustom('bg'); setNewChipText(''); }}>
-                        <span className="emoji">➕</span><span className="label">Свой вариант</span>
-                      </div>
-                    )
+                    <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('bg'); setNewChipText(''); }}>
+                      <span className="emoji">➕</span><span className="label">Свой вариант</span>
+                    </div>
                   )}
                 </div>
                 <div className="modifier-block" style={{marginTop:10}}>
@@ -3651,21 +3634,20 @@ ${userProductInfo.trim()}
 
       {/* 7. ГЕНЕРАЦИЯ */}
       {appMode !== 'quick' && <motion.div className="generate-section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:1.05,duration:0.5,ease:[0.16,1,0.3,1]}}>
-        <div className="beauty-toggle">
-          <label className={`beauty-switch ${isBeautyMode ? 'active' : ''}`}>
-            <input type="checkbox" checked={isBeautyMode} onChange={e => setIsBeautyMode(e.target.checked)} />
-            <span className="beauty-label">{isBeautyMode ? '✨ Beauty-ретушь' : '📷 Реализм'}</span>
-          </label>
-          <span className="beauty-hint">
-            {appMode === 'product' && !productWithModel
-              ? (isBeautyMode
-                  ? 'Выбран коммерческий глянец — идеальные поверхности. Нажмите, чтобы вернуть натуральные текстуры'
-                  : 'Выбран реализм — натуральные текстуры материалов. Нажмите, чтобы включить коммерческий глянец')
-              : (isBeautyMode
-                  ? 'Выбран журнальный глянец «Идеальная кожа». Нажмите, чтобы вернуть реализм'
-                  : 'Выбран реализм: натуральная кожа с текстурой. Нажмите, чтобы включить журнальный глянец «Идеальная кожа»')}
-          </span>
-        </div>
+        {/* Beauty toggle — только когда есть живая модель-человек */}
+        {(appMode === 'fashion' || (appMode === 'product' && productWithModel)) && (
+          <div className="beauty-toggle">
+            <label className={`beauty-switch ${isBeautyMode ? 'active' : ''}`}>
+              <input type="checkbox" checked={isBeautyMode} onChange={e => setIsBeautyMode(e.target.checked)} />
+              <span className="beauty-label">{isBeautyMode ? '✨ Beauty-ретушь' : '📷 Реализм'}</span>
+            </label>
+            <span className="beauty-hint">
+              {isBeautyMode
+                ? 'Выбран журнальный глянец «Идеальная кожа». Нажмите, чтобы вернуть реализм'
+                : 'Выбран реализм: натуральная кожа с текстурой. Нажмите, чтобы включить журнальный глянец «Идеальная кожа»'}
+            </span>
+          </div>
+        )}
 
         {/* Селектор количества вариантов */}
         {(() => {
@@ -4821,6 +4803,61 @@ ${userProductInfo.trim()}
                     <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-pajama-after.png' : '/examples/cards/epic-pajama-after.png'} alt="Пижама после" />
                   </div>
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* МОДАЛКА: Добавление/Редактирование кастомного чипа */}
+      <AnimatePresence>
+        {(customChipModalSection || editingChip) && (
+          <motion.div className="modal-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} 
+            onClick={() => { setCustomChipModalSection(null); setEditingChip(null); setNewChipText(''); }}>
+            <motion.div className="modal-content" initial={{scale:0.9}} animate={{scale:1}} exit={{scale:0.9}} onClick={e=>e.stopPropagation()}>
+              <div className="modal-title">
+                {editingChip ? '✏️ Редактировать вариант' : (
+                  customChipModalSection === 'model' ? '➕ Свой вариант модели' :
+                  customChipModalSection === 'pose' ? '➕ Свой вариант позы' :
+                  '➕ Свой вариант фона'
+                )}
+              </div>
+              <input 
+                className="modal-input" 
+                autoFocus 
+                placeholder={
+                  (editingChip?.section || customChipModalSection) === 'model' ? "Например: рыжая девушка в очках..." :
+                  (editingChip?.section || customChipModalSection) === 'pose' ? "Например: модель сидит на стуле..." :
+                  "Например: кирпичная стена, неоновый свет..."
+                } 
+                value={newChipText} 
+                onChange={e=>setNewChipText(e.target.value)} 
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && newChipText.trim()) {
+                    if (editingChip) saveEditCustomChip();
+                    else {
+                      addCustomChip(customChipModalSection);
+                      setCustomChipModalSection(null);
+                    }
+                  }
+                  if (e.key === 'Escape') {
+                    setCustomChipModalSection(null);
+                    setEditingChip(null);
+                    setNewChipText('');
+                  }
+                }}
+              />
+              <div className="modal-actions">
+                <button className="modal-btn-cancel" onClick={()=>{ setCustomChipModalSection(null); setEditingChip(null); setNewChipText(''); }}>Отмена</button>
+                <button className="modal-btn-primary" onClick={() => {
+                  if (editingChip) saveEditCustomChip();
+                  else {
+                    addCustomChip(customChipModalSection);
+                    setCustomChipModalSection(null);
+                  }
+                }} disabled={!newChipText.trim()}>
+                  {editingChip ? 'Сохранить' : 'Добавить'}
+                </button>
               </div>
             </motion.div>
           </motion.div>
