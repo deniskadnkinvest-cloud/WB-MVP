@@ -4,7 +4,7 @@
   "framework": "vite",
   "functions": {
     "api/generate-image.js": {
-      "maxDuration": 300
+      "maxDuration": 60
     },
 
     "api/payment-webhook.js": {
@@ -39,7 +39,7 @@
     },
 
     "api/inngest.js": {
-      "maxDuration": 300
+      "maxDuration": 60
     }
   },
   "headers": [
