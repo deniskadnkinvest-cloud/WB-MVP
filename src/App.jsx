@@ -15,7 +15,7 @@ import SubscriptionBadge from './components/SubscriptionBadge';
 import MyHistoryPage from './components/MyHistoryPage';
 import { useAuth } from './contexts/AuthContext';
 import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt, patchLocation } from './lib/firestoreService';
-import { uploadBase64Image, compressImage, uploadImage, deleteImage } from './lib/storageService';
+import { uploadBase64Image, compressImage, uploadImage, deleteImage, downloadStoragePathAsBase64 } from './lib/storageService';
 import { getSubscription, checkFeature, canGenerate, activatePlan } from './lib/subscriptionService';
 // CardLayerStudio removed — replaced by text-based card editing
 import './App.css';
@@ -482,27 +482,16 @@ function App() {
 
         // === SILENT MIGRATION: backfill imageBase64 for legacy locations ===
         const needsMigration = (locations || []).filter(
-          loc => !loc.imageBase64 && loc.imageUrls && loc.imageUrls.length > 0
+          loc => !loc.imageBase64 && loc.storagePaths && loc.storagePaths.length > 0
         );
         if (needsMigration.length > 0) {
-          console.log(`🔄 Migrating ${needsMigration.length} legacy location(s) to inline base64...`);
+          console.log(`🔄 Migrating ${needsMigration.length} legacy location(s) via Firebase SDK...`);
           const uid = user.uid;
           for (const loc of needsMigration) {
             try {
+              // Use Firebase Storage SDK (auth-aware) — bypasses CORS and Storage Rules
               const b64arr = await Promise.all(
-                loc.imageUrls.slice(0, 5).map(async (url) => {
-                  try {
-                    const resp = await fetch(url);
-                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                    const blob = await resp.blob();
-                    return await new Promise((resolve) => {
-                      const reader = new FileReader();
-                      reader.onload = () => resolve(reader.result);
-                      reader.onerror = () => resolve(null);
-                      reader.readAsDataURL(blob);
-                    });
-                  } catch { return null; }
-                })
+                (loc.storagePaths || []).slice(0, 5).map(path => downloadStoragePathAsBase64(path))
               );
               const validB64 = b64arr.filter(Boolean);
               if (validB64.length > 0) {
@@ -511,9 +500,9 @@ function App() {
                 setMyLocations(prev => prev.map(l =>
                   l.id === loc.id ? { ...l, imageBase64: validB64 } : l
                 ));
-                console.log(`✅ Migrated loc '${loc.title}' (${validB64.length} images)`);
+                console.log(`✅ Migrated loc '${loc.title}' (${validB64.length} images via SDK)`);
               } else {
-                console.warn(`⚠️ Could not migrate loc '${loc.title}' — all URLs failed to load`);
+                console.warn(`⚠️ Could not migrate loc '${loc.title}' — SDK download failed (check Storage Rules)`);
               }
             } catch (err) {
               console.warn(`⚠️ Migration failed for loc '${loc.title}':`, err.message);

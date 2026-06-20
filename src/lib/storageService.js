@@ -1,4 +1,4 @@
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject, getBytes } from 'firebase/storage';
 import { storage } from './firebase';
 
 /**
@@ -18,12 +18,42 @@ export const compressImage = (file, maxWidth = 800) =>
         canvas.width = img.width * ratio;
         canvas.height = img.height * ratio;
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.85);
+        canvas.toBlob((blob) => {
+          // Null guard: canvas.toBlob returns null on tainted canvas / unsupported format
+          resolve(blob || file);
+        }, 'image/jpeg', 0.85);
       };
+      img.onerror = () => resolve(file); // Fallback to original on decode error
       img.src = e.target.result;
     };
+    reader.onerror = () => resolve(file);
     reader.readAsDataURL(file);
   });
+
+/**
+ * Скачивает файл из Firebase Storage через SDK (с auth-контекстом, без CORS ограничений)
+ * и возвращает его как base64 data URL.
+ * Используется для миграции legacy-локаций у которых нет сохранённого imageBase64.
+ * @param {string} storagePath — полный путь: 'users/{uid}/locations/...'
+ * @param {string} [mimeType] — MIME-тип файла (по умолчанию 'image/jpeg')
+ * @returns {Promise<string|null>} base64 data URL или null при ошибке
+ */
+export const downloadStoragePathAsBase64 = async (storagePath, mimeType = 'image/jpeg') => {
+  try {
+    const storageRef = ref(storage, storagePath);
+    const bytes = await getBytes(storageRef); // Auth-aware, bypasses CORS
+    const blob = new Blob([bytes], { type: mimeType });
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch (err) {
+    console.warn(`⚠️ downloadStoragePathAsBase64 failed for '${storagePath}':`, err.message);
+    return null;
+  }
+};
 
 /**
  * Конвертирует base64 data URL в Blob.
