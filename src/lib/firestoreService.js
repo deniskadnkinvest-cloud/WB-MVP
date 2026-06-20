@@ -119,3 +119,14 @@ export const updateLocationPrompt = async (uid, locationId, prompt) => {
   const docRef = doc(db, 'users', uid, 'saved_locations', locationId);
   return updateDoc(docRef, { prompt, updatedAt: serverTimestamp() });
 };
+
+/**
+ * Патч произвольных полей локации (используется для миграции).
+ * @param {string} uid
+ * @param {string} locationId
+ * @param {Object} fields — поля для обновления
+ */
+export const patchLocation = async (uid, locationId, fields) => {
+  const docRef = doc(db, 'users', uid, 'saved_locations', locationId);
+  return updateDoc(docRef, fields);
+};

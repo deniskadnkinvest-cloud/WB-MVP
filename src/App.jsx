@@ -14,7 +14,7 @@ import PricingModal from './components/PricingModal';
 import SubscriptionBadge from './components/SubscriptionBadge';
 import MyHistoryPage from './components/MyHistoryPage';
 import { useAuth } from './contexts/AuthContext';
-import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt } from './lib/firestoreService';
+import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt, patchLocation } from './lib/firestoreService';
 import { uploadBase64Image, compressImage, uploadImage, deleteImage } from './lib/storageService';
 import { getSubscription, checkFeature, canGenerate, activatePlan } from './lib/subscriptionService';
 // CardLayerStudio removed — replaced by text-based card editing
@@ -469,8 +469,7 @@ function App() {
       .catch((err) => console.error('Ошибка загрузки моделей:', err));
 
     getLocations(user.uid)
-      .then((locations) => {
-
+      .then(async (locations) => {
         setMyLocations(locations || []);
         // Pre-fill base64 cache from saved inline base64
         const cache = {};
@@ -480,6 +479,48 @@ function App() {
           }
         });
         if (Object.keys(cache).length > 0) setLocBase64Cache(prev => ({ ...prev, ...cache }));
+
+        // === SILENT MIGRATION: backfill imageBase64 for legacy locations ===
+        const needsMigration = (locations || []).filter(
+          loc => !loc.imageBase64 && loc.imageUrls && loc.imageUrls.length > 0
+        );
+        if (needsMigration.length > 0) {
+          console.log(`🔄 Migrating ${needsMigration.length} legacy location(s) to inline base64...`);
+          const uid = user.uid;
+          for (const loc of needsMigration) {
+            try {
+              const b64arr = await Promise.all(
+                loc.imageUrls.slice(0, 5).map(async (url) => {
+                  try {
+                    const resp = await fetch(url);
+                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                    const blob = await resp.blob();
+                    return await new Promise((resolve) => {
+                      const reader = new FileReader();
+                      reader.onload = () => resolve(reader.result);
+                      reader.onerror = () => resolve(null);
+                      reader.readAsDataURL(blob);
+                    });
+                  } catch { return null; }
+                })
+              );
+              const validB64 = b64arr.filter(Boolean);
+              if (validB64.length > 0) {
+                await patchLocation(uid, loc.id, { imageBase64: validB64 });
+                setLocBase64Cache(prev => ({ ...prev, [loc.id]: validB64 }));
+                setMyLocations(prev => prev.map(l =>
+                  l.id === loc.id ? { ...l, imageBase64: validB64 } : l
+                ));
+                console.log(`✅ Migrated loc '${loc.title}' (${validB64.length} images)`);
+              } else {
+                console.warn(`⚠️ Could not migrate loc '${loc.title}' — all URLs failed to load`);
+              }
+            } catch (err) {
+              console.warn(`⚠️ Migration failed for loc '${loc.title}':`, err.message);
+            }
+          }
+          console.log('✅ Location migration complete');
+        }
       })
       .catch((err) => console.error('Ошибка загрузки локаций:', err));
     // Загрузка подписки
