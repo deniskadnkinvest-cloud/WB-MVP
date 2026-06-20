@@ -70,12 +70,17 @@ async function saveGenerationLog({ userId, success, imageUrl, error, reqBody, du
 // ═══════════════════════════════════════════════════════════════════
 // SKIN ULTRA-REALISM SYSTEM PROMPT (применяется ГЛОБАЛЬНО)
 // ═══════════════════════════════════════════════════════════════════
-const SKIN_REALISM_PROMPT = `SKIN & FACE REALISM DIRECTIVE (MANDATORY):
-Generate highly realistic, authentic human skin texture typical of high-end unedited commercial photography.
-The skin must have natural pores, subtle imperfections, and realistic lighting response without looking overly retouched or plastic.
-DO NOT over-exaggerate flaws, scars, micro-cracks, or vellus hair. Avoid "AI grunge" or excessive hyper-realism. The face must look naturally beautiful, healthy, and biologically authentic.
-Eyes must have natural reflections. Avoid any artificial AI glow, over-sharpening, or plastic shine.
-The final image must be INDISTINGUISHABLE from a real professional photograph taken by a human photographer.`;
+const SKIN_REALISM_PROMPT = `SKIN & FACE REALISM DIRECTIVE (MANDATORY — HIGHEST PRIORITY):
+RAW UNRETOUCHED PHOTOGRAPHY MODE. ZERO skin smoothing. ZERO beauty filters. ZERO frequency separation. ZERO airbrushing.
+The skin MUST show real biological texture as captured by a 100mm macro lens at f/2.8:
+- Visible individual pores at pixel level, natural sebum micro-shine on T-zone
+- Subsurface scattering: blood vessels faintly visible under thin skin (temples, inner wrists, eyelids)
+- Natural uneven skin tone, slight redness around nose/cheeks, subtle under-eye circles
+- Micro-wrinkles around eyes when smiling, nasolabial folds appropriate to apparent age
+- Fine vellus hair ("peach fuzz") visible on cheeks and jawline in side lighting
+ANTI-RETOUCHING ENFORCEMENT: If the output skin looks like a magazine cover, porcelain, wax, or has "glow" — it is WRONG. Re-render with MORE texture.
+Eyes: natural moisture film with environment reflections, tiny visible capillaries in sclera, natural iris color variation.
+The final image must look like an UNEDITED photo from a Canon R5 with 85mm f/1.4 lens — raw, authentic, alive.`;
 
 const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, backgroundPreset, aspectRatio, hasMultipleGarments, hasModelRef, isCalibration }) => {
   const modelInstruction = hasModelRef

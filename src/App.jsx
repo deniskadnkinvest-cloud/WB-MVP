@@ -472,6 +472,14 @@ function App() {
       .then((locations) => {
 
         setMyLocations(locations || []);
+        // Pre-fill base64 cache from saved inline base64
+        const cache = {};
+        (locations || []).forEach(loc => {
+          if (loc.imageBase64 && loc.imageBase64.length > 0) {
+            cache[loc.id] = loc.imageBase64;
+          }
+        });
+        if (Object.keys(cache).length > 0) setLocBase64Cache(prev => ({ ...prev, ...cache }));
       })
       .catch((err) => console.error('Ошибка загрузки локаций:', err));
     // Загрузка подписки
@@ -940,7 +948,7 @@ function App() {
               if (task.bg.isLoc) {
                 const loc = myLocations.find(l => l.id === task.bg.id);
                 if (loc) {
-                  locImages = locBase64Cache[loc.id] || loc.imageUrls;
+                  locImages = locBase64Cache[loc.id] || loc.imageBase64 || loc.imageUrls;
                   taskBgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
                   if (task.effect.id !== 'none') {
                     const effectPrompt = task.effect.id === 'custom' ? customProductEffectText.trim() : task.effect.prompt;
@@ -1002,7 +1010,7 @@ function App() {
               if (task.bg.isLoc) {
                 const loc = myLocations.find(l => l.id === task.bg.id);
                 if (loc) {
-                  locImages = locBase64Cache[loc.id] || loc.imageUrls; // prefer pre-fetched base64
+                  locImages = locBase64Cache[loc.id] || loc.imageBase64 || loc.imageUrls; // prefer pre-fetched base64
                   taskBgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
                 }
               }
@@ -1169,9 +1177,31 @@ function App() {
       }));
       const imageUrls = uploads.map(u => u.url);
       const storagePaths = uploads.map(u => u.path);
-      await saveLocation(user.uid, { title: locName.trim(), imageUrls, storagePaths, thumbnail: imageUrls[0] });
+
+      // Сохраняем inline base64 для надёжности (обход проблем Firebase Storage Rules/CORS)
+      const imageBase64 = await Promise.all(locFiles.map(async (f) => {
+        const compressed = await compressImage(f, 500); // 500px — достаточно для AI-reference
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => resolve(null);
+          reader.readAsDataURL(compressed);
+        });
+      }));
+      const validBase64 = imageBase64.filter(Boolean);
+
+      await saveLocation(user.uid, {
+        title: locName.trim(), imageUrls, storagePaths,
+        thumbnail: imageUrls[0],
+        imageBase64: validBase64, // inline base64 для надёжного отображения и генерации
+      });
       const locations = await getLocations(user.uid);
       setMyLocations(locations);
+      // Сразу заполняем кеш для новой локации
+      if (validBase64.length > 0) {
+        const newLocId = locations.find(l => l.title === locName.trim())?.id;
+        if (newLocId) setLocBase64Cache(prev => ({ ...prev, [newLocId]: validBase64 }));
+      }
       setShowLocModal(false); setLocName(''); setLocFiles([]); setLocPreviews([]);
       setStatusText('📍 Локация сохранена!'); setStatusType('success');
     } catch (err) {
@@ -1223,7 +1253,9 @@ function App() {
     setIsSaving(true);
     try {
       const { url, path } = await uploadBase64Image(user.uid, generatedImage, 'models');
-      const mp = customModelPrompt.trim() || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
+      const mp = customModelPrompt.trim()
+        || (customModelChips.length > 0 ? customModelChips[0].prompt : null)
+        || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
       await saveModel(user.uid, { name: saveModelName.trim(), type: 'generated', imageUrls: [url], storagePaths: [path], prompt: mp });
       const models = await getModels(user.uid);
       setMyModels(models);
@@ -1334,6 +1366,7 @@ function App() {
       const sm = myModels.find(m => m.id === selectedSavedModelId);
       if (sm?.prompt) return sm.prompt;
     }
+    if (customModelChips.length > 0) return customModelChips[0].prompt;
     return selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]);
   };
 
@@ -1473,7 +1506,7 @@ function App() {
         if (selectedLocId) {
           const loc = myLocations.find(l => l.id === selectedLocId);
           if (loc) {
-            locImages = locBase64Cache[loc.id] || loc.imageUrls;
+            locImages = locBase64Cache[loc.id] || loc.imageBase64 || loc.imageUrls;
             bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
             if (selectedProductEffect && selectedProductEffect.id !== 'none') {
               const effectPrompt2 = selectedProductEffect.id === 'custom'
@@ -1493,7 +1526,9 @@ function App() {
         }
       } else {
         // Режим одежды (VTON)
-        modelPrompt = customModelPrompt.trim() || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
+        modelPrompt = customModelPrompt.trim()
+          || (customModelChips.length > 0 ? customModelChips[0].prompt : null)
+          || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
         if (selectedSavedModelId) {
           const sm = myModels.find(m => m.id === selectedSavedModelId);
           if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
@@ -1509,7 +1544,7 @@ function App() {
         if (selectedLocId) {
           const loc = myLocations.find(l => l.id === selectedLocId);
           if (loc) {
-            locImages = locBase64Cache[loc.id] || loc.imageUrls;
+            locImages = locBase64Cache[loc.id] || loc.imageBase64 || loc.imageUrls;
             bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
           }
         }
@@ -2303,7 +2338,7 @@ ${userProductInfo.trim()}
         if (selectedLocId) {
           const loc = myLocations.find(l => l.id === selectedLocId);
           if (loc) {
-            locImages = locBase64Cache[loc.id] || loc.imageUrls;
+            locImages = locBase64Cache[loc.id] || loc.imageBase64 || loc.imageUrls;
             bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
             if (selectedProductEffect && selectedProductEffect.id !== 'none') {
               const effectPromptLoc = selectedProductEffect.id === 'custom'
@@ -2314,7 +2349,9 @@ ${userProductInfo.trim()}
           }
         }
       } else {
-        modelPrompt = customModelPrompt.trim() || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
+        modelPrompt = customModelPrompt.trim()
+          || (customModelChips.length > 0 ? customModelChips[0].prompt : null)
+          || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
         if (selectedSavedModelId) {
           const sm = myModels.find(m => m.id === selectedSavedModelId);
           if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
@@ -2322,7 +2359,7 @@ ${userProductInfo.trim()}
         bgPrompt = customBgText.trim() || selectedBgs[0].prompt;
         if (selectedLocId) {
           const loc = myLocations.find(l => l.id === selectedLocId);
-          if (loc) { locImages = locBase64Cache[loc.id] || loc.imageUrls; bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos'; }
+          if (loc) { locImages = locBase64Cache[loc.id] || loc.imageBase64 || loc.imageUrls; bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos'; }
         }
       }
 
@@ -3599,7 +3636,7 @@ ${userProductInfo.trim()}
             <div className="location-card-grid">
               {myLocations.map(loc => (
                 <div key={loc.id} className={`location-card ${selectedLocId===loc.id?'active':''}`} onClick={() => selectLocation(loc.id)}>
-                  <img src={loc.thumbnail || loc.imageUrls?.[0] || ''} alt={loc.title || loc.name || ''} />
+                  <img src={loc.imageBase64?.[0] || loc.thumbnail || loc.imageUrls?.[0] || ''} alt={loc.title || loc.name || ''} onError={(e) => { e.target.style.display = 'none'; }} />
                   <div className="loc-name">{loc.title || loc.name || 'Без названия'}</div>
                   <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteLoc(loc.id); }}>✕</button>
                 </div>
