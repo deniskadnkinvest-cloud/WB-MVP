@@ -1308,7 +1308,7 @@ function App() {
     if (selectedLocId === id) setSelectedLocId(null);
   };
 
-  // LoRA model save (Firebase)
+  // LoRA model save (Firebase) — base64-first, Storage optional
   const saveLoraModel = async (photosOverride) => {
     if (!loraName.trim() || !user) return;
     setIsSaving(true);
@@ -1316,70 +1316,109 @@ function App() {
       const photos = photosOverride || loraPhotos;
       const photoEntries = Object.entries(photos).filter(([, v]) => v);
       if (photoEntries.length === 0) throw new Error('Нет фотографий для сохранения');
-      const uploads = await Promise.all(photoEntries.map(async ([, base64]) => {
-        return uploadBase64Image(user.uid, base64, 'models');
-      }));
-      const imageUrls = uploads.map(u => u.url);
-      const storagePaths = uploads.map(u => u.path);
-      // modelType='own_model' — маркер для VTON pipeline: все фото идут напрямую как референсы
-      await saveModel(user.uid, { name: loraName.trim(), type: 'lora', modelType: 'own_model', imageUrls, storagePaths, prompt: '' });
+
+      // PRIMARY: base64 inline (гарантированно работает)
+      const imageBase64 = photoEntries.map(([, base64]) => base64);
+
+      // BONUS: Storage upload (не блокирует если упадёт)
+      let imageUrls = [];
+      let storagePaths = [];
+      try {
+        const uploads = await Promise.all(photoEntries.map(async ([, base64]) => {
+          return uploadBase64Image(user.uid, base64, 'models');
+        }));
+        imageUrls = uploads.map(u => u.url);
+        storagePaths = uploads.map(u => u.path);
+      } catch (storageErr) {
+        console.warn('⚠️ Storage upload failed (non-critical):', storageErr.message);
+      }
+
+      await saveModel(user.uid, { name: loraName.trim(), type: 'lora', modelType: 'own_model', imageUrls, storagePaths, imageBase64, prompt: '' });
       const models = await getModels(user.uid);
       setMyModels(models);
       setShowLoraModal(false); setLoraName(''); setLoraPhotos({ front: null, left34: null, right34: null, fullbody: null });
       setStatusText('⭐ Модель сохранена!'); setStatusType('success');
     } catch (err) {
       console.error('Ошибка сохранения модели:', err);
-      // Пробрасываем ошибку наверх — LoraModal покажет её в UI
       throw err;
     }
     finally { setIsSaving(false); }
   };
 
-  // Save generated model (Firebase)
+  // Save generated model (Firebase) — base64-first, Storage optional
   const saveGenModel = async () => {
     if (!saveModelName.trim() || !generatedImage || !user) return;
     setIsSaving(true);
     try {
-      const { url, path } = await uploadBase64Image(user.uid, generatedImage, 'models');
       const mp = customModelPrompt.trim()
         || (customModelChips.length > 0 ? customModelChips[0].prompt : null)
         || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
-      await saveModel(user.uid, { name: saveModelName.trim(), type: 'generated', imageUrls: [url], storagePaths: [path], prompt: mp });
+
+      // PRIMARY: base64 inline
+      const imageBase64 = [generatedImage];
+
+      // BONUS: Storage upload
+      let imageUrls = [];
+      let storagePaths = [];
+      try {
+        const { url, path } = await uploadBase64Image(user.uid, generatedImage, 'models');
+        imageUrls = [url];
+        storagePaths = [path];
+      } catch (storageErr) {
+        console.warn('⚠️ Storage upload failed (non-critical):', storageErr.message);
+      }
+
+      await saveModel(user.uid, { name: saveModelName.trim(), type: 'generated', imageUrls, storagePaths, imageBase64, prompt: mp });
       const models = await getModels(user.uid);
       setMyModels(models);
       setShowSaveModelModal(false); setSaveModelName('');
-    } catch (err) { console.error('Ошибка сохранения модели:', err); }
+      setStatusText('✅ Модель сохранена!');
+      setStatusType('success');
+    } catch (err) { console.error('Ошибка сохранения модели:', err); setStatusText('Ошибка сохранения'); setStatusType('error'); }
     finally { setIsSaving(false); }
   };
 
-  // Save calibrated model from wizard (3-angle photos)
+  // Save calibrated model from wizard (3-angle photos) — base64-first
   const saveCalibratedModel = async (name, photos, prompt) => {
     if (!user) {
       throw new Error('Пользователь не авторизован. Войдите в аккаунт.');
     }
     setIsSaving(true);
     try {
-
       const photoEntries = Object.entries(photos).filter(([, v]) => v);
-      // Upload all photos and track which key maps to which URL
-      const uploadResults = await Promise.all(
-        photoEntries.map(async ([key, base64]) => {
-          const result = await uploadBase64Image(user.uid, base64, 'models');
-          return { key, ...result };
-        })
-      );
-      const imageUrls = uploadResults.map(u => u.url);
-      const storagePaths = uploadResults.map(u => u.path);
-      // fullbodyUrl — отдельное поле для удобного отображения превью в галерее
-      const fullbodyEntry = uploadResults.find(u => u.key === 'fullbody');
-      const fullbodyUrl = fullbodyEntry?.url || null;
+
+      // PRIMARY: base64 inline
+      const imageBase64 = photoEntries.map(([, base64]) => base64);
+      const fullbodyBase64 = photos.fullbody || null;
+
+      // BONUS: Storage upload
+      let imageUrls = [];
+      let storagePaths = [];
+      let fullbodyUrl = null;
+      try {
+        const uploadResults = await Promise.all(
+          photoEntries.map(async ([key, base64]) => {
+            const result = await uploadBase64Image(user.uid, base64, 'models');
+            return { key, ...result };
+          })
+        );
+        imageUrls = uploadResults.map(u => u.url);
+        storagePaths = uploadResults.map(u => u.path);
+        const fullbodyEntry = uploadResults.find(u => u.key === 'fullbody');
+        fullbodyUrl = fullbodyEntry?.url || null;
+      } catch (storageErr) {
+        console.warn('⚠️ Storage upload failed (non-critical):', storageErr.message);
+      }
+
       await saveModel(user.uid, {
         name,
         type: 'calibrated',
         imageUrls,
         storagePaths,
+        imageBase64,
         prompt: prompt || '',
         ...(fullbodyUrl ? { fullbodyUrl } : {}),
+        ...(fullbodyBase64 ? { fullbodyBase64 } : {}),
       });
       const models = await getModels(user.uid);
       setMyModels(models);
@@ -1391,7 +1430,7 @@ function App() {
       console.error('Ошибка сохранения модели:', err);
       setStatusText('Ошибка сохранения модели');
       setStatusType('error');
-      throw err; // Re-throw so wizard can show the error
+      throw err;
     } finally {
       setIsSaving(false);
     }
@@ -1467,13 +1506,16 @@ function App() {
       // Product mode: use product model's saved refs
       if (productSavedModelId) {
         const sm = myModels.find(m => m.id === productSavedModelId);
-        if (sm?.imageUrls) refs.push(...sm.imageUrls);
+        // Prefer base64 (works even if Storage quota exceeded)
+        if (sm?.imageBase64?.length) refs.push(...sm.imageBase64);
+        else if (sm?.imageUrls) refs.push(...sm.imageUrls);
       }
     } else {
       // Fashion mode: use fashion model's saved refs
       if (selectedSavedModelId) {
         const sm = myModels.find(m => m.id === selectedSavedModelId);
-        if (sm?.imageUrls) refs.push(...sm.imageUrls);
+        if (sm?.imageBase64?.length) refs.push(...sm.imageBase64);
+        else if (sm?.imageUrls) refs.push(...sm.imageUrls);
       }
     }
     return refs;
@@ -1521,15 +1563,29 @@ function App() {
     finally { setIsPreviewingModel(false); }
   };
 
-  // Save modified model as NEW (does not overwrite original)
+  // Save modified model as NEW — base64-first
   const saveModelAsNew = async () => {
     if (!user || !modelPreviewSrc || !modelPreviewName.trim()) return;
     setIsSaving(true);
     try {
       const sm = myModels.find(m => m.id === selectedSavedModelId);
       const newPrompt = ((sm?.prompt || '') + '. Additionally: ' + modelModifier.trim()).trim();
-      const { url, path } = await uploadBase64Image(user.uid, modelPreviewSrc, 'models');
-      await saveModel(user.uid, { name: modelPreviewName.trim(), type: 'generated', imageUrls: [url], storagePaths: [path], prompt: newPrompt });
+
+      // PRIMARY: base64 inline
+      const imageBase64 = [modelPreviewSrc];
+
+      // BONUS: Storage upload
+      let imageUrls = [];
+      let storagePaths = [];
+      try {
+        const { url, path } = await uploadBase64Image(user.uid, modelPreviewSrc, 'models');
+        imageUrls = [url];
+        storagePaths = [path];
+      } catch (storageErr) {
+        console.warn('⚠️ Storage upload failed (non-critical):', storageErr.message);
+      }
+
+      await saveModel(user.uid, { name: modelPreviewName.trim(), type: 'generated', imageUrls, storagePaths, imageBase64, prompt: newPrompt });
       const models = await getModels(user.uid);
       setMyModels(models);
       setModelPreviewSrc(null); setModelPreviewName(''); setModelModifier(''); setShowModelModifier(false);
@@ -3052,9 +3108,9 @@ ${userProductInfo.trim()}
                               {myModels.map(m => (
                                 <div key={m.id} className={`model-avatar ${productSavedModelId===m.id?'active':''}`}
                                   onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
-                                  <img src={m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
+                                  <img src={m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                                   <div className="avatar-name">{m.name}</div>
-                                  <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
+                                  <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
                                   <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>✕</button>
                                 </div>
                               ))}
@@ -3267,9 +3323,9 @@ ${userProductInfo.trim()}
                         {myModels.map(m => (
                           <div key={m.id} className={`model-avatar ${productSavedModelId===m.id?'active':''}`}
                             onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
-                            <img src={m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
+                            <img src={m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                             <div className="avatar-name">{m.name}</div>
-                            <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
+                            <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
                             <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>✕</button>
                           </div>
                         ))}
@@ -3395,9 +3451,9 @@ ${userProductInfo.trim()}
                     {myModels.map(m => (
                       <div key={m.id} className={`model-avatar ${selectedSavedModelId===m.id?'active':''}`}
                         onClick={() => { setSelectedSavedModelId(m.id); setCustomModelPrompt(''); setShowDetails(false); }}>
-                        <img src={m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
+                        <img src={m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                         <div className="avatar-name">{m.name}</div>
-                        <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
+                        <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
                         <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>✕</button>
                       </div>
                     ))}
