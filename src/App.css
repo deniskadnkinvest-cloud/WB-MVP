@@ -218,6 +218,35 @@
   font-weight: 600;
 }
 
+/* Кнопка снятия выбора на активной карточке */
+.preset-card-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: rgba(239, 68, 68, 0.85);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--fast) ease, transform var(--fast) ease;
+  z-index: 3;
+  line-height: 1;
+  padding: 0;
+}
+
+.preset-card:hover .preset-card-remove {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
 /* Delete button on cards */
 .preset-card .delete-btn {
   position: absolute;

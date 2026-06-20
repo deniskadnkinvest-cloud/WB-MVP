@@ -3154,8 +3154,10 @@ ${userProductInfo.trim()}
                 {filteredModels.map(m => {
                   const isActive = selectedModels.some(s => s.id === m.id) && !customModelPrompt && !selectedSavedModelId;
                   const isHighlighted = activeModelDetailsId === m.id;
+                  const canRemove = isActive && (selectedModels.length + customModelChips.length) > 1;
                   return (
                     <div key={m.id} className={`preset-card ${isActive ? 'active' : ''} ${isHighlighted ? 'active-highlight' : ''}`}
+                      style={{ position: 'relative' }}
                       onClick={() => { 
                         if (customModelPrompt || selectedSavedModelId) {
                           setSelectedModels([m]); 
@@ -3166,15 +3168,10 @@ ${userProductInfo.trim()}
                         } else {
                           const alreadySelected = selectedModels.some(s => s.id === m.id);
                           if (alreadySelected) {
-                            if (activeModelDetailsId === m.id) {
-                              setShowDetails(v => !v);
-                            } else {
-                              setActiveModelDetailsId(m.id);
-                              setShowDetails(true);
-                            }
-                            if (selectedModels.length + customModelChips.length > 1) {
-                              setSelectedModels(prev => prev.filter(s => s.id !== m.id));
-                            }
+                            // Просто переключаем фокус редактирования на эту модель
+                            // НЕ снимаем выделение — для снятия нужна отдельная кнопка ✕
+                            setActiveModelDetailsId(m.id);
+                            setShowDetails(true);
                           } else {
                             setSelectedModels(prev => [...prev, m]);
                             setActiveModelDetailsId(m.id);
@@ -3183,6 +3180,13 @@ ${userProductInfo.trim()}
                         }
                       }}>
                       <span className="emoji">{m.emoji}</span><span className="label">{m.label}</span>
+                      {canRemove && (
+                        <button
+                          className="preset-card-remove"
+                          onClick={e => { e.stopPropagation(); setSelectedModels(prev => prev.filter(s => s.id !== m.id)); if (activeModelDetailsId === m.id) { const remaining = selectedModels.filter(s => s.id !== m.id); if (remaining.length > 0) setActiveModelDetailsId(remaining[0].id); } }}
+                          title="Снять выбор"
+                        >✕</button>
+                      )}
                     </div>
                   );
                 })}
