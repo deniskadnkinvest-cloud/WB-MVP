@@ -1224,14 +1224,7 @@ function App() {
     if (!locName.trim() || locFiles.length < 2 || !user) return;
     setIsSaving(true);
     try {
-      const uploads = await Promise.all(locFiles.map(async (f) => {
-        const compressed = await compressImage(f, 800);
-        return uploadImage(user.uid, compressed, 'locations');
-      }));
-      const imageUrls = uploads.map(u => u.url);
-      const storagePaths = uploads.map(u => u.path);
-
-      // Сохраняем inline base64 для надёжности (обход проблем Firebase Storage Rules/CORS)
+      // PRIMARY: Сохраняем inline base64 (главный механизм — не зависит от Firebase Storage)
       const imageBase64 = await Promise.all(locFiles.map(async (f) => {
         const compressed = await compressImage(f, 500); // 500px — достаточно для AI-reference
         return new Promise((resolve) => {
@@ -1242,11 +1235,29 @@ function App() {
         });
       }));
       const validBase64 = imageBase64.filter(Boolean);
+      if (validBase64.length === 0) throw new Error('Не удалось обработать фотографии');
+
+      // BONUS: пробуем загрузить в Firebase Storage (не критично если упадёт)
+      let imageUrls = [];
+      let storagePaths = [];
+      try {
+        const uploads = await Promise.all(locFiles.map(async (f) => {
+          const compressed = await compressImage(f, 800);
+          return uploadImage(user.uid, compressed, 'locations');
+        }));
+        imageUrls = uploads.map(u => u.url);
+        storagePaths = uploads.map(u => u.path);
+      } catch (storageErr) {
+        console.warn('⚠️ Firebase Storage upload failed (non-critical):', storageErr.message);
+        // Продолжаем — у нас есть base64, этого достаточно
+      }
 
       await saveLocation(user.uid, {
-        title: locName.trim(), imageUrls, storagePaths,
-        thumbnail: imageUrls[0],
-        imageBase64: validBase64, // inline base64 для надёжного отображения и генерации
+        title: locName.trim(),
+        imageUrls,      // может быть пустым если Storage недоступен
+        storagePaths,   // может быть пустым если Storage недоступен
+        thumbnail: imageUrls[0] || null,
+        imageBase64: validBase64, // ГЛАВНЫЙ источник фото
       });
       const locations = await getLocations(user.uid);
       setMyLocations(locations);
