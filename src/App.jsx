@@ -497,7 +497,7 @@ function App() {
                   loc.storagePaths.slice(0, 5).map(path => downloadStoragePathAsBase64(path))
                 );
               }
-              // Strategy 2: fallback — direct URL fetch (may work if Storage Rules allow token access)
+              // Strategy 2: fallback — direct URL fetch
               if (b64arr.filter(Boolean).length === 0 && loc.imageUrls && loc.imageUrls.length > 0) {
                 console.log(`↩️ SDK failed for '${loc.title}', trying direct URL fetch...`);
                 b64arr = await Promise.all(
@@ -516,8 +516,32 @@ function App() {
                   })
                 );
               }
+              // Strategy 3: Server-side Admin SDK migration (bypasses ALL client restrictions)
+              if (b64arr.filter(Boolean).length === 0 && loc.storagePaths && loc.storagePaths.length > 0) {
+                console.log(`🖥️ Trying server-side migration for '${loc.title}'...`);
+                try {
+                  const idToken = await user.getIdToken();
+                  if (idToken) {
+                    const resp = await fetch('/api/admin/migrate-location', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+                      body: JSON.stringify({ locationId: loc.id, storagePaths: loc.storagePaths }),
+                    });
+                    const data = await resp.json();
+                    if (data.ok && data.base64 && data.base64.length > 0) {
+                      b64arr = data.base64;
+                      console.log(`✅ Server migration succeeded for '${loc.title}' (${data.count} images)`);
+                    } else {
+                      console.warn(`⚠️ Server migration failed for '${loc.title}':`, data.error);
+                    }
+                  }
+                } catch (srvErr) {
+                  console.warn(`⚠️ Server migration request failed:`, srvErr.message);
+                }
+              }
               const validB64 = b64arr.filter(Boolean);
               if (validB64.length > 0) {
+                // Server already patched Firestore if strategy 3 worked, but update local state
                 await patchLocation(uid, loc.id, { imageBase64: validB64 });
                 setLocBase64Cache(prev => ({ ...prev, [loc.id]: validB64 }));
                 setMyLocations(prev => prev.map(l =>
@@ -525,7 +549,7 @@ function App() {
                 ));
                 console.log(`✅ Migrated loc '${loc.title}' (${validB64.length} images)`);
               } else {
-                console.warn(`⚠️ Could not migrate loc '${loc.title}' — both SDK and URL fetch failed. Storage Rules may block all reads.`);
+                console.warn(`⚠️ Could not migrate loc '${loc.title}' — all 3 strategies failed. Files may be permanently inaccessible.`);
               }
             } catch (err) {
               console.warn(`⚠️ Migration failed for loc '${loc.title}':`, err.message);
