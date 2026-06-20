@@ -2723,7 +2723,7 @@ ${userProductInfo.trim()}
               <div className="multi-preview-grid">
                 {previewUrls.map((url, i) => (
                   <div key={i} className="multi-preview-item">
-                    <img src={url} alt={`Товар ${i+1}`} />
+                    <img src={url} alt={`Товар ${i+1}`} style={{cursor:'zoom-in'}} onClick={() => setLightboxSrc(url)} />
                     <button className="remove-preview" onClick={() => removeFile(i)}>✕</button>
                   </div>
                 ))}
@@ -2894,6 +2894,8 @@ ${userProductInfo.trim()}
                                   onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
                                   <img src={m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                                   <div className="avatar-name">{m.name}</div>
+                                  <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
+                                  <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>✕</button>
                                 </div>
                               ))}
                             </div>
@@ -3107,6 +3109,8 @@ ${userProductInfo.trim()}
                             onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
                             <img src={m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                             <div className="avatar-name">{m.name}</div>
+                            <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
+                            <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>✕</button>
                           </div>
                         ))}
                       </div>
@@ -3225,6 +3229,7 @@ ${userProductInfo.trim()}
                         onClick={() => { setSelectedSavedModelId(m.id); setCustomModelPrompt(''); setShowDetails(false); }}>
                         <img src={m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                         <div className="avatar-name">{m.name}</div>
+                        <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
                         <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>✕</button>
                       </div>
                     ))}
@@ -4559,7 +4564,7 @@ ${userProductInfo.trim()}
                 <input type="file" accept="image/*" multiple ref={locFileRef} style={{display:'none'}} onChange={e=>handleLocFiles(e.target.files)} />
                 <p className="drop-zone-text">📸 Перетащите или нажмите</p>
                 <p className="drop-zone-hint">2-5 фотографий локации с разных ракурсов</p>
-                {locPreviews.length>0 && <div className="drop-zone-previews">{locPreviews.map((p,i)=><img key={i} src={p} alt="" />)}</div>}
+                {locPreviews.length>0 && <div className="drop-zone-previews">{locPreviews.map((p,i)=><img key={i} src={p} alt="" style={{cursor:'zoom-in'}} onClick={(e) => { e.stopPropagation(); setLightboxSrc(p); }} />)}</div>}
               </div>
               <div className="modal-actions">
                 <button className="modal-btn-cancel" onClick={()=>{setShowLocModal(false);setLocName('');setLocPreviews([]);}}>Отмена</button>
