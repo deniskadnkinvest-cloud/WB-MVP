@@ -3754,6 +3754,36 @@ ${userProductInfo.trim()}
                 <span className="plus-icon">+</span><span>Оцифровать локацию</span>
               </div>
             </div>
+            {/* Кнопка восстановления удалённых локаций из Storage */}
+            <div style={{marginTop: '8px', textAlign: 'center'}}>
+              <button
+                style={{background: 'none', border: 'none', color: 'rgba(255,180,0,0.6)', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline', padding: '4px'}}
+                onClick={async () => {
+                  try {
+                    const idToken = await user.getIdToken();
+                    const locName = prompt('Название для восстановленной локации:', 'Хата ксона') || 'Восстановленная локация';
+                    const resp = await fetch('/api/admin/recover-locations', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+                      body: JSON.stringify({ title: locName }),
+                    });
+                    const data = await resp.json();
+                    if (data.ok) {
+                      alert(`✅ Восстановлено ${data.count} фото! Перезагружаем...`);
+                      const locs = await getLocations(user.uid);
+                      setMyLocations(locs || []);
+                      const cache = {};
+                      (locs || []).forEach(l => { if (l.imageBase64?.length) cache[l.id] = l.imageBase64; });
+                      setLocBase64Cache(prev => ({ ...prev, ...cache }));
+                    } else {
+                      alert(`⚠️ Не удалось восстановить: ${data.error}\n\nПодсказка: ${data.hint || 'Файлы могут быть удалены из Storage. Придётся загрузить заново.'}`);
+                    }
+                  } catch (e) {
+                    alert('Ошибка: ' + e.message);
+                  }
+                }}
+              >🔄 Восстановить удалённые локации из Storage</button>
+            </div>
             {selectedLocId && (
               <div className="modifier-block">
                 <button className="modifier-toggle" onClick={() => setShowLocModifier(!showLocModifier)}>

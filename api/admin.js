@@ -20,6 +20,7 @@ import errorsHandler from './_admin/errors.js';
 import promptsHandler from './_admin/prompts.js';
 import debugSubHandler from './_admin/debug-sub.js';
 import migrateLocationHandler from './_admin/migrate-location.js';
+import recoverLocationsHandler from './_admin/recover-locations.js';
 
 export default async function handler(req, res) {
   // Разбираем URL-путь (например, "/api/admin/verify?key=..." -> "/api/admin/verify")
@@ -57,6 +58,8 @@ export default async function handler(req, res) {
       return promptsHandler(req, res);
     case 'migrate-location':
       return migrateLocationHandler(req, res);
+    case 'recover-locations':
+      return recoverLocationsHandler(req, res);
     case 'broadcast':
       return broadcastHandler(req, res);
     case 'broadcasts':
