@@ -3222,7 +3222,7 @@ ${userProductInfo.trim()}
                   </div>
                 )}
               </div>
-              <DetailPanel modelDetails={modelDetails} setModelDetails={setModelDetails} visible={showDetails && !customModelPrompt && !selectedSavedModelId} gender={gender} extraPrompt={extraModelPrompt} setExtraPrompt={setExtraModelPrompt} title={getActiveModelLabel()} />
+              <DetailPanel modelDetails={modelDetails} setModelDetails={setModelDetails} visible={showDetails && !customModelPrompt && !selectedSavedModelId} gender={gender} extraPrompt={extraModelPrompt} setExtraPrompt={setExtraModelPrompt} title={getActiveModelLabel()} onClose={() => setShowDetails(false)} />
               {(customModelChips.some(c => /тату|tattoo/i.test(c.prompt)) || /тату|tattoo/i.test(customModelPrompt)) && (
                 <div className="tattoo-warning">⚠️ Татуировка отлично получится на одиночном фото, но в серии (фотосессия) может искажаться. Для стабильной модели старайтесь не использовать тату.</div>
               )}

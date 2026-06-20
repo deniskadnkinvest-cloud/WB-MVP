@@ -5,7 +5,7 @@ import { getModelDetails } from '../data/presets';
 // Fields that support multi-select (can pick several at once)
 const MULTI_SELECT_FIELDS = ['tattoo'];
 
-export default function DetailPanel({ modelDetails, setModelDetails, visible, gender, extraPrompt, setExtraPrompt }) {
+export default function DetailPanel({ modelDetails, setModelDetails, visible, gender, extraPrompt, setExtraPrompt, title, onClose }) {
   const detailsConfig = getModelDetails(gender);
   const DETAIL_KEYS = Object.keys(detailsConfig);
 
@@ -54,6 +54,14 @@ export default function DetailPanel({ modelDetails, setModelDetails, visible, ge
           transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
           style={{ overflow: 'hidden', transformOrigin: 'top' }}
         >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px dashed rgba(212,175,55,0.15)', marginBottom: 12 }}>
+            <span style={{ color: 'var(--gold)', fontSize: '0.85rem', fontWeight: 600 }}>
+              ⚙️ Настройка параметров для: {title || '...'}
+            </span>
+            {onClose && (
+              <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1.1rem', lineHeight: 1, padding: '2px 4px', borderRadius: 4, transition: 'color 0.15s' }} title="Свернуть">✕</button>
+            )}
+          </div>
           {DETAIL_KEYS.map(key => (
             <div className="detail-row" key={key}>
               <div className="detail-label">
