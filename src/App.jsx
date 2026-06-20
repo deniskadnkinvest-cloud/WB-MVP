@@ -3168,10 +3168,14 @@ ${userProductInfo.trim()}
                         } else {
                           const alreadySelected = selectedModels.some(s => s.id === m.id);
                           if (alreadySelected) {
-                            // Просто переключаем фокус редактирования на эту модель
-                            // НЕ снимаем выделение — для снятия нужна отдельная кнопка ✕
-                            setActiveModelDetailsId(m.id);
-                            setShowDetails(true);
+                            if (activeModelDetailsId === m.id) {
+                              // Повторный клик на уже активную карточку — скрыть/показать панель
+                              setShowDetails(v => !v);
+                            } else {
+                              // Клик на другую выбранную карточку — переключить фокус, НЕ снимать выделение
+                              setActiveModelDetailsId(m.id);
+                              setShowDetails(true);
+                            }
                           } else {
                             setSelectedModels(prev => [...prev, m]);
                             setActiveModelDetailsId(m.id);
