@@ -3461,8 +3461,8 @@ ${userProductInfo.trim()}
                 </div>
               );
             })}
-            {/* Импровизация — only when >1 model selected */}
-            {isMultiModel && (() => {
+            {/* Импровизация — always visible */}
+            {(() => {
               const isImprovActive = selectedPoses.some(s => s.id === IMPROV_POSE.id) && !customPoseText;
               return (
                 <div className={`preset-card ${isImprovActive ? 'active' : ''}`}
@@ -4462,7 +4462,21 @@ ${userProductInfo.trim()}
       <AnimatePresence>
         {generatedImage && appMode !== 'quick' && (
           <motion.div key="result-section" className="section result-section" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} exit={{opacity:0}} transition={{duration:0.5}}>
-            <h3>Финальный Рендер</h3>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px'}}>
+              <h3 style={{margin:0}}>Финальный Рендер</h3>
+              <button
+                onClick={() => {
+                  setGeneratedImage(null);
+                  setImageHistory([]);
+                  setHistoryIndex(0);
+                  localStorage.removeItem('vton_generatedImage');
+                }}
+                title="Закрыть рендер"
+                style={{background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'50%', width:'32px', height:'32px', cursor:'pointer', fontSize:'16px', color:'rgba(255,255,255,0.6)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all 0.2s'}}
+                onMouseEnter={e => { e.currentTarget.style.background='rgba(255,80,80,0.25)'; e.currentTarget.style.color='#ff6060'; e.currentTarget.style.borderColor='rgba(255,80,80,0.4)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,0.08)'; e.currentTarget.style.color='rgba(255,255,255,0.6)'; e.currentTarget.style.borderColor='rgba(255,255,255,0.15)'; }}
+              >✕</button>
+            </div>
             <div className="result-image-wrap" style={{position:'relative'}}>
               {/* ← Previous render */}
               {imageHistory.length > 1 && historyIndex > 0 && (
