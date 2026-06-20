@@ -1138,7 +1138,11 @@ function App() {
       const locations = await getLocations(user.uid);
       setMyLocations(locations);
       setShowLocModal(false); setLocName(''); setLocFiles([]); setLocPreviews([]);
-    } catch (err) { console.error('Ошибка сохранения локации:', err); }
+      setStatusText('📍 Локация сохранена!'); setStatusType('success');
+    } catch (err) {
+      console.error('Ошибка сохранения локации:', err);
+      setStatusText(`❌ Ошибка сохранения локации: ${err.message || 'Неизвестная ошибка'}`); setStatusType('error');
+    }
     finally { setIsSaving(false); }
   };
 
@@ -1158,6 +1162,7 @@ function App() {
     try {
       const photos = photosOverride || loraPhotos;
       const photoEntries = Object.entries(photos).filter(([, v]) => v);
+      if (photoEntries.length === 0) throw new Error('Нет фотографий для сохранения');
       const uploads = await Promise.all(photoEntries.map(async ([, base64]) => {
         return uploadBase64Image(user.uid, base64, 'models');
       }));
@@ -1168,7 +1173,12 @@ function App() {
       const models = await getModels(user.uid);
       setMyModels(models);
       setShowLoraModal(false); setLoraName(''); setLoraPhotos({ front: null, left34: null, right34: null, fullbody: null });
-    } catch (err) { console.error('Ошибка сохранения модели:', err); }
+      setStatusText('⭐ Модель сохранена!'); setStatusType('success');
+    } catch (err) {
+      console.error('Ошибка сохранения модели:', err);
+      // Пробрасываем ошибку наверх — LoraModal покажет её в UI
+      throw err;
+    }
     finally { setIsSaving(false); }
   };
 
@@ -3102,8 +3112,16 @@ ${userProductInfo.trim()}
                       </div>
                     )}
                     {myModels.length === 0 && (
-                      <p className="section-hint" style={{textAlign:'center',padding:'20px 0'}}>У вас пока нет сохранённых моделей. Создайте модель в режиме Одежда → Мои модели</p>
+                      <p className="section-hint" style={{textAlign:'center',padding:'20px 0'}}>У вас пока нет сохранённых моделей</p>
                     )}
+                    <div className="add-location-card" style={{marginTop: myModels.length ? 12 : 0, background:'rgba(168,85,247,0.08)', borderColor:'rgba(168,85,247,0.2)'}} onClick={() => setShowPersonaWizard(true)}>
+                      <span className="plus-icon" style={{color:'#a855f7'}}>🧑</span>
+                      <span style={{color:'#a855f7'}}>Создать персонажа</span>
+                    </div>
+                    <div className="add-location-card" style={{marginTop: 8}} onClick={() => setShowLoraModal(true)}>
+                      <span className="plus-icon">+</span>
+                      <span>Добавить свою модель</span>
+                    </div>
                   </>
                 )}
               </motion.div>
