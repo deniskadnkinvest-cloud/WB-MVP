@@ -490,9 +490,32 @@ function App() {
           for (const loc of needsMigration) {
             try {
               // Use Firebase Storage SDK (auth-aware) — bypasses CORS and Storage Rules
-              const b64arr = await Promise.all(
-                (loc.storagePaths || []).slice(0, 5).map(path => downloadStoragePathAsBase64(path))
-              );
+              // Strategy 1: Firebase SDK getBytes (auth-aware, bypasses CORS)
+              let b64arr = [];
+              if (loc.storagePaths && loc.storagePaths.length > 0) {
+                b64arr = await Promise.all(
+                  loc.storagePaths.slice(0, 5).map(path => downloadStoragePathAsBase64(path))
+                );
+              }
+              // Strategy 2: fallback — direct URL fetch (may work if Storage Rules allow token access)
+              if (b64arr.filter(Boolean).length === 0 && loc.imageUrls && loc.imageUrls.length > 0) {
+                console.log(`↩️ SDK failed for '${loc.title}', trying direct URL fetch...`);
+                b64arr = await Promise.all(
+                  loc.imageUrls.slice(0, 5).map(async (url) => {
+                    try {
+                      const resp = await fetch(url, { mode: 'cors' });
+                      if (!resp.ok) return null;
+                      const blob = await resp.blob();
+                      return await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = () => resolve(null);
+                        reader.readAsDataURL(blob);
+                      });
+                    } catch { return null; }
+                  })
+                );
+              }
               const validB64 = b64arr.filter(Boolean);
               if (validB64.length > 0) {
                 await patchLocation(uid, loc.id, { imageBase64: validB64 });
@@ -500,9 +523,9 @@ function App() {
                 setMyLocations(prev => prev.map(l =>
                   l.id === loc.id ? { ...l, imageBase64: validB64 } : l
                 ));
-                console.log(`✅ Migrated loc '${loc.title}' (${validB64.length} images via SDK)`);
+                console.log(`✅ Migrated loc '${loc.title}' (${validB64.length} images)`);
               } else {
-                console.warn(`⚠️ Could not migrate loc '${loc.title}' — SDK download failed (check Storage Rules)`);
+                console.warn(`⚠️ Could not migrate loc '${loc.title}' — both SDK and URL fetch failed. Storage Rules may block all reads.`);
               }
             } catch (err) {
               console.warn(`⚠️ Migration failed for loc '${loc.title}':`, err.message);
