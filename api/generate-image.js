@@ -2704,13 +2704,20 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
 
       // Поддержка локаций для товаров
       if (locationImages && Array.isArray(locationImages) && locationImages.length > 0) {
+        console.log(`📍 [Product] Loading ${locationImages.length} location image(s)...`);
         for (const img of locationImages.slice(0, 5)) {
           if (img.startsWith('data:')) { imageInputs.push(img); }
           else if (img.startsWith('http')) {
             const result = await downloadToBase64(img);
-            if (result) imageInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
+            if (result) {
+              imageInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
+              console.log(`✅ [Product] Location image loaded OK (${result.base64str.length} bytes b64)`);
+            } else {
+              console.error(`❌ [Product] FAILED to load location image: ${img.substring(0, 80)}`);
+            }
           }
         }
+        console.log(`📍 [Product] After loc load: imageInputs.length=${imageInputs.length}`);
       }
 
       console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product Mode → KIE.ai (gpt-image-2), ${imageInputs.length} image(s), model=${withHumanModel}...`);
@@ -2832,15 +2839,22 @@ IMPERATIVE RULES FOR POSE EXECUTION:
     }
 
     if (locationImages && Array.isArray(locationImages) && locationImages.length > 0) {
+      console.log(`📍 [Fashion] Loading ${locationImages.length} location image(s)...`);
       promptText += `\n<location_reference>\nUse the attached location images as reference for the background.\n</location_reference>\n`;
       for (const img of locationImages.slice(0, 5)) {
         if (img.startsWith('data:')) {
           imageInputs.push(img);
         } else if (img.startsWith('http')) {
           const result = await downloadToBase64(img);
-          if (result) imageInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
+          if (result) {
+            imageInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
+            console.log(`✅ [Fashion] Location image loaded OK`);
+          } else {
+            console.error(`❌ [Fashion] FAILED to load location image: ${img.substring(0, 80)}`);
+          }
         }
       }
+      console.log(`📍 [Fashion] After loc load: imageInputs.length=${imageInputs.length}`);
     }
 
     promptText += `<schema_generation_directive>
