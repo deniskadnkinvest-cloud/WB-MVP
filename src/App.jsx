@@ -3687,13 +3687,34 @@ ${userProductInfo.trim()}
         ) : (
           <>
             <div className="location-card-grid">
-              {myLocations.map(loc => (
-                <div key={loc.id} className={`location-card ${selectedLocId===loc.id?'active':''}`} onClick={() => selectLocation(loc.id)}>
-                  <img src={loc.imageBase64?.[0] || loc.thumbnail || loc.imageUrls?.[0] || ''} alt={loc.title || loc.name || ''} onError={(e) => { e.target.style.display = 'none'; }} />
-                  <div className="loc-name">{loc.title || loc.name || 'Без названия'}</div>
-                  <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteLoc(loc.id); }}>✕</button>
-                </div>
-              ))}
+              {myLocations.map(loc => {
+                const hasPhoto = loc.imageBase64?.length > 0;
+                return (
+                  <div key={loc.id} className={`location-card ${selectedLocId===loc.id?'active':''} ${!hasPhoto?'loc-needs-reupload':''}`} onClick={() => hasPhoto && selectLocation(loc.id)}
+                    style={!hasPhoto ? {cursor:'default', opacity: 0.7} : {}}>
+                    {hasPhoto ? (
+                      <img src={loc.imageBase64[0]} alt={loc.title || loc.name || ''} onError={(e) => { e.target.style.display = 'none'; }} />
+                    ) : (
+                      <div style={{width:'100%', height:'80px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'4px', background:'rgba(255,160,0,0.08)', borderRadius:'6px'}}>
+                        <span style={{fontSize:'20px'}}>⚠️</span>
+                        <span style={{fontSize:'10px', color:'rgba(255,180,0,0.9)', textAlign:'center', lineHeight:'1.2'}}>Фото недоступно</span>
+                        <button
+                          style={{marginTop:'2px', padding:'3px 8px', fontSize:'10px', background:'rgba(255,160,0,0.2)', border:'1px solid rgba(255,160,0,0.5)', borderRadius:'4px', color:'#ffb300', cursor:'pointer'}}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Удалить "${loc.title || 'локацию'}" и загрузить фото заново?`)) {
+                              await deleteLoc(loc.id);
+                              setShowLocModal(true);
+                            }
+                          }}
+                        >📸 Перезагрузить</button>
+                      </div>
+                    )}
+                    <div className="loc-name">{loc.title || loc.name || 'Без названия'}</div>
+                    <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteLoc(loc.id); }}>✕</button>
+                  </div>
+                );
+              })}
               <div className="add-location-card" onClick={() => setShowLocModal(true)}>
                 <span className="plus-icon">+</span><span>Оцифровать локацию</span>
               </div>
