@@ -17,29 +17,29 @@ import { useAuth } from './contexts/AuthContext';
 import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt, patchLocation } from './lib/firestoreService';
 import { uploadBase64Image, compressImage, uploadImage, deleteImage, downloadStoragePathAsBase64 } from './lib/storageService';
 import { getSubscription, checkFeature, canGenerate, activatePlan } from './lib/subscriptionService';
-// CardLayerStudio removed вЂ” replaced by text-based card editing
+// CardLayerStudio removed РІР‚вЂќ replaced by text-based card editing
 import './App.css';
 
-const MSGS = ['РђРЅР°Р»РёР·РёСЂСѓРµРј С‚РµРєСЃС‚СѓСЂСѓ С‚РєР°РЅРё...','Р’С‹СЃС‚Р°РІР»СЏРµРј СЃС‚СѓРґРёР№РЅС‹Р№ СЃРІРµС‚...','РЎС‚СЂРѕРёРј 3D-РјРѕРґРµР»СЊ С„РёРіСѓСЂС‹...','РќР°С‚СЏРіРёРІР°РµРј РѕРґРµР¶РґСѓ СЃ СѓС‡РµС‚РѕРј С„РёР·РёРєРё...','Р РµРЅРґРµСЂРёРј С„РёРЅР°Р»СЊРЅС‹Р№ РєР°РґСЂ...'];
+const MSGS = ['Р С’Р Р…Р В°Р В»Р С‘Р В·Р С‘РЎР‚РЎС“Р ВµР С РЎвЂљР ВµР С”РЎРѓРЎвЂљРЎС“РЎР‚РЎС“ РЎвЂљР С”Р В°Р Р…Р С‘...','Р вЂ™РЎвЂ№РЎРѓРЎвЂљР В°Р Р†Р В»РЎРЏР ВµР С РЎРѓРЎвЂљРЎС“Р Т‘Р С‘Р в„–Р Р…РЎвЂ№Р в„– РЎРѓР Р†Р ВµРЎвЂљ...','Р РЋРЎвЂљРЎР‚Р С•Р С‘Р С 3D-Р СР С•Р Т‘Р ВµР В»РЎРЉ РЎвЂћР С‘Р С–РЎС“РЎР‚РЎвЂ№...','Р СњР В°РЎвЂљРЎРЏР С–Р С‘Р Р†Р В°Р ВµР С Р С•Р Т‘Р ВµР В¶Р Т‘РЎС“ РЎРѓ РЎС“РЎвЂЎР ВµРЎвЂљР С•Р С РЎвЂћР С‘Р В·Р С‘Р С”Р С‘...','Р В Р ВµР Р…Р Т‘Р ВµРЎР‚Р С‘Р С РЎвЂћР С‘Р Р…Р В°Р В»РЎРЉР Р…РЎвЂ№Р в„– Р С”Р В°Р Т‘РЎР‚...'];
 const initDetails = () => { const d={}; Object.keys(getModelDetails('female')).forEach(k=>{d[k]=null;}); return d; };
 
-// Safe JSON parser вЂ” handles Vercel timeouts that return HTML instead of JSON
+// Safe JSON parser РІР‚вЂќ handles Vercel timeouts that return HTML instead of JSON
 const safeParseJSON = async (resp) => {
   // Check HTTP status first
   if (resp.status === 413) {
-    console.error('вљ пёЏ 413 Payload Too Large вЂ” image files are too big');
-    return { success: false, error: 'Р¤Р°Р№Р» СЃР»РёС€РєРѕРј Р±РѕР»СЊС€РѕР№. РџРѕРїСЂРѕР±СѓР№С‚Рµ С„РѕС‚Рѕ РјРµРЅСЊС€РµРіРѕ СЂР°Р·РјРµСЂР°.' };
+    console.error('РІС™В РїС‘РЏ 413 Payload Too Large РІР‚вЂќ image files are too big');
+    return { success: false, error: 'Р В¤Р В°Р в„–Р В» РЎРѓР В»Р С‘РЎв‚¬Р С”Р С•Р С Р В±Р С•Р В»РЎРЉРЎв‚¬Р С•Р в„–. Р СџР С•Р С—РЎР‚Р С•Р В±РЎС“Р в„–РЎвЂљР Вµ РЎвЂћР С•РЎвЂљР С• Р СР ВµР Р…РЎРЉРЎв‚¬Р ВµР С–Р С• РЎР‚Р В°Р В·Р СР ВµРЎР‚Р В°.' };
   }
   const text = await resp.text();
   try {
     return JSON.parse(text);
   } catch {
     // Vercel returned HTML error page (timeout/crash)
-    console.error('вљ пёЏ Non-JSON response from API:', resp.status, text.substring(0, 200));
+    console.error('РІС™В РїС‘РЏ Non-JSON response from API:', resp.status, text.substring(0, 200));
     if (text.includes('FUNCTION_INVOCATION_TIMEOUT') || text.includes('An error occurred')) {
-      return { success: false, error: 'РЎРµСЂРІРµСЂ РЅРµ СѓСЃРїРµР» РѕС‚РІРµС‚РёС‚СЊ (С‚Р°Р№РјР°СѓС‚). РџРѕРїСЂРѕР±СѓР№С‚Рµ РµС‰С‘ СЂР°Р·.' };
+      return { success: false, error: 'Р РЋР ВµРЎР‚Р Р†Р ВµРЎР‚ Р Р…Р Вµ РЎС“РЎРѓР С—Р ВµР В» Р С•РЎвЂљР Р†Р ВµРЎвЂљР С‘РЎвЂљРЎРЉ (РЎвЂљР В°Р в„–Р СР В°РЎС“РЎвЂљ). Р СџР С•Р С—РЎР‚Р С•Р В±РЎС“Р в„–РЎвЂљР Вµ Р ВµРЎвЂ°РЎвЂ РЎР‚Р В°Р В·.' };
     }
-    return { success: false, error: `РћС€РёР±РєР° СЃРµСЂРІРµСЂР° (${resp.status}). РџРѕРїСЂРѕР±СѓР№С‚Рµ РїРѕР·Р¶Рµ.` };
+    return { success: false, error: `Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎРѓР ВµРЎР‚Р Р†Р ВµРЎР‚Р В° (${resp.status}). Р СџР С•Р С—РЎР‚Р С•Р В±РЎС“Р в„–РЎвЂљР Вµ Р С—Р С•Р В·Р В¶Р Вµ.` };
   }
 };
 
@@ -124,7 +124,7 @@ function App() {
   const [locFiles, setLocFiles] = useState([]);
   const [locPreviews, setLocPreviews] = useState([]);
   const [selectedLocId, setSelectedLocId] = useState(null);
-  const [locBase64Cache, setLocBase64Cache] = useState({}); // id в†’ base64 image array
+  const [locBase64Cache, setLocBase64Cache] = useState({}); // id РІвЂ вЂ™ base64 image array
   const locFileRef = useRef(null);
 
   // Saved models (LoRA)
@@ -192,12 +192,12 @@ function App() {
   const [showBatchConfirm, setShowBatchConfirm] = useState(false);
   const [pendingBatchTasks, setPendingBatchTasks] = useState(null);
 
-  // в•ђв•ђв•ђ CUSTOM CHIP HELPERS в•ђв•ђв•ђ
-  const IMPROV_POSE = { id: 'improvisation', label: 'РРјРїСЂРѕРІРёР·Р°С†РёСЏ', emoji: 'рџЋІ', prompt: 'random aesthetic fashion pose, natural dynamic body positioning, editorial spontaneous movement, varied creative posture' };
+  // РІвЂўС’РІвЂўС’РІвЂўС’ CUSTOM CHIP HELPERS РІвЂўС’РІвЂўС’РІвЂўС’
+  const IMPROV_POSE = { id: 'improvisation', label: 'Р ВР СР С—РЎР‚Р С•Р Р†Р С‘Р В·Р В°РЎвЂ Р С‘РЎРЏ', emoji: 'СЂСџР‹Р†', prompt: 'random aesthetic fashion pose, natural dynamic body positioning, editorial spontaneous movement, varied creative posture' };
 
   const addCustomChip = (section) => {
     if (!newChipText.trim()) { setAddingCustom(null); return; }
-    const chip = { id: `custom_${Date.now()}`, label: newChipText.trim(), prompt: newChipText.trim(), emoji: 'вњЏпёЏ', isCustomChip: true };
+    const chip = { id: `custom_${Date.now()}`, label: newChipText.trim(), prompt: newChipText.trim(), emoji: 'РІСљРЏРїС‘РЏ', isCustomChip: true };
     if (section === 'model') { 
       setCustomModelChips(prev => [...prev, chip]); 
       setCustomModelPrompt(''); 
@@ -247,13 +247,13 @@ function App() {
     if (foundPreset) return foundPreset.label;
     const foundCustom = customModelChips.find(c => c.id === activeModelDetailsId);
     if (foundCustom) return foundCustom.label;
-    return 'РІС‹Р±СЂР°РЅРЅРѕР№ РјРѕРґРµР»Рё';
+    return 'Р Р†РЎвЂ№Р В±РЎР‚Р В°Р Р…Р Р…Р С•Р в„– Р СР С•Р Т‘Р ВµР В»Р С‘';
   };
 
-  // Is multi-model selected? (for showing РРјРїСЂРѕРІРёР·Р°С†РёСЏ pose)
+  // Is multi-model selected? (for showing Р ВР СР С—РЎР‚Р С•Р Р†Р С‘Р В·Р В°РЎвЂ Р С‘РЎРЏ pose)
   const isMultiModel = !customModelPrompt && !selectedSavedModelId && (selectedModels.length + customModelChips.length) > 1;
 
-  // в•ђв•ђв•ђ TOTAL SHOTS CALCULATION в•ђв•ђв•ђ
+  // РІвЂўС’РІвЂўС’РІвЂўС’ TOTAL SHOTS CALCULATION РІвЂўС’РІвЂўС’РІвЂўС’
   const totalShots = React.useMemo(() => {
     if (appMode === 'quick') return 1;
 
@@ -323,7 +323,7 @@ function App() {
   // Download menu open state
   const [downloadMenuIdx, setDownloadMenuIdx] = useState(null);
 
-  // в•ђв•ђв•ђ CARD DESIGNER (marketplace card) в•ђв•ђв•ђ
+  // РІвЂўС’РІвЂўС’РІвЂўС’ CARD DESIGNER (marketplace card) РІвЂўС’РІвЂўС’РІвЂўС’
   const [cardDesignStyle, setCardDesignStyle] = useState('natural'); // 'natural' | 'epic'
   const [isCardGenerating, setIsCardGenerating] = useState(false);
   const [cardResult, setCardResult] = useState(null);
@@ -335,7 +335,7 @@ function App() {
   const [quickCardStyle, setQuickCardStyle] = useState('natural');
   const [quickWithModel, setQuickWithModel] = useState(false);
   const [quickCardText, setQuickCardText] = useState(null);
-  // [QUICK_MODE_V2] вЂ” Card generation + text-based editing
+  // [QUICK_MODE_V2] РІР‚вЂќ Card generation + text-based editing
   const [quickMode, setQuickMode] = useState(() => {
     return localStorage.getItem('vton_quickMode') || 'card';
   }); // 'photo' | 'card'
@@ -370,7 +370,7 @@ function App() {
   const [isAbGenerating, setIsAbGenerating] = useState(false);
   const [confirmModal, setConfirmModal] = useState(null); // null | { type, cost, onConfirm }
 
-  // в•ђв•ђв•ђ LOCALSTORAGE SYNC EFFECTS в•ђв•ђв•ђ
+  // РІвЂўС’РІвЂўС’РІвЂўС’ LOCALSTORAGE SYNC EFFECTS РІвЂўС’РІвЂўС’РІвЂўС’
   useEffect(() => {
     localStorage.setItem('vton_appMode', appMode);
   }, [appMode]);
@@ -430,7 +430,7 @@ function App() {
   const [showModelPreviewSave, setShowModelPreviewSave] = useState(false);
   const [modelPreviewName, setModelPreviewName] = useState('');
 
-  // в•ђв•ђв•ђ TELEGRAM BACK BUTTON в•ђв•ђв•ђ
+  // РІвЂўС’РІвЂўС’РІвЂўС’ TELEGRAM BACK BUTTON РІвЂўС’РІвЂўС’РІвЂўС’
   // Show/hide Telegram's native back button based on app state
   useEffect(() => {
     if (!isTelegram) return;
@@ -460,13 +460,13 @@ function App() {
   useEffect(() => {
     if (!user || user.isGuest || (user.isAnonymous && !user.isTelegramUser)) return;
     
-    // Р—Р°РіСЂСѓР¶Р°РµРј РґР°РЅРЅС‹Рµ РїР°СЂР°Р»Р»РµР»СЊРЅРѕ Рё Р°СЃРёРЅС…СЂРѕРЅРЅРѕ, РЅРµ Р±Р»РѕРєРёСЂСѓСЏ РѕС‚СЂРёСЃРѕРІРєСѓ РёРЅС‚РµСЂС„РµР№СЃР°
+    // Р вЂ”Р В°Р С–РЎР‚РЎС“Р В¶Р В°Р ВµР С Р Т‘Р В°Р Р…Р Р…РЎвЂ№Р Вµ Р С—Р В°РЎР‚Р В°Р В»Р В»Р ВµР В»РЎРЉР Р…Р С• Р С‘ Р В°РЎРѓР С‘Р Р…РЎвЂ¦РЎР‚Р С•Р Р…Р Р…Р С•, Р Р…Р Вµ Р В±Р В»Р С•Р С”Р С‘РЎР‚РЎС“РЎРЏ Р С•РЎвЂљРЎР‚Р С‘РЎРѓР С•Р Р†Р С”РЎС“ Р С‘Р Р…РЎвЂљР ВµРЎР‚РЎвЂћР ВµР в„–РЎРѓР В°
     getModels(user.uid)
       .then((models) => {
 
         setMyModels(models || []);
       })
-      .catch((err) => console.error('РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё РјРѕРґРµР»РµР№:', err));
+      .catch((err) => console.error('Р С›РЎв‚¬Р С‘Р В±Р С”Р В° Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С”Р С‘ Р СР С•Р Т‘Р ВµР В»Р ВµР в„–:', err));
 
     getLocations(user.uid)
       .then(async (locations) => {
@@ -485,11 +485,11 @@ function App() {
           loc => !loc.imageBase64 && loc.storagePaths && loc.storagePaths.length > 0
         );
         if (needsMigration.length > 0) {
-          console.log(`рџ”„ Migrating ${needsMigration.length} legacy location(s) via Firebase SDK...`);
+          console.log(`СЂСџвЂќвЂћ Migrating ${needsMigration.length} legacy location(s) via Firebase SDK...`);
           const uid = user.uid;
           for (const loc of needsMigration) {
             try {
-              // Use Firebase Storage SDK (auth-aware) вЂ” bypasses CORS and Storage Rules
+              // Use Firebase Storage SDK (auth-aware) РІР‚вЂќ bypasses CORS and Storage Rules
               // Strategy 1: Firebase SDK getBytes (auth-aware, bypasses CORS)
               let b64arr = [];
               if (loc.storagePaths && loc.storagePaths.length > 0) {
@@ -497,9 +497,9 @@ function App() {
                   loc.storagePaths.slice(0, 5).map(path => downloadStoragePathAsBase64(path))
                 );
               }
-              // Strategy 2: fallback вЂ” direct URL fetch
+              // Strategy 2: fallback РІР‚вЂќ direct URL fetch
               if (b64arr.filter(Boolean).length === 0 && loc.imageUrls && loc.imageUrls.length > 0) {
-                console.log(`в†©пёЏ SDK failed for '${loc.title}', trying direct URL fetch...`);
+                console.log(`РІвЂ В©РїС‘РЏ SDK failed for '${loc.title}', trying direct URL fetch...`);
                 b64arr = await Promise.all(
                   loc.imageUrls.slice(0, 5).map(async (url) => {
                     try {
@@ -518,7 +518,7 @@ function App() {
               }
               // Strategy 3: Server-side Admin SDK migration (bypasses ALL client restrictions)
               if (b64arr.filter(Boolean).length === 0 && loc.storagePaths && loc.storagePaths.length > 0) {
-                console.log(`рџ–ҐпёЏ Trying server-side migration for '${loc.title}'...`);
+                console.log(`СЂСџвЂ“ТђРїС‘РЏ Trying server-side migration for '${loc.title}'...`);
                 try {
                   const idToken = await user.getIdToken();
                   if (idToken) {
@@ -530,13 +530,13 @@ function App() {
                     const data = await resp.json();
                     if (data.ok && data.base64 && data.base64.length > 0) {
                       b64arr = data.base64;
-                      console.log(`вњ… Server migration succeeded for '${loc.title}' (${data.count} images)`);
+                      console.log(`РІСљвЂ¦ Server migration succeeded for '${loc.title}' (${data.count} images)`);
                     } else {
-                      console.warn(`вљ пёЏ Server migration failed for '${loc.title}':`, data.error);
+                      console.warn(`РІС™В РїС‘РЏ Server migration failed for '${loc.title}':`, data.error);
                     }
                   }
                 } catch (srvErr) {
-                  console.warn(`вљ пёЏ Server migration request failed:`, srvErr.message);
+                  console.warn(`РІС™В РїС‘РЏ Server migration request failed:`, srvErr.message);
                 }
               }
               const validB64 = b64arr.filter(Boolean);
@@ -547,55 +547,55 @@ function App() {
                 setMyLocations(prev => prev.map(l =>
                   l.id === loc.id ? { ...l, imageBase64: validB64 } : l
                 ));
-                console.log(`вњ… Migrated loc '${loc.title}' (${validB64.length} images)`);
+                console.log(`РІСљвЂ¦ Migrated loc '${loc.title}' (${validB64.length} images)`);
               } else {
-                console.warn(`вљ пёЏ Could not migrate loc '${loc.title}' вЂ” all 3 strategies failed. Files may be permanently inaccessible.`);
+                console.warn(`РІС™В РїС‘РЏ Could not migrate loc '${loc.title}' РІР‚вЂќ all 3 strategies failed. Files may be permanently inaccessible.`);
               }
             } catch (err) {
-              console.warn(`вљ пёЏ Migration failed for loc '${loc.title}':`, err.message);
+              console.warn(`РІС™В РїС‘РЏ Migration failed for loc '${loc.title}':`, err.message);
             }
           }
-          console.log('вњ… Location migration complete');
+          console.log('РІСљвЂ¦ Location migration complete');
         }
       })
-      .catch((err) => console.error('РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё Р»РѕРєР°С†РёР№:', err));
-    // Р—Р°РіСЂСѓР·РєР° РїРѕРґРїРёСЃРєРё
-    // РњРёРіСЂР°С†РёСЏ legacy-РїРѕРґРїРёСЃРѕРє С‚РµРїРµСЂСЊ РїСЂРѕРёСЃС…РѕРґРёС‚ РІ /api/auth-telegram РїСЂРё РІС…РѕРґРµ,
-    // РїРѕСЌС‚РѕРјСѓ Р·РґРµСЃСЊ РїСЂРѕСЃС‚Рѕ С‡РёС‚Р°РµРј РїРѕРґРїРёСЃРєСѓ РїРѕ СЃС‚Р°Р±РёР»СЊРЅРѕРјСѓ UID
+      .catch((err) => console.error('Р С›РЎв‚¬Р С‘Р В±Р С”Р В° Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С”Р С‘ Р В»Р С•Р С”Р В°РЎвЂ Р С‘Р в„–:', err));
+    // Р вЂ”Р В°Р С–РЎР‚РЎС“Р В·Р С”Р В° Р С—Р С•Р Т‘Р С—Р С‘РЎРѓР С”Р С‘
+    // Р СљР С‘Р С–РЎР‚Р В°РЎвЂ Р С‘РЎРЏ legacy-Р С—Р С•Р Т‘Р С—Р С‘РЎРѓР С•Р С” РЎвЂљР ВµР С—Р ВµРЎР‚РЎРЉ Р С—РЎР‚Р С•Р С‘РЎРѓРЎвЂ¦Р С•Р Т‘Р С‘РЎвЂљ Р Р† /api/auth-telegram Р С—РЎР‚Р С‘ Р Р†РЎвЂ¦Р С•Р Т‘Р Вµ,
+    // Р С—Р С•РЎРЊРЎвЂљР С•Р СРЎС“ Р В·Р Т‘Р ВµРЎРѓРЎРЉ Р С—РЎР‚Р С•РЎРѓРЎвЂљР С• РЎвЂЎР С‘РЎвЂљР В°Р ВµР С Р С—Р С•Р Т‘Р С—Р С‘РЎРѓР С”РЎС“ Р С—Р С• РЎРѓРЎвЂљР В°Р В±Р С‘Р В»РЎРЉР Р…Р С•Р СРЎС“ UID
     getSubscription(user.uid, user.email, user.telegramId)
       .then((sub) => {
         if (sub) setSubscription(sub);
       })
       .catch((err) => {
-        console.error('РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё РїРѕРґРїРёСЃРєРё:', err);
+        console.error('Р С›РЎв‚¬Р С‘Р В±Р С”Р В° Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С”Р С‘ Р С—Р С•Р Т‘Р С—Р С‘РЎРѓР С”Р С‘:', err);
         setSubscription({ plan: 'none', credits: 0, creditsTotal: 0 });
       });
   }, [user]);
 
-  // РћР±РЅРѕРІР»СЏРµС‚ Р±Р°Р»Р°РЅСЃ РєСЂРµРґРёС‚РѕРІ РїРѕСЃР»Рµ РіРµРЅРµСЂР°С†РёРё вЂ” РїРµСЂРµРїРѕР»СѓС‡Р°РµС‚ РїРѕРґРїРёСЃРєСѓ РёР· Firestore
+  // Р С›Р В±Р Р…Р С•Р Р†Р В»РЎРЏР ВµРЎвЂљ Р В±Р В°Р В»Р В°Р Р…РЎРѓ Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР С•Р Р† Р С—Р С•РЎРѓР В»Р Вµ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘ РІР‚вЂќ Р С—Р ВµРЎР‚Р ВµР С—Р С•Р В»РЎС“РЎвЂЎР В°Р ВµРЎвЂљ Р С—Р С•Р Т‘Р С—Р С‘РЎРѓР С”РЎС“ Р С‘Р В· Firestore
   const refreshCreditsFromResponse = async (_responseData) => {
     if (!user?.uid) return;
     try {
       const fresh = await getSubscription(user.uid, user.email, user.telegramId);
       if (fresh) setSubscription(fresh);
     } catch (_e) {
-      // Silent fail вЂ” UI balance stays until next reload
+      // Silent fail РІР‚вЂќ UI balance stays until next reload
     }
   };
 
-  // РџСЂРѕРІРµСЂРєР° СѓСЃРїРµС€РЅРѕР№ РѕРїР»Р°С‚С‹ Р®Kassa РїСЂРё РІРѕР·РІСЂР°С‚Рµ РЅР° СЃР°Р№С‚ (return_url)
+  // Р СџРЎР‚Р С•Р Р†Р ВµРЎР‚Р С”Р В° РЎС“РЎРѓР С—Р ВµРЎв‚¬Р Р…Р С•Р в„– Р С•Р С—Р В»Р В°РЎвЂљРЎвЂ№ Р В®Kassa Р С—РЎР‚Р С‘ Р Р†Р С•Р В·Р Р†РЎР‚Р В°РЎвЂљР Вµ Р Р…Р В° РЎРѓР В°Р в„–РЎвЂљ (return_url)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('payment') === 'success') {
       const plan = params.get('plan') || '';
-      setStatusText(`вЏі РџР»Р°С‚РµР¶ РѕР±СЂР°Р±Р°С‚С‹РІР°РµС‚СЃСЏ. Р’Р°С€ С‚Р°СЂРёС„ В«${plan.toUpperCase()}В» Р°РєС‚РёРІРёСЂСѓРµС‚СЃСЏ...`);
+      setStatusText(`РІРЏС– Р СџР В»Р В°РЎвЂљР ВµР В¶ Р С•Р В±РЎР‚Р В°Р В±Р В°РЎвЂљРЎвЂ№Р Р†Р В°Р ВµРЎвЂљРЎРѓРЎРЏ. Р вЂ™Р В°РЎв‚¬ РЎвЂљР В°РЎР‚Р С‘РЎвЂћ Р’В«${plan.toUpperCase()}Р’В» Р В°Р С”РЎвЂљР С‘Р Р†Р С‘РЎР‚РЎС“Р ВµРЎвЂљРЎРѓРЎРЏ...`);
       setStatusType('success');
 
-      // РћС‡РёС‰Р°РµРј РїР°СЂР°РјРµС‚СЂС‹ РёР· Р°РґСЂРµСЃРЅРѕР№ СЃС‚СЂРѕРєРё Р±РµР· РїРµСЂРµР·Р°РіСЂСѓР·РєРё
+      // Р С›РЎвЂЎР С‘РЎвЂ°Р В°Р ВµР С Р С—Р В°РЎР‚Р В°Р СР ВµРЎвЂљРЎР‚РЎвЂ№ Р С‘Р В· Р В°Р Т‘РЎР‚Р ВµРЎРѓР Р…Р С•Р в„– РЎРѓРЎвЂљРЎР‚Р С•Р С”Р С‘ Р В±Р ВµР В· Р С—Р ВµРЎР‚Р ВµР В·Р В°Р С–РЎР‚РЎС“Р В·Р С”Р С‘
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
 
-      // Р—Р°РїСѓСЃРєР°РµРј РїРѕР»Р»РёРЅРі РїРѕРґРїРёСЃРєРё РІ С‚РµС‡РµРЅРёРµ 12 СЃРµРєСѓРЅРґ
+      // Р вЂ”Р В°Р С—РЎС“РЎРѓР С”Р В°Р ВµР С Р С—Р С•Р В»Р В»Р С‘Р Р…Р С– Р С—Р С•Р Т‘Р С—Р С‘РЎРѓР С”Р С‘ Р Р† РЎвЂљР ВµРЎвЂЎР ВµР Р…Р С‘Р Вµ 12 РЎРѓР ВµР С”РЎС“Р Р…Р Т‘
       if (user && user.uid) {
         let attempts = 0;
         const interval = setInterval(async () => {
@@ -604,7 +604,7 @@ function App() {
             const sub = await getSubscription(user.uid, user.email, user.telegramId);
             if (sub && sub.plan === plan) {
               setSubscription(sub);
-              setStatusText(`вњ… РўР°СЂРёС„ В«${plan.toUpperCase()}В» СѓСЃРїРµС€РЅРѕ Р°РєС‚РёРІРёСЂРѕРІР°РЅ! РќР°С‡РёСЃР»РµРЅРѕ ${sub.credits} РєР°РґСЂРѕРІ.`);
+              setStatusText(`РІСљвЂ¦ Р СћР В°РЎР‚Р С‘РЎвЂћ Р’В«${plan.toUpperCase()}Р’В» РЎС“РЎРѓР С—Р ВµРЎв‚¬Р Р…Р С• Р В°Р С”РЎвЂљР С‘Р Р†Р С‘РЎР‚Р С•Р Р†Р В°Р Р…! Р СњР В°РЎвЂЎР С‘РЎРѓР В»Р ВµР Р…Р С• ${sub.credits} Р С”Р В°Р Т‘РЎР‚Р С•Р Р†.`);
               setStatusType('success');
               clearInterval(interval);
             }
@@ -627,7 +627,7 @@ function App() {
     try {
       const idToken = await user.getIdToken();
       console.log('[Payment] Starting payment for plan:', planId, 'uid:', user.uid);
-      // РЁР°Рі 1: РЎРѕР·РґР°С‘Рј РїР»Р°С‚С‘Р¶РЅСѓСЋ СЃРµСЃСЃРёСЋ Р®Kassa РЅР° Р±СЌРєРµРЅРґРµ
+      // Р РЃР В°Р С– 1: Р РЋР С•Р В·Р Т‘Р В°РЎвЂР С Р С—Р В»Р В°РЎвЂљРЎвЂР В¶Р Р…РЎС“РЎР‹ РЎРѓР ВµРЎРѓРЎРѓР С‘РЎР‹ Р В®Kassa Р Р…Р В° Р В±РЎРЊР С”Р ВµР Р…Р Т‘Р Вµ
       const invoiceResp = await fetch('/api/create-payment', {
         method: 'POST',
         headers: { 
@@ -641,27 +641,27 @@ function App() {
       console.log('[Payment] API response body:', JSON.stringify(invoiceData));
 
       if (!invoiceData.ok || !invoiceData.invoiceLink) {
-        throw new Error(invoiceData.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РїР»Р°С‚РµР¶');
+        throw new Error(invoiceData.error || 'Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РЎРѓР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р С—Р В»Р В°РЎвЂљР ВµР В¶');
       }
 
-      // РЁР°Рі 2: РџРµСЂРµРЅР°РїСЂР°РІР»СЏРµРј РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РЅР° С„РѕСЂРјСѓ РѕРїР»Р°С‚С‹ Р®Kassa
+      // Р РЃР В°Р С– 2: Р СџР ВµРЎР‚Р ВµР Р…Р В°Р С—РЎР‚Р В°Р Р†Р В»РЎРЏР ВµР С Р С—Р С•Р В»РЎРЉР В·Р С•Р Р†Р В°РЎвЂљР ВµР В»РЎРЏ Р Р…Р В° РЎвЂћР С•РЎР‚Р СРЎС“ Р С•Р С—Р В»Р В°РЎвЂљРЎвЂ№ Р В®Kassa
       const paymentUrl = invoiceData.invoiceLink;
       console.log('[Payment] Redirecting to:', paymentUrl);
       
       setShowPricing(false);
-      setStatusText('вЏі РџРµСЂРµРЅР°РїСЂР°РІР»СЏРµРј РЅР° Р·Р°С‰РёС‰РµРЅРЅСѓСЋ СЃС‚СЂР°РЅРёС†Сѓ РѕРїР»Р°С‚С‹ Р®Kassa...');
+      setStatusText('РІРЏС– Р СџР ВµРЎР‚Р ВµР Р…Р В°Р С—РЎР‚Р В°Р Р†Р В»РЎРЏР ВµР С Р Р…Р В° Р В·Р В°РЎвЂ°Р С‘РЎвЂ°Р ВµР Р…Р Р…РЎС“РЎР‹ РЎРѓРЎвЂљРЎР‚Р В°Р Р…Р С‘РЎвЂ РЎС“ Р С•Р С—Р В»Р В°РЎвЂљРЎвЂ№ Р В®Kassa...');
       setStatusType('success');
 
       if (window.Telegram?.WebApp?.openLink) {
-        // РћС‚РєСЂС‹РІР°РµРј РїР»Р°С‚РµР¶РЅС‹Р№ С€Р»СЋР· РїСЂСЏРјРѕ РІ Telegram
+        // Р С›РЎвЂљР С”РЎР‚РЎвЂ№Р Р†Р В°Р ВµР С Р С—Р В»Р В°РЎвЂљР ВµР В¶Р Р…РЎвЂ№Р в„– РЎв‚¬Р В»РЎР‹Р В· Р С—РЎР‚РЎРЏР СР С• Р Р† Telegram
         window.Telegram.WebApp.openLink(paymentUrl);
       } else {
-        // Fallback РґР»СЏ РѕР±С‹С‡РЅРѕРіРѕ РІРµР±-РёРЅС‚РµСЂС„РµР№СЃР°
+        // Fallback Р Т‘Р В»РЎРЏ Р С•Р В±РЎвЂ№РЎвЂЎР Р…Р С•Р С–Р С• Р Р†Р ВµР В±-Р С‘Р Р…РЎвЂљР ВµРЎР‚РЎвЂћР ВµР в„–РЎРѓР В°
         window.location.href = paymentUrl;
       }
     } catch (err) {
-      console.error('[Payment] РћС€РёР±РєР° РѕРїР»Р°С‚С‹:', err);
-      setStatusText(`РћС€РёР±РєР°: ${err.message}`);
+      console.error('[Payment] Р С›РЎв‚¬Р С‘Р В±Р С”Р В° Р С•Р С—Р В»Р В°РЎвЂљРЎвЂ№:', err);
+      setStatusText(`Р С›РЎв‚¬Р С‘Р В±Р С”Р В°: ${err.message}`);
       setStatusType('error');
     } finally {
       setPricingLoading(false);
@@ -671,7 +671,7 @@ function App() {
   // Disable subscription auto-renew while keeping the paid period active.
   const handleCancelAutoRenew = async () => {
     if (!user) return;
-    if (!window.confirm('Р’С‹ РґРµР№СЃС‚РІРёС‚РµР»СЊРЅРѕ С…РѕС‚РёС‚Рµ РѕС‚РєР»СЋС‡РёС‚СЊ Р°РІС‚РѕРїСЂРѕРґР»РµРЅРёРµ РІР°С€РµР№ РїРѕРґРїРёСЃРєРё?')) return;
+    if (!window.confirm('Р вЂ™РЎвЂ№ Р Т‘Р ВµР в„–РЎРѓРЎвЂљР Р†Р С‘РЎвЂљР ВµР В»РЎРЉР Р…Р С• РЎвЂ¦Р С•РЎвЂљР С‘РЎвЂљР Вµ Р С•РЎвЂљР С”Р В»РЎР‹РЎвЂЎР С‘РЎвЂљРЎРЉ Р В°Р Р†РЎвЂљР С•Р С—РЎР‚Р С•Р Т‘Р В»Р ВµР Р…Р С‘Р Вµ Р Р†Р В°РЎв‚¬Р ВµР в„– Р С—Р С•Р Т‘Р С—Р С‘РЎРѓР С”Р С‘?')) return;
 
     setCancelingSubscription(true);
     try {
@@ -687,14 +687,14 @@ function App() {
       const data = await resp.json();
 
       if (!data.ok) {
-        throw new Error(data.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РєР»СЋС‡РёС‚СЊ Р°РІС‚РѕРїСЂРѕРґР»РµРЅРёРµ');
+        throw new Error(data.error || 'Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ Р С•РЎвЂљР С”Р В»РЎР‹РЎвЂЎР С‘РЎвЂљРЎРЉ Р В°Р Р†РЎвЂљР С•Р С—РЎР‚Р С•Р Т‘Р В»Р ВµР Р…Р С‘Р Вµ');
       }
 
       setSubscription(prev => ({ ...prev, autoRenew: false }));
-      alert('РђРІС‚РѕРїСЂРѕРґР»РµРЅРёРµ РїРѕРґРїРёСЃРєРё РѕС‚РєР»СЋС‡РµРЅРѕ. РўР°СЂРёС„ РїСЂРѕРґРѕР»Р¶РёС‚ РґРµР№СЃС‚РІРѕРІР°С‚СЊ РґРѕ РєРѕРЅС†Р° РѕРїР»Р°С‡РµРЅРЅРѕРіРѕ РїРµСЂРёРѕРґР°.');
+      alert('Р С’Р Р†РЎвЂљР С•Р С—РЎР‚Р С•Р Т‘Р В»Р ВµР Р…Р С‘Р Вµ Р С—Р С•Р Т‘Р С—Р С‘РЎРѓР С”Р С‘ Р С•РЎвЂљР С”Р В»РЎР‹РЎвЂЎР ВµР Р…Р С•. Р СћР В°РЎР‚Р С‘РЎвЂћ Р С—РЎР‚Р С•Р Т‘Р С•Р В»Р В¶Р С‘РЎвЂљ Р Т‘Р ВµР в„–РЎРѓРЎвЂљР Р†Р С•Р Р†Р В°РЎвЂљРЎРЉ Р Т‘Р С• Р С”Р С•Р Р…РЎвЂ Р В° Р С•Р С—Р В»Р В°РЎвЂЎР ВµР Р…Р Р…Р С•Р С–Р С• Р С—Р ВµРЎР‚Р С‘Р С•Р Т‘Р В°.');
     } catch (err) {
       console.error('Failed to cancel auto-renew:', err);
-      alert(err.message || 'РџСЂРѕРёР·РѕС€Р»Р° РѕС€РёР±РєР° РїСЂРё РѕС‚РјРµРЅРµ Р°РІС‚РѕРїСЂРѕРґР»РµРЅРёСЏ');
+      alert(err.message || 'Р СџРЎР‚Р С•Р С‘Р В·Р С•РЎв‚¬Р В»Р В° Р С•РЎв‚¬Р С‘Р В±Р С”Р В° Р С—РЎР‚Р С‘ Р С•РЎвЂљР СР ВµР Р…Р Вµ Р В°Р Р†РЎвЂљР С•Р С—РЎР‚Р С•Р Т‘Р В»Р ВµР Р…Р С‘РЎРЏ');
     } finally {
       setCancelingSubscription(false);
     }
@@ -721,7 +721,7 @@ function App() {
     reader.readAsDataURL(file);
   });
 
-  // Multi-file upload вЂ” try Firebase Storage first, fall back to base64
+  // Multi-file upload РІР‚вЂќ try Firebase Storage first, fall back to base64
   const handleFilesChange = useCallback(async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -730,7 +730,7 @@ function App() {
     const localUrls = newFiles.map(f => URL.createObjectURL(f));
     setPreviewUrls(localUrls);
     setGeneratedImage(null);
-    setStatusText('вЃпёЏ Р—Р°РіСЂСѓР¶Р°РµРј С„РѕС‚Рѕ...');
+    setStatusText('РІВРѓРїС‘РЏ Р вЂ”Р В°Р С–РЎР‚РЎС“Р В¶Р В°Р ВµР С РЎвЂћР С•РЎвЂљР С•...');
     setStatusType('');
     setIsUploading(true);
     try {
@@ -744,16 +744,16 @@ function App() {
           return url;
         } catch (storageErr) {
           // Fallback: convert to base64 data URL (works without Storage)
-          console.warn('вљ пёЏ Storage unavailable, using base64 fallback:', storageErr.message);
+          console.warn('РІС™В РїС‘РЏ Storage unavailable, using base64 fallback:', storageErr.message);
           return await fileToBase64(compressed);
         }
       }));
       const allUrls = [...garmentUrls, ...newUrls].slice(0, 9);
       setGarmentUrls(allUrls);
-      setStatusText(`Р—Р°РіСЂСѓР¶РµРЅРѕ ${newFiles.length} РІРµС‰${newFiles.length === 1 ? 'СЊ' : newFiles.length < 5 ? 'Рё' : 'РµР№'}. Р’СЃРµ Р±СѓРґСѓС‚ РЅР°РґРµС‚С‹ РЅР° РјРѕРґРµР»СЊ.`);
+      setStatusText(`Р вЂ”Р В°Р С–РЎР‚РЎС“Р В¶Р ВµР Р…Р С• ${newFiles.length} Р Р†Р ВµРЎвЂ°${newFiles.length === 1 ? 'РЎРЉ' : newFiles.length < 5 ? 'Р С‘' : 'Р ВµР в„–'}. Р вЂ™РЎРѓР Вµ Р В±РЎС“Р Т‘РЎС“РЎвЂљ Р Р…Р В°Р Т‘Р ВµРЎвЂљРЎвЂ№ Р Р…Р В° Р СР С•Р Т‘Р ВµР В»РЎРЉ.`);
     } catch (err) {
       console.error('Upload error:', err);
-      setStatusText('РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё. РџРѕРїСЂРѕР±СѓР№С‚Рµ РµС‰С‘ СЂР°Р·.');
+      setStatusText('Р С›РЎв‚¬Р С‘Р В±Р С”Р В° Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С”Р С‘. Р СџР С•Р С—РЎР‚Р С•Р В±РЎС“Р в„–РЎвЂљР Вµ Р ВµРЎвЂ°РЎвЂ РЎР‚Р В°Р В·.');
       setStatusType('error');
     } finally {
       setIsUploading(false);
@@ -795,46 +795,46 @@ function App() {
     reader.readAsDataURL(blob);
   });
 
-  // в•ђв•ђв•ђ RUв†’EN Prompt Mapping вЂ” ULTRA-DETAILED descriptors в•ђв•ђв•ђ
+  // РІвЂўС’РІвЂўС’РІвЂўС’ RUРІвЂ вЂ™EN Prompt Mapping РІР‚вЂќ ULTRA-DETAILED descriptors РІвЂўС’РІвЂўС’РІвЂўС’
   // Each characteristic MUST be described in enough detail that Gemini cannot skip it.
   const DETAIL_TO_PROMPT = {
-    // в”Ђв”Ђв”Ђ BODY TYPE (critical вЂ” needs strongest overrides) в”Ђв”Ђв”Ђ
-    'РҐСѓРґРѕС‰Р°РІРѕРµ': 'BODY TYPE: slim lean body with thin limbs, narrow bony shoulders, visible collarbones and wrist bones, very low body fat, elongated proportions, delicate frame. The person must look noticeably thin.',
-    'РЎРїРѕСЂС‚РёРІРЅРѕРµ': 'BODY TYPE: athletic fit body with visibly toned muscles, defined arms and shoulders, flat toned stomach, healthy skin glow. Body of a person who exercises regularly. NOT overweight, NOT skinny.',
-    'РЎСЂРµРґРЅРµРµ': 'BODY TYPE: average normal healthy body build, neither thin nor heavy, standard proportions, BMI 20-25. Natural everyday person, not a fitness model.',
-    'РџРѕР»РЅРѕРµ': 'BODY TYPE: obese plus-size body, BMI 35+, large round fat belly, thick heavy neck, prominent double chin, chubby cheeks, wide thick torso, US clothing size 3XL, heavy-set build with visible body fat and round chubby face. The person MUST look explicitly fat and overweight, not slim.',
-    'РњСѓСЃРєСѓР»РёСЃС‚РѕРµ': 'BODY TYPE: muscular body with clearly visible muscle definition on arms, shoulders, chest and legs. Broad powerful shoulders, narrow waist (V-taper), low body fat 12-18%. Veins visible on forearms. Strong thick neck. The body MUST look like a fitness competitor or bodybuilder вЂ” NOT soft, NOT average, NOT overweight.',
+    // РІвЂќР‚РІвЂќР‚РІвЂќР‚ BODY TYPE (critical РІР‚вЂќ needs strongest overrides) РІвЂќР‚РІвЂќР‚РІвЂќР‚
+    'Р ТђРЎС“Р Т‘Р С•РЎвЂ°Р В°Р Р†Р С•Р Вµ': 'BODY TYPE: slim lean body with thin limbs, narrow bony shoulders, visible collarbones and wrist bones, very low body fat, elongated proportions, delicate frame. The person must look noticeably thin.',
+    'Р РЋР С—Р С•РЎР‚РЎвЂљР С‘Р Р†Р Р…Р С•Р Вµ': 'BODY TYPE: athletic fit body with visibly toned muscles, defined arms and shoulders, flat toned stomach, healthy skin glow. Body of a person who exercises regularly. NOT overweight, NOT skinny.',
+    'Р РЋРЎР‚Р ВµР Т‘Р Р…Р ВµР Вµ': 'BODY TYPE: average normal healthy body build, neither thin nor heavy, standard proportions, BMI 20-25. Natural everyday person, not a fitness model.',
+    'Р СџР С•Р В»Р Р…Р С•Р Вµ': 'BODY TYPE: obese plus-size body, BMI 35+, large round fat belly, thick heavy neck, prominent double chin, chubby cheeks, wide thick torso, US clothing size 3XL, heavy-set build with visible body fat and round chubby face. The person MUST look explicitly fat and overweight, not slim.',
+    'Р СљРЎС“РЎРѓР С”РЎС“Р В»Р С‘РЎРѓРЎвЂљР С•Р Вµ': 'BODY TYPE: muscular body with clearly visible muscle definition on arms, shoulders, chest and legs. Broad powerful shoulders, narrow waist (V-taper), low body fat 12-18%. Veins visible on forearms. Strong thick neck. The body MUST look like a fitness competitor or bodybuilder РІР‚вЂќ NOT soft, NOT average, NOT overweight.',
 
-    // в”Ђв”Ђв”Ђ HAIR COLOR (specific tones, not generic words) в”Ђв”Ђв”Ђ
-    'Р‘СЂСЋРЅРµС‚РєР°': 'HAIR: rich dark brunette brown hair color', 'Р‘СЂСЋРЅРµС‚': 'HAIR: rich dark brunette brown hair color',
-    'РЁР°С‚РµРЅРєР°': 'HAIR: warm chestnut medium-brown hair color with natural highlights', 'РЁР°С‚РµРЅ': 'HAIR: warm chestnut medium-brown hair color with natural highlights',
-    'Р‘Р»РѕРЅРґРёРЅРєР°': 'HAIR: light golden blonde hair color', 'Р‘Р»РѕРЅРґРёРЅ': 'HAIR: light golden blonde hair color',
-    'Р С‹Р¶Р°СЏ': 'HAIR: vibrant red-ginger copper hair color (clearly red, not brown)', 'Р С‹Р¶РёР№': 'HAIR: vibrant red-ginger copper hair color (clearly red, not brown)',
-    'Р§С‘СЂРЅС‹Рµ': 'HAIR: jet black hair color, deep dark without any brown tint',
-    'РЎРµРґС‹Рµ': 'HAIR: natural silver-gray hair color suggesting age 50+',
+    // РІвЂќР‚РІвЂќР‚РІвЂќР‚ HAIR COLOR (specific tones, not generic words) РІвЂќР‚РІвЂќР‚РІвЂќР‚
+    'Р вЂРЎР‚РЎР‹Р Р…Р ВµРЎвЂљР С”Р В°': 'HAIR: rich dark brunette brown hair color', 'Р вЂРЎР‚РЎР‹Р Р…Р ВµРЎвЂљ': 'HAIR: rich dark brunette brown hair color',
+    'Р РЃР В°РЎвЂљР ВµР Р…Р С”Р В°': 'HAIR: warm chestnut medium-brown hair color with natural highlights', 'Р РЃР В°РЎвЂљР ВµР Р…': 'HAIR: warm chestnut medium-brown hair color with natural highlights',
+    'Р вЂР В»Р С•Р Р…Р Т‘Р С‘Р Р…Р С”Р В°': 'HAIR: light golden blonde hair color', 'Р вЂР В»Р С•Р Р…Р Т‘Р С‘Р Р…': 'HAIR: light golden blonde hair color',
+    'Р В РЎвЂ№Р В¶Р В°РЎРЏ': 'HAIR: vibrant red-ginger copper hair color (clearly red, not brown)', 'Р В РЎвЂ№Р В¶Р С‘Р в„–': 'HAIR: vibrant red-ginger copper hair color (clearly red, not brown)',
+    'Р В§РЎвЂРЎР‚Р Р…РЎвЂ№Р Вµ': 'HAIR: jet black hair color, deep dark without any brown tint',
+    'Р РЋР ВµР Т‘РЎвЂ№Р Вµ': 'HAIR: natural silver-gray hair color suggesting age 50+',
 
-    // в”Ђв”Ђв”Ђ HAIR LENGTH (explicit visual description) в”Ђв”Ђв”Ђ
-    'РљРѕСЂРѕС‚РєРёРµ': 'HAIR LENGTH: short hair above the ears, cropped close to the head',
-    'РЎСЂРµРґРЅРёРµ': 'HAIR LENGTH: medium-length hair reaching the shoulders',
-    'Р”Р»РёРЅРЅС‹Рµ': 'HAIR LENGTH: long flowing hair reaching well below the shoulders, past the chest',
-    'Р‘СЂРёС‚Р°СЏ': 'HAIR LENGTH: completely shaved bald head, no hair visible', 'Р‘СЂРёС‚С‹Р№': 'HAIR LENGTH: completely shaved bald head, no hair visible',
+    // РІвЂќР‚РІвЂќР‚РІвЂќР‚ HAIR LENGTH (explicit visual description) РІвЂќР‚РІвЂќР‚РІвЂќР‚
+    'Р С™Р С•РЎР‚Р С•РЎвЂљР С”Р С‘Р Вµ': 'HAIR LENGTH: short hair above the ears, cropped close to the head',
+    'Р РЋРЎР‚Р ВµР Т‘Р Р…Р С‘Р Вµ': 'HAIR LENGTH: medium-length hair reaching the shoulders',
+    'Р вЂќР В»Р С‘Р Р…Р Р…РЎвЂ№Р Вµ': 'HAIR LENGTH: long flowing hair reaching well below the shoulders, past the chest',
+    'Р вЂРЎР‚Р С‘РЎвЂљР В°РЎРЏ': 'HAIR LENGTH: completely shaved bald head, no hair visible', 'Р вЂРЎР‚Р С‘РЎвЂљРЎвЂ№Р в„–': 'HAIR LENGTH: completely shaved bald head, no hair visible',
 
-    // в”Ђв”Ђв”Ђ EMOTION (describe facial muscles, not abstract feelings) в”Ђв”Ђв”Ђ
-    'РќРµР№С‚СЂР°Р»СЊРЅР°СЏ': 'EXPRESSION: neutral calm relaxed face, mouth closed, no smile, eyes looking directly at camera',
-    'Р›С‘РіРєР°СЏ СѓР»С‹Р±РєР°': 'EXPRESSION: gentle slight warm smile with lips slightly curved upward, soft friendly eyes',
-    'РЎРµСЂСЊС‘Р·РЅР°СЏ': 'EXPRESSION: serious intense focused expression, strong direct eye contact, slight frown, no smile', 'РЎРµСЂСЊС‘Р·РЅС‹Р№': 'EXPRESSION: serious intense focused expression, strong direct eye contact, slight frown, no smile',
-    'РЈРІРµСЂРµРЅРЅР°СЏ': 'EXPRESSION: confident powerful self-assured expression, chin slightly raised, bold direct gaze, subtle commanding smile', 'РЈРІРµСЂРµРЅРЅС‹Р№': 'EXPRESSION: confident powerful self-assured expression, chin slightly raised, bold direct gaze, subtle commanding smile',
-    'Р”РµСЂР·РєР°СЏ': 'EXPRESSION: bold edgy rebellious attitude, slightly squinted eyes, smirk, defiant look', 'Р”РµСЂР·РєРёР№': 'EXPRESSION: bold edgy rebellious attitude, slightly squinted eyes, smirk, defiant look',
+    // РІвЂќР‚РІвЂќР‚РІвЂќР‚ EMOTION (describe facial muscles, not abstract feelings) РІвЂќР‚РІвЂќР‚РІвЂќР‚
+    'Р СњР ВµР в„–РЎвЂљРЎР‚Р В°Р В»РЎРЉР Р…Р В°РЎРЏ': 'EXPRESSION: neutral calm relaxed face, mouth closed, no smile, eyes looking directly at camera',
+    'Р вЂєРЎвЂР С–Р С”Р В°РЎРЏ РЎС“Р В»РЎвЂ№Р В±Р С”Р В°': 'EXPRESSION: gentle slight warm smile with lips slightly curved upward, soft friendly eyes',
+    'Р РЋР ВµРЎР‚РЎРЉРЎвЂР В·Р Р…Р В°РЎРЏ': 'EXPRESSION: serious intense focused expression, strong direct eye contact, slight frown, no smile', 'Р РЋР ВµРЎР‚РЎРЉРЎвЂР В·Р Р…РЎвЂ№Р в„–': 'EXPRESSION: serious intense focused expression, strong direct eye contact, slight frown, no smile',
+    'Р Р€Р Р†Р ВµРЎР‚Р ВµР Р…Р Р…Р В°РЎРЏ': 'EXPRESSION: confident powerful self-assured expression, chin slightly raised, bold direct gaze, subtle commanding smile', 'Р Р€Р Р†Р ВµРЎР‚Р ВµР Р…Р Р…РЎвЂ№Р в„–': 'EXPRESSION: confident powerful self-assured expression, chin slightly raised, bold direct gaze, subtle commanding smile',
+    'Р вЂќР ВµРЎР‚Р В·Р С”Р В°РЎРЏ': 'EXPRESSION: bold edgy rebellious attitude, slightly squinted eyes, smirk, defiant look', 'Р вЂќР ВµРЎР‚Р В·Р С”Р С‘Р в„–': 'EXPRESSION: bold edgy rebellious attitude, slightly squinted eyes, smirk, defiant look',
 
-    // в”Ђв”Ђв”Ђ PIERCING (specific placement and visibility) в”Ђв”Ђв”Ђ
-    'РЈС€Рё': 'PIERCING: visible small metallic stud earrings in both earlobes, must be clearly visible',
-    'РќРѕСЃ': 'PIERCING: visible small subtle nose ring or stud piercing on one nostril, must be clearly visible',
-    'РЈС€Рё + РќРѕСЃ': 'PIERCING: visible metallic stud earrings in both earlobes AND a small nose ring/stud on one nostril вЂ” both must be clearly visible',
+    // РІвЂќР‚РІвЂќР‚РІвЂќР‚ PIERCING (specific placement and visibility) РІвЂќР‚РІвЂќР‚РІвЂќР‚
+    'Р Р€РЎв‚¬Р С‘': 'PIERCING: visible small metallic stud earrings in both earlobes, must be clearly visible',
+    'Р СњР С•РЎРѓ': 'PIERCING: visible small subtle nose ring or stud piercing on one nostril, must be clearly visible',
+    'Р Р€РЎв‚¬Р С‘ + Р СњР С•РЎРѓ': 'PIERCING: visible metallic stud earrings in both earlobes AND a small nose ring/stud on one nostril РІР‚вЂќ both must be clearly visible',
 
-    // в”Ђв”Ђв”Ђ TATTOO (MANDATORY visibility вЂ” these must actually appear) в”Ђв”Ђв”Ђ
-    'РњРёРЅРёРјР°Р»РёР·Рј': 'TATTOO (MANDATORY вЂ” MUST BE VISIBLE): small minimalist fine-line black ink tattoos on visible skin areas such as wrists, collarbones, or fingers. The tattoos MUST be clearly visible in the final image.',
-    'Р СѓРєР°РІ': 'TATTOO (MANDATORY вЂ” MUST BE VISIBLE): full detailed tattoo sleeve covering one entire arm from shoulder to wrist with intricate dark ink artwork. The tattooed arm MUST be clearly visible in the final image.',
-    'РЁРµСЏ': 'TATTOO (MANDATORY вЂ” MUST BE VISIBLE): prominent artistic tattoo on the neck/throat area with dark ink design clearly visible against the skin. The neck tattoo MUST be unmistakably present in the final image.',
+    // РІвЂќР‚РІвЂќР‚РІвЂќР‚ TATTOO (MANDATORY visibility РІР‚вЂќ these must actually appear) РІвЂќР‚РІвЂќР‚РІвЂќР‚
+    'Р СљР С‘Р Р…Р С‘Р СР В°Р В»Р С‘Р В·Р С': 'TATTOO (MANDATORY РІР‚вЂќ MUST BE VISIBLE): small minimalist fine-line black ink tattoos on visible skin areas such as wrists, collarbones, or fingers. The tattoos MUST be clearly visible in the final image.',
+    'Р В РЎС“Р С”Р В°Р Р†': 'TATTOO (MANDATORY РІР‚вЂќ MUST BE VISIBLE): full detailed tattoo sleeve covering one entire arm from shoulder to wrist with intricate dark ink artwork. The tattooed arm MUST be clearly visible in the final image.',
+    'Р РЃР ВµРЎРЏ': 'TATTOO (MANDATORY РІР‚вЂќ MUST BE VISIBLE): prominent artistic tattoo on the neck/throat area with dark ink design clearly visible against the skin. The neck tattoo MUST be unmistakably present in the final image.',
   };
 
   // Build detail string (supports arrays for multi-select fields like tattoo)
@@ -842,8 +842,8 @@ function App() {
     const parts = [];
     const details = detailsOverride || modelDetails;
     Object.entries(details).forEach(([k, v]) => {
-      // EXPLICIT NEGATIVE CONSTRAINTS вЂ” when "РќРµС‚" is selected, add hard prohibition
-      if (v === 'РќРµС‚' || (Array.isArray(v) && v.length === 1 && v[0] === 'РќРµС‚')) {
+      // EXPLICIT NEGATIVE CONSTRAINTS РІР‚вЂќ when "Р СњР ВµРЎвЂљ" is selected, add hard prohibition
+      if (v === 'Р СњР ВµРЎвЂљ' || (Array.isArray(v) && v.length === 1 && v[0] === 'Р СњР ВµРЎвЂљ')) {
         if (k === 'tattoo') {
           parts.push('absolutely NO tattoos anywhere on the body, completely clean unmarked skin, zero ink');
         }
@@ -854,7 +854,7 @@ function App() {
       }
       if (!v) return;
       if (Array.isArray(v)) {
-        const filtered = v.filter(x => x !== 'РќРµС‚');
+        const filtered = v.filter(x => x !== 'Р СњР ВµРЎвЂљ');
         filtered.forEach(item => {
           parts.push(DETAIL_TO_PROMPT[item] || item);
         });
@@ -867,7 +867,7 @@ function App() {
     return parts.length ? `, ${parts.join(', ')}` : '';
   };
 
-  // в•ђв•ђв•ђ AUTH FETCH: РґРѕР±Р°РІР»СЏРµС‚ Firebase ID Token РєРѕ РІСЃРµРј API-Р·Р°РїСЂРѕСЃР°Рј в•ђв•ђв•ђ
+  // РІвЂўС’РІвЂўС’РІвЂўС’ AUTH FETCH: Р Т‘Р С•Р В±Р В°Р Р†Р В»РЎРЏР ВµРЎвЂљ Firebase ID Token Р С”Р С• Р Р†РЎРѓР ВµР С API-Р В·Р В°Р С—РЎР‚Р С•РЎРѓР В°Р С РІвЂўС’РІвЂўС’РІвЂўС’
   const authFetch = async (url, options = {}) => {
     const token = user ? await user.getIdToken() : null;
     return fetch(url, {
@@ -882,24 +882,24 @@ function App() {
   const handleGenerate = async (skipConfirm = false) => {
     if (!garmentUrls.length) return;
 
-    // в•ђв•ђв•ђ SUBSCRIPTION CHECK в•ђв•ђв•ђ
+    // РІвЂўС’РІвЂўС’РІвЂўС’ SUBSCRIPTION CHECK РІвЂўС’РІвЂўС’РІвЂўС’
     if (!canGenerate(subscription)) {
       setShowPricing(true);
-      setStatusText('вљЎ Р”Р»СЏ РіРµРЅРµСЂР°С†РёРё РЅСѓР¶РµРЅ Р°РєС‚РёРІРЅС‹Р№ С‚Р°СЂРёС„'); setStatusType('error');
+      setStatusText('РІС™РЋ Р вЂќР В»РЎРЏ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘ Р Р…РЎС“Р В¶Р ВµР Р… Р В°Р С”РЎвЂљР С‘Р Р†Р Р…РЎвЂ№Р в„– РЎвЂљР В°РЎР‚Р С‘РЎвЂћ'); setStatusType('error');
       return;
     }
     if ((subscription.credits || 0) < totalShots) {
-      setStatusText(`вљЎ РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РєСЂРµРґРёС‚РѕРІ: РЅСѓР¶РЅРѕ ${totalShots}, РґРѕСЃС‚СѓРїРЅРѕ ${subscription.credits || 0}`); setStatusType('error');
+      setStatusText(`РІС™РЋ Р СњР ВµР Т‘Р С•РЎРѓРЎвЂљР В°РЎвЂљР С•РЎвЂЎР Р…Р С• Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР С•Р Р†: Р Р…РЎС“Р В¶Р Р…Р С• ${totalShots}, Р Т‘Р С•РЎРѓРЎвЂљРЎС“Р С—Р Р…Р С• ${subscription.credits || 0}`); setStatusType('error');
       return;
     }
 
-    // Р›РёРјРёС‚ 20 РіРµРЅРµСЂР°С†РёР№ Р·Р° СЂР°Р·
+    // Р вЂєР С‘Р СР С‘РЎвЂљ 20 Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р в„– Р В·Р В° РЎР‚Р В°Р В·
     if (totalShots > 20) {
-      setStatusText('вљ пёЏ РџСЂРµРІС‹С€РµРЅ Р»РёРјРёС‚: РјР°РєСЃРёРјСѓРј 20 РіРµРЅРµСЂР°С†РёР№ Р·Р° СЂР°Р·.'); setStatusType('error');
+      setStatusText('РІС™В РїС‘РЏ Р СџРЎР‚Р ВµР Р†РЎвЂ№РЎв‚¬Р ВµР Р… Р В»Р С‘Р СР С‘РЎвЂљ: Р СР В°Р С”РЎРѓР С‘Р СРЎС“Р С 20 Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р в„– Р В·Р В° РЎР‚Р В°Р В·.'); setStatusType('error');
       return;
     }
 
-    // Р•СЃР»Рё РєР°РґСЂРѕРІ >= 6, Р·Р°РїСЂР°С€РёРІР°РµРј РїРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ
+    // Р вЂўРЎРѓР В»Р С‘ Р С”Р В°Р Т‘РЎР‚Р С•Р Р† >= 6, Р В·Р В°Р С—РЎР‚Р В°РЎв‚¬Р С‘Р Р†Р В°Р ВµР С Р С—Р С•Р Т‘РЎвЂљР Р†Р ВµРЎР‚Р В¶Р Т‘Р ВµР Р…Р С‘Р Вµ
     if (totalShots >= 6 && !skipConfirm) {
       triggerConfirm('batch', totalShots, () => handleGenerate(true));
       return;
@@ -907,31 +907,31 @@ function App() {
 
     const runBatchGeneration = async () => {
       setIsProcessing(true); setGeneratedImage(null); setStatusText('');
-      setProcessingMsg('РџРѕРґРіРѕС‚Р°РІР»РёРІР°РµРј РёСЃС…РѕРґРЅРёРєРё...');
+      setProcessingMsg('Р СџР С•Р Т‘Р С–Р С•РЎвЂљР В°Р Р†Р В»Р С‘Р Р†Р В°Р ВµР С Р С‘РЎРѓРЎвЂ¦Р С•Р Т‘Р Р…Р С‘Р С”Р С‘...');
       
       let msgI = 0;
       const iv = setInterval(() => { 
         if (totalShots === 1) {
-          setProcessingMsg(msgI < MSGS.length ? MSGS[msgI++] : 'Р¤РёРЅР°Р»СЊРЅС‹Рµ С€С‚СЂРёС…Рё...'); 
+          setProcessingMsg(msgI < MSGS.length ? MSGS[msgI++] : 'Р В¤Р С‘Р Р…Р В°Р В»РЎРЉР Р…РЎвЂ№Р Вµ РЎв‚¬РЎвЂљРЎР‚Р С‘РЎвЂ¦Р С‘...'); 
         }
       }, 8000);
 
       try {
-        // Р¤РѕСЂРјРёСЂСѓРµРј РїР»РѕСЃРєРёР№ СЃРїРёСЃРѕРє Р·Р°РґР°С‡
+        // Р В¤Р С•РЎР‚Р СР С‘РЎР‚РЎС“Р ВµР С Р С—Р В»Р С•РЎРѓР С”Р С‘Р в„– РЎРѓР С—Р С‘РЎРѓР С•Р С” Р В·Р В°Р Т‘Р В°РЎвЂЎ
         const tasks = [];
 
         if (appMode === 'product') {
-          // РљРѕРјРїРѕР·РёС†РёРё
-          const compsToUse = customPoseText.trim() ? [{ id: 'custom', prompt: customPoseText.trim(), label: 'РЎРІРѕСЏ РєРѕРјРїРѕР·РёС†РёСЏ' }] : selectedProductCompositions;
-          // Р¤РѕРЅС‹
+          // Р С™Р С•Р СР С—Р С•Р В·Р С‘РЎвЂ Р С‘Р С‘
+          const compsToUse = customPoseText.trim() ? [{ id: 'custom', prompt: customPoseText.trim(), label: 'Р РЋР Р†Р С•РЎРЏ Р С”Р С•Р СР С—Р С•Р В·Р С‘РЎвЂ Р С‘РЎРЏ' }] : selectedProductCompositions;
+          // Р В¤Р С•Р Р…РЎвЂ№
           const bgsToUse = (customProductBg.trim() || selectedLocId) 
             ? [{ id: selectedLocId || 'custom', prompt: customProductBg.trim(), isLoc: !!selectedLocId }]
             : selectedProductBgs;
-          // РЎРїРµС†СЌС„С„РµРєС‚С‹
+          // Р РЋР С—Р ВµРЎвЂ РЎРЊРЎвЂћРЎвЂћР ВµР С”РЎвЂљРЎвЂ№
           const effectsToUse = customProductEffectText.trim()
-            ? [{ id: 'custom', prompt: customProductEffectText.trim(), label: 'РЎРІРѕР№ СЌС„С„РµРєС‚' }]
+            ? [{ id: 'custom', prompt: customProductEffectText.trim(), label: 'Р РЋР Р†Р С•Р в„– РЎРЊРЎвЂћРЎвЂћР ВµР С”РЎвЂљ' }]
             : selectedProductEffects;
-          // Р¤РѕСЂРјР°С‚С‹
+          // Р В¤Р С•РЎР‚Р СР В°РЎвЂљРЎвЂ№
           const ratiosToUse = selectedRatios;
 
           compsToUse.forEach(comp => {
@@ -948,21 +948,21 @@ function App() {
           });
         } else {
           // appMode === 'fashion' (VTON)
-          // РњРѕРґРµР»Рё
+          // Р СљР С•Р Т‘Р ВµР В»Р С‘
           const modelsToUse = (customModelPrompt.trim() || selectedSavedModelId)
             ? [{ id: selectedSavedModelId || 'custom', prompt: customModelPrompt.trim(), isSaved: !!selectedSavedModelId }]
             : [...selectedModels, ...customModelChips];
-          // РџРѕР·С‹
+          // Р СџР С•Р В·РЎвЂ№
           const posesToUse = customPoseText.trim()
-            ? [{ id: 'custom', prompt: customPoseText.trim(), label: 'РЎРІРѕСЏ РїРѕР·Р°' }]
+            ? [{ id: 'custom', prompt: customPoseText.trim(), label: 'Р РЋР Р†Р С•РЎРЏ Р С—Р С•Р В·Р В°' }]
             : [...selectedPoses, ...customPoseChips];
-          // Р Р°РєСѓСЂСЃС‹
+          // Р В Р В°Р С”РЎС“РЎР‚РЎРѓРЎвЂ№
           const camerasToUse = selectedCameras;
-          // Р¤РѕРЅС‹
+          // Р В¤Р С•Р Р…РЎвЂ№
           const bgsToUse = (customBgText.trim() || selectedLocId)
             ? [{ id: selectedLocId || 'custom', prompt: customBgText.trim(), isLoc: !!selectedLocId }]
             : [...selectedBgs, ...customBgChips];
-          // Р¤РѕСЂРјР°С‚С‹
+          // Р В¤Р С•РЎР‚Р СР В°РЎвЂљРЎвЂ№
           const ratiosToUse = selectedRatios;
 
           modelsToUse.forEach(model => {
@@ -981,8 +981,8 @@ function App() {
           });
         }
 
-        // 1. Р‘СЂРѕРЅРёСЂСѓРµРј/СЃРїРёСЃС‹РІР°РµРј РєСЂРµРґРёС‚С‹ РїР°РєРµС‚РЅРѕ РїРµСЂРµРґ Р·Р°РїСѓСЃРєРѕРј
-        setProcessingMsg('вљЎ Р‘СЂРѕРЅРёСЂСѓРµРј РєСЂРµРґРёС‚С‹...');
+        // 1. Р вЂРЎР‚Р С•Р Р…Р С‘РЎР‚РЎС“Р ВµР С/РЎРѓР С—Р С‘РЎРѓРЎвЂ№Р Р†Р В°Р ВµР С Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљРЎвЂ№ Р С—Р В°Р С”Р ВµРЎвЂљР Р…Р С• Р С—Р ВµРЎР‚Р ВµР Т‘ Р В·Р В°Р С—РЎС“РЎРѓР С”Р С•Р С
+        setProcessingMsg('РІС™РЋ Р вЂРЎР‚Р С•Р Р…Р С‘РЎР‚РЎС“Р ВµР С Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљРЎвЂ№...');
         const deductResp = await authFetch('/api/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -993,20 +993,20 @@ function App() {
         });
         const deductData = await safeParseJSON(deductResp);
         if (!deductData.success) {
-          throw new Error(deductData.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРїРёСЃР°С‚СЊ РєСЂРµРґРёС‚С‹');
+          throw new Error(deductData.error || 'Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РЎРѓР С—Р С‘РЎРѓР В°РЎвЂљРЎРЉ Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљРЎвЂ№');
         }
         refreshCreditsFromResponse(deductData);
 
-        // 2. РћС‡РµСЂРµРґСЊ РІС‹РїРѕР»РЅРµРЅРёСЏ Р·Р°РґР°С‡ СЃ РєРѕРЅРєСѓСЂРµРЅС‚РЅРѕСЃС‚СЊСЋ = 3
+        // 2. Р С›РЎвЂЎР ВµРЎР‚Р ВµР Т‘РЎРЉ Р Р†РЎвЂ№Р С—Р С•Р В»Р Р…Р ВµР Р…Р С‘РЎРЏ Р В·Р В°Р Т‘Р В°РЎвЂЎ РЎРѓ Р С”Р С•Р Р…Р С”РЎС“РЎР‚Р ВµР Р…РЎвЂљР Р…Р С•РЎРѓРЎвЂљРЎРЉРЎР‹ = 3
         let completedCount = 0;
         let failedCount = 0;
         const results = [];
 
         const updateProgressText = () => {
           if (totalShots > 1) {
-            setProcessingMsg(`рџ“ё Р“РµРЅРµСЂР°С†РёСЏ: РіРѕС‚РѕРІРѕ ${completedCount} РёР· ${totalShots} РєР°РґСЂРѕРІ` + 
-              (failedCount > 0 ? ` (РѕС€РёР±РѕРє: ${failedCount})` : '') + 
-              `...\nРџРѕР¶Р°Р»СѓР№СЃС‚Р°, РЅРµ Р·Р°РєСЂС‹РІР°Р№С‚Рµ РІРєР»Р°РґРєСѓ.`);
+            setProcessingMsg(`СЂСџвЂњС‘ Р вЂњР ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘РЎРЏ: Р С–Р С•РЎвЂљР С•Р Р†Р С• ${completedCount} Р С‘Р В· ${totalShots} Р С”Р В°Р Т‘РЎР‚Р С•Р Р†` + 
+              (failedCount > 0 ? ` (Р С•РЎв‚¬Р С‘Р В±Р С•Р С”: ${failedCount})` : '') + 
+              `...\nР СџР С•Р В¶Р В°Р В»РЎС“Р в„–РЎРѓРЎвЂљР В°, Р Р…Р Вµ Р В·Р В°Р С”РЎР‚РЎвЂ№Р Р†Р В°Р в„–РЎвЂљР Вµ Р Р†Р С”Р В»Р В°Р Т‘Р С”РЎС“.`);
           }
         };
 
@@ -1130,8 +1130,8 @@ function App() {
               setGeneratedImage(img);
               setImageHistory(prev => {
                 const label = appMode === 'product'
-                  ? `рџЋЁ ${task.comp.label || 'РљР°РґСЂ'} (${task.variantIndex})`
-                  : `рџЋЁ ${task.pose.label || 'РџРѕР·Р°'} (${task.variantIndex})`;
+                  ? `СЂСџР‹РЃ ${task.comp.label || 'Р С™Р В°Р Т‘РЎР‚'} (${task.variantIndex})`
+                  : `СЂСџР‹РЃ ${task.pose.label || 'Р СџР С•Р В·Р В°'} (${task.variantIndex})`;
                 const h = [...prev, { image: img, label }];
                 setHistoryIndex(h.length - 1);
                 return h;
@@ -1149,7 +1149,7 @@ function App() {
           }
         };
 
-        // Р—Р°РїСѓСЃРє РѕС‡РµСЂРµРґРё СЃ concurrency = 3
+        // Р вЂ”Р В°Р С—РЎС“РЎРѓР С” Р С•РЎвЂЎР ВµРЎР‚Р ВµР Т‘Р С‘ РЎРѓ concurrency = 3
         let taskIndex = 0;
         const worker = async () => {
           while (taskIndex < tasks.length) {
@@ -1166,7 +1166,7 @@ function App() {
 
         clearInterval(iv);
 
-        // в•ђв•ђв•ђ REFUND РєСЂРµРґРёС‚РѕРІ Р·Р° РЅРµСѓРґР°С‡РЅС‹Рµ РіРµРЅРµСЂР°С†РёРё в•ђв•ђв•ђ
+        // РІвЂўС’РІвЂўС’РІвЂўС’ REFUND Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР С•Р Р† Р В·Р В° Р Р…Р ВµРЎС“Р Т‘Р В°РЎвЂЎР Р…РЎвЂ№Р Вµ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘ РІвЂўС’РІвЂўС’РІвЂўС’
         if (failedCount > 0) {
           try {
             const refundResp = await authFetch('/api/generate-image', {
@@ -1177,7 +1177,7 @@ function App() {
             const refundData = await safeParseJSON(refundResp);
             if (refundData.success) {
               refreshCreditsFromResponse(refundData);
-              console.log(`рџ’° Refunded ${failedCount} credit(s) for failed generations`);
+              console.log(`СЂСџвЂ™В° Refunded ${failedCount} credit(s) for failed generations`);
             }
           } catch (refundErr) {
             console.warn('Failed to refund credits:', refundErr.message);
@@ -1186,14 +1186,14 @@ function App() {
 
         const successItems = results.filter(r => r.success);
         if (successItems.length > 0) {
-          const pluralForm = successItems.length === 1 ? '' : (successItems.length < 5 ? 'Р° вЂ” Р»РёСЃС‚Р°Р№С‚Рµ в—Ђв–¶' : ' вЂ” Р»РёСЃС‚Р°Р№С‚Рµ в—Ђв–¶');
-          setStatusText(`Р“РѕС‚РѕРІРѕ! ${successItems.length} РІР°СЂРёР°РЅС‚${pluralForm}${failedCount > 0 ? ` (${failedCount} РЅРµ СѓРґР°Р»РѕСЃСЊ вЂ” РєСЂРµРґРёС‚С‹ РІРѕР·РІСЂР°С‰РµРЅС‹)` : ''}`); setStatusType('success');
+          const pluralForm = successItems.length === 1 ? '' : (successItems.length < 5 ? 'Р В° РІР‚вЂќ Р В»Р С‘РЎРѓРЎвЂљР В°Р в„–РЎвЂљР Вµ РІвЂ”Р‚РІвЂ“В¶' : ' РІР‚вЂќ Р В»Р С‘РЎРѓРЎвЂљР В°Р в„–РЎвЂљР Вµ РІвЂ”Р‚РІвЂ“В¶');
+          setStatusText(`Р вЂњР С•РЎвЂљР С•Р Р†Р С•! ${successItems.length} Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ${pluralForm}${failedCount > 0 ? ` (${failedCount} Р Р…Р Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РІР‚вЂќ Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљРЎвЂ№ Р Р†Р С•Р В·Р Р†РЎР‚Р В°РЎвЂ°Р ВµР Р…РЎвЂ№)` : ''}`); setStatusType('success');
         } else {
-          setStatusText(`РћС€РёР±РєР°: ${results[0]?.details || results[0]?.error || 'РќРµРёР·РІРµСЃС‚РЅР°СЏ РѕС€РёР±РєР°'}. РљСЂРµРґРёС‚С‹ РІРѕР·РІСЂР°С‰РµРЅС‹.`); setStatusType('error');
+          setStatusText(`Р С›РЎв‚¬Р С‘Р В±Р С”Р В°: ${results[0]?.details || results[0]?.error || 'Р СњР ВµР С‘Р В·Р Р†Р ВµРЎРѓРЎвЂљР Р…Р В°РЎРЏ Р С•РЎв‚¬Р С‘Р В±Р С”Р В°'}. Р С™РЎР‚Р ВµР Т‘Р С‘РЎвЂљРЎвЂ№ Р Р†Р С•Р В·Р Р†РЎР‚Р В°РЎвЂ°Р ВµР Р…РЎвЂ№.`); setStatusType('error');
         }
 
       } catch (err) {
-        setStatusText(`РћС€РёР±РєР°: ${err.message}`); setStatusType('error');
+        setStatusText(`Р С›РЎв‚¬Р С‘Р В±Р С”Р В°: ${err.message}`); setStatusType('error');
         clearInterval(iv);
       } finally {
         setIsProcessing(false);
@@ -1212,7 +1212,7 @@ function App() {
     setLocPreviews(arr.map(f => URL.createObjectURL(f)));
   };
 
-  // РљРѕРЅРІРµСЂС‚Р°С†РёСЏ URL в†’ base64 РЅР° РєР»РёРµРЅС‚Рµ (РѕР±С…РѕРґРёРј РїСЂРѕР±Р»РµРјС‹ Firebase Storage Rules)
+  // Р С™Р С•Р Р…Р Р†Р ВµРЎР‚РЎвЂљР В°РЎвЂ Р С‘РЎРЏ URL РІвЂ вЂ™ base64 Р Р…Р В° Р С”Р В»Р С‘Р ВµР Р…РЎвЂљР Вµ (Р С•Р В±РЎвЂ¦Р С•Р Т‘Р С‘Р С Р С—РЎР‚Р С•Р В±Р В»Р ВµР СРЎвЂ№ Firebase Storage Rules)
   const urlToBase64Client = async (url) => {
     try {
       const resp = await fetch(url);
@@ -1230,19 +1230,19 @@ function App() {
     }
   };
 
-  // Р’С‹Р±РѕСЂ Р»РѕРєР°С†РёРё СЃ РїСЂРµРґРІР°СЂРёС‚РµР»СЊРЅРѕР№ РєРѕРЅРІРµСЂС‚Р°С†РёРµР№ РєР°СЂС‚РёРЅРѕРє РІ base64
+  // Р вЂ™РЎвЂ№Р В±Р С•РЎР‚ Р В»Р С•Р С”Р В°РЎвЂ Р С‘Р С‘ РЎРѓ Р С—РЎР‚Р ВµР Т‘Р Р†Р В°РЎР‚Р С‘РЎвЂљР ВµР В»РЎРЉР Р…Р С•Р в„– Р С”Р С•Р Р…Р Р†Р ВµРЎР‚РЎвЂљР В°РЎвЂ Р С‘Р ВµР в„– Р С”Р В°РЎР‚РЎвЂљР С‘Р Р…Р С•Р С” Р Р† base64
   const selectLocation = async (locId) => {
     setSelectedLocId(locId);
-    if (!locId || locBase64Cache[locId]) return; // СѓР¶Рµ РµСЃС‚СЊ РІ РєРµС€Рµ
+    if (!locId || locBase64Cache[locId]) return; // РЎС“Р В¶Р Вµ Р ВµРЎРѓРЎвЂљРЎРЉ Р Р† Р С”Р ВµРЎв‚¬Р Вµ
     const loc = myLocations.find(l => l.id === locId);
     if (!loc || !loc.imageUrls) return;
     const b64arr = await Promise.all(loc.imageUrls.slice(0, 5).map(urlToBase64Client));
     const valid = b64arr.filter(Boolean);
     if (valid.length > 0) {
       setLocBase64Cache(prev => ({ ...prev, [locId]: valid }));
-      console.log(`рџ“Ќ Pre-fetched ${valid.length} loc images as base64 for loc ${locId}`);
+      console.log(`СЂСџвЂњРЊ Pre-fetched ${valid.length} loc images as base64 for loc ${locId}`);
     } else {
-      console.warn(`вљ пёЏ Could not pre-fetch any loc images for ${locId}, will use raw URLs`);
+      console.warn(`РІС™В РїС‘РЏ Could not pre-fetch any loc images for ${locId}, will use raw URLs`);
     }
   };
 
@@ -1250,9 +1250,9 @@ function App() {
     if (!locName.trim() || locFiles.length < 2 || !user) return;
     setIsSaving(true);
     try {
-      // PRIMARY: РЎРѕС…СЂР°РЅСЏРµРј inline base64 (РіР»Р°РІРЅС‹Р№ РјРµС…Р°РЅРёР·Рј вЂ” РЅРµ Р·Р°РІРёСЃРёС‚ РѕС‚ Firebase Storage)
+      // PRIMARY: Р РЋР С•РЎвЂ¦РЎР‚Р В°Р Р…РЎРЏР ВµР С inline base64 (Р С–Р В»Р В°Р Р†Р Р…РЎвЂ№Р в„– Р СР ВµРЎвЂ¦Р В°Р Р…Р С‘Р В·Р С РІР‚вЂќ Р Р…Р Вµ Р В·Р В°Р Р†Р С‘РЎРѓР С‘РЎвЂљ Р С•РЎвЂљ Firebase Storage)
       const imageBase64 = await Promise.all(locFiles.map(async (f) => {
-        const compressed = await compressImage(f, 500); // 500px вЂ” РґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РґР»СЏ AI-reference
+        const compressed = await compressImage(f, 500); // 500px РІР‚вЂќ Р Т‘Р С•РЎРѓРЎвЂљР В°РЎвЂљР С•РЎвЂЎР Р…Р С• Р Т‘Р В»РЎРЏ AI-reference
         return new Promise((resolve) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result);
@@ -1261,9 +1261,9 @@ function App() {
         });
       }));
       const validBase64 = imageBase64.filter(Boolean);
-      if (validBase64.length === 0) throw new Error('РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±СЂР°Р±РѕС‚Р°С‚СЊ С„РѕС‚РѕРіСЂР°С„РёРё');
+      if (validBase64.length === 0) throw new Error('Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ Р С•Р В±РЎР‚Р В°Р В±Р С•РЎвЂљР В°РЎвЂљРЎРЉ РЎвЂћР С•РЎвЂљР С•Р С–РЎР‚Р В°РЎвЂћР С‘Р С‘');
 
-      // BONUS: РїСЂРѕР±СѓРµРј Р·Р°РіСЂСѓР·РёС‚СЊ РІ Firebase Storage (РЅРµ РєСЂРёС‚РёС‡РЅРѕ РµСЃР»Рё СѓРїР°РґС‘С‚)
+      // BONUS: Р С—РЎР‚Р С•Р В±РЎС“Р ВµР С Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљРЎРЉ Р Р† Firebase Storage (Р Р…Р Вµ Р С”РЎР‚Р С‘РЎвЂљР С‘РЎвЂЎР Р…Р С• Р ВµРЎРѓР В»Р С‘ РЎС“Р С—Р В°Р Т‘РЎвЂРЎвЂљ)
       let imageUrls = [];
       let storagePaths = [];
       try {
@@ -1274,29 +1274,29 @@ function App() {
         imageUrls = uploads.map(u => u.url);
         storagePaths = uploads.map(u => u.path);
       } catch (storageErr) {
-        console.warn('вљ пёЏ Firebase Storage upload failed (non-critical):', storageErr.message);
-        // РџСЂРѕРґРѕР»Р¶Р°РµРј вЂ” Сѓ РЅР°СЃ РµСЃС‚СЊ base64, СЌС‚РѕРіРѕ РґРѕСЃС‚Р°С‚РѕС‡РЅРѕ
+        console.warn('РІС™В РїС‘РЏ Firebase Storage upload failed (non-critical):', storageErr.message);
+        // Р СџРЎР‚Р С•Р Т‘Р С•Р В»Р В¶Р В°Р ВµР С РІР‚вЂќ РЎС“ Р Р…Р В°РЎРѓ Р ВµРЎРѓРЎвЂљРЎРЉ base64, РЎРЊРЎвЂљР С•Р С–Р С• Р Т‘Р С•РЎРѓРЎвЂљР В°РЎвЂљР С•РЎвЂЎР Р…Р С•
       }
 
       await saveLocation(user.uid, {
         title: locName.trim(),
-        imageUrls,      // РјРѕР¶РµС‚ Р±С‹С‚СЊ РїСѓСЃС‚С‹Рј РµСЃР»Рё Storage РЅРµРґРѕСЃС‚СѓРїРµРЅ
-        storagePaths,   // РјРѕР¶РµС‚ Р±С‹С‚СЊ РїСѓСЃС‚С‹Рј РµСЃР»Рё Storage РЅРµРґРѕСЃС‚СѓРїРµРЅ
+        imageUrls,      // Р СР С•Р В¶Р ВµРЎвЂљ Р В±РЎвЂ№РЎвЂљРЎРЉ Р С—РЎС“РЎРѓРЎвЂљРЎвЂ№Р С Р ВµРЎРѓР В»Р С‘ Storage Р Р…Р ВµР Т‘Р С•РЎРѓРЎвЂљРЎС“Р С—Р ВµР Р…
+        storagePaths,   // Р СР С•Р В¶Р ВµРЎвЂљ Р В±РЎвЂ№РЎвЂљРЎРЉ Р С—РЎС“РЎРѓРЎвЂљРЎвЂ№Р С Р ВµРЎРѓР В»Р С‘ Storage Р Р…Р ВµР Т‘Р С•РЎРѓРЎвЂљРЎС“Р С—Р ВµР Р…
         thumbnail: imageUrls[0] || null,
-        imageBase64: validBase64, // Р“Р›РђР’РќР«Р™ РёСЃС‚РѕС‡РЅРёРє С„РѕС‚Рѕ
+        imageBase64: validBase64, // Р вЂњР вЂєР С’Р вЂ™Р СњР В«Р в„ў Р С‘РЎРѓРЎвЂљР С•РЎвЂЎР Р…Р С‘Р С” РЎвЂћР С•РЎвЂљР С•
       });
       const locations = await getLocations(user.uid);
       setMyLocations(locations);
-      // РЎСЂР°Р·Сѓ Р·Р°РїРѕР»РЅСЏРµРј РєРµС€ РґР»СЏ РЅРѕРІРѕР№ Р»РѕРєР°С†РёРё
+      // Р РЋРЎР‚Р В°Р В·РЎС“ Р В·Р В°Р С—Р С•Р В»Р Р…РЎРЏР ВµР С Р С”Р ВµРЎв‚¬ Р Т‘Р В»РЎРЏ Р Р…Р С•Р Р†Р С•Р в„– Р В»Р С•Р С”Р В°РЎвЂ Р С‘Р С‘
       if (validBase64.length > 0) {
         const newLocId = locations.find(l => l.title === locName.trim())?.id;
         if (newLocId) setLocBase64Cache(prev => ({ ...prev, [newLocId]: validBase64 }));
       }
       setShowLocModal(false); setLocName(''); setLocFiles([]); setLocPreviews([]);
-      setStatusText('рџ“Ќ Р›РѕРєР°С†РёСЏ СЃРѕС…СЂР°РЅРµРЅР°!'); setStatusType('success');
+      setStatusText('СЂСџвЂњРЊ Р вЂєР С•Р С”Р В°РЎвЂ Р С‘РЎРЏ РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…Р В°!'); setStatusType('success');
     } catch (err) {
-      console.error('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ Р»РѕРєР°С†РёРё:', err);
-      setStatusText(`вќЊ РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ Р»РѕРєР°С†РёРё: ${err.message || 'РќРµРёР·РІРµСЃС‚РЅР°СЏ РѕС€РёР±РєР°'}`); setStatusType('error');
+      console.error('Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…Р С‘РЎРЏ Р В»Р С•Р С”Р В°РЎвЂ Р С‘Р С‘:', err);
+      setStatusText(`РІСњРЉ Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…Р С‘РЎРЏ Р В»Р С•Р С”Р В°РЎвЂ Р С‘Р С‘: ${err.message || 'Р СњР ВµР С‘Р В·Р Р†Р ВµРЎРѓРЎвЂљР Р…Р В°РЎРЏ Р С•РЎв‚¬Р С‘Р В±Р С”Р В°'}`); setStatusType('error');
     }
     finally { setIsSaving(false); }
   };
@@ -1310,19 +1310,19 @@ function App() {
     if (selectedLocId === id) setSelectedLocId(null);
   };
 
-  // LoRA model save (Firebase) вЂ” base64-first, Storage optional
+  // LoRA model save (Firebase) РІР‚вЂќ base64-first, Storage optional
   const saveLoraModel = async (photosOverride) => {
     if (!loraName.trim() || !user) return;
     setIsSaving(true);
     try {
       const photos = photosOverride || loraPhotos;
       const photoEntries = Object.entries(photos).filter(([, v]) => v);
-      if (photoEntries.length === 0) throw new Error('РќРµС‚ С„РѕС‚РѕРіСЂР°С„РёР№ РґР»СЏ СЃРѕС…СЂР°РЅРµРЅРёСЏ');
+      if (photoEntries.length === 0) throw new Error('Р СњР ВµРЎвЂљ РЎвЂћР С•РЎвЂљР С•Р С–РЎР‚Р В°РЎвЂћР С‘Р в„– Р Т‘Р В»РЎРЏ РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…Р С‘РЎРЏ');
 
-      // PRIMARY: base64 inline (РіР°СЂР°РЅС‚РёСЂРѕРІР°РЅРЅРѕ СЂР°Р±РѕС‚Р°РµС‚)
+      // PRIMARY: base64 inline (Р С–Р В°РЎР‚Р В°Р Р…РЎвЂљР С‘РЎР‚Р С•Р Р†Р В°Р Р…Р Р…Р С• РЎР‚Р В°Р В±Р С•РЎвЂљР В°Р ВµРЎвЂљ)
       const imageBase64 = photoEntries.map(([, base64]) => base64);
 
-      // BONUS: Storage upload (РЅРµ Р±Р»РѕРєРёСЂСѓРµС‚ РµСЃР»Рё СѓРїР°РґС‘С‚)
+      // BONUS: Storage upload (Р Р…Р Вµ Р В±Р В»Р С•Р С”Р С‘РЎР‚РЎС“Р ВµРЎвЂљ Р ВµРЎРѓР В»Р С‘ РЎС“Р С—Р В°Р Т‘РЎвЂРЎвЂљ)
       let imageUrls = [];
       let storagePaths = [];
       try {
@@ -1332,22 +1332,22 @@ function App() {
         imageUrls = uploads.map(u => u.url);
         storagePaths = uploads.map(u => u.path);
       } catch (storageErr) {
-        console.warn('вљ пёЏ Storage upload failed (non-critical):', storageErr.message);
+        console.warn('РІС™В РїС‘РЏ Storage upload failed (non-critical):', storageErr.message);
       }
 
       await saveModel(user.uid, { name: loraName.trim(), type: 'lora', modelType: 'own_model', imageUrls, storagePaths, imageBase64, prompt: '' });
       const models = await getModels(user.uid);
       setMyModels(models);
       setShowLoraModal(false); setLoraName(''); setLoraPhotos({ front: null, left34: null, right34: null, fullbody: null });
-      setStatusText('в­ђ РњРѕРґРµР»СЊ СЃРѕС…СЂР°РЅРµРЅР°!'); setStatusType('success');
+      setStatusText('РІВ­С’ Р СљР С•Р Т‘Р ВµР В»РЎРЉ РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…Р В°!'); setStatusType('success');
     } catch (err) {
-      console.error('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ РјРѕРґРµР»Рё:', err);
+      console.error('Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…Р С‘РЎРЏ Р СР С•Р Т‘Р ВµР В»Р С‘:', err);
       throw err;
     }
     finally { setIsSaving(false); }
   };
 
-  // Save generated model (Firebase) вЂ” base64-first, Storage optional
+  // Save generated model (Firebase) РІР‚вЂќ base64-first, Storage optional
   const saveGenModel = async () => {
     if (!saveModelName.trim() || !generatedImage || !user) return;
     setIsSaving(true);
@@ -1367,23 +1367,23 @@ function App() {
         imageUrls = [url];
         storagePaths = [path];
       } catch (storageErr) {
-        console.warn('вљ пёЏ Storage upload failed (non-critical):', storageErr.message);
+        console.warn('РІС™В РїС‘РЏ Storage upload failed (non-critical):', storageErr.message);
       }
 
       await saveModel(user.uid, { name: saveModelName.trim(), type: 'generated', imageUrls, storagePaths, imageBase64, prompt: mp });
       const models = await getModels(user.uid);
       setMyModels(models);
       setShowSaveModelModal(false); setSaveModelName('');
-      setStatusText('вњ… РњРѕРґРµР»СЊ СЃРѕС…СЂР°РЅРµРЅР°!');
+      setStatusText('РІСљвЂ¦ Р СљР С•Р Т‘Р ВµР В»РЎРЉ РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…Р В°!');
       setStatusType('success');
-    } catch (err) { console.error('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ РјРѕРґРµР»Рё:', err); setStatusText('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ'); setStatusType('error'); }
+    } catch (err) { console.error('Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…Р С‘РЎРЏ Р СР С•Р Т‘Р ВµР В»Р С‘:', err); setStatusText('Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…Р С‘РЎРЏ'); setStatusType('error'); }
     finally { setIsSaving(false); }
   };
 
-  // Save calibrated model from wizard (3-angle photos) вЂ” base64-first
+  // Save calibrated model from wizard (3-angle photos) РІР‚вЂќ base64-first
   const saveCalibratedModel = async (name, photos, prompt) => {
     if (!user) {
-      throw new Error('РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ. Р’РѕР№РґРёС‚Рµ РІ Р°РєРєР°СѓРЅС‚.');
+      throw new Error('Р СџР С•Р В»РЎРЉР В·Р С•Р Р†Р В°РЎвЂљР ВµР В»РЎРЉ Р Р…Р Вµ Р В°Р Р†РЎвЂљР С•РЎР‚Р С‘Р В·Р С•Р Р†Р В°Р Р…. Р вЂ™Р С•Р в„–Р Т‘Р С‘РЎвЂљР Вµ Р Р† Р В°Р С”Р С”Р В°РЎС“Р Р…РЎвЂљ.');
     }
     setIsSaving(true);
     try {
@@ -1409,7 +1409,7 @@ function App() {
         const fullbodyEntry = uploadResults.find(u => u.key === 'fullbody');
         fullbodyUrl = fullbodyEntry?.url || null;
       } catch (storageErr) {
-        console.warn('вљ пёЏ Storage upload failed (non-critical):', storageErr.message);
+        console.warn('РІС™В РїС‘РЏ Storage upload failed (non-critical):', storageErr.message);
       }
 
       await saveModel(user.uid, {
@@ -1425,12 +1425,12 @@ function App() {
       const models = await getModels(user.uid);
       setMyModels(models);
       setShowCalibWizard(false);
-      setStatusText('вњ… РћС‚РєР°Р»РёР±СЂРѕРІР°РЅРЅР°СЏ РјРѕРґРµР»СЊ СЃРѕС…СЂР°РЅРµРЅР°!');
+      setStatusText('РІСљвЂ¦ Р С›РЎвЂљР С”Р В°Р В»Р С‘Р В±РЎР‚Р С•Р Р†Р В°Р Р…Р Р…Р В°РЎРЏ Р СР С•Р Т‘Р ВµР В»РЎРЉ РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…Р В°!');
       setStatusType('success');
 
     } catch (err) {
-      console.error('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ РјРѕРґРµР»Рё:', err);
-      setStatusText('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ РјРѕРґРµР»Рё');
+      console.error('Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…Р С‘РЎРЏ Р СР С•Р Т‘Р ВµР В»Р С‘:', err);
+      setStatusText('Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…Р С‘РЎРЏ Р СР С•Р Т‘Р ВµР В»Р С‘');
       setStatusType('error');
       throw err;
     } finally {
@@ -1441,7 +1441,7 @@ function App() {
 
   // Save persona model (from PersonaWizard comp card)
   const savePersonaModel = async ({ name, type, compCardBase64, compCardUrl, sourcePhotos }) => {
-    if (!user) throw new Error('РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ');
+    if (!user) throw new Error('Р СњР Вµ Р В°Р Р†РЎвЂљР С•РЎР‚Р С‘Р В·Р С•Р Р†Р В°Р Р…');
     setIsSaving(true);
     try {
       const compUpload = await uploadBase64Image(user.uid, compCardBase64, 'models');
@@ -1451,8 +1451,8 @@ function App() {
       await saveModel(user.uid, {
         name,
         type: 'persona',
-        modelType: 'persona',  // в†ђ РјР°СЂРєРµСЂ РґР»СЏ VTON pipeline
-        // imageUrls = С‚РѕР»СЊРєРѕ comp card (1 С„Р°Р№Р») вЂ” РёРјРµРЅРЅРѕ РѕРЅ СѓР№РґС‘С‚ РІ GPT Image 2 РєР°Рє СЂРµС„РµСЂРµРЅСЃ
+        modelType: 'persona',  // РІвЂ С’ Р СР В°РЎР‚Р С”Р ВµРЎР‚ Р Т‘Р В»РЎРЏ VTON pipeline
+        // imageUrls = РЎвЂљР С•Р В»РЎРЉР С”Р С• comp card (1 РЎвЂћР В°Р в„–Р В») РІР‚вЂќ Р С‘Р СР ВµР Р…Р Р…Р С• Р С•Р Р… РЎС“Р в„–Р Т‘РЎвЂРЎвЂљ Р Р† GPT Image 2 Р С”Р В°Р С” РЎР‚Р ВµРЎвЂћР ВµРЎР‚Р ВµР Р…РЎРѓ
         imageUrls: [compUpload.url],
         sourcePhotoUrls: sourceUploads.map(u => u.url),
         storagePaths: [compUpload.path, ...sourceUploads.map(u => u.path)],
@@ -1461,10 +1461,10 @@ function App() {
       });
       const models = await getModels(user.uid);
       setMyModels(models);
-      setStatusText('\u2705 РџРµСЂСЃРѕРЅР°Р¶ СЃРѕС…СЂР°РЅС‘РЅ!');
+      setStatusText('\u2705 Р СџР ВµРЎР‚РЎРѓР С•Р Р…Р В°Р В¶ РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…РЎвЂР Р…!');
       setStatusType('success');
     } catch (err) {
-      console.error('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ РїРµСЂСЃРѕРЅР°Р¶Р°:', err);
+      console.error('Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…Р С‘РЎРЏ Р С—Р ВµРЎР‚РЎРѓР С•Р Р…Р В°Р В¶Р В°:', err);
       throw err;
     } finally {
       setIsSaving(false);
@@ -1500,7 +1500,7 @@ function App() {
   };
 
   // Get current model ref images for calibration
-  // CRITICAL: Do NOT include generatedImage вЂ” it may contain product objects (cups, bottles etc.)
+  // CRITICAL: Do NOT include generatedImage РІР‚вЂќ it may contain product objects (cups, bottles etc.)
   // Only include clean model reference photos from saved models.
   const getCurrentModelRefs = () => {
     const refs = [];
@@ -1541,7 +1541,7 @@ function App() {
     const sm = myModels.find(m => m.id === selectedSavedModelId);
     const prompt = ((sm?.prompt || '') + '. Additionally: ' + modelModifier.trim()).trim();
     try {
-      const refImgs = sm?.imageUrls || [];
+      const refImgs = (sm?.imageBase64?.length ? sm.imageBase64 : null) || sm?.imageUrls || [];
       // Use loaded garments if available, otherwise send previewMode
       let garmentUrlsForPreview = garmentUrls.slice(0, 1);
       const resp = await authFetch('/api/generate-image', {
@@ -1559,13 +1559,13 @@ function App() {
       const data = await safeParseJSON(resp);
       if (data.success) {
         setModelPreviewSrc(data.imageUrl || data.imageBase64);
-        setStatusText('РџСЂРµРІСЊСЋ РјРѕРґРµР»Рё РіРѕС‚РѕРІРѕ! РЎРѕС…СЂР°РЅРёС‚СЊ РєР°Рє РЅРѕРІСѓСЋ?'); setStatusType('success');
-      } else { setStatusText(`РћС€РёР±РєР°: ${data.details||data.error}`); setStatusType('error'); }
-    } catch (err) { setStatusText(`РћС€РёР±РєР°: ${err.message}`); setStatusType('error'); }
+        setStatusText('Р СџРЎР‚Р ВµР Р†РЎРЉРЎР‹ Р СР С•Р Т‘Р ВµР В»Р С‘ Р С–Р С•РЎвЂљР С•Р Р†Р С•! Р РЋР С•РЎвЂ¦РЎР‚Р В°Р Р…Р С‘РЎвЂљРЎРЉ Р С”Р В°Р С” Р Р…Р С•Р Р†РЎС“РЎР‹?'); setStatusType('success');
+      } else { setStatusText(`Р С›РЎв‚¬Р С‘Р В±Р С”Р В°: ${data.details||data.error}`); setStatusType('error'); }
+    } catch (err) { setStatusText(`Р С›РЎв‚¬Р С‘Р В±Р С”Р В°: ${err.message}`); setStatusType('error'); }
     finally { setIsPreviewingModel(false); }
   };
 
-  // Save modified model as NEW вЂ” base64-first
+  // Save modified model as NEW РІР‚вЂќ base64-first
   const saveModelAsNew = async () => {
     if (!user || !modelPreviewSrc || !modelPreviewName.trim()) return;
     setIsSaving(true);
@@ -1584,7 +1584,7 @@ function App() {
         imageUrls = [url];
         storagePaths = [path];
       } catch (storageErr) {
-        console.warn('вљ пёЏ Storage upload failed (non-critical):', storageErr.message);
+        console.warn('РІС™В РїС‘РЏ Storage upload failed (non-critical):', storageErr.message);
       }
 
       await saveModel(user.uid, { name: modelPreviewName.trim(), type: 'generated', imageUrls, storagePaths, imageBase64, prompt: newPrompt });
@@ -1592,8 +1592,8 @@ function App() {
       setMyModels(models);
       setModelPreviewSrc(null); setModelPreviewName(''); setModelModifier(''); setShowModelModifier(false);
       setShowModelPreviewSave(false);
-      setStatusText('вњ… РќРѕРІР°СЏ РјРѕРґРµР»СЊ СЃРѕС…СЂР°РЅРµРЅР°!'); setStatusType('success');
-    } catch (err) { console.error(err); setStatusText('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ'); setStatusType('error'); }
+      setStatusText('РІСљвЂ¦ Р СњР С•Р Р†Р В°РЎРЏ Р СР С•Р Т‘Р ВµР В»РЎРЉ РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…Р В°!'); setStatusType('success');
+    } catch (err) { console.error(err); setStatusText('Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…Р С‘РЎРЏ'); setStatusType('error'); }
     finally { setIsSaving(false); }
   };
 
@@ -1606,29 +1606,29 @@ function App() {
       await updateLocationPrompt(user.uid, selectedLocId, newPrompt);
       setMyLocations(prev => prev.map(l => l.id === selectedLocId ? { ...l, prompt: newPrompt } : l));
       setLocModifier('');
-      setStatusText('вњ… РР·РјРµРЅРµРЅРёСЏ Р»РѕРєР°С†РёРё СЃРѕС…СЂР°РЅРµРЅС‹!'); setStatusType('success');
-    } catch (err) { console.error(err); setStatusText('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ'); setStatusType('error'); }
+      setStatusText('РІСљвЂ¦ Р ВР В·Р СР ВµР Р…Р ВµР Р…Р С‘РЎРЏ Р В»Р С•Р С”Р В°РЎвЂ Р С‘Р С‘ РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…РЎвЂ№!'); setStatusType('success');
+    } catch (err) { console.error(err); setStatusText('Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…Р ВµР Р…Р С‘РЎРЏ'); setStatusType('error'); }
   };
 
   // Re-generate with shot modifier (iterative editing)
   const handleRegenerate = async () => {
     if (!shotModifier.trim() || !garmentUrls.length) return;
 
-    // в•ђв•ђв•ђ SUBSCRIPTION CHECK в•ђв•ђв•ђ
+    // РІвЂўС’РІвЂўС’РІвЂўС’ SUBSCRIPTION CHECK РІвЂўС’РІвЂўС’РІвЂўС’
     if (!canGenerate(subscription)) {
       setShowPricing(true);
-      setStatusText('вљЎ Р”Р»СЏ РіРµРЅРµСЂР°С†РёРё РЅСѓР¶РµРЅ Р°РєС‚РёРІРЅС‹Р№ С‚Р°СЂРёС„'); setStatusType('error');
+      setStatusText('РІС™РЋ Р вЂќР В»РЎРЏ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘ Р Р…РЎС“Р В¶Р ВµР Р… Р В°Р С”РЎвЂљР С‘Р Р†Р Р…РЎвЂ№Р в„– РЎвЂљР В°РЎР‚Р С‘РЎвЂћ'); setStatusType('error');
       return;
     }
 
     setIsProcessing(true);
-    // DON'T clear generatedImage here вЂ” preserve it in case of error
+    // DON'T clear generatedImage here РІР‚вЂќ preserve it in case of error
     setStatusText('');
     let msgI = 0;
-    const iv = setInterval(() => { setProcessingMsg(msgI < MSGS.length ? MSGS[msgI++] : 'Р¤РёРЅР°Р»СЊРЅС‹Рµ С€С‚СЂРёС…Рё...'); }, 8000);
+    const iv = setInterval(() => { setProcessingMsg(msgI < MSGS.length ? MSGS[msgI++] : 'Р В¤Р С‘Р Р…Р В°Р В»РЎРЉР Р…РЎвЂ№Р Вµ РЎв‚¬РЎвЂљРЎР‚Р С‘РЎвЂ¦Р С‘...'); }, 8000);
 
     try {
-      setProcessingMsg('РџРѕРґРіРѕС‚Р°РІР»РёРІР°РµРј РёСЃС…РѕРґРЅРёРєРё...');
+      setProcessingMsg('Р СџР С•Р Т‘Р С–Р С•РЎвЂљР В°Р Р†Р В»Р С‘Р Р†Р В°Р ВµР С Р С‘РЎРѓРЎвЂ¦Р С•Р Т‘Р Р…Р С‘Р С”Р С‘...');
 
       let modelPrompt = '';
       let posePrompt = '';
@@ -1638,7 +1638,7 @@ function App() {
       const mod = shotModifier.trim();
 
       if (appMode === 'product') {
-        // РўРѕРІР°СЂРЅС‹Р№ СЂРµР¶РёРј
+        // Р СћР С•Р Р†Р В°РЎР‚Р Р…РЎвЂ№Р в„– РЎР‚Р ВµР В¶Р С‘Р С
         modelPrompt = customProductPrompt.trim() || selectedProductCategory.defaultPrompt;
         posePrompt = customPoseText.trim() || selectedProductCompositions[0].prompt;
         bgPrompt = customProductBg.trim() || selectedProductBgs[0].prompt;
@@ -1663,15 +1663,15 @@ function App() {
           }
         }
         
-        // РџСЂРёРјРµРЅРµРЅРёРµ РїСЂР°РІРѕРє РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ Рє С‚РѕРІР°СЂСѓ РёР»Рё С„РѕРЅСѓ
-        const bgKeywords = /(?:С„РѕРЅ|Р·Р°РґРЅРёР№|РїР»СЏР¶|СѓР»РёС†|РіРѕСЂРѕРґ|РїР°СЂРє|Р»РµСЃ|РіРѕСЂС‹|РёРЅС‚РµСЂСЊРµСЂ|СЃС‚СѓРґРё|background|beach|street|city|park|forest|mountain|interior|studio|wood|marble|table|desk|neon|droplets|splash|petals|glow)/i;
+        // Р СџРЎР‚Р С‘Р СР ВµР Р…Р ВµР Р…Р С‘Р Вµ Р С—РЎР‚Р В°Р Р†Р С•Р С” Р С—Р С•Р В»РЎРЉР В·Р С•Р Р†Р В°РЎвЂљР ВµР В»РЎРЏ Р С” РЎвЂљР С•Р Р†Р В°РЎР‚РЎС“ Р С‘Р В»Р С‘ РЎвЂћР С•Р Р…РЎС“
+        const bgKeywords = /(?:РЎвЂћР С•Р Р…|Р В·Р В°Р Т‘Р Р…Р С‘Р в„–|Р С—Р В»РЎРЏР В¶|РЎС“Р В»Р С‘РЎвЂ |Р С–Р С•РЎР‚Р С•Р Т‘|Р С—Р В°РЎР‚Р С”|Р В»Р ВµРЎРѓ|Р С–Р С•РЎР‚РЎвЂ№|Р С‘Р Р…РЎвЂљР ВµРЎР‚РЎРЉР ВµРЎР‚|РЎРѓРЎвЂљРЎС“Р Т‘Р С‘|background|beach|street|city|park|forest|mountain|interior|studio|wood|marble|table|desk|neon|droplets|splash|petals|glow)/i;
         if (bgKeywords.test(mod)) {
           bgPrompt += `. Additionally: ${mod}`;
         } else {
           modelPrompt += `. Additionally: ${mod}`;
         }
       } else {
-        // Р РµР¶РёРј РѕРґРµР¶РґС‹ (VTON)
+        // Р В Р ВµР В¶Р С‘Р С Р С•Р Т‘Р ВµР В¶Р Т‘РЎвЂ№ (VTON)
         modelPrompt = customModelPrompt.trim()
           || (customModelChips.length > 0 ? customModelChips[0].prompt : null)
           || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
@@ -1681,7 +1681,7 @@ function App() {
         }
 
         posePrompt = customPoseText.trim() || selectedPoses[0].prompt;
-        const poseKeywords = /(?:РїРѕР·[Р°РµСѓС‹]|СЃРёРґ(?:РёС‚|СЏ|РµС‚СЊ)|СЃС‚РѕРёС‚|Р»РµР¶РёС‚|РёРґС‘С‚|РёРґРµС‚|С…РѕРґРёС‚|Р±РµР¶РёС‚|С‚Р°РЅС†Сѓ|РїСЂС‹РіР°|lotus|sitting|standing|lying|walking|running|dancing|crouching|leaning|kneeling|jumping|squat)/i;
+        const poseKeywords = /(?:Р С—Р С•Р В·[Р В°Р ВµРЎС“РЎвЂ№]|РЎРѓР С‘Р Т‘(?:Р С‘РЎвЂљ|РЎРЏ|Р ВµРЎвЂљРЎРЉ)|РЎРѓРЎвЂљР С•Р С‘РЎвЂљ|Р В»Р ВµР В¶Р С‘РЎвЂљ|Р С‘Р Т‘РЎвЂРЎвЂљ|Р С‘Р Т‘Р ВµРЎвЂљ|РЎвЂ¦Р С•Р Т‘Р С‘РЎвЂљ|Р В±Р ВµР В¶Р С‘РЎвЂљ|РЎвЂљР В°Р Р…РЎвЂ РЎС“|Р С—РЎР‚РЎвЂ№Р С–Р В°|lotus|sitting|standing|lying|walking|running|dancing|crouching|leaning|kneeling|jumping|squat)/i;
         if (poseKeywords.test(mod)) {
           posePrompt = `${mod}. ${posePrompt}`;
         }
@@ -1697,15 +1697,15 @@ function App() {
         if (locModifier.trim()) bgPrompt += `. Additionally: ${locModifier.trim()}`;
         if (bgExtraText.trim() && !customBgText.trim()) bgPrompt += `. MANDATORY SCENE ADDITION (must be visible): ${bgExtraText.trim()}`;
 
-        const bgKeywords = /(?:С„РѕРЅ|Р±Р°Р»Рё|РїР»СЏР¶|СѓР»РёС†|РіРѕСЂРѕРґ|РїР°СЂРє|Р»РµСЃ|РіРѕСЂС‹|РёРЅС‚РµСЂСЊРµСЂ|СЃС‚СѓРґРё|background|beach|street|city|park|forest|mountain|interior|studio)/i;
+        const bgKeywords = /(?:РЎвЂћР С•Р Р…|Р В±Р В°Р В»Р С‘|Р С—Р В»РЎРЏР В¶|РЎС“Р В»Р С‘РЎвЂ |Р С–Р С•РЎР‚Р С•Р Т‘|Р С—Р В°РЎР‚Р С”|Р В»Р ВµРЎРѓ|Р С–Р С•РЎР‚РЎвЂ№|Р С‘Р Р…РЎвЂљР ВµРЎР‚РЎРЉР ВµРЎР‚|РЎРѓРЎвЂљРЎС“Р Т‘Р С‘|background|beach|street|city|park|forest|mountain|interior|studio)/i;
         if (bgKeywords.test(mod)) {
           bgPrompt += `. ${mod}`;
         }
       }
 
-      setProcessingMsg('рџљЂ РћС‚РїСЂР°РІР»СЏРµРј РІ Nano Banano 2...');
-      // в•ђв•ђв•ђ STATELESS REGENERATION в•ђв•ђв•ђ
-      // NEVER send the generated photo back as reference вЂ” it creates "Visual Attention Sink"
+      setProcessingMsg('СЂСџС™Р‚ Р С›РЎвЂљР С—РЎР‚Р В°Р Р†Р В»РЎРЏР ВµР С Р Р† Nano Banano 2...');
+      // РІвЂўС’РІвЂўС’РІвЂўС’ STATELESS REGENERATION РІвЂўС’РІвЂўС’РІвЂўС’
+      // NEVER send the generated photo back as reference РІР‚вЂќ it creates "Visual Attention Sink"
       // where Gemini locks onto the photorealistic result and refuses to change body geometry.
       // Instead, we re-send ONLY the original garment photos + text edit instruction.
       // Gemini will regenerate the body from scratch with new metrics.
@@ -1729,21 +1729,21 @@ function App() {
       clearInterval(iv);
       const data = await safeParseJSON(resp);
       if (data.success) {
-        // РљСЂРµРґРёС‚С‹ СѓР¶Рµ СЃРїРёСЃР°РЅС‹ Р±СЌРєРµРЅРґРѕРј вЂ” РѕР±РЅРѕРІР»СЏРµРј Р±Р°Р»Р°РЅСЃ РёР· РѕС‚РІРµС‚Р°
+        // Р С™РЎР‚Р ВµР Т‘Р С‘РЎвЂљРЎвЂ№ РЎС“Р В¶Р Вµ РЎРѓР С—Р С‘РЎРѓР В°Р Р…РЎвЂ№ Р В±РЎРЊР С”Р ВµР Р…Р Т‘Р С•Р С РІР‚вЂќ Р С•Р В±Р Р…Р С•Р Р†Р В»РЎРЏР ВµР С Р В±Р В°Р В»Р В°Р Р…РЎРѓ Р С‘Р В· Р С•РЎвЂљР Р†Р ВµРЎвЂљР В°
         refreshCreditsFromResponse(data);
 
         const newImg = data.imageUrl || data.imageBase64;
         setGeneratedImage(newImg);
-        const editLabel = shotModifier.trim() || 'РџРµСЂРµРіРµРЅРµСЂР°С†РёСЏ';
+        const editLabel = shotModifier.trim() || 'Р СџР ВµРЎР‚Р ВµР С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘РЎРЏ';
         setImageHistory(prev => { const h = [...prev, { image: newImg, label: editLabel }]; setHistoryIndex(h.length - 1); return h; });
-        setStatusText('РљР°РґСЂ РѕР±РЅРѕРІР»С‘РЅ!');
+        setStatusText('Р С™Р В°Р Т‘РЎР‚ Р С•Р В±Р Р…Р С•Р Р†Р В»РЎвЂР Р…!');
         setStatusType('success');
       } else {
-        setStatusText(`РћС€РёР±РєР°: ${data.details || data.error}`);
+        setStatusText(`Р С›РЎв‚¬Р С‘Р В±Р С”Р В°: ${data.details || data.error}`);
         setStatusType('error');
       }
     } catch (err) {
-      setStatusText(`РћС€РёР±РєР°: ${err.message}`);
+      setStatusText(`Р С›РЎв‚¬Р С‘Р В±Р С”Р В°: ${err.message}`);
       setStatusType('error');
       clearInterval(iv);
     } finally {
@@ -1752,7 +1752,7 @@ function App() {
     }
   };
 
-  // в•ђв•ђв•ђ CARD DESIGN вЂ” show count modal first в•ђв•ђв•ђ
+  // РІвЂўС’РІвЂўС’РІвЂўС’ CARD DESIGN РІР‚вЂќ show count modal first РІвЂўС’РІвЂўС’РІвЂўС’
   const handleCardDesignClick = () => {
     if (!generatedImage) return;
     setShowCardCountModal(true);
@@ -1768,20 +1768,20 @@ function App() {
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < totalCredits && !subscription?.local) {
       setShowPricing(true);
-      setStatusText(`вљЎ Р”Р»СЏ ${count} РєР°СЂС‚РѕС‡РµРє РЅСѓР¶РЅРѕ ${totalCredits} РєСЂРµРґРёС‚РѕРІ`); setStatusType('error');
+      setStatusText(`РІС™РЋ Р вЂќР В»РЎРЏ ${count} Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР ВµР С” Р Р…РЎС“Р В¶Р Р…Р С• ${totalCredits} Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР С•Р Р†`); setStatusType('error');
       return;
     }
     if (subscription?.local && creditsAvailable < totalCredits) {
-      setStatusText(`вљЎ Р”Р»СЏ ${count} РєР°СЂС‚РѕС‡РµРє РЅСѓР¶РЅРѕ ${totalCredits} РєСЂРµРґРёС‚РѕРІ`); setStatusType('error');
+      setStatusText(`РІС™РЋ Р вЂќР В»РЎРЏ ${count} Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР ВµР С” Р Р…РЎС“Р В¶Р Р…Р С• ${totalCredits} Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР С•Р Р†`); setStatusType('error');
       return;
     }
 
     setIsCardGenerating(true);
     setCardResult(null);
-    setStatusText(`рџЋґ РЎРѕР·РґР°С‘Рј ${count > 1 ? count + ' РєР°СЂС‚РѕС‡РµРє' : 'РєР°СЂС‚РѕС‡РєСѓ'}...`);
+    setStatusText(`СЂСџР‹Т‘ Р РЋР С•Р В·Р Т‘Р В°РЎвЂР С ${count > 1 ? count + ' Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР ВµР С”' : 'Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”РЎС“'}...`);
     setStatusType('processing');
 
-    const progressSteps = ['рџЋґ РђРЅР°Р»РёР·РёСЂСѓРµРј С‚РѕРІР°СЂ...', 'рџЋЁ РџРѕРґР±РёСЂР°РµРј СЃС‚РёР»СЊ...', 'вњЌпёЏ Р“РµРЅРµСЂРёСЂСѓРµРј С‚РёРїРѕРіСЂР°С„РёРєСѓ...', 'рџ“ђ РљРѕРјРїРѕРЅСѓРµРј РјР°РєРµС‚...', 'вњЁ Р¤РёРЅР°Р»СЊРЅР°СЏ РїРѕР»РёСЂРѕРІРєР°...'];
+    const progressSteps = ['СЂСџР‹Т‘ Р С’Р Р…Р В°Р В»Р С‘Р В·Р С‘РЎР‚РЎС“Р ВµР С РЎвЂљР С•Р Р†Р В°РЎР‚...', 'СЂСџР‹РЃ Р СџР С•Р Т‘Р В±Р С‘РЎР‚Р В°Р ВµР С РЎРѓРЎвЂљР С‘Р В»РЎРЉ...', 'РІСљРЊРїС‘РЏ Р вЂњР ВµР Р…Р ВµРЎР‚Р С‘РЎР‚РЎС“Р ВµР С РЎвЂљР С‘Р С—Р С•Р С–РЎР‚Р В°РЎвЂћР С‘Р С”РЎС“...', 'СЂСџвЂњС’ Р С™Р С•Р СР С—Р С•Р Р…РЎС“Р ВµР С Р СР В°Р С”Р ВµРЎвЂљ...', 'РІСљРЃ Р В¤Р С‘Р Р…Р В°Р В»РЎРЉР Р…Р В°РЎРЏ Р С—Р С•Р В»Р С‘РЎР‚Р С•Р Р†Р С”Р В°...'];
     let stepIdx = 0;
     const iv = setInterval(() => {
       stepIdx = (stepIdx + 1) % progressSteps.length;
@@ -1812,50 +1812,50 @@ function App() {
       const successCards = results.filter(d => d.success).map(d => d.imageUrl);
       
       if (successCards.length > 0) {
-        // РљСЂРµРґРёС‚С‹ СѓР¶Рµ СЃРїРёСЃР°РЅС‹ Р±СЌРєРµРЅРґРѕРј вЂ” РѕР±РЅРѕРІР»СЏРµРј Р±Р°Р»Р°РЅСЃ РёР· РѕС‚РІРµС‚Р°
+        // Р С™РЎР‚Р ВµР Т‘Р С‘РЎвЂљРЎвЂ№ РЎС“Р В¶Р Вµ РЎРѓР С—Р С‘РЎРѓР В°Р Р…РЎвЂ№ Р В±РЎРЊР С”Р ВµР Р…Р Т‘Р С•Р С РІР‚вЂќ Р С•Р В±Р Р…Р С•Р Р†Р В»РЎРЏР ВµР С Р В±Р В°Р В»Р В°Р Р…РЎРѓ Р С‘Р В· Р С•РЎвЂљР Р†Р ВµРЎвЂљР В°
         const lastCard = results.find(d => d.success && d.creditsRemaining != null);
         refreshCreditsFromResponse(lastCard || results.find(d => d.success));
         setCardResult(successCards);
-        setStatusText(`рџЋґ Р“РѕС‚РѕРІРѕ! ${successCards.length} ${successCards.length === 1 ? 'РєР°СЂС‚РѕС‡РєР°' : 'РєР°СЂС‚РѕС‡РµРє'}`);
+        setStatusText(`СЂСџР‹Т‘ Р вЂњР С•РЎвЂљР С•Р Р†Р С•! ${successCards.length} ${successCards.length === 1 ? 'Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р В°' : 'Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР ВµР С”'}`);
         setStatusType('success');
       } else {
         const firstError = results.find(d => !d.success);
-        setStatusText(`РћС€РёР±РєР°: ${firstError?.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РєР°СЂС‚РѕС‡РєСѓ'}`);
+        setStatusText(`Р С›РЎв‚¬Р С‘Р В±Р С”Р В°: ${firstError?.error || 'Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РЎРѓР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”РЎС“'}`);
         setStatusType('error');
       }
     } catch (err) {
       clearInterval(iv);
-      setStatusText(`РћС€РёР±РєР°: ${err.message}`);
+      setStatusText(`Р С›РЎв‚¬Р С‘Р В±Р С”Р В°: ${err.message}`);
       setStatusType('error');
     } finally {
       setIsCardGenerating(false);
     }
   };
 
-  // в•ђв•ђв•ђ GALLERY GENERATION в•ђв•ђв•ђ
+  // РІвЂўС’РІвЂўС’РІвЂўС’ GALLERY GENERATION РІвЂўС’РІвЂўС’РІвЂўС’
   const handleGenerateGallery = async () => {
     if (!garmentUrls.length) {
-      setStatusText('РЎРЅР°С‡Р°Р»Р° Р·Р°РіСЂСѓР·РёС‚Рµ С„РѕС‚Рѕ С‚РѕРІР°СЂР°'); setStatusType('error');
+      setStatusText('Р РЋР Р…Р В°РЎвЂЎР В°Р В»Р В° Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљР Вµ РЎвЂћР С•РЎвЂљР С• РЎвЂљР С•Р Р†Р В°РЎР‚Р В°'); setStatusType('error');
       return;
     }
     const creditsNeeded = 5;
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < creditsNeeded && !subscription?.local) {
       setShowPricing(true);
-      setStatusText(`вљЎ Р”Р»СЏ РіРµРЅРµСЂР°С†РёРё РіР°Р»РµСЂРµРё РЅСѓР¶РЅРѕ 5 РєСЂРµРґРёС‚РѕРІ`); setStatusType('error');
+      setStatusText(`РІС™РЋ Р вЂќР В»РЎРЏ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘ Р С–Р В°Р В»Р ВµРЎР‚Р ВµР С‘ Р Р…РЎС“Р В¶Р Р…Р С• 5 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР С•Р Р†`); setStatusType('error');
       return;
     }
     if (subscription?.local && creditsAvailable < creditsNeeded) {
-      setStatusText(`вљЎ Р”Р»СЏ РіРµРЅРµСЂР°С†РёРё РіР°Р»РµСЂРµРё РЅСѓР¶РЅРѕ 5 РєСЂРµРґРёС‚РѕРІ`); setStatusType('error');
+      setStatusText(`РІС™РЋ Р вЂќР В»РЎРЏ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘ Р С–Р В°Р В»Р ВµРЎР‚Р ВµР С‘ Р Р…РЎС“Р В¶Р Р…Р С• 5 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР С•Р Р†`); setStatusType('error');
       return;
     }
     
     setIsGalleryGenerating(true);
     setIsProcessing(true);
     setStatusType('processing');
-    setStatusText('рџ“‹ РќР°С‡РёРЅР°РµРј СЃР±РѕСЂРєСѓ РіР°Р»РµСЂРµРё (4 СЃР»Р°Р№РґР°)...');
+    setStatusText('СЂСџвЂњвЂ№ Р СњР В°РЎвЂЎР С‘Р Р…Р В°Р ВµР С РЎРѓР В±Р С•РЎР‚Р С”РЎС“ Р С–Р В°Р В»Р ВµРЎР‚Р ВµР С‘ (4 РЎРѓР В»Р В°Р в„–Р Т‘Р В°)...');
 
-    // РЎРїРёСЃС‹РІР°РµРј 5 РєСЂРµРґРёС‚РѕРІ
+    // Р РЋР С—Р С‘РЎРѓРЎвЂ№Р Р†Р В°Р ВµР С 5 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР С•Р Р†
     try {
       const deductResp = await authFetch('/api/generate-image', {
         method: 'POST',
@@ -1867,11 +1867,11 @@ function App() {
       });
       const deductData = await safeParseJSON(deductResp);
       if (!deductData.success) {
-        throw new Error(deductData.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРїРёСЃР°С‚СЊ РєСЂРµРґРёС‚С‹');
+        throw new Error(deductData.error || 'Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РЎРѓР С—Р С‘РЎРѓР В°РЎвЂљРЎРЉ Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљРЎвЂ№');
       }
       refreshCreditsFromResponse(deductData);
     } catch (deductErr) {
-      setStatusText(`вљ пёЏ РћС€РёР±РєР° СЃРїРёСЃР°РЅРёСЏ РєСЂРµРґРёС‚РѕРІ: ${deductErr.message}`);
+      setStatusText(`РІС™В РїС‘РЏ Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎРѓР С—Р С‘РЎРѓР В°Р Р…Р С‘РЎРЏ Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР С•Р Р†: ${deductErr.message}`);
       setStatusType('error');
       setIsGalleryGenerating(false);
       setIsProcessing(false);
@@ -1879,14 +1879,14 @@ function App() {
     }
 
     const gallerySlides = [
-      quickCardImage || generatedImage || garmentUrls[0] // РЎР»Р°Р№Рґ 1: С‚РµРєСѓС‰Р°СЏ РѕР±Р»РѕР¶РєР°
+      quickCardImage || generatedImage || garmentUrls[0] // Р РЋР В»Р В°Р в„–Р Т‘ 1: РЎвЂљР ВµР С”РЎС“РЎвЂ°Р В°РЎРЏ Р С•Р В±Р В»Р С•Р В¶Р С”Р В°
     ];
 
     try {
       const isFashion = appMode === 'fashion';
 
-      // РЎР»Р°Р№Рґ 2: РљСЂСѓРїРЅС‹Р№ РїР»Р°РЅ
-      setStatusText('рџ”Ќ РЁР°Рі 1/3: Р“РµРЅРµСЂРёСЂСѓРµРј РєСЂСѓРїРЅС‹Р№ РїР»Р°РЅ РґРµС‚Р°Р»РµР№...');
+      // Р РЋР В»Р В°Р в„–Р Т‘ 2: Р С™РЎР‚РЎС“Р С—Р Р…РЎвЂ№Р в„– Р С—Р В»Р В°Р Р…
+      setStatusText('СЂСџвЂќРЊ Р РЃР В°Р С– 1/3: Р вЂњР ВµР Р…Р ВµРЎР‚Р С‘РЎР‚РЎС“Р ВµР С Р С”РЎР‚РЎС“Р С—Р Р…РЎвЂ№Р в„– Р С—Р В»Р В°Р Р… Р Т‘Р ВµРЎвЂљР В°Р В»Р ВµР в„–...');
       const detailPose = isFashion
         ? 'extreme close-up macro, focusing on fabric texture, stitching details, seams, organic texture'
         : 'extreme close-up macro, focusing on product details, premium material texture, high-end commercial shot';
@@ -1906,37 +1906,37 @@ function App() {
         }),
       });
       const dataDetail = await safeParseJSON(respDetail);
-      if (!dataDetail.success) throw new Error(dataDetail.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РєСЂСѓРїРЅС‹Р№ РїР»Р°РЅ');
+      if (!dataDetail.success) throw new Error(dataDetail.error || 'Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РЎРѓР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р С”РЎР‚РЎС“Р С—Р Р…РЎвЂ№Р в„– Р С—Р В»Р В°Р Р…');
       const imgDetail = dataDetail.imageBase64 || dataDetail.imageUrl;
       gallerySlides.push(imgDetail);
 
-      // РЎР»Р°Р№Рґ 3: Р Р°Р·РјРµСЂС‹ (РРЅС„РѕРіСЂР°С„РёРєР°)
-      setStatusText('рџ“ђ РЁР°Рі 2/3: Р”РѕСЃС‚СЂР°РёРІР°РµРј РёРЅС„РѕРіСЂР°С„РёРєСѓ СЃ СЂР°Р·РјРµСЂР°РјРё...');
+      // Р РЋР В»Р В°Р в„–Р Т‘ 3: Р В Р В°Р В·Р СР ВµРЎР‚РЎвЂ№ (Р ВР Р…РЎвЂћР С•Р С–РЎР‚Р В°РЎвЂћР С‘Р С”Р В°)
+      setStatusText('СЂСџвЂњС’ Р РЃР В°Р С– 2/3: Р вЂќР С•РЎРѓРЎвЂљРЎР‚Р В°Р С‘Р Р†Р В°Р ВµР С Р С‘Р Р…РЎвЂћР С•Р С–РЎР‚Р В°РЎвЂћР С‘Р С”РЎС“ РЎРѓ РЎР‚Р В°Р В·Р СР ВµРЎР‚Р В°Р СР С‘...');
       const infoText = isFashion
         ? (userProductInfo && userProductInfo.trim()
-            ? `РРќР¤РћР РњРђР¦РРЇ Рћ РўРћР’РђР Р•:
+            ? `Р ВР СњР В¤Р С›Р В Р СљР С’Р В¦Р ВР Р‡ Р С› Р СћР С›Р вЂ™Р С’Р В Р вЂў:
 ${userProductInfo.trim()}
 
-Р РђР—РњР•Р РќРђРЇ РЎР•РўРљРђ:
+Р В Р С’Р вЂ”Р СљР вЂўР В Р СњР С’Р Р‡ Р РЋР вЂўР СћР С™Р С’:
 S (42-44), M (44-46), L (46-48), XL (48-50)`
-            : `РўРђР‘Р›РР¦Рђ Р РђР—РњР•Р РћР’:
+            : `Р СћР С’Р вЂР вЂєР ВР В¦Р С’ Р В Р С’Р вЂ”Р СљР вЂўР В Р С›Р вЂ™:
 S (42-44)
 M (44-46)
 L (46-48)
 XL (48-50)
-РџСЂРµРјРёР°Р»СЊРЅС‹Р№ РјР°С‚РµСЂРёР°Р», РёРґРµР°Р»СЊРЅС‹Р№ РєСЂРѕР№.`)
+Р СџРЎР‚Р ВµР СР С‘Р В°Р В»РЎРЉР Р…РЎвЂ№Р в„– Р СР В°РЎвЂљР ВµРЎР‚Р С‘Р В°Р В», Р С‘Р Т‘Р ВµР В°Р В»РЎРЉР Р…РЎвЂ№Р в„– Р С”РЎР‚Р С•Р в„–.`)
         : (userProductInfo && userProductInfo.trim()
-            ? `РРќР¤РћР РњРђР¦РРЇ Рћ РўРћР’РђР Р•:
+            ? `Р ВР СњР В¤Р С›Р В Р СљР С’Р В¦Р ВР Р‡ Р С› Р СћР С›Р вЂ™Р С’Р В Р вЂў:
 ${userProductInfo.trim()}
 
-Р“РђР‘РђР РРўР« РўРћР’РђР Рђ:
-Р’С‹СЃРѕС‚Р°, С€РёСЂРёРЅР°, РіР»СѓР±РёРЅР°, СЌСЂРіРѕРЅРѕРјРёС‡РЅС‹Р№ РїСЂРµРјРёСѓРј РґРёР·Р°Р№РЅ.`
-            : `Р“РђР‘РђР РРўР« Р РҐРђР РђРљРўР•Р РРЎРўРРљР:
-РћРїС‚РёРјР°Р»СЊРЅС‹Р№ СЂР°Р·РјРµСЂ
-Р’С‹СЃРѕС‚Р°: 30 СЃРј
-РЁРёСЂРёРЅР°: 28 СЃРј
-Р“Р»СѓР±РёРЅР°: 10 СЃРј
-РџСЂРµРјРёР°Р»СЊРЅС‹Рµ РјР°С‚РµСЂРёР°Р»С‹, РјР°РєСЃРёРјР°Р»СЊРЅРѕРµ СѓРґРѕР±СЃС‚РІРѕ.`);
+Р вЂњР С’Р вЂР С’Р В Р ВР СћР В« Р СћР С›Р вЂ™Р С’Р В Р С’:
+Р вЂ™РЎвЂ№РЎРѓР С•РЎвЂљР В°, РЎв‚¬Р С‘РЎР‚Р С‘Р Р…Р В°, Р С–Р В»РЎС“Р В±Р С‘Р Р…Р В°, РЎРЊРЎР‚Р С–Р С•Р Р…Р С•Р СР С‘РЎвЂЎР Р…РЎвЂ№Р в„– Р С—РЎР‚Р ВµР СР С‘РЎС“Р С Р Т‘Р С‘Р В·Р В°Р в„–Р Р….`
+            : `Р вЂњР С’Р вЂР С’Р В Р ВР СћР В« Р В Р ТђР С’Р В Р С’Р С™Р СћР вЂўР В Р ВР РЋР СћР ВР С™Р В:
+Р С›Р С—РЎвЂљР С‘Р СР В°Р В»РЎРЉР Р…РЎвЂ№Р в„– РЎР‚Р В°Р В·Р СР ВµРЎР‚
+Р вЂ™РЎвЂ№РЎРѓР С•РЎвЂљР В°: 30 РЎРѓР С
+Р РЃР С‘РЎР‚Р С‘Р Р…Р В°: 28 РЎРѓР С
+Р вЂњР В»РЎС“Р В±Р С‘Р Р…Р В°: 10 РЎРѓР С
+Р СџРЎР‚Р ВµР СР С‘Р В°Р В»РЎРЉР Р…РЎвЂ№Р Вµ Р СР В°РЎвЂљР ВµРЎР‚Р С‘Р В°Р В»РЎвЂ№, Р СР В°Р С”РЎРѓР С‘Р СР В°Р В»РЎРЉР Р…Р С•Р Вµ РЎС“Р Т‘Р С•Р В±РЎРѓРЎвЂљР Р†Р С•.`);
       
       const respSize = await authFetch('/api/generate-image', {
         method: 'POST',
@@ -1951,12 +1951,12 @@ ${userProductInfo.trim()}
         }),
       });
       const dataSize = await safeParseJSON(respSize);
-      if (!dataSize.success) throw new Error(dataSize.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РёРЅС„РѕРіСЂР°С„РёРєСѓ СЂР°Р·РјРµСЂРѕРІ');
+      if (!dataSize.success) throw new Error(dataSize.error || 'Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РЎРѓР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р С‘Р Р…РЎвЂћР С•Р С–РЎР‚Р В°РЎвЂћР С‘Р С”РЎС“ РЎР‚Р В°Р В·Р СР ВµРЎР‚Р С•Р Р†');
       const imgSize = dataSize.imageBase64 || dataSize.imageUrl;
       gallerySlides.push(imgSize);
 
-      // РЎР»Р°Р№Рґ 4: Lifestyle
-      setStatusText(isFashion ? 'рџЊі РЁР°Рі 3/3: Р“РµРЅРµСЂРёСЂСѓРµРј С„РѕС‚Рѕ РјРѕРґРµР»Рё РЅР° СѓР»РёС†Рµ (Lifestyle)...' : 'рџЏ  РЁР°Рі 3/3: Р“РµРЅРµСЂРёСЂСѓРµРј С„РѕС‚Рѕ РІ РёРЅС‚РµСЂСЊРµСЂРµ (Lifestyle)...');
+      // Р РЋР В»Р В°Р в„–Р Т‘ 4: Lifestyle
+      setStatusText(isFashion ? 'СЂСџРЉС– Р РЃР В°Р С– 3/3: Р вЂњР ВµР Р…Р ВµРЎР‚Р С‘РЎР‚РЎС“Р ВµР С РЎвЂћР С•РЎвЂљР С• Р СР С•Р Т‘Р ВµР В»Р С‘ Р Р…Р В° РЎС“Р В»Р С‘РЎвЂ Р Вµ (Lifestyle)...' : 'СЂСџРЏВ  Р РЃР В°Р С– 3/3: Р вЂњР ВµР Р…Р ВµРЎР‚Р С‘РЎР‚РЎС“Р ВµР С РЎвЂћР С•РЎвЂљР С• Р Р† Р С‘Р Р…РЎвЂљР ВµРЎР‚РЎРЉР ВµРЎР‚Р Вµ (Lifestyle)...');
       
       let slide4Payload = {};
       if (isFashion) {
@@ -2004,16 +2004,16 @@ ${userProductInfo.trim()}
         body: JSON.stringify(slide4Payload),
       });
       const dataLife = await safeParseJSON(respLife);
-      if (!dataLife.success) throw new Error(dataLife.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ lifestyle С„РѕС‚Рѕ');
+      if (!dataLife.success) throw new Error(dataLife.error || 'Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РЎРѓР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ lifestyle РЎвЂћР С•РЎвЂљР С•');
       const imgLife = dataLife.imageBase64 || dataLife.imageUrl;
       gallerySlides.push(imgLife);
 
       setQuickResults(prev => ({ ...prev, gallery: gallerySlides }));
-      setStatusText('вњ… Р“Р°Р»РµСЂРµСЏ РёР· 4-С… СЃР»Р°Р№РґРѕРІ СѓСЃРїРµС€РЅРѕ СЃРѕР±СЂР°РЅР°!');
+      setStatusText('РІСљвЂ¦ Р вЂњР В°Р В»Р ВµРЎР‚Р ВµРЎРЏ Р С‘Р В· 4-РЎвЂ¦ РЎРѓР В»Р В°Р в„–Р Т‘Р С•Р Р† РЎС“РЎРѓР С—Р ВµРЎв‚¬Р Р…Р С• РЎРѓР С•Р В±РЎР‚Р В°Р Р…Р В°!');
       setStatusType('success');
     } catch (err) {
       console.error('Gallery generation error:', err);
-      setStatusText(`вљ пёЏ РћС€РёР±РєР° РїСЂРё РіРµРЅРµСЂР°С†РёРё РіР°Р»РµСЂРµРё: ${err.message}`);
+      setStatusText(`РІС™В РїС‘РЏ Р С›РЎв‚¬Р С‘Р В±Р С”Р В° Р С—РЎР‚Р С‘ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘ Р С–Р В°Р В»Р ВµРЎР‚Р ВµР С‘: ${err.message}`);
       setStatusType('error');
     } finally {
       setIsGalleryGenerating(false);
@@ -2021,30 +2021,30 @@ ${userProductInfo.trim()}
     }
   };
 
-  // в•ђв•ђв•ђ A/B TEST GENERATION в•ђв•ђв•ђ
+  // РІвЂўС’РІвЂўС’РІвЂўС’ A/B TEST GENERATION РІвЂўС’РІвЂўС’РІвЂўС’
   const handleGenerateABTest = async () => {
     if (!garmentUrls.length) {
-      setStatusText('РЎРЅР°С‡Р°Р»Р° Р·Р°РіСЂСѓР·РёС‚Рµ С„РѕС‚Рѕ С‚РѕРІР°СЂР°'); setStatusType('error');
+      setStatusText('Р РЋР Р…Р В°РЎвЂЎР В°Р В»Р В° Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљР Вµ РЎвЂћР С•РЎвЂљР С• РЎвЂљР С•Р Р†Р В°РЎР‚Р В°'); setStatusType('error');
       return;
     }
     const creditsNeeded = 2;
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < creditsNeeded && !subscription?.local) {
       setShowPricing(true);
-      setStatusText(`вљЎ Р”Р»СЏ Р·Р°РїСѓСЃРєР° A/B С‚РµСЃС‚Р° РЅСѓР¶РЅРѕ 2 РєСЂРµРґРёС‚Р°`); setStatusType('error');
+      setStatusText(`РІС™РЋ Р вЂќР В»РЎРЏ Р В·Р В°Р С—РЎС“РЎРѓР С”Р В° A/B РЎвЂљР ВµРЎРѓРЎвЂљР В° Р Р…РЎС“Р В¶Р Р…Р С• 2 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР В°`); setStatusType('error');
       return;
     }
     if (subscription?.local && creditsAvailable < creditsNeeded) {
-      setStatusText(`вљЎ Р”Р»СЏ Р·Р°РїСѓСЃРєР° A/B С‚РµСЃС‚Р° РЅСѓР¶РЅРѕ 2 РєСЂРµРґРёС‚Р°`); setStatusType('error');
+      setStatusText(`РІС™РЋ Р вЂќР В»РЎРЏ Р В·Р В°Р С—РЎС“РЎРѓР С”Р В° A/B РЎвЂљР ВµРЎРѓРЎвЂљР В° Р Р…РЎС“Р В¶Р Р…Р С• 2 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР В°`); setStatusType('error');
       return;
     }
 
     setIsAbGenerating(true);
     setIsProcessing(true);
     setStatusType('processing');
-    setStatusText('вљ–пёЏ Р—Р°РїСѓСЃРєР°РµРј A/B РўРµСЃС‚РёСЂРѕРІР°РЅРёРµ (2 РѕР±Р»РѕР¶РєРё)...');
+    setStatusText('РІС™вЂ“РїС‘РЏ Р вЂ”Р В°Р С—РЎС“РЎРѓР С”Р В°Р ВµР С A/B Р СћР ВµРЎРѓРЎвЂљР С‘РЎР‚Р С•Р Р†Р В°Р Р…Р С‘Р Вµ (2 Р С•Р В±Р В»Р С•Р В¶Р С”Р С‘)...');
 
-    // РЎРїРёСЃС‹РІР°РµРј 2 РєСЂРµРґРёС‚Р°
+    // Р РЋР С—Р С‘РЎРѓРЎвЂ№Р Р†Р В°Р ВµР С 2 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР В°
     try {
       const deductResp = await authFetch('/api/generate-image', {
         method: 'POST',
@@ -2056,11 +2056,11 @@ ${userProductInfo.trim()}
       });
       const deductData = await safeParseJSON(deductResp);
       if (!deductData.success) {
-        throw new Error(deductData.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРїРёСЃР°С‚СЊ РєСЂРµРґРёС‚С‹');
+        throw new Error(deductData.error || 'Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РЎРѓР С—Р С‘РЎРѓР В°РЎвЂљРЎРЉ Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљРЎвЂ№');
       }
       refreshCreditsFromResponse(deductData);
     } catch (deductErr) {
-      setStatusText(`вљ пёЏ РћС€РёР±РєР° СЃРїРёСЃР°РЅРёСЏ РєСЂРµРґРёС‚РѕРІ: ${deductErr.message}`);
+      setStatusText(`РІС™В РїС‘РЏ Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎРѓР С—Р С‘РЎРѓР В°Р Р…Р С‘РЎРЏ Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР С•Р Р†: ${deductErr.message}`);
       setStatusType('error');
       setIsAbGenerating(false);
       setIsProcessing(false);
@@ -2068,8 +2068,8 @@ ${userProductInfo.trim()}
     }
 
     try {
-      // Р’Р°СЂРёР°РЅС‚ A (Natural)
-      setStatusText('вљ–пёЏ РЁР°Рі 1/2: Р“РµРЅРµСЂРёСЂСѓРµРј СЃРІРµС‚Р»С‹Р№ РІР°СЂРёР°РЅС‚ (Natural)...');
+      // Р вЂ™Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ A (Natural)
+      setStatusText('РІС™вЂ“РїС‘РЏ Р РЃР В°Р С– 1/2: Р вЂњР ВµР Р…Р ВµРЎР‚Р С‘РЎР‚РЎС“Р ВµР С РЎРѓР Р†Р ВµРЎвЂљР В»РЎвЂ№Р в„– Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ (Natural)...');
       const seedA = Math.floor(Math.random() * 1000000);
       const respA = await authFetch('/api/generate-image', {
         method: 'POST',
@@ -2081,16 +2081,16 @@ ${userProductInfo.trim()}
           userProductInfo: userProductInfo.trim() || '',
           garmentImageUrls: garmentUrls,
           biometricSeed: seedA,
-          skipCreditDeduction: true, // РџСЂРѕРїСѓСЃРєР°РµРј СЃРїРёСЃР°РЅРёРµ РєСЂРµРґРёС‚РѕРІ РЅР° Р±СЌРєРµРЅРґРµ
+          skipCreditDeduction: true, // Р СџРЎР‚Р С•Р С—РЎС“РЎРѓР С”Р В°Р ВµР С РЎРѓР С—Р С‘РЎРѓР В°Р Р…Р С‘Р Вµ Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР С•Р Р† Р Р…Р В° Р В±РЎРЊР С”Р ВµР Р…Р Т‘Р Вµ
         }),
       });
       const dataA = await safeParseJSON(respA);
-      if (!dataA.success) throw new Error(dataA.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РІР°СЂРёР°РЅС‚ Рђ');
+      if (!dataA.success) throw new Error(dataA.error || 'Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РЎРѓР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ Р С’');
       const imgA = dataA.imageBase64 || dataA.imageUrl;
 
-      // Р’Р°СЂРёР°РЅС‚ B (Epic)
-      setStatusText('вљ–пёЏ РЁР°Рі 2/2: Р“РµРЅРµСЂРёСЂСѓРµРј С‚С‘РјРЅС‹Р№ РІР°СЂРёР°РЅС‚ (Epic)...');
-      const seedB = Math.floor(Math.random() * 1000000) + 7; // Р”СЂСѓРіРѕР№ СЃРёРґ РґР»СЏ СѓРЅРёРєР°Р»СЊРЅРѕСЃС‚Рё
+      // Р вЂ™Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ B (Epic)
+      setStatusText('РІС™вЂ“РїС‘РЏ Р РЃР В°Р С– 2/2: Р вЂњР ВµР Р…Р ВµРЎР‚Р С‘РЎР‚РЎС“Р ВµР С РЎвЂљРЎвЂР СР Р…РЎвЂ№Р в„– Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ (Epic)...');
+      const seedB = Math.floor(Math.random() * 1000000) + 7; // Р вЂќРЎР‚РЎС“Р С–Р С•Р в„– РЎРѓР С‘Р Т‘ Р Т‘Р В»РЎРЏ РЎС“Р Р…Р С‘Р С”Р В°Р В»РЎРЉР Р…Р С•РЎРѓРЎвЂљР С‘
       const respB = await authFetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2101,19 +2101,19 @@ ${userProductInfo.trim()}
           userProductInfo: userProductInfo.trim() || '',
           garmentImageUrls: garmentUrls,
           biometricSeed: seedB,
-          skipCreditDeduction: true, // РџСЂРѕРїСѓСЃРєР°РµРј СЃРїРёСЃР°РЅРёРµ РєСЂРµРґРёС‚РѕРІ РЅР° Р±СЌРєРµРЅРґРµ
+          skipCreditDeduction: true, // Р СџРЎР‚Р С•Р С—РЎС“РЎРѓР С”Р В°Р ВµР С РЎРѓР С—Р С‘РЎРѓР В°Р Р…Р С‘Р Вµ Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР С•Р Р† Р Р…Р В° Р В±РЎРЊР С”Р ВµР Р…Р Т‘Р Вµ
         }),
       });
       const dataB = await safeParseJSON(respB);
-      if (!dataB.success) throw new Error(dataB.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РІР°СЂРёР°РЅС‚ B');
+      if (!dataB.success) throw new Error(dataB.error || 'Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РЎРѓР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ B');
       const imgB = dataB.imageBase64 || dataB.imageUrl;
 
       setQuickResults(prev => ({ ...prev, abTest: [imgA, imgB] }));
-      setStatusText('вњ… РђР»СЊС‚РµСЂРЅР°С‚РёРІРЅС‹Рµ РѕР±Р»РѕР¶РєРё РґР»СЏ A/B РўРµСЃС‚Р° РіРѕС‚РѕРІС‹!');
+      setStatusText('РІСљвЂ¦ Р С’Р В»РЎРЉРЎвЂљР ВµРЎР‚Р Р…Р В°РЎвЂљР С‘Р Р†Р Р…РЎвЂ№Р Вµ Р С•Р В±Р В»Р С•Р В¶Р С”Р С‘ Р Т‘Р В»РЎРЏ A/B Р СћР ВµРЎРѓРЎвЂљР В° Р С–Р С•РЎвЂљР С•Р Р†РЎвЂ№!');
       setStatusType('success');
     } catch (err) {
       console.error('A/B test generation error:', err);
-      setStatusText(`вљ пёЏ РћС€РёР±РєР° РїСЂРё A/B С‚РµСЃС‚РёСЂРѕРІР°РЅРёРё: ${err.message}`);
+      setStatusText(`РІС™В РїС‘РЏ Р С›РЎв‚¬Р С‘Р В±Р С”Р В° Р С—РЎР‚Р С‘ A/B РЎвЂљР ВµРЎРѓРЎвЂљР С‘РЎР‚Р С•Р Р†Р В°Р Р…Р С‘Р С‘: ${err.message}`);
       setStatusType('error');
     } finally {
       setIsAbGenerating(false);
@@ -2125,10 +2125,10 @@ ${userProductInfo.trim()}
     setConfirmModal({ type, cost, onConfirm });
   };
 
-  // в•ђв•ђв•ђ QUICK MODE V2 вЂ” GPT Image 2 card generation в•ђв•ђв•ђ
+  // РІвЂўС’РІвЂўС’РІвЂўС’ QUICK MODE V2 РІР‚вЂќ GPT Image 2 card generation РІвЂўС’РІвЂўС’РІвЂўС’
   const handleQuickGenerate = async () => {
     if (!garmentUrls.length) {
-      setStatusText('РЎРЅР°С‡Р°Р»Р° Р·Р°РіСЂСѓР·РёС‚Рµ С„РѕС‚Рѕ С‚РѕРІР°СЂР°'); setStatusType('error');
+      setStatusText('Р РЋР Р…Р В°РЎвЂЎР В°Р В»Р В° Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљР Вµ РЎвЂћР С•РЎвЂљР С• РЎвЂљР С•Р Р†Р В°РЎР‚Р В°'); setStatusType('error');
       return;
     }
     const isCardMode = quickMode === 'card';
@@ -2138,11 +2138,11 @@ ${userProductInfo.trim()}
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < creditsNeeded && !subscription?.local) {
       setShowPricing(true);
-      setStatusText(`вљЎ Р”Р»СЏ РіРµРЅРµСЂР°С†РёРё РЅСѓР¶РЅРѕ ${creditsNeeded} РєСЂРµРґРёС‚${creditsNeeded > 1 ? 'Р°' : ''}`); setStatusType('error');
+      setStatusText(`РІС™РЋ Р вЂќР В»РЎРЏ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘ Р Р…РЎС“Р В¶Р Р…Р С• ${creditsNeeded} Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљ${creditsNeeded > 1 ? 'Р В°' : ''}`); setStatusType('error');
       return;
     }
     if (subscription?.local && creditsAvailable < creditsNeeded) {
-      setStatusText(`вљЎ Р”Р»СЏ РіРµРЅРµСЂР°С†РёРё РЅСѓР¶РЅРѕ ${creditsNeeded} РєСЂРµРґРёС‚${creditsNeeded > 1 ? 'Р°' : ''}`); setStatusType('error');
+      setStatusText(`РІС™РЋ Р вЂќР В»РЎРЏ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘ Р Р…РЎС“Р В¶Р Р…Р С• ${creditsNeeded} Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљ${creditsNeeded > 1 ? 'Р В°' : ''}`); setStatusType('error');
       return;
     }
 
@@ -2161,16 +2161,16 @@ ${userProductInfo.trim()}
     setQuickCardImage(null);
     setCardEditHistory([]);
     setCardEditText('');
-    setStatusText(isCardMode ? 'рџ“‹ РЎРѕР·РґР°С‘Рј РєР°СЂС‚РѕС‡РєСѓ РјР°СЂРєРµС‚РїР»РµР№СЃР°...' : isUgcMode ? 'рџ“± РЎРѕР·РґР°С‘Рј С„РѕС‚Рѕ РѕС‚ РїРѕРєСѓРїР°С‚РµР»СЏ...' : isModelMode ? 'рџ‘¤ РЎРѕР·РґР°С‘Рј РєР°СЂС‚РѕС‡РєСѓ СЃ РјРѕРґРµР»СЊСЋ...' : 'рџЋЁ Р“РµРЅРµСЂРёСЂСѓРµРј СЃС‚СѓРґРёР№РЅС‹Р№ РєР°РґСЂ...');
+    setStatusText(isCardMode ? 'СЂСџвЂњвЂ№ Р РЋР С•Р В·Р Т‘Р В°РЎвЂР С Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”РЎС“ Р СР В°РЎР‚Р С”Р ВµРЎвЂљР С—Р В»Р ВµР в„–РЎРѓР В°...' : isUgcMode ? 'СЂСџвЂњВ± Р РЋР С•Р В·Р Т‘Р В°РЎвЂР С РЎвЂћР С•РЎвЂљР С• Р С•РЎвЂљ Р С—Р С•Р С”РЎС“Р С—Р В°РЎвЂљР ВµР В»РЎРЏ...' : isModelMode ? 'СЂСџвЂВ¤ Р РЋР С•Р В·Р Т‘Р В°РЎвЂР С Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”РЎС“ РЎРѓ Р СР С•Р Т‘Р ВµР В»РЎРЉРЎР‹...' : 'СЂСџР‹РЃ Р вЂњР ВµР Р…Р ВµРЎР‚Р С‘РЎР‚РЎС“Р ВµР С РЎРѓРЎвЂљРЎС“Р Т‘Р С‘Р в„–Р Р…РЎвЂ№Р в„– Р С”Р В°Р Т‘РЎР‚...');
     setStatusType('processing');
 
     const statusMessages = isCardMode
-      ? ['рџ“‹ РђРЅР°Р»РёР·РёСЂСѓРµРј С‚РѕРІР°СЂ...', 'рџЋЁ РџРѕРґР±РёСЂР°РµРј РґРёР·Р°Р№РЅ Рё С‚РµРєСЃС‚С‹...', 'рџ“ђ РљРѕРјРїРѕРЅСѓРµРј РєР°СЂС‚РѕС‡РєСѓ...', 'вњЁ Р¤РёРЅР°Р»СЊРЅР°СЏ РїРѕР»РёСЂРѕРІРєР°...']
+      ? ['СЂСџвЂњвЂ№ Р С’Р Р…Р В°Р В»Р С‘Р В·Р С‘РЎР‚РЎС“Р ВµР С РЎвЂљР С•Р Р†Р В°РЎР‚...', 'СЂСџР‹РЃ Р СџР С•Р Т‘Р В±Р С‘РЎР‚Р В°Р ВµР С Р Т‘Р С‘Р В·Р В°Р в„–Р Р… Р С‘ РЎвЂљР ВµР С”РЎРѓРЎвЂљРЎвЂ№...', 'СЂСџвЂњС’ Р С™Р С•Р СР С—Р С•Р Р…РЎС“Р ВµР С Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”РЎС“...', 'РІСљРЃ Р В¤Р С‘Р Р…Р В°Р В»РЎРЉР Р…Р В°РЎРЏ Р С—Р С•Р В»Р С‘РЎР‚Р С•Р Р†Р С”Р В°...']
       : isModelMode
-      ? ['рџ‘¤ РђРЅР°Р»РёР·РёСЂСѓРµРј С‚РѕРІР°СЂ...', 'рџ‘— РџРѕРґР±РёСЂР°РµРј РјРѕРґРµР»СЊ...', 'рџЋЁ РљРѕРјРїРѕРЅСѓРµРј РєР°СЂС‚РѕС‡РєСѓ...', 'вњЁ Р¤РёРЅР°Р»СЊРЅР°СЏ РїРѕР»РёСЂРѕРІРєР°...']
+      ? ['СЂСџвЂВ¤ Р С’Р Р…Р В°Р В»Р С‘Р В·Р С‘РЎР‚РЎС“Р ВµР С РЎвЂљР С•Р Р†Р В°РЎР‚...', 'СЂСџвЂвЂ” Р СџР С•Р Т‘Р В±Р С‘РЎР‚Р В°Р ВµР С Р СР С•Р Т‘Р ВµР В»РЎРЉ...', 'СЂСџР‹РЃ Р С™Р С•Р СР С—Р С•Р Р…РЎС“Р ВµР С Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”РЎС“...', 'РІСљРЃ Р В¤Р С‘Р Р…Р В°Р В»РЎРЉР Р…Р В°РЎРЏ Р С—Р С•Р В»Р С‘РЎР‚Р С•Р Р†Р С”Р В°...']
       : isUgcMode
-      ? ['рџ“± Р Р°СЃРїРѕР·РЅР°С‘Рј С‚РѕРІР°СЂ...', 'рџЏ  РџРѕРґР±РёСЂР°РµРј РґРѕРјР°С€РЅСЋСЋ СЃС†РµРЅСѓ...', 'рџ“· РРјРёС‚РёСЂСѓРµРј СЃРЅРёРјРѕРє РЅР° СЃРјР°СЂС‚С„РѕРЅ...', 'вњЁ Р”РѕР±Р°РІР»СЏРµРј СЂРµР°Р»РёР·Рј...']
-      : ['рџ“ё Р’С‹СЃС‚Р°РІР»СЏРµРј СЃРІРµС‚...', 'рџЋЁ Р РµРЅРґРµСЂРёРј РєР°РґСЂ...', 'вњЁ Р¤РёРЅР°Р»СЊРЅР°СЏ РїРѕР»РёСЂРѕРІРєР°...'];
+      ? ['СЂСџвЂњВ± Р В Р В°РЎРѓР С—Р С•Р В·Р Р…Р В°РЎвЂР С РЎвЂљР С•Р Р†Р В°РЎР‚...', 'СЂСџРЏВ  Р СџР С•Р Т‘Р В±Р С‘РЎР‚Р В°Р ВµР С Р Т‘Р С•Р СР В°РЎв‚¬Р Р…РЎР‹РЎР‹ РЎРѓРЎвЂ Р ВµР Р…РЎС“...', 'СЂСџвЂњВ· Р ВР СР С‘РЎвЂљР С‘РЎР‚РЎС“Р ВµР С РЎРѓР Р…Р С‘Р СР С•Р С” Р Р…Р В° РЎРѓР СР В°РЎР‚РЎвЂљРЎвЂћР С•Р Р…...', 'РІСљРЃ Р вЂќР С•Р В±Р В°Р Р†Р В»РЎРЏР ВµР С РЎР‚Р ВµР В°Р В»Р С‘Р В·Р С...']
+      : ['СЂСџвЂњС‘ Р вЂ™РЎвЂ№РЎРѓРЎвЂљР В°Р Р†Р В»РЎРЏР ВµР С РЎРѓР Р†Р ВµРЎвЂљ...', 'СЂСџР‹РЃ Р В Р ВµР Р…Р Т‘Р ВµРЎР‚Р С‘Р С Р С”Р В°Р Т‘РЎР‚...', 'РІСљРЃ Р В¤Р С‘Р Р…Р В°Р В»РЎРЉР Р…Р В°РЎРЏ Р С—Р С•Р В»Р С‘РЎР‚Р С•Р Р†Р С”Р В°...'];
     let msgIdx = 0;
     const statusIv = setInterval(() => {
       msgIdx = (msgIdx + 1) % statusMessages.length;
@@ -2179,7 +2179,7 @@ ${userProductInfo.trim()}
 
     try {
       if (isModelMode) {
-        // в•ђв•ђв•ђ MODEL MODE: РєР°СЂС‚РѕС‡РєР° СЃ РјРѕРґРµР»СЊСЋ С‡РµСЂРµР· GPT Image 2 в•ђв•ђв•ђ
+        // РІвЂўС’РІвЂўС’РІвЂўС’ MODEL MODE: Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р В° РЎРѓ Р СР С•Р Т‘Р ВµР В»РЎРЉРЎР‹ РЎвЂЎР ВµРЎР‚Р ВµР В· GPT Image 2 РІвЂўС’РІвЂўС’РІвЂўС’
         const resp = await authFetch('/api/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2199,16 +2199,16 @@ ${userProductInfo.trim()}
           refreshCreditsFromResponse(data);
           setQuickCardImage(img);
           setGeneratedImage(img);
-          setCardEditHistory([{ image: img, editText: 'РћСЂРёРіРёРЅР°Р»' }]);
-          setQuickResults(prev => ({...prev, model: { image: img, editHistory: [{ image: img, editText: 'РћСЂРёРіРёРЅР°Р»' }] }}));
-          setStatusText('вњ… РљР°СЂС‚РѕС‡РєР° СЃ РјРѕРґРµР»СЊСЋ РіРѕС‚РѕРІР°!');
+          setCardEditHistory([{ image: img, editText: 'Р С›РЎР‚Р С‘Р С–Р С‘Р Р…Р В°Р В»' }]);
+          setQuickResults(prev => ({...prev, model: { image: img, editHistory: [{ image: img, editText: 'Р С›РЎР‚Р С‘Р С–Р С‘Р Р…Р В°Р В»' }] }}));
+          setStatusText('РІСљвЂ¦ Р С™Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р В° РЎРѓ Р СР С•Р Т‘Р ВµР В»РЎРЉРЎР‹ Р С–Р С•РЎвЂљР С•Р Р†Р В°!');
           setStatusType('success');
         } else {
-          setStatusText(`вљ пёЏ ${data.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ С„РѕС‚Рѕ СЃ РјРѕРґРµР»СЊСЋ'}`);
+          setStatusText(`РІС™В РїС‘РЏ ${data.error || 'Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РЎРѓР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ РЎвЂћР С•РЎвЂљР С• РЎРѓ Р СР С•Р Т‘Р ВµР В»РЎРЉРЎР‹'}`);
           setStatusType('error');
         }
       } else if (isUgcMode) {
-        // в•ђв•ђв•ђ UGC MODE: СЂРµР°Р»РёСЃС‚РёС‡РЅРѕРµ С„РѕС‚Рѕ В«РѕС‚ РїРѕРєСѓРїР°С‚РµР»СЏВ» С‡РµСЂРµР· GPT Image 2 в•ђв•ђв•ђ
+        // РІвЂўС’РІвЂўС’РІвЂўС’ UGC MODE: РЎР‚Р ВµР В°Р В»Р С‘РЎРѓРЎвЂљР С‘РЎвЂЎР Р…Р С•Р Вµ РЎвЂћР С•РЎвЂљР С• Р’В«Р С•РЎвЂљ Р С—Р С•Р С”РЎС“Р С—Р В°РЎвЂљР ВµР В»РЎРЏР’В» РЎвЂЎР ВµРЎР‚Р ВµР В· GPT Image 2 РІвЂўС’РІвЂўС’РІвЂўС’
         const resp = await authFetch('/api/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2227,14 +2227,14 @@ ${userProductInfo.trim()}
           refreshCreditsFromResponse(data);
           setGeneratedImage(img);
           setQuickResults(prev => ({...prev, ugc: { image: img }}));
-          setStatusText('вњ… Р¤РѕС‚Рѕ В«РѕС‚ РїРѕРєСѓРїР°С‚РµР»СЏВ» РіРѕС‚РѕРІРѕ!');
+          setStatusText('РІСљвЂ¦ Р В¤Р С•РЎвЂљР С• Р’В«Р С•РЎвЂљ Р С—Р С•Р С”РЎС“Р С—Р В°РЎвЂљР ВµР В»РЎРЏР’В» Р С–Р С•РЎвЂљР С•Р Р†Р С•!');
           setStatusType('success');
         } else {
-          setStatusText(`вљ пёЏ ${data.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ UGC-С„РѕС‚Рѕ'}`);
+          setStatusText(`РІС™В РїС‘РЏ ${data.error || 'Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РЎРѓР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ UGC-РЎвЂћР С•РЎвЂљР С•'}`);
           setStatusType('error');
         }
       } else if (isCardMode) {
-        // в•ђв•ђв•ђ CARD MODE: РїРѕР»РЅРѕС†РµРЅРЅР°СЏ РєР°СЂС‚РѕС‡РєР° РјР°СЂРєРµС‚РїР»РµР№СЃР° С‡РµСЂРµР· GPT Image 2 в•ђв•ђв•ђ
+        // РІвЂўС’РІвЂўС’РІвЂўС’ CARD MODE: Р С—Р С•Р В»Р Р…Р С•РЎвЂ Р ВµР Р…Р Р…Р В°РЎРЏ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р В° Р СР В°РЎР‚Р С”Р ВµРЎвЂљР С—Р В»Р ВµР в„–РЎРѓР В° РЎвЂЎР ВµРЎР‚Р ВµР В· GPT Image 2 РІвЂўС’РІвЂўС’РІвЂўС’
         const resp = await authFetch('/api/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2256,16 +2256,16 @@ ${userProductInfo.trim()}
           refreshCreditsFromResponse(data);
           setQuickCardImage(img);
           setGeneratedImage(img);
-          setCardEditHistory([{ image: img, editText: 'РћСЂРёРіРёРЅР°Р»' }]);
-          setQuickResults(prev => ({...prev, card: { image: img, editHistory: [{ image: img, editText: 'РћСЂРёРіРёРЅР°Р»' }] }}));
-          setStatusText('вњ… РљР°СЂС‚РѕС‡РєР° РіРѕС‚РѕРІР°! Р’С‹ РјРѕР¶РµС‚Рµ РѕС‚СЂРµРґР°РєС‚РёСЂРѕРІР°С‚СЊ СЂРµР·СѓР»СЊС‚Р°С‚.');
+          setCardEditHistory([{ image: img, editText: 'Р С›РЎР‚Р С‘Р С–Р С‘Р Р…Р В°Р В»' }]);
+          setQuickResults(prev => ({...prev, card: { image: img, editHistory: [{ image: img, editText: 'Р С›РЎР‚Р С‘Р С–Р С‘Р Р…Р В°Р В»' }] }}));
+          setStatusText('РІСљвЂ¦ Р С™Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р В° Р С–Р С•РЎвЂљР С•Р Р†Р В°! Р вЂ™РЎвЂ№ Р СР С•Р В¶Р ВµРЎвЂљР Вµ Р С•РЎвЂљРЎР‚Р ВµР Т‘Р В°Р С”РЎвЂљР С‘РЎР‚Р С•Р Р†Р В°РЎвЂљРЎРЉ РЎР‚Р ВµР В·РЎС“Р В»РЎРЉРЎвЂљР В°РЎвЂљ.');
           setStatusType('success');
         } else {
-          setStatusText(`вљ пёЏ ${data.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РєР°СЂС‚РѕС‡РєСѓ'}`);
+          setStatusText(`РІС™В РїС‘РЏ ${data.error || 'Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РЎРѓР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”РЎС“'}`);
           setStatusType('error');
         }
       } else {
-        // в•ђв•ђв•ђ PHOTO MODE: РєСЂР°СЃРёРІС‹Р№ СЃС‚СѓРґРёР№РЅС‹Р№ РєР°РґСЂ (Product Mode pipeline) в•ђв•ђв•ђ
+        // РІвЂўС’РІвЂўС’РІвЂўС’ PHOTO MODE: Р С”РЎР‚Р В°РЎРѓР С‘Р Р†РЎвЂ№Р в„– РЎРѓРЎвЂљРЎС“Р Т‘Р С‘Р в„–Р Р…РЎвЂ№Р в„– Р С”Р В°Р Т‘РЎР‚ (Product Mode pipeline) РІвЂўС’РІвЂўС’РІвЂўС’
         const modelPrompt = quickWithModel
           ? (customProductModelPrompt || productModelPreset?.prompt || 'young European female model')
           : '';
@@ -2296,10 +2296,10 @@ ${userProductInfo.trim()}
           refreshCreditsFromResponse(data);
           setGeneratedImage(img);
           setQuickResults(prev => ({...prev, photo: { image: img }}));
-          setStatusText('вњ… РЎС‚СѓРґРёР№РЅРѕРµ С„РѕС‚Рѕ РіРѕС‚РѕРІРѕ!');
+          setStatusText('РІСљвЂ¦ Р РЋРЎвЂљРЎС“Р Т‘Р С‘Р в„–Р Р…Р С•Р Вµ РЎвЂћР С•РЎвЂљР С• Р С–Р С•РЎвЂљР С•Р Р†Р С•!');
           setStatusType('success');
         } else {
-          setStatusText(`вљ пёЏ ${data.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ С„РѕС‚Рѕ'}`);
+          setStatusText(`РІС™В РїС‘РЏ ${data.error || 'Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РЎРѓР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ РЎвЂћР С•РЎвЂљР С•'}`);
           setStatusType('error');
         }
       }
@@ -2311,10 +2311,10 @@ ${userProductInfo.trim()}
           setGeneratedImage(cached.image);
           if (cached.editHistory) { setQuickCardImage(cached.image); setCardEditHistory(cached.editHistory); }
         }
-        setStatusText('в›” Р“РµРЅРµСЂР°С†РёСЏ РѕС‚РјРµРЅРµРЅР°');
+        setStatusText('РІвЂєвЂќ Р вЂњР ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘РЎРЏ Р С•РЎвЂљР СР ВµР Р…Р ВµР Р…Р В°');
         setStatusType('error');
       } else {
-        setStatusText(`вљ пёЏ РћС€РёР±РєР°: ${err.message}`);
+        setStatusText(`РІС™В РїС‘РЏ Р С›РЎв‚¬Р С‘Р В±Р С”Р В°: ${err.message}`);
         setStatusType('error');
       }
     } finally {
@@ -2323,18 +2323,18 @@ ${userProductInfo.trim()}
     }
   };
 
-  // в•ђв•ђв•ђ CARD EDIT вЂ” С‚РµРєСЃС‚РѕРІРѕРµ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РєР°СЂС‚РѕС‡РєРё С‡РµСЂРµР· GPT Image 2 в•ђв•ђв•ђ
+  // РІвЂўС’РІвЂўС’РІвЂўС’ CARD EDIT РІР‚вЂќ РЎвЂљР ВµР С”РЎРѓРЎвЂљР С•Р Р†Р С•Р Вµ РЎР‚Р ВµР Т‘Р В°Р С”РЎвЂљР С‘РЎР‚Р С•Р Р†Р В°Р Р…Р С‘Р Вµ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р С‘ РЎвЂЎР ВµРЎР‚Р ВµР В· GPT Image 2 РІвЂўС’РІвЂўС’РІвЂўС’
   const handleCardEdit = async () => {
     if (!cardEditText.trim() || !quickCardImage) return;
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < 1 && !subscription?.local) {
       setShowPricing(true);
-      setStatusText('вљЎ Р”Р»СЏ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ РЅСѓР¶РµРЅ 1 РєСЂРµРґРёС‚'); setStatusType('error');
+      setStatusText('РІС™РЋ Р вЂќР В»РЎРЏ РЎР‚Р ВµР Т‘Р В°Р С”РЎвЂљР С‘РЎР‚Р С•Р Р†Р В°Р Р…Р С‘РЎРЏ Р Р…РЎС“Р В¶Р ВµР Р… 1 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљ'); setStatusType('error');
       return;
     }
 
     setIsCardEditing(true);
-    setStatusText('вњЏпёЏ РџСЂРёРјРµРЅСЏРµРј РёР·РјРµРЅРµРЅРёСЏ...'); setStatusType('processing');
+    setStatusText('РІСљРЏРїС‘РЏ Р СџРЎР‚Р С‘Р СР ВµР Р…РЎРЏР ВµР С Р С‘Р В·Р СР ВµР Р…Р ВµР Р…Р С‘РЎРЏ...'); setStatusType('processing');
 
     try {
       const resp = await authFetch('/api/generate-image', {
@@ -2355,12 +2355,12 @@ ${userProductInfo.trim()}
         setGeneratedImage(newImg);
         setCardEditHistory(prev => [...prev, { image: newImg, editText: cardEditText.trim() }]);
         setCardEditText('');
-        setStatusText('вњ… РР·РјРµРЅРµРЅРёСЏ РїСЂРёРјРµРЅРµРЅС‹!'); setStatusType('success');
+        setStatusText('РІСљвЂ¦ Р ВР В·Р СР ВµР Р…Р ВµР Р…Р С‘РЎРЏ Р С—РЎР‚Р С‘Р СР ВµР Р…Р ВµР Р…РЎвЂ№!'); setStatusType('success');
       } else {
-        setStatusText(`вљ пёЏ ${data.error || 'РћС€РёР±РєР° СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ'}`); setStatusType('error');
+        setStatusText(`РІС™В РїС‘РЏ ${data.error || 'Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎР‚Р ВµР Т‘Р В°Р С”РЎвЂљР С‘РЎР‚Р С•Р Р†Р В°Р Р…Р С‘РЎРЏ'}`); setStatusType('error');
       }
     } catch (err) {
-      setStatusText(`вљ пёЏ РћС€РёР±РєР°: ${err.message}`); setStatusType('error');
+      setStatusText(`РІС™В РїС‘РЏ Р С›РЎв‚¬Р С‘Р В±Р С”Р В°: ${err.message}`); setStatusType('error');
     } finally {
       setIsCardEditing(false);
     }
@@ -2370,28 +2370,28 @@ ${userProductInfo.trim()}
   // Auto-Catalog integration
   const handleAutoCatalog = async () => {
     if (!garmentUrls.length) {
-      setStatusText('РЎРЅР°С‡Р°Р»Р° Р·Р°РіСЂСѓР·РёС‚Рµ С„РѕС‚Рѕ РѕРґРµР¶РґС‹'); setStatusType('error');
+      setStatusText('Р РЋР Р…Р В°РЎвЂЎР В°Р В»Р В° Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљР Вµ РЎвЂћР С•РЎвЂљР С• Р С•Р Т‘Р ВµР В¶Р Т‘РЎвЂ№'); setStatusType('error');
       return;
     }
     
-    // в•ђв•ђв•ђ SUBSCRIPTION CHECK (requires 3 credits) в•ђв•ђв•ђ
+    // РІвЂўС’РІвЂўС’РІвЂўС’ SUBSCRIPTION CHECK (requires 3 credits) РІвЂўС’РІвЂўС’РІвЂўС’
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < 3 && !subscription?.local) {
       setShowPricing(true);
-      setStatusText('вљЎ Р”Р»СЏ Р°РІС‚РѕРєР°С‚Р°Р»РѕРіР° С‚СЂРµР±СѓРµС‚СЃСЏ РјРёРЅРёРјСѓРј 3 РєСЂРµРґРёС‚Р°'); setStatusType('error');
+      setStatusText('РІС™РЋ Р вЂќР В»РЎРЏ Р В°Р Р†РЎвЂљР С•Р С”Р В°РЎвЂљР В°Р В»Р С•Р С–Р В° РЎвЂљРЎР‚Р ВµР В±РЎС“Р ВµРЎвЂљРЎРѓРЎРЏ Р СР С‘Р Р…Р С‘Р СРЎС“Р С 3 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР В°'); setStatusType('error');
       return;
     }
     if (subscription?.local && (subscription.credits || 0) < 3) {
-      setStatusText('вљЎ Р”Р»СЏ Р°РІС‚РѕРєР°С‚Р°Р»РѕРіР° С‚СЂРµР±СѓРµС‚СЃСЏ РјРёРЅРёРјСѓРј 3 РєСЂРµРґРёС‚Р°'); setStatusType('error');
+      setStatusText('РІС™РЋ Р вЂќР В»РЎРЏ Р В°Р Р†РЎвЂљР С•Р С”Р В°РЎвЂљР В°Р В»Р С•Р С–Р В° РЎвЂљРЎР‚Р ВµР В±РЎС“Р ВµРЎвЂљРЎРѓРЎРЏ Р СР С‘Р Р…Р С‘Р СРЎС“Р С 3 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР В°'); setStatusType('error');
       return;
     }
 
-    setStatusText('РћС‚РїСЂР°РІРєР° Р±Р°С‚С‡Р° РІ Auto-Catalog...'); setStatusType('');
+    setStatusText('Р С›РЎвЂљР С—РЎР‚Р В°Р Р†Р С”Р В° Р В±Р В°РЎвЂљРЎвЂЎР В° Р Р† Auto-Catalog...'); setStatusType('');
     
     // Transform uploaded garment URLs into SKU items
     const items = garmentUrls.map((url, i) => ({
       skuId: `SKU-${Date.now()}-${i}`,
-      name: `РўРѕРІР°СЂ ${i + 1}`,
+      name: `Р СћР С•Р Р†Р В°РЎР‚ ${i + 1}`,
       imageUrl: url
     }));
 
@@ -2409,17 +2409,17 @@ ${userProductInfo.trim()}
       });
       const data = await safeParseJSON(resp);
       if (data.success) {
-        // РЎРїРёСЃР°РЅРёРµ 3 РєСЂРµРґРёС‚РѕРІ (Р»РѕРєР°Р»СЊРЅС‹Р№ СЃРµСЂРІРµСЂ вЂ” РёСЃРїРѕР»СЊР·СѓРµРј РѕРїС‚РёРјРёСЃС‚РёС‡РЅРѕРµ СЃРїРёСЃР°РЅРёРµ)
+        // Р РЋР С—Р С‘РЎРѓР В°Р Р…Р С‘Р Вµ 3 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР С•Р Р† (Р В»Р С•Р С”Р В°Р В»РЎРЉР Р…РЎвЂ№Р в„– РЎРѓР ВµРЎР‚Р Р†Р ВµРЎР‚ РІР‚вЂќ Р С‘РЎРѓР С—Р С•Р В»РЎРЉР В·РЎС“Р ВµР С Р С•Р С—РЎвЂљР С‘Р СР С‘РЎРѓРЎвЂљР С‘РЎвЂЎР Р…Р С•Р Вµ РЎРѓР С—Р С‘РЎРѓР В°Р Р…Р С‘Р Вµ)
         setSubscription(prev => ({ ...prev, credits: Math.max(0, (prev.credits || 0) - 3) }));
 
-        setStatusText(`вњ… Auto-Catalog Р·Р°РїСѓС‰РµРЅ! Р‘Р°С‚С‡ РѕС‚РїСЂР°РІР»РµРЅ РЅР° С„РѕРЅРѕРІСѓСЋ РѕР±СЂР°Р±РѕС‚РєСѓ.`);
+        setStatusText(`РІСљвЂ¦ Auto-Catalog Р В·Р В°Р С—РЎС“РЎвЂ°Р ВµР Р…! Р вЂР В°РЎвЂљРЎвЂЎ Р С•РЎвЂљР С—РЎР‚Р В°Р Р†Р В»Р ВµР Р… Р Р…Р В° РЎвЂћР С•Р Р…Р С•Р Р†РЎС“РЎР‹ Р С•Р В±РЎР‚Р В°Р В±Р С•РЎвЂљР С”РЎС“.`);
         setStatusType('success');
       } else {
-        setStatusText(`вќЊ РћС€РёР±РєР°: ${data.error}`);
+        setStatusText(`РІСњРЉ Р С›РЎв‚¬Р С‘Р В±Р С”Р В°: ${data.error}`);
         setStatusType('error');
       }
     } catch (err) {
-      setStatusText(`вќЊ РћС€РёР±РєР° СЃРµС‚Рё: ${err.message}. РЈР±РµРґРёС‚РµСЃСЊ С‡С‚Рѕ СЃРµСЂРІРµСЂ РЅР° РїРѕСЂС‚Сѓ 3002 Р·Р°РїСѓС‰РµРЅ.`);
+      setStatusText(`РІСњРЉ Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎРѓР ВµРЎвЂљР С‘: ${err.message}. Р Р€Р В±Р ВµР Т‘Р С‘РЎвЂљР ВµРЎРѓРЎРЉ РЎвЂЎРЎвЂљР С• РЎРѓР ВµРЎР‚Р Р†Р ВµРЎР‚ Р Р…Р В° Р С—Р С•РЎР‚РЎвЂљРЎС“ 3002 Р В·Р В°Р С—РЎС“РЎвЂ°Р ВµР Р….`);
       setStatusType('error');
     }
   };
@@ -2452,7 +2452,7 @@ ${userProductInfo.trim()}
     // APPEND: add null placeholders for new batch at the end of existing gallery
     const existingCount = photoshootImages.filter(Boolean).length;
     setPhotoshootImages(prev => [...prev.filter(Boolean), ...new Array(count).fill(null)]);
-    setStatusText(`рџ“ё Р“РµРЅРµСЂРёСЂСѓРµРј РµС‰С‘ ${count} РєР°РґСЂРѕРІ...`); setStatusType('');
+    setStatusText(`СЂСџвЂњС‘ Р вЂњР ВµР Р…Р ВµРЎР‚Р С‘РЎР‚РЎС“Р ВµР С Р ВµРЎвЂ°РЎвЂ ${count} Р С”Р В°Р Т‘РЎР‚Р С•Р Р†...`); setStatusType('');
     try {
       let modelPrompt = '';
       let bgPrompt = '';
@@ -2468,7 +2468,7 @@ ${userProductInfo.trim()}
             : selectedProductEffect.prompt;
           if (effectPrompt) bgPrompt += `. Additionally: ${effectPrompt}`;
         }
-        // РњРѕРґРµР»СЊ-С‡РµР»РѕРІРµРє РІ С„РѕС‚РѕСЃРµСЃСЃРёРё С‚РѕРІР°СЂРѕРІ
+        // Р СљР С•Р Т‘Р ВµР В»РЎРЉ-РЎвЂЎР ВµР В»Р С•Р Р†Р ВµР С” Р Р† РЎвЂћР С•РЎвЂљР С•РЎРѓР ВµРЎРѓРЎРѓР С‘Р С‘ РЎвЂљР С•Р Р†Р В°РЎР‚Р С•Р Р†
         if (productWithModel) {
           let humanPrompt = customProductModelPrompt.trim() || (productModelPreset.prompt + buildDetailString(productModelDetails));
           if (productSavedModelId) {
@@ -2512,13 +2512,13 @@ ${userProductInfo.trim()}
         }
       }
 
-      // SEQUENTIAL generation вЂ” one at a time, each gets full 55s before timeout
+      // SEQUENTIAL generation РІР‚вЂќ one at a time, each gets full 55s before timeout
       // This avoids rate-limiting and ensures each frame gets the full Vercel 60s window
       let successCount = 0;
       for (let idx = 0; idx < angles.length; idx++) {
         const angle = angles[idx];
         const slotIdx = existingCount + idx;
-        setStatusText(`рџ“ё РљР°РґСЂ ${idx + 1}/${count}...`); setStatusType('');
+        setStatusText(`СЂСџвЂњС‘ Р С™Р В°Р Т‘РЎР‚ ${idx + 1}/${count}...`); setStatusType('');
         try {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 55000); // 55s client-side timeout
@@ -2550,15 +2550,15 @@ ${userProductInfo.trim()}
             setPhotoViewIdx(prev => ({ ...prev, [slotIdx]: 0 }));
             successCount++;
           } else {
-            console.warn(`РљР°РґСЂ ${idx + 1}: ${data.details || data.error}`);
+            console.warn(`Р С™Р В°Р Т‘РЎР‚ ${idx + 1}: ${data.details || data.error}`);
             // Remove the null placeholder for failed frame
             setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = null; return n; });
           }
         } catch (frameErr) {
           if (frameErr.name === 'AbortError') {
-            console.warn(`РљР°РґСЂ ${idx + 1}: С‚Р°Р№РјР°СѓС‚ 55 СЃРµРє`);
+            console.warn(`Р С™Р В°Р Т‘РЎР‚ ${idx + 1}: РЎвЂљР В°Р в„–Р СР В°РЎС“РЎвЂљ 55 РЎРѓР ВµР С”`);
           } else {
-            console.warn(`РљР°РґСЂ ${idx + 1} РѕС€РёР±РєР°:`, frameErr.message);
+            console.warn(`Р С™Р В°Р Т‘РЎР‚ ${idx + 1} Р С•РЎв‚¬Р С‘Р В±Р С”Р В°:`, frameErr.message);
           }
           // Remove null placeholder
           setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = null; return n; });
@@ -2566,13 +2566,13 @@ ${userProductInfo.trim()}
       }
       // Clean up nulls from failed frames
       setPhotoshootImages(prev => prev.filter(Boolean));
-      setStatusText(successCount > 0 ? `рџЋ‰ Р¤РѕС‚РѕСЃРµСЃСЃРёСЏ: ${successCount} РєР°РґСЂРѕРІ РіРѕС‚РѕРІРѕ!` : 'вќЊ РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РЅРё РѕРґРЅРѕРіРѕ РєР°РґСЂР°. РџРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°.');
+      setStatusText(successCount > 0 ? `СЂСџР‹вЂ° Р В¤Р С•РЎвЂљР С•РЎРѓР ВµРЎРѓРЎРѓР С‘РЎРЏ: ${successCount} Р С”Р В°Р Т‘РЎР‚Р С•Р Р† Р С–Р С•РЎвЂљР С•Р Р†Р С•!` : 'РІСњРЉ Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РЎРѓР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р Р…Р С‘ Р С•Р Т‘Р Р…Р С•Р С–Р С• Р С”Р В°Р Т‘РЎР‚Р В°. Р СџР С•Р С—РЎР‚Р С•Р В±РЎС“Р в„–РЎвЂљР Вµ РЎРѓР Р…Р С•Р Р†Р В°.');
       setStatusType(successCount > 0 ? 'success' : 'error');
-    } catch (err) { setStatusText(`РћС€РёР±РєР° С„РѕС‚РѕСЃРµСЃСЃРёРё: ${err.message}`); setStatusType('error'); }
+    } catch (err) { setStatusText(`Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎвЂћР С•РЎвЂљР С•РЎРѓР ВµРЎРѓРЎРѓР С‘Р С‘: ${err.message}`); setStatusType('error'); }
     finally { setIsPhotoshooting(false); }
   };
 
-  // в•ђв•ђв•ђ PER-PHOTO EDITOR в•ђв•ђв•ђ
+  // РІвЂўС’РІвЂўС’РІвЂўС’ PER-PHOTO EDITOR РІвЂўС’РІвЂўС’РІвЂўС’
   // Takes a specific photo from the photoshoot gallery, sends it with an edit instruction,
   // and replaces the original photo with the result.
   const handlePhotoEdit = async () => {
@@ -2583,7 +2583,7 @@ ${userProductInfo.trim()}
     const currentImg = currentVersions[currentVersions.length - 1];
     if (!currentImg) return;
 
-    // Close modal immediately вЂ” editing runs in background
+    // Close modal immediately РІР‚вЂќ editing runs in background
     setEditingPhotoIdx(null);
     setPhotoEditText('');
 
@@ -2620,10 +2620,10 @@ ${userProductInfo.trim()}
           return { ...prev, [idx]: versions.length };
         });
       } else {
-        setStatusText(`РћС€РёР±РєР° СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ РєР°РґСЂР° ${idx + 1}: ${data.details || data.error}`); setStatusType('error');
+        setStatusText(`Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎР‚Р ВµР Т‘Р В°Р С”РЎвЂљР С‘РЎР‚Р С•Р Р†Р В°Р Р…Р С‘РЎРЏ Р С”Р В°Р Т‘РЎР‚Р В° ${idx + 1}: ${data.details || data.error}`); setStatusType('error');
       }
     } catch (err) {
-      setStatusText(`РћС€РёР±РєР°: ${err.message}`); setStatusType('error');
+      setStatusText(`Р С›РЎв‚¬Р С‘Р В±Р С”Р В°: ${err.message}`); setStatusType('error');
     } finally {
       setEditingPhotos(prev => { const n = new Set(prev); n.delete(idx); return n; });
     }
@@ -2706,17 +2706,17 @@ ${userProductInfo.trim()}
     
     setShowHistory(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    setStatusText('вњ… РќР°СЃС‚СЂРѕР№РєРё РіРµРЅРµСЂР°С†РёРё СѓСЃРїРµС€РЅРѕ Р·Р°РіСЂСѓР¶РµРЅС‹!');
+    setStatusText('РІСљвЂ¦ Р СњР В°РЎРѓРЎвЂљРЎР‚Р С•Р в„–Р С”Р С‘ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘ РЎС“РЎРѓР С—Р ВµРЎв‚¬Р Р…Р С• Р В·Р В°Р С–РЎР‚РЎС“Р В¶Р ВµР Р…РЎвЂ№!');
     setStatusType('success');
   };
 
   return (
     <div className="app-wrapper">
       <header className="app-header">
-        <motion.h1 className="app-logo" initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} transition={{duration:0.6}}>РЎРµР»Р»РµСЂ-РЎС‚СѓРґРёСЏ</motion.h1>
-        <p className="app-subtitle">РР-С„РѕС‚РѕСЃС‚СѓРґРёСЏ РґР»СЏ РјР°СЂРєРµС‚РїР»РµР№СЃРѕРІ Ozon, WB Рё РґСЂСѓРіРёС…</p>
+        <motion.h1 className="app-logo" initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} transition={{duration:0.6}}>Р РЋР ВµР В»Р В»Р ВµРЎР‚-Р РЋРЎвЂљРЎС“Р Т‘Р С‘РЎРЏ</motion.h1>
+        <p className="app-subtitle">Р ВР В-РЎвЂћР С•РЎвЂљР С•РЎРѓРЎвЂљРЎС“Р Т‘Р С‘РЎРЏ Р Т‘Р В»РЎРЏ Р СР В°РЎР‚Р С”Р ВµРЎвЂљР С—Р В»Р ВµР в„–РЎРѓР С•Р Р† Ozon, WB Р С‘ Р Т‘РЎР‚РЎС“Р С–Р С‘РЎвЂ¦</p>
         
-        {/* РџСЂРµРјРёР°Р»СЊРЅС‹Р№ РїРµСЂРµРєР»СЋС‡Р°С‚РµР»СЊ СЂРµР¶РёРјРѕРІ */}
+        {/* Р СџРЎР‚Р ВµР СР С‘Р В°Р В»РЎРЉР Р…РЎвЂ№Р в„– Р С—Р ВµРЎР‚Р ВµР С”Р В»РЎР‹РЎвЂЎР В°РЎвЂљР ВµР В»РЎРЉ РЎР‚Р ВµР В¶Р С‘Р СР С•Р Р† */}
         <div className="mode-selector-wrapper">
           <div className="mode-selector-bg mode-selector-3">
             <motion.div
@@ -2728,34 +2728,34 @@ ${userProductInfo.trim()}
               className={`mode-btn ${appMode === 'fashion' ? 'active' : ''}`}
               onClick={() => { setAppMode('fashion'); setQuickCardImage(null); setCardEditHistory([]); }}
             >
-              рџ‘• РћРґРµР¶РґР°
+              СЂСџвЂвЂў Р С›Р Т‘Р ВµР В¶Р Т‘Р В°
             </button>
             <button
               className={`mode-btn ${appMode === 'product' ? 'active' : ''}`}
               onClick={() => { setAppMode('product'); setQuickCardImage(null); setCardEditHistory([]); }}
             >
-              рџ“¦ РџСЂРµРґРјРµС‚РєР°
+              СЂСџвЂњВ¦ Р СџРЎР‚Р ВµР Т‘Р СР ВµРЎвЂљР С”Р В°
             </button>
             <button
               className={`mode-btn ${appMode === 'quick' ? 'active' : ''}`}
               onClick={() => { setAppMode('quick'); setGeneratedImage(null); }}
             >
-              вљЎ Р’ РґРІР° РєР»РёРєР°
+              РІС™РЋ Р вЂ™ Р Т‘Р Р†Р В° Р С”Р В»Р С‘Р С”Р В°
             </button>
           </div>
         </div>
 
         <div style={{marginTop:16,display:'flex',alignItems:'center',justifyContent:'center',gap:8,flexWrap:'wrap'}}>
           <SubscriptionBadge subscription={subscription} onClick={() => setShowPricing(true)} />
-          <button className="my-history-btn" onClick={() => setShowHistory(true)} title="РњРѕРё СЂР°Р±РѕС‚С‹">
-            рџ–јпёЏ РњРѕРё СЂР°Р±РѕС‚С‹
+          <button className="my-history-btn" onClick={() => setShowHistory(true)} title="Р СљР С•Р С‘ РЎР‚Р В°Р В±Р С•РЎвЂљРЎвЂ№">
+            СЂСџвЂ“СРїС‘РЏ Р СљР С•Р С‘ РЎР‚Р В°Р В±Р С•РЎвЂљРЎвЂ№
           </button>
           <span style={{fontSize:'0.75rem',color:'var(--text-muted)'}}>{user.displayName || user.email}</span>
-          {!isEmbedded && <button onClick={signOut} style={{fontSize:'0.7rem',color:'var(--text-muted)',background:'none',border:'1px solid var(--border-subtle)',borderRadius:'9999px',padding:'4px 14px',cursor:'pointer',fontFamily:'var(--font-body)',letterSpacing:'1px',textTransform:'uppercase'}}>Р’С‹Р№С‚Рё</button>}
+          {!isEmbedded && <button onClick={signOut} style={{fontSize:'0.7rem',color:'var(--text-muted)',background:'none',border:'1px solid var(--border-subtle)',borderRadius:'9999px',padding:'4px 14px',cursor:'pointer',fontFamily:'var(--font-body)',letterSpacing:'1px',textTransform:'uppercase'}}>Р вЂ™РЎвЂ№Р в„–РЎвЂљР С‘</button>}
         </div>
       </header>
 
-      {/* в•ђв•ђв•ђ PRICING MODAL в•ђв•ђв•ђ */}
+      {/* РІвЂўС’РІвЂўС’РІвЂўС’ PRICING MODAL РІвЂўС’РІвЂўС’РІвЂўС’ */}
       <PricingModal
         isOpen={showPricing}
         onClose={() => setShowPricing(false)}
@@ -2767,7 +2767,7 @@ ${userProductInfo.trim()}
         canceling={cancelingSubscription}
       />
 
-      {/* в•ђв•ђв•ђ CONFIRM MODAL в•ђв•ђв•ђ */}
+      {/* РІвЂўС’РІвЂўС’РІвЂўС’ CONFIRM MODAL РІвЂўС’РІвЂўС’РІвЂўС’ */}
       {confirmModal && (
         <div style={{
           position: 'fixed',
@@ -2801,18 +2801,18 @@ ${userProductInfo.trim()}
             }}
           >
             <h3 style={{ margin: '0 0 10px 0', fontSize: 22, fontWeight: 800, color: '#fff', textAlign: 'center' }}>
-              {confirmModal.type === 'gallery' ? 'рџ“ё РЎРѕР±СЂР°С‚СЊ РіР°Р»РµСЂРµСЋ?' : 
-               confirmModal.type === 'ab' ? 'вљ–пёЏ Р—Р°РїСѓСЃС‚РёС‚СЊ A/B РўРµСЃС‚?' : 
-               confirmModal.type === 'video' ? 'рџЋ¬ РћР¶РёРІРёС‚СЊ РІ Р’РёРґРµРѕРѕР±Р»РѕР¶РєСѓ?' : 
-               confirmModal.type === 'batch' ? 'рџ“ё Р—Р°РїСѓСЃС‚РёС‚СЊ СЃРµСЂРёСЋ РіРµРЅРµСЂР°С†РёР№?' :
-               'рџ“± РЎРѕР·РґР°С‚СЊ С„РѕС‚Рѕ РѕС‚ РїРѕРєСѓРїР°С‚РµР»РµР№?'}
+              {confirmModal.type === 'gallery' ? 'СЂСџвЂњС‘ Р РЋР С•Р В±РЎР‚Р В°РЎвЂљРЎРЉ Р С–Р В°Р В»Р ВµРЎР‚Р ВµРЎР‹?' : 
+               confirmModal.type === 'ab' ? 'РІС™вЂ“РїС‘РЏ Р вЂ”Р В°Р С—РЎС“РЎРѓРЎвЂљР С‘РЎвЂљРЎРЉ A/B Р СћР ВµРЎРѓРЎвЂљ?' : 
+               confirmModal.type === 'video' ? 'СЂСџР‹В¬ Р С›Р В¶Р С‘Р Р†Р С‘РЎвЂљРЎРЉ Р Р† Р вЂ™Р С‘Р Т‘Р ВµР С•Р С•Р В±Р В»Р С•Р В¶Р С”РЎС“?' : 
+               confirmModal.type === 'batch' ? 'СЂСџвЂњС‘ Р вЂ”Р В°Р С—РЎС“РЎРѓРЎвЂљР С‘РЎвЂљРЎРЉ РЎРѓР ВµРЎР‚Р С‘РЎР‹ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р в„–?' :
+               'СЂСџвЂњВ± Р РЋР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ РЎвЂћР С•РЎвЂљР С• Р С•РЎвЂљ Р С—Р С•Р С”РЎС“Р С—Р В°РЎвЂљР ВµР В»Р ВµР в„–?'}
             </h3>
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: '0 0 20px 0', textAlign: 'center', lineHeight: 1.5 }}>
-              {confirmModal.type === 'gallery' ? 'РР СЃРіРµРЅРµСЂРёСЂСѓРµС‚ 3 РґРѕРїРѕР»РЅРёС‚РµР»СЊРЅС‹С… СЃР»Р°Р№РґР° РІРѕСЂРѕРЅРєРё (РєСЂСѓРїРЅС‹Р№ РїР»Р°РЅ РґРµС‚Р°Р»РµР№, СЂР°Р·РјРµСЂС‹ Рё lifestyle-РєР°РґСЂ) РЅР° РѕСЃРЅРѕРІРµ РІС‹Р±СЂР°РЅРЅРѕРіРѕ РєР°РґСЂР°.' : 
-               confirmModal.type === 'ab' ? 'РР СЃРѕР·РґР°СЃС‚ 2 Р°Р»СЊС‚РµСЂРЅР°С‚РёРІРЅС‹С… РІР°СЂРёР°РЅС‚Р° РѕР±Р»РѕР¶РєРё (СЃРІРµС‚Р»С‹Р№ Рё С‚РµРјРЅС‹Р№ СЃС‚РёР»Рё) РґР»СЏ С‚РµСЃС‚РёСЂРѕРІР°РЅРёСЏ CTR.' : 
-               confirmModal.type === 'video' ? 'РР СЃРѕР·РґР°СЃС‚ 3D-Р°РЅРёРјР°С†РёСЋ Рё motion-СЌС„С„РµРєС‚С‹ РґР»СЏ РІРёРґРµРѕРѕР±Р»РѕР¶РєРё.' : 
-               confirmModal.type === 'batch' ? `РР СЃРіРµРЅРµСЂРёСЂСѓРµС‚ СЃРµСЂРёСЋ РёР· ${confirmModal.cost} РєР°РґСЂРѕРІ РЅР° РѕСЃРЅРѕРІРµ РІР°С€РёС… РЅР°СЃС‚СЂРѕРµРє РјСѓР»СЊС‚РёРІС‹Р±РѕСЂР°. РљР°РґСЂС‹ Р±СѓРґСѓС‚ СЃРѕР·РґР°РІР°С‚СЊСЃСЏ РїР°СЂР°Р»Р»РµР»СЊРЅРѕ.` :
-               'РР РїРµСЂРµРЅРµСЃРµС‚ С‚РѕРІР°СЂ СЃ РІС‹Р±СЂР°РЅРЅРѕРіРѕ РєР°РґСЂР° РІ РґРѕРјР°С€РЅСЋСЋ СЂРµР°Р»РёСЃС‚РёС‡РЅСѓСЋ РѕР±СЃС‚Р°РЅРѕРІРєСѓ.'}
+              {confirmModal.type === 'gallery' ? 'Р ВР В РЎРѓР С–Р ВµР Р…Р ВµРЎР‚Р С‘РЎР‚РЎС“Р ВµРЎвЂљ 3 Р Т‘Р С•Р С—Р С•Р В»Р Р…Р С‘РЎвЂљР ВµР В»РЎРЉР Р…РЎвЂ№РЎвЂ¦ РЎРѓР В»Р В°Р в„–Р Т‘Р В° Р Р†Р С•РЎР‚Р С•Р Р…Р С”Р С‘ (Р С”РЎР‚РЎС“Р С—Р Р…РЎвЂ№Р в„– Р С—Р В»Р В°Р Р… Р Т‘Р ВµРЎвЂљР В°Р В»Р ВµР в„–, РЎР‚Р В°Р В·Р СР ВµРЎР‚РЎвЂ№ Р С‘ lifestyle-Р С”Р В°Р Т‘РЎР‚) Р Р…Р В° Р С•РЎРѓР Р…Р С•Р Р†Р Вµ Р Р†РЎвЂ№Р В±РЎР‚Р В°Р Р…Р Р…Р С•Р С–Р С• Р С”Р В°Р Т‘РЎР‚Р В°.' : 
+               confirmModal.type === 'ab' ? 'Р ВР В РЎРѓР С•Р В·Р Т‘Р В°РЎРѓРЎвЂљ 2 Р В°Р В»РЎРЉРЎвЂљР ВµРЎР‚Р Р…Р В°РЎвЂљР С‘Р Р†Р Р…РЎвЂ№РЎвЂ¦ Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљР В° Р С•Р В±Р В»Р С•Р В¶Р С”Р С‘ (РЎРѓР Р†Р ВµРЎвЂљР В»РЎвЂ№Р в„– Р С‘ РЎвЂљР ВµР СР Р…РЎвЂ№Р в„– РЎРѓРЎвЂљР С‘Р В»Р С‘) Р Т‘Р В»РЎРЏ РЎвЂљР ВµРЎРѓРЎвЂљР С‘РЎР‚Р С•Р Р†Р В°Р Р…Р С‘РЎРЏ CTR.' : 
+               confirmModal.type === 'video' ? 'Р ВР В РЎРѓР С•Р В·Р Т‘Р В°РЎРѓРЎвЂљ 3D-Р В°Р Р…Р С‘Р СР В°РЎвЂ Р С‘РЎР‹ Р С‘ motion-РЎРЊРЎвЂћРЎвЂћР ВµР С”РЎвЂљРЎвЂ№ Р Т‘Р В»РЎРЏ Р Р†Р С‘Р Т‘Р ВµР С•Р С•Р В±Р В»Р С•Р В¶Р С”Р С‘.' : 
+               confirmModal.type === 'batch' ? `Р ВР В РЎРѓР С–Р ВµР Р…Р ВµРЎР‚Р С‘РЎР‚РЎС“Р ВµРЎвЂљ РЎРѓР ВµРЎР‚Р С‘РЎР‹ Р С‘Р В· ${confirmModal.cost} Р С”Р В°Р Т‘РЎР‚Р С•Р Р† Р Р…Р В° Р С•РЎРѓР Р…Р С•Р Р†Р Вµ Р Р†Р В°РЎв‚¬Р С‘РЎвЂ¦ Р Р…Р В°РЎРѓРЎвЂљРЎР‚Р С•Р ВµР С” Р СРЎС“Р В»РЎРЉРЎвЂљР С‘Р Р†РЎвЂ№Р В±Р С•РЎР‚Р В°. Р С™Р В°Р Т‘РЎР‚РЎвЂ№ Р В±РЎС“Р Т‘РЎС“РЎвЂљ РЎРѓР С•Р В·Р Т‘Р В°Р Р†Р В°РЎвЂљРЎРЉРЎРѓРЎРЏ Р С—Р В°РЎР‚Р В°Р В»Р В»Р ВµР В»РЎРЉР Р…Р С•.` :
+               'Р ВР В Р С—Р ВµРЎР‚Р ВµР Р…Р ВµРЎРѓР ВµРЎвЂљ РЎвЂљР С•Р Р†Р В°РЎР‚ РЎРѓ Р Р†РЎвЂ№Р В±РЎР‚Р В°Р Р…Р Р…Р С•Р С–Р С• Р С”Р В°Р Т‘РЎР‚Р В° Р Р† Р Т‘Р С•Р СР В°РЎв‚¬Р Р…РЎР‹РЎР‹ РЎР‚Р ВµР В°Р В»Р С‘РЎРѓРЎвЂљР С‘РЎвЂЎР Р…РЎС“РЎР‹ Р С•Р В±РЎРѓРЎвЂљР В°Р Р…Р С•Р Р†Р С”РЎС“.'}
             </p>
 
             {/* Preview of active frame */}
@@ -2830,7 +2830,7 @@ ${userProductInfo.trim()}
               }}>
                 <img 
                   src={quickCardImage || generatedImage} 
-                  alt="РСЃС…РѕРґРЅС‹Р№ РєР°РґСЂ" 
+                  alt="Р ВРЎРѓРЎвЂ¦Р С•Р Т‘Р Р…РЎвЂ№Р в„– Р С”Р В°Р Т‘РЎР‚" 
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                 />
               <div style={{
@@ -2846,15 +2846,15 @@ ${userProductInfo.trim()}
                 textAlign: 'center',
                 textTransform: 'uppercase'
               }}>
-                РСЃС…РѕРґРЅС‹Р№ РєР°РґСЂ
+                Р ВРЎРѓРЎвЂ¦Р С•Р Т‘Р Р…РЎвЂ№Р в„– Р С”Р В°Р Т‘РЎР‚
               </div>
             </div>
             )}
 
             <div style={{ margin: '15px 0 25px 0', textAlign: 'center' }}>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>РЎС‚РѕРёРјРѕСЃС‚СЊ РіРµРЅРµСЂР°С†РёРё</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>Р РЋРЎвЂљР С•Р С‘Р СР С•РЎРѓРЎвЂљРЎРЉ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘</div>
               <div style={{ fontSize: 28, fontWeight: 900, color: '#ffd700', marginTop: 4 }}>
-                {confirmModal.cost} РєСЂ.
+                {confirmModal.cost} Р С”РЎР‚.
               </div>
             </div>
 
@@ -2876,7 +2876,7 @@ ${userProductInfo.trim()}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
               >
-                РћС‚РјРµРЅР°
+                Р С›РЎвЂљР СР ВµР Р…Р В°
               </button>
               <button 
                 onClick={() => {
@@ -2900,21 +2900,21 @@ ${userProductInfo.trim()}
                 onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
                 onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
               >
-                Р”Р°, СЃРѕР·РґР°С‚СЊ
+                Р вЂќР В°, РЎРѓР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ
               </button>
             </div>
           </motion.div>
         </div>
       )}
 
-      {/* в•ђв•ђв•ђ РњРћР Р РђР‘РћРўР« в•ђв•ђв•ђ */}
+      {/* РІвЂўС’РІвЂўС’РІвЂўС’ Р СљР С›Р В Р В Р С’Р вЂР С›Р СћР В« РІвЂўС’РІвЂўС’РІвЂўС’ */}
       {showHistory && <MyHistoryPage onClose={() => setShowHistory(false)} onReuseSettings={handleReuseSettings} />}
 
-      {/* в•ђв•ђв•ђ QUICK MODE PANEL в•ђв•ђв•ђ */}
+      {/* РІвЂўС’РІвЂўС’РІвЂўС’ QUICK MODE PANEL РІвЂўС’РІвЂўС’РІвЂўС’ */}
       {appMode === 'quick' && !generatedImage && (
         <motion.div className="section quick-mode-panel" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.1,duration:0.5,ease:[0.16,1,0.3,1]}}>
           <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: '8px' }}>
-            <span><span className="icon">вљЎ</span> Р’ РґРІР° РєР»РёРєР°</span>
+            <span><span className="icon">РІС™РЋ</span> Р вЂ™ Р Т‘Р Р†Р В° Р С”Р В»Р С‘Р С”Р В°</span>
             {Object.keys(quickResults).length > 0 && (
               <button
                 onClick={() => {
@@ -2953,72 +2953,72 @@ ${userProductInfo.trim()}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255, 215, 0, 0.18)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'rgba(255, 215, 0, 0.08)'}
               >
-                рџ‘ЃпёЏ РџРѕРєР°Р·Р°С‚СЊ СЃРѕР·РґР°РЅРЅРѕРµ
+                СЂСџвЂРѓРїС‘РЏ Р СџР С•Р С”Р В°Р В·Р В°РЎвЂљРЎРЉ РЎРѓР С•Р В·Р Т‘Р В°Р Р…Р Р…Р С•Р Вµ
               </button>
             )}
           </div>
-          <p className="quick-mode-subtitle">Р—Р°РіСЂСѓР·РёС‚Рµ С„РѕС‚Рѕ С‚РѕРІР°СЂР° вЂ” РїРѕР»СѓС‡РёС‚Рµ РіРѕС‚РѕРІСѓСЋ РєР°СЂС‚РѕС‡РєСѓ РґР»СЏ РјР°СЂРєРµС‚РїР»РµР№СЃР°</p>
+          <p className="quick-mode-subtitle">Р вЂ”Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљР Вµ РЎвЂћР С•РЎвЂљР С• РЎвЂљР С•Р Р†Р В°РЎР‚Р В° РІР‚вЂќ Р С—Р С•Р В»РЎС“РЎвЂЎР С‘РЎвЂљР Вµ Р С–Р С•РЎвЂљР С•Р Р†РЎС“РЎР‹ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”РЎС“ Р Т‘Р В»РЎРЏ Р СР В°РЎР‚Р С”Р ВµРЎвЂљР С—Р В»Р ВµР в„–РЎРѓР В°</p>
 
-          {/* Upload zone вЂ” reuse garmentUrls */}
+          {/* Upload zone РІР‚вЂќ reuse garmentUrls */}
           <div className="quick-upload-zone">
             {previewUrls.length > 0 ? (
               <div className="multi-preview-grid">
                 {previewUrls.map((url, i) => (
                   <div key={i} className="multi-preview-item">
-                    <img src={url} alt={`РўРѕРІР°СЂ ${i+1}`} style={{cursor:'zoom-in'}} onClick={() => setLightboxSrc(url)} />
-                    <button className="remove-preview" onClick={() => removeFile(i)}>вњ•</button>
+                    <img src={url} alt={`Р СћР С•Р Р†Р В°РЎР‚ ${i+1}`} style={{cursor:'zoom-in'}} onClick={() => setLightboxSrc(url)} />
+                    <button className="remove-preview" onClick={() => removeFile(i)}>РІСљвЂў</button>
                   </div>
                 ))}
               </div>
             ) : (
               <label className="drop-zone compact" htmlFor="quick-upload">
-                <span className="dz-emoji">рџ“·</span>
-                <span className="dz-text">Р—Р°РіСЂСѓР·РёС‚Рµ С„РѕС‚Рѕ С‚РѕРІР°СЂР°</span>
+                <span className="dz-emoji">СЂСџвЂњВ·</span>
+                <span className="dz-text">Р вЂ”Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљР Вµ РЎвЂћР С•РЎвЂљР С• РЎвЂљР С•Р Р†Р В°РЎР‚Р В°</span>
                 <input id="quick-upload" type="file" accept="image/*" multiple onChange={handleFilesChange} style={{display:'none'}} />
               </label>
             )}
           </div>
 
-          {/* в•ђв•ђв•ђ MODE TOGGLE: РљСЂР°СЃРёРІС‹Р№ РєР°РґСЂ / Р“РѕС‚РѕРІР°СЏ РєР°СЂС‚РѕС‡РєР° / UGC в•ђв•ђв•ђ */}
+          {/* РІвЂўС’РІвЂўС’РІвЂўС’ MODE TOGGLE: Р С™РЎР‚Р В°РЎРѓР С‘Р Р†РЎвЂ№Р в„– Р С”Р В°Р Т‘РЎР‚ / Р вЂњР С•РЎвЂљР С•Р Р†Р В°РЎРЏ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р В° / UGC РІвЂўС’РІвЂўС’РІвЂўС’ */}
           <div className="card-style-picker" style={{marginBottom: 16}}>
-            <div className="card-style-label">Р§С‚Рѕ СЃРѕР·РґР°С‘Рј:</div>
+            <div className="card-style-label">Р В§РЎвЂљР С• РЎРѓР С•Р В·Р Т‘Р В°РЎвЂР С:</div>
             <div className="card-style-options">
               <button
                 className={`card-style-btn ${quickMode === 'photo' ? 'active' : ''}`}
                 onClick={() => setQuickMode('photo')}
               >
-                <span className="card-style-icon">рџЋЁ</span>
-                <span className="card-style-name">РљСЂР°СЃРёРІС‹Р№ РєР°РґСЂ</span>
-                <span className="card-style-desc">РЎС‚СѓРґРёР№РЅРѕРµ С„РѕС‚Рѕ С‚РѕРІР°СЂР°</span>
+                <span className="card-style-icon">СЂСџР‹РЃ</span>
+                <span className="card-style-name">Р С™РЎР‚Р В°РЎРѓР С‘Р Р†РЎвЂ№Р в„– Р С”Р В°Р Т‘РЎР‚</span>
+                <span className="card-style-desc">Р РЋРЎвЂљРЎС“Р Т‘Р С‘Р в„–Р Р…Р С•Р Вµ РЎвЂћР С•РЎвЂљР С• РЎвЂљР С•Р Р†Р В°РЎР‚Р В°</span>
               </button>
               <button
                 className={`card-style-btn ${quickMode === 'card' ? 'active' : ''}`}
                 onClick={() => setQuickMode('card')}
               >
-                <span className="card-style-icon">рџ“‹</span>
-                <span className="card-style-name">Р“РѕС‚РѕРІР°СЏ РєР°СЂС‚РѕС‡РєР°</span>
-                <span className="card-style-desc">РРЅС„РѕРіСЂР°С„РёРєР° РґР»СЏ РјР°СЂРєРµС‚РїР»РµР№СЃР°</span>
+                <span className="card-style-icon">СЂСџвЂњвЂ№</span>
+                <span className="card-style-name">Р вЂњР С•РЎвЂљР С•Р Р†Р В°РЎРЏ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р В°</span>
+                <span className="card-style-desc">Р ВР Р…РЎвЂћР С•Р С–РЎР‚Р В°РЎвЂћР С‘Р С”Р В° Р Т‘Р В»РЎРЏ Р СР В°РЎР‚Р С”Р ВµРЎвЂљР С—Р В»Р ВµР в„–РЎРѓР В°</span>
               </button>
               <button
                 className={`card-style-btn ${quickMode === 'ugc' ? 'active' : ''}`}
                 onClick={() => setQuickMode('ugc')}
               >
-                <span className="card-style-icon">рџ“±</span>
-                <span className="card-style-name">Р¤РѕС‚Рѕ РѕС‚ РїРѕРєСѓРїР°С‚РµР»РµР№</span>
-                <span className="card-style-desc">Р РµР°Р»РёСЃС‚РёС‡РЅС‹Рµ С„РѕС‚Рѕ РґР»СЏ РѕС‚Р·С‹РІРѕРІ</span>
+                <span className="card-style-icon">СЂСџвЂњВ±</span>
+                <span className="card-style-name">Р В¤Р С•РЎвЂљР С• Р С•РЎвЂљ Р С—Р С•Р С”РЎС“Р С—Р В°РЎвЂљР ВµР В»Р ВµР в„–</span>
+                <span className="card-style-desc">Р В Р ВµР В°Р В»Р С‘РЎРѓРЎвЂљР С‘РЎвЂЎР Р…РЎвЂ№Р Вµ РЎвЂћР С•РЎвЂљР С• Р Т‘Р В»РЎРЏ Р С•РЎвЂљР В·РЎвЂ№Р Р†Р С•Р Р†</span>
               </button>
               <button
                 className={`card-style-btn ${quickMode === 'model' ? 'active' : ''}`}
                 onClick={() => setQuickMode('model')}
               >
-                <span className="card-style-icon">рџ‘¤</span>
-                <span className="card-style-name">Р¤РѕС‚Рѕ СЃ РјРѕРґРµР»СЊСЋ</span>
-                <span className="card-style-desc">РњРѕРґРµР»СЊ РїРѕР·РёСЂСѓРµС‚ СЃ С‚РѕРІР°СЂРѕРј</span>
+                <span className="card-style-icon">СЂСџвЂВ¤</span>
+                <span className="card-style-name">Р В¤Р С•РЎвЂљР С• РЎРѓ Р СР С•Р Т‘Р ВµР В»РЎРЉРЎР‹</span>
+                <span className="card-style-desc">Р СљР С•Р Т‘Р ВµР В»РЎРЉ Р С—Р С•Р В·Р С‘РЎР‚РЎС“Р ВµРЎвЂљ РЎРѓ РЎвЂљР С•Р Р†Р В°РЎР‚Р С•Р С</span>
               </button>
             </div>
           </div>
 
-          {/* в•ђв•ђв•ђ CARD MODE: СЃС‚РёР»СЊ + РёРЅС„РѕСЂРјР°С†РёСЏ Рѕ С‚РѕРІР°СЂРµ в•ђв•ђв•ђ */}
+          {/* РІвЂўС’РІвЂўС’РІвЂўС’ CARD MODE: РЎРѓРЎвЂљР С‘Р В»РЎРЉ + Р С‘Р Р…РЎвЂћР С•РЎР‚Р СР В°РЎвЂ Р С‘РЎРЏ Р С• РЎвЂљР С•Р Р†Р В°РЎР‚Р Вµ РІвЂўС’РІвЂўС’РІвЂўС’ */}
           <AnimatePresence mode="wait">
             {quickMode === 'card' && (
               <motion.div
@@ -3030,29 +3030,29 @@ ${userProductInfo.trim()}
                 {/* Card info banner */}
                 <div style={{background:'rgba(255,215,0,0.06)', border:'1px solid rgba(255,215,0,0.15)', borderRadius:12, padding:'12px 16px', marginBottom:16}}>
                   <p style={{margin:0, fontSize:13, color:'rgba(255,255,255,0.7)', lineHeight:'1.5'}}>
-                    вљЎ РЎРёСЃС‚РµРјР° Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРѕР·РґР°СЃС‚ РїСЂРѕС„РµСЃСЃРёРѕРЅР°Р»СЊРЅСѓСЋ РєР°СЂС‚РѕС‡РєСѓ С‚РѕРІР°СЂР° СЃ С‚РµРєСЃС‚Р°РјРё, РґРёР·Р°Р№РЅРѕРј Рё С‚РёРїРѕРіСЂР°С„РёРєРѕР№. РЎС‚РѕРёРјРѕСЃС‚СЊ: <strong style={{color:'#ffd700'}}>2 РєСЂРµРґРёС‚Р°</strong>. РџРѕСЃР»Рµ РіРµРЅРµСЂР°С†РёРё РІС‹ СЃРјРѕР¶РµС‚Рµ РѕС‚СЂРµРґР°РєС‚РёСЂРѕРІР°С‚СЊ СЂРµР·СѓР»СЊС‚Р°С‚ (<strong>1 РєСЂРµРґРёС‚</strong> Р·Р° РїСЂР°РІРєСѓ).
+                    РІС™РЋ Р РЋР С‘РЎРѓРЎвЂљР ВµР СР В° Р В°Р Р†РЎвЂљР С•Р СР В°РЎвЂљР С‘РЎвЂЎР ВµРЎРѓР С”Р С‘ РЎРѓР С•Р В·Р Т‘Р В°РЎРѓРЎвЂљ Р С—РЎР‚Р С•РЎвЂћР ВµРЎРѓРЎРѓР С‘Р С•Р Р…Р В°Р В»РЎРЉР Р…РЎС“РЎР‹ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”РЎС“ РЎвЂљР С•Р Р†Р В°РЎР‚Р В° РЎРѓ РЎвЂљР ВµР С”РЎРѓРЎвЂљР В°Р СР С‘, Р Т‘Р С‘Р В·Р В°Р в„–Р Р…Р С•Р С Р С‘ РЎвЂљР С‘Р С—Р С•Р С–РЎР‚Р В°РЎвЂћР С‘Р С”Р С•Р в„–. Р РЋРЎвЂљР С•Р С‘Р СР С•РЎРѓРЎвЂљРЎРЉ: <strong style={{color:'#ffd700'}}>2 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР В°</strong>. Р СџР С•РЎРѓР В»Р Вµ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘ Р Р†РЎвЂ№ РЎРѓР СР С•Р В¶Р ВµРЎвЂљР Вµ Р С•РЎвЂљРЎР‚Р ВµР Т‘Р В°Р С”РЎвЂљР С‘РЎР‚Р С•Р Р†Р В°РЎвЂљРЎРЉ РЎР‚Р ВµР В·РЎС“Р В»РЎРЉРЎвЂљР В°РЎвЂљ (<strong>1 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљ</strong> Р В·Р В° Р С—РЎР‚Р В°Р Р†Р С”РЎС“).
                   </p>
                 </div>
 
                 {/* Card style picker */}
                 <div className="card-style-picker">
-                  <div className="card-style-label">РЎС‚РёР»СЊ РєР°СЂС‚РѕС‡РєРё:</div>
+                  <div className="card-style-label">Р РЋРЎвЂљР С‘Р В»РЎРЉ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р С‘:</div>
                   <div className="card-style-options">
                     <button
                       className={`card-style-btn ${quickCardStyle === 'natural' ? 'active' : ''}`}
                       onClick={() => setQuickCardStyle('natural')}
                     >
-                      <span className="card-style-icon">рџЊї</span>
-                      <span className="card-style-name">Р•СЃС‚РµСЃС‚РІРµРЅРЅР°СЏ</span>
-                      <span className="card-style-desc">Р­Р»РµРіР°РЅС‚РЅР°СЏ, РјРёРЅРёРјР°Р»РёР·Рј</span>
+                      <span className="card-style-icon">СЂСџРЉС—</span>
+                      <span className="card-style-name">Р вЂўРЎРѓРЎвЂљР ВµРЎРѓРЎвЂљР Р†Р ВµР Р…Р Р…Р В°РЎРЏ</span>
+                      <span className="card-style-desc">Р В­Р В»Р ВµР С–Р В°Р Р…РЎвЂљР Р…Р В°РЎРЏ, Р СР С‘Р Р…Р С‘Р СР В°Р В»Р С‘Р В·Р С</span>
                     </button>
                     <button
                       className={`card-style-btn ${quickCardStyle === 'epic' ? 'active' : ''}`}
                       onClick={() => setQuickCardStyle('epic')}
                     >
-                      <span className="card-style-icon">рџ”Ґ</span>
-                      <span className="card-style-name">Р­РїРёС‡РЅР°СЏ</span>
-                      <span className="card-style-desc">РљРёРЅРµРјР°С‚РѕРіСЂР°С„, wow</span>
+                      <span className="card-style-icon">СЂСџвЂќТђ</span>
+                      <span className="card-style-name">Р В­Р С—Р С‘РЎвЂЎР Р…Р В°РЎРЏ</span>
+                      <span className="card-style-desc">Р С™Р С‘Р Р…Р ВµР СР В°РЎвЂљР С•Р С–РЎР‚Р В°РЎвЂћ, wow</span>
                     </button>
                   </div>
                 </div>
@@ -3060,12 +3060,12 @@ ${userProductInfo.trim()}
                 {/* Optional product info */}
                 <div style={{marginTop: 16}}>
                   <div className="detail-label" style={{marginBottom: 8}}>
-                    рџ’Ў РРЅС„РѕСЂРјР°С†РёСЏ Рѕ С‚РѕРІР°СЂРµ <span style={{color:'rgba(255,255,255,0.4)', fontSize:12}}>(РЅРµРѕР±СЏР·Р°С‚РµР»СЊРЅРѕ)</span>
+                    СЂСџвЂ™РЋ Р ВР Р…РЎвЂћР С•РЎР‚Р СР В°РЎвЂ Р С‘РЎРЏ Р С• РЎвЂљР С•Р Р†Р В°РЎР‚Р Вµ <span style={{color:'rgba(255,255,255,0.4)', fontSize:12}}>(Р Р…Р ВµР С•Р В±РЎРЏР В·Р В°РЎвЂљР ВµР В»РЎРЉР Р…Р С•)</span>
                   </div>
                   <textarea
                     className="modifier-input"
                     rows={3}
-                    placeholder="РќР°РїСЂРёРјРµСЂ: В«РћС„РёСЃРЅС‹Р№ СЃС‚СѓР», СЃС‚Р°Р»СЊРЅРѕР№ РєР°СЂРєР°СЃ, РґРѕ 120 РєРі, С‚РєР°РЅСЊ РѕРєСЃС„РѕСЂРґВ». РР СЃР°Рј РѕРїСЂРµРґРµР»РёС‚ С‚РѕРІР°СЂ РїРѕ С„РѕС‚Рѕ вЂ” Р·РґРµСЃСЊ РјРѕР¶РЅРѕ СѓС‚РѕС‡РЅРёС‚СЊ РґРµС‚Р°Р»Рё, С‡С‚РѕР±С‹ С‚РµРєСЃС‚С‹ РЅР° РєР°СЂС‚РѕС‡РєРµ Р±С‹Р»Рё С‚РѕС‡РЅРµРµ."
+                    placeholder="Р СњР В°Р С—РЎР‚Р С‘Р СР ВµРЎР‚: Р’В«Р С›РЎвЂћР С‘РЎРѓР Р…РЎвЂ№Р в„– РЎРѓРЎвЂљРЎС“Р В», РЎРѓРЎвЂљР В°Р В»РЎРЉР Р…Р С•Р в„– Р С”Р В°РЎР‚Р С”Р В°РЎРѓ, Р Т‘Р С• 120 Р С”Р С–, РЎвЂљР С”Р В°Р Р…РЎРЉ Р С•Р С”РЎРѓРЎвЂћР С•РЎР‚Р Т‘Р’В». Р ВР В РЎРѓР В°Р С Р С•Р С—РЎР‚Р ВµР Т‘Р ВµР В»Р С‘РЎвЂљ РЎвЂљР С•Р Р†Р В°РЎР‚ Р С—Р С• РЎвЂћР С•РЎвЂљР С• РІР‚вЂќ Р В·Р Т‘Р ВµРЎРѓРЎРЉ Р СР С•Р В¶Р Р…Р С• РЎС“РЎвЂљР С•РЎвЂЎР Р…Р С‘РЎвЂљРЎРЉ Р Т‘Р ВµРЎвЂљР В°Р В»Р С‘, РЎвЂЎРЎвЂљР С•Р В±РЎвЂ№ РЎвЂљР ВµР С”РЎРѓРЎвЂљРЎвЂ№ Р Р…Р В° Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р Вµ Р В±РЎвЂ№Р В»Р С‘ РЎвЂљР С•РЎвЂЎР Р…Р ВµР Вµ."
                     value={userProductInfo}
                     onChange={e => setUserProductInfo(e.target.value)}
                     style={{width:'100%', resize:'vertical'}}
@@ -3075,7 +3075,7 @@ ${userProductInfo.trim()}
             )}
           </AnimatePresence>
 
-          {/* в•ђв•ђв•ђ PHOTO MODE: РјРѕРґРµР»СЊ-С‡РµР»РѕРІРµРє в•ђв•ђв•ђ */}
+          {/* РІвЂўС’РІвЂўС’РІвЂўС’ PHOTO MODE: Р СР С•Р Т‘Р ВµР В»РЎРЉ-РЎвЂЎР ВµР В»Р С•Р Р†Р ВµР С” РІвЂўС’РІвЂўС’РІвЂўС’ */}
           <AnimatePresence mode="wait">
             {quickMode === 'photo' && (
               <motion.div
@@ -3092,7 +3092,7 @@ ${userProductInfo.trim()}
                       checked={quickWithModel}
                       onChange={e => setQuickWithModel(e.target.checked)}
                     />
-                    <span className="quick-toggle-text">рџ‘¤ Р”РѕР±Р°РІРёС‚СЊ РјРѕРґРµР»СЊ-С‡РµР»РѕРІРµРєР°</span>
+                    <span className="quick-toggle-text">СЂСџвЂВ¤ Р вЂќР С•Р В±Р В°Р Р†Р С‘РЎвЂљРЎРЉ Р СР С•Р Т‘Р ВµР В»РЎРЉ-РЎвЂЎР ВµР В»Р С•Р Р†Р ВµР С”Р В°</span>
                   </label>
                 </div>
 
@@ -3105,8 +3105,8 @@ ${userProductInfo.trim()}
                       style={{overflow:'hidden', marginTop: 16, marginBottom: 16, background: 'rgba(255,255,255,0.02)', padding: 16, borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)'}}
                     >
                       <div className="tabs-row" style={{marginBottom: 16}}>
-                        <button className={`tab-btn ${productModelTab==='presets'?'active':''}`} onClick={()=>{setProductModelTab('presets');setProductSavedModelId(null);}}>рџЋ­ РџСЂРµСЃРµС‚С‹</button>
-                        <button className={`tab-btn ${productModelTab==='my_models'?'active':''}`} onClick={()=>setProductModelTab('my_models')}>в­ђ РњРѕРё РњРѕРґРµР»Рё{myModels.length>0?` (${myModels.length})`:''}</button>
+                        <button className={`tab-btn ${productModelTab==='presets'?'active':''}`} onClick={()=>{setProductModelTab('presets');setProductSavedModelId(null);}}>СЂСџР‹В­ Р СџРЎР‚Р ВµРЎРѓР ВµРЎвЂљРЎвЂ№</button>
+                        <button className={`tab-btn ${productModelTab==='my_models'?'active':''}`} onClick={()=>setProductModelTab('my_models')}>РІВ­С’ Р СљР С•Р С‘ Р СљР С•Р Т‘Р ВµР В»Р С‘{myModels.length>0?` (${myModels.length})`:''}</button>
                       </div>
                       {productModelTab === 'presets' ? (
                         <>
@@ -3121,7 +3121,7 @@ ${userProductInfo.trim()}
                           </div>
                           <DetailPanel modelDetails={productModelDetails} setModelDetails={setProductModelDetails} visible={showProductModelDetails && !customProductModelPrompt && !productSavedModelId} gender={productModelGender} extraPrompt={''} setExtraPrompt={() => {}} />
                           <div className="custom-variant-row" style={{marginTop: 16}}>
-                            <input className="custom-variant-input" type="text" placeholder="РћРїРёСЃР°С‚СЊ РјРѕРґРµР»СЊ: В«СЂС‹Р¶Р°СЏ РґРµРІСѓС€РєР° 25 Р»РµС‚ СЃ РІРµСЃРЅСѓС€РєР°РјРёВ»"
+                            <input className="custom-variant-input" type="text" placeholder="Р С›Р С—Р С‘РЎРѓР В°РЎвЂљРЎРЉ Р СР С•Р Т‘Р ВµР В»РЎРЉ: Р’В«РЎР‚РЎвЂ№Р В¶Р В°РЎРЏ Р Т‘Р ВµР Р†РЎС“РЎв‚¬Р С”Р В° 25 Р В»Р ВµРЎвЂљ РЎРѓ Р Р†Р ВµРЎРѓР Р…РЎС“РЎв‚¬Р С”Р В°Р СР С‘Р’В»"
                               value={customProductModelPrompt}
                               onFocus={() => { setShowProductModelDetails(false); setProductSavedModelId(null); }}
                               onChange={e => { setCustomProductModelPrompt(e.target.value); setProductSavedModelId(null); setShowProductModelDetails(false); }} />
@@ -3136,13 +3136,13 @@ ${userProductInfo.trim()}
                                   onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
                                   <img src={m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                                   <div className="avatar-name">{m.name}</div>
-                                  <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>рџ”Ќ</button>
-                                  <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>вњ•</button>
+                                  <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>СЂСџвЂќРЊ</button>
+                                  <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>РІСљвЂў</button>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <p className="section-hint" style={{textAlign:'center',padding:'20px 0'}}>РЈ РІР°СЃ РїРѕРєР° РЅРµС‚ СЃРѕС…СЂР°РЅС‘РЅРЅС‹С… РјРѕРґРµР»РµР№.</p>
+                            <p className="section-hint" style={{textAlign:'center',padding:'20px 0'}}>Р Р€ Р Р†Р В°РЎРѓ Р С—Р С•Р С”Р В° Р Р…Р ВµРЎвЂљ РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…РЎвЂР Р…Р Р…РЎвЂ№РЎвЂ¦ Р СР С•Р Т‘Р ВµР В»Р ВµР в„–.</p>
                           )}
                         </>
                       )}
@@ -3153,7 +3153,7 @@ ${userProductInfo.trim()}
             )}
           </AnimatePresence>
 
-          {/* в•ђв•ђв•ђ MODEL MODE: РёРЅС„Рѕ-Р±Р°РЅРЅРµСЂ в•ђв•ђв•ђ */}
+          {/* РІвЂўС’РІвЂўС’РІвЂўС’ MODEL MODE: Р С‘Р Р…РЎвЂћР С•-Р В±Р В°Р Р…Р Р…Р ВµРЎР‚ РІвЂўС’РІвЂўС’РІвЂўС’ */}
           <AnimatePresence mode="wait">
             {quickMode === 'model' && (
               <motion.div
@@ -3164,14 +3164,14 @@ ${userProductInfo.trim()}
               >
                 <div style={{background:'rgba(168,85,247,0.06)', border:'1px solid rgba(168,85,247,0.15)', borderRadius:12, padding:'12px 16px', marginBottom:16}}>
                   <p style={{margin:0, fontSize:13, color:'rgba(255,255,255,0.7)', lineHeight:1.5}}>
-                    рџ‘¤ <strong>РР РїРѕРјРµСЃС‚РёС‚ С‚РѕРІР°СЂ РІ СЂСѓРєРё РјРѕРґРµР»Рё</strong> вЂ” СЃР°Рј РѕРїСЂРµРґРµР»РёС‚, РєР°Рє С‡РµР»РѕРІРµРє Р±СѓРґРµС‚ РґРµСЂР¶Р°С‚СЊ, РЅРѕСЃРёС‚СЊ РёР»Рё РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ РІР°С€ С‚РѕРІР°СЂ.
+                    СЂСџвЂВ¤ <strong>Р ВР В Р С—Р С•Р СР ВµРЎРѓРЎвЂљР С‘РЎвЂљ РЎвЂљР С•Р Р†Р В°РЎР‚ Р Р† РЎР‚РЎС“Р С”Р С‘ Р СР С•Р Т‘Р ВµР В»Р С‘</strong> РІР‚вЂќ РЎРѓР В°Р С Р С•Р С—РЎР‚Р ВµР Т‘Р ВµР В»Р С‘РЎвЂљ, Р С”Р В°Р С” РЎвЂЎР ВµР В»Р С•Р Р†Р ВµР С” Р В±РЎС“Р Т‘Р ВµРЎвЂљ Р Т‘Р ВµРЎР‚Р В¶Р В°РЎвЂљРЎРЉ, Р Р…Р С•РЎРѓР С‘РЎвЂљРЎРЉ Р С‘Р В»Р С‘ Р С‘РЎРѓР С—Р С•Р В»РЎРЉР В·Р С•Р Р†Р В°РЎвЂљРЎРЉ Р Р†Р В°РЎв‚¬ РЎвЂљР С•Р Р†Р В°РЎР‚.
                   </p>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* в•ђв•ђв•ђ UGC MODE: РЅР°СЃС‚СЂРѕР№РєРё С„РѕС‚Рѕ РѕС‚ РїРѕРєСѓРїР°С‚РµР»РµР№ в•ђв•ђв•ђ */}
+          {/* РІвЂўС’РІвЂўС’РІвЂўС’ UGC MODE: Р Р…Р В°РЎРѓРЎвЂљРЎР‚Р С•Р в„–Р С”Р С‘ РЎвЂћР С•РЎвЂљР С• Р С•РЎвЂљ Р С—Р С•Р С”РЎС“Р С—Р В°РЎвЂљР ВµР В»Р ВµР в„– РІвЂўС’РІвЂўС’РІвЂўС’ */}
           <AnimatePresence mode="wait">
             {quickMode === 'ugc' && (
               <motion.div
@@ -3182,8 +3182,8 @@ ${userProductInfo.trim()}
               >
                 <div style={{background:'rgba(34,197,94,0.06)', border:'1px solid rgba(34,197,94,0.15)', borderRadius:12, padding:'12px 16px', marginBottom:16}}>
                   <p style={{margin:0, fontSize:13, color:'rgba(255,255,255,0.7)', lineHeight:1.5}}>
-                    рџ“± <strong>РР СЃРѕР·РґР°СЃС‚ СЂРµР°Р»РёСЃС‚РёС‡РЅС‹Рµ С„РѕС‚Рѕ С‚РѕРІР°СЂР°</strong>, РїРѕС…РѕР¶РёРµ РЅР° СЃРЅРёРјРєРё СЂРµР°Р»СЊРЅС‹С… РїРѕРєСѓРїР°С‚РµР»РµР№ вЂ” СЃ РґРѕРјР°С€РЅРёРј С„РѕРЅРѕРј, РµСЃС‚РµСЃС‚РІРµРЅРЅС‹Рј СЃРІРµС‚РѕРј Рё Р»С‘РіРєРёРј С€СѓРјРѕРј СЃРјР°СЂС‚С„РѕРЅР°.
-                    РЎС‚РѕРёРјРѕСЃС‚СЊ: <strong style={{color:'#22c55e'}}>1 РєСЂРµРґРёС‚</strong> Р·Р° С„РѕС‚Рѕ.
+                    СЂСџвЂњВ± <strong>Р ВР В РЎРѓР С•Р В·Р Т‘Р В°РЎРѓРЎвЂљ РЎР‚Р ВµР В°Р В»Р С‘РЎРѓРЎвЂљР С‘РЎвЂЎР Р…РЎвЂ№Р Вµ РЎвЂћР С•РЎвЂљР С• РЎвЂљР С•Р Р†Р В°РЎР‚Р В°</strong>, Р С—Р С•РЎвЂ¦Р С•Р В¶Р С‘Р Вµ Р Р…Р В° РЎРѓР Р…Р С‘Р СР С”Р С‘ РЎР‚Р ВµР В°Р В»РЎРЉР Р…РЎвЂ№РЎвЂ¦ Р С—Р С•Р С”РЎС“Р С—Р В°РЎвЂљР ВµР В»Р ВµР в„– РІР‚вЂќ РЎРѓ Р Т‘Р С•Р СР В°РЎв‚¬Р Р…Р С‘Р С РЎвЂћР С•Р Р…Р С•Р С, Р ВµРЎРѓРЎвЂљР ВµРЎРѓРЎвЂљР Р†Р ВµР Р…Р Р…РЎвЂ№Р С РЎРѓР Р†Р ВµРЎвЂљР С•Р С Р С‘ Р В»РЎвЂР С–Р С”Р С‘Р С РЎв‚¬РЎС“Р СР С•Р С РЎРѓР СР В°РЎР‚РЎвЂљРЎвЂћР С•Р Р…Р В°.
+                    Р РЋРЎвЂљР С•Р С‘Р СР С•РЎРѓРЎвЂљРЎРЉ: <strong style={{color:'#22c55e'}}>1 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљ</strong> Р В·Р В° РЎвЂћР С•РЎвЂљР С•.
                   </p>
                 </div>
               </motion.div>
@@ -3192,7 +3192,7 @@ ${userProductInfo.trim()}
 
           {/* Examples button */}
           <button className="card-examples-btn" onClick={() => setShowCardExamples(true)}>
-            рџ‘Ѓ РџРѕСЃРјРѕС‚СЂРµС‚СЊ РїСЂРёРјРµСЂС‹ РґРѕ/РїРѕСЃР»Рµ
+            СЂСџвЂРѓ Р СџР С•РЎРѓР СР С•РЎвЂљРЎР‚Р ВµРЎвЂљРЎРЉ Р С—РЎР‚Р С‘Р СР ВµРЎР‚РЎвЂ№ Р Т‘Р С•/Р С—Р С•РЎРѓР В»Р Вµ
           </button>
 
           {/* Generate button */}
@@ -3202,30 +3202,30 @@ ${userProductInfo.trim()}
               onClick={handleQuickGenerate}
               disabled={isProcessing || !garmentUrls.length}
             >
-              {isProcessing ? 'вЏі Р“РµРЅРµСЂРёСЂСѓРµРј...' : (quickMode === 'card' ? 'рџ“‹ РЎРѕР·РґР°С‚СЊ РєР°СЂС‚РѕС‡РєСѓ' : quickMode === 'ugc' ? 'рџ“± РЎРѕР·РґР°С‚СЊ С„РѕС‚Рѕ РѕС‚ РїРѕРєСѓРїР°С‚РµР»СЏ' : quickMode === 'model' ? 'рџ‘¤ РЎРѕР·РґР°С‚СЊ РєР°СЂС‚РѕС‡РєСѓ СЃ РјРѕРґРµР»СЊСЋ' : 'рџЋЁ РЎРѕР·РґР°С‚СЊ С„РѕС‚Рѕ')}
+              {isProcessing ? 'РІРЏС– Р вЂњР ВµР Р…Р ВµРЎР‚Р С‘РЎР‚РЎС“Р ВµР С...' : (quickMode === 'card' ? 'СЂСџвЂњвЂ№ Р РЋР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”РЎС“' : quickMode === 'ugc' ? 'СЂСџвЂњВ± Р РЋР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ РЎвЂћР С•РЎвЂљР С• Р С•РЎвЂљ Р С—Р С•Р С”РЎС“Р С—Р В°РЎвЂљР ВµР В»РЎРЏ' : quickMode === 'model' ? 'СЂСџвЂВ¤ Р РЋР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”РЎС“ РЎРѓ Р СР С•Р Т‘Р ВµР В»РЎРЉРЎР‹' : 'СЂСџР‹РЃ Р РЋР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ РЎвЂћР С•РЎвЂљР С•')}
             </button>
-            <span className="quick-credits-hint">{quickMode === 'card' ? '2 РєСЂРµРґРёС‚Р°' : '1 РєСЂРµРґРёС‚'}</span>
+            <span className="quick-credits-hint">{quickMode === 'card' ? '2 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР В°' : '1 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљ'}</span>
           </div>
         </motion.div>
       )}
 
 
-      {/* 1. РњРЈР›Р¬РўРР—РђР“Р РЈР—РљРђ */}
+      {/* 1. Р СљР Р€Р вЂєР В¬Р СћР ВР вЂ”Р С’Р вЂњР В Р Р€Р вЂ”Р С™Р С’ */}
       {appMode !== 'quick' && <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.15,duration:0.5,ease:[0.16,1,0.3,1]}}>
         <div className="section-title">
-          <span className="icon">{appMode === 'product' ? 'рџ“¦' : 'рџ“ё'}</span> 
-          {appMode === 'product' ? ' Р—Р°РіСЂСѓР·РєР° С‚РѕРІР°СЂРѕРІ' : ' Р—Р°РіСЂСѓР·РєР° РІРµС‰РµР№'}
+          <span className="icon">{appMode === 'product' ? 'СЂСџвЂњВ¦' : 'СЂСџвЂњС‘'}</span> 
+          {appMode === 'product' ? ' Р вЂ”Р В°Р С–РЎР‚РЎС“Р В·Р С”Р В° РЎвЂљР С•Р Р†Р В°РЎР‚Р С•Р Р†' : ' Р вЂ”Р В°Р С–РЎР‚РЎС“Р В·Р С”Р В° Р Р†Р ВµРЎвЂ°Р ВµР в„–'}
         </div>
         {previewUrls.length > 0 ? (
           <div className="multi-preview-grid">
             {previewUrls.map((url, i) => (
               <div key={i} className="multi-preview-item">
-                <img src={url} alt={`РћР±СЉРµРєС‚ ${i+1}`} style={{cursor:'zoom-in'}} onClick={() => setLightboxSrc(url)} />
-                <button className="remove-btn" onClick={() => removeFile(i)}>вњ•</button>
+                <img src={url} alt={`Р С›Р В±РЎР‰Р ВµР С”РЎвЂљ ${i+1}`} style={{cursor:'zoom-in'}} onClick={() => setLightboxSrc(url)} />
+                <button className="remove-btn" onClick={() => removeFile(i)}>РІСљвЂў</button>
               </div>
             ))}
             <div className="add-more-btn" onClick={() => fileInputRef.current?.click()}>
-              <span className="plus">+</span><span>Р•С‰С‘</span>
+              <span className="plus">+</span><span>Р вЂўРЎвЂ°РЎвЂ</span>
             </div>
             <input type="file" accept="image/*" multiple ref={fileInputRef} style={{display:'none'}} onChange={handleFilesChange} />
           </div>
@@ -3236,22 +3236,22 @@ ${userProductInfo.trim()}
             onDragLeave={e => { e.preventDefault(); e.currentTarget.classList.remove('dragging'); }}
             onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('dragging'); if (e.dataTransfer.files?.length) handleFilesChange({ target: { files: e.dataTransfer.files } }); }}>
             <input type="file" accept="image/*" multiple ref={fileInputRef} style={{display:'none'}} onChange={handleFilesChange} />
-            <div className="upload-icon">{appMode === 'product' ? 'рџ§ґ' : 'рџ‘•'}</div>
+            <div className="upload-icon">{appMode === 'product' ? 'СЂСџВ§Т‘' : 'СЂСџвЂвЂў'}</div>
             <p className="upload-text">
-              {appMode === 'product' ? 'Р—Р°РіСЂСѓР·РёС‚Рµ С„РѕС‚Рѕ РІР°С€РµРіРѕ С‚РѕРІР°СЂР° вЂ” С„Р»Р°РєРѕРЅ, Р±Р°РЅРѕС‡РєСѓ, Р°РєСЃРµСЃСЃСѓР°СЂ' : 'Р—Р°РіСЂСѓР·РёС‚Рµ С„РѕС‚Рѕ РѕРґРµР¶РґС‹ вЂ” СЂР°СЃРєР»Р°РґРєРё РёР»Рё С„РѕС‚Рѕ РЅР° РјРѕРґРµР»Рё'}
+              {appMode === 'product' ? 'Р вЂ”Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљР Вµ РЎвЂћР С•РЎвЂљР С• Р Р†Р В°РЎв‚¬Р ВµР С–Р С• РЎвЂљР С•Р Р†Р В°РЎР‚Р В° РІР‚вЂќ РЎвЂћР В»Р В°Р С”Р С•Р Р…, Р В±Р В°Р Р…Р С•РЎвЂЎР С”РЎС“, Р В°Р С”РЎРѓР ВµРЎРѓРЎРѓРЎС“Р В°РЎР‚' : 'Р вЂ”Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљР Вµ РЎвЂћР С•РЎвЂљР С• Р С•Р Т‘Р ВµР В¶Р Т‘РЎвЂ№ РІР‚вЂќ РЎР‚Р В°РЎРѓР С”Р В»Р В°Р Т‘Р С”Р С‘ Р С‘Р В»Р С‘ РЎвЂћР С•РЎвЂљР С• Р Р…Р В° Р СР С•Р Т‘Р ВµР В»Р С‘'}
             </p>
             <p className="upload-hint">
-              {appMode === 'product' ? 'JPG, PNG вЂў РџРµСЂРµС‚Р°С‰РёС‚Рµ СЃСЋРґР° РёР»Рё РЅР°Р¶РјРёС‚Рµ вЂў РџРѕСЃС‚Р°СЂР°Р№С‚РµСЃСЊ СЃРґРµР»Р°С‚СЊ С„РѕС‚Рѕ РїСЂРё С…РѕСЂРѕС€РµРј СЃРІРµС‚Рµ' : 'JPG, PNG вЂў РџРµСЂРµС‚Р°С‰РёС‚Рµ СЃСЋРґР° РёР»Рё РЅР°Р¶РјРёС‚Рµ вЂў РњРѕР¶РЅРѕ РЅРµСЃРєРѕР»СЊРєРѕ: С„СѓС‚Р±РѕР»РєР° + Р±СЂСЋРєРё + СЃРµСЂСЊРіРё = РІСЃС‘ РЅР° РјРѕРґРµР»Рё'}
+              {appMode === 'product' ? 'JPG, PNG РІР‚Сћ Р СџР ВµРЎР‚Р ВµРЎвЂљР В°РЎвЂ°Р С‘РЎвЂљР Вµ РЎРѓРЎР‹Р Т‘Р В° Р С‘Р В»Р С‘ Р Р…Р В°Р В¶Р СР С‘РЎвЂљР Вµ РІР‚Сћ Р СџР С•РЎРѓРЎвЂљР В°РЎР‚Р В°Р в„–РЎвЂљР ВµРЎРѓРЎРЉ РЎРѓР Т‘Р ВµР В»Р В°РЎвЂљРЎРЉ РЎвЂћР С•РЎвЂљР С• Р С—РЎР‚Р С‘ РЎвЂ¦Р С•РЎР‚Р С•РЎв‚¬Р ВµР С РЎРѓР Р†Р ВµРЎвЂљР Вµ' : 'JPG, PNG РІР‚Сћ Р СџР ВµРЎР‚Р ВµРЎвЂљР В°РЎвЂ°Р С‘РЎвЂљР Вµ РЎРѓРЎР‹Р Т‘Р В° Р С‘Р В»Р С‘ Р Р…Р В°Р В¶Р СР С‘РЎвЂљР Вµ РІР‚Сћ Р СљР С•Р В¶Р Р…Р С• Р Р…Р ВµРЎРѓР С”Р С•Р В»РЎРЉР С”Р С•: РЎвЂћРЎС“РЎвЂљР В±Р С•Р В»Р С”Р В° + Р В±РЎР‚РЎР‹Р С”Р С‘ + РЎРѓР ВµРЎР‚РЎРЉР С–Р С‘ = Р Р†РЎРѓРЎвЂ Р Р…Р В° Р СР С•Р Т‘Р ВµР В»Р С‘'}
             </p>
           </div>
         )}
       </motion.div>}
 
-      {/* 2. РќРђРЎРўР РћР™РљРђ РћР‘РЄР•РљРўРђ / РљРђРЎРўРРќР“-Р РЈРњ */}
+      {/* 2. Р СњР С’Р РЋР СћР В Р С›Р в„ўР С™Р С’ Р С›Р вЂР Р„Р вЂўР С™Р СћР С’ / Р С™Р С’Р РЋР СћР ВР СњР вЂњ-Р В Р Р€Р Сљ */}
       {appMode !== 'quick' && (appMode === 'product' ? (
         <>
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.3,duration:0.5,ease:[0.16,1,0.3,1]}}>
-          <div className="section-title"><span className="icon">рџ§ґ</span> РљР°С‚РµРіРѕСЂРёСЏ С‚РѕРІР°СЂР°</div>
+          <div className="section-title"><span className="icon">СЂСџВ§Т‘</span> Р С™Р В°РЎвЂљР ВµР С–Р С•РЎР‚Р С‘РЎРЏ РЎвЂљР С•Р Р†Р В°РЎР‚Р В°</div>
           <div className="preset-grid">
             {PRODUCT_CATEGORIES.map(cat => (
               <div key={cat.id} className={`preset-card ${selectedProductCategory.id===cat.id&&!customProductPrompt?'active':''}`}
@@ -3260,24 +3260,24 @@ ${userProductInfo.trim()}
               </div>
             ))}
             <div className={`preset-card ${selectedProductCategory.id==='other'&&!customProductPrompt?'active':''}`}
-              onClick={() => { setSelectedProductCategory({ id: 'other', label: 'Р”СЂСѓРіРѕРµ', emoji: 'рџ“‹', defaultPrompt: 'product item, commercial product photography' }); setCustomProductPrompt(''); }}>
-              <span className="emoji">рџ“‹</span><span className="label">Р”СЂСѓРіРѕРµ</span>
+              onClick={() => { setSelectedProductCategory({ id: 'other', label: 'Р вЂќРЎР‚РЎС“Р С–Р С•Р Вµ', emoji: 'СЂСџвЂњвЂ№', defaultPrompt: 'product item, commercial product photography' }); setCustomProductPrompt(''); }}>
+              <span className="emoji">СЂСџвЂњвЂ№</span><span className="label">Р вЂќРЎР‚РЎС“Р С–Р С•Р Вµ</span>
             </div>
           </div>
           {selectedProductCategory.id === 'other' && !customProductPrompt && (
-            <p className="section-hint" style={{fontSize:'0.78rem',color:'var(--text-muted)',marginTop:6,textAlign:'center'}}>вќпёЏ РћРїРёС€РёС‚Рµ РІР°С€ С‚РѕРІР°СЂ РІ РїРѕР»Рµ РЅРёР¶Рµ вЂ” СЌС‚Рѕ СѓР»СѓС‡С€РёС‚ РєР°С‡РµСЃС‚РІРѕ РіРµРЅРµСЂР°С†РёРё</p>
+            <p className="section-hint" style={{fontSize:'0.78rem',color:'var(--text-muted)',marginTop:6,textAlign:'center'}}>РІВСњРїС‘РЏ Р С›Р С—Р С‘РЎв‚¬Р С‘РЎвЂљР Вµ Р Р†Р В°РЎв‚¬ РЎвЂљР С•Р Р†Р В°РЎР‚ Р Р† Р С—Р С•Р В»Р Вµ Р Р…Р С‘Р В¶Р Вµ РІР‚вЂќ РЎРЊРЎвЂљР С• РЎС“Р В»РЎС“РЎвЂЎРЎв‚¬Р С‘РЎвЂљ Р С”Р В°РЎвЂЎР ВµРЎРѓРЎвЂљР Р†Р С• Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘</p>
           )}
           <div className="custom-variant-row">
-            <input className="custom-variant-input" type="text" placeholder={selectedProductCategory.id === 'other' ? 'РћРїРёС€РёС‚Рµ РІР°С€ С‚РѕРІР°СЂ: В«РЅР°Р±РѕСЂ РєРёСЃС‚РµР№ РґР»СЏ РјР°РєРёСЏР¶Р° РІ С‡РµС…Р»РµВ»' : 'РћРїРёСЃР°С‚СЊ С‚РѕРІР°СЂ СЃ РЅСѓР»СЏ: В«РєСЂСѓРіР»Р°СЏ Р±Р°РЅРѕС‡РєР° РєСЂРµРјР° СЃ Р·РѕР»РѕС‚РѕР№ РєСЂС‹С€РєРѕР№В»'}
+            <input className="custom-variant-input" type="text" placeholder={selectedProductCategory.id === 'other' ? 'Р С›Р С—Р С‘РЎв‚¬Р С‘РЎвЂљР Вµ Р Р†Р В°РЎв‚¬ РЎвЂљР С•Р Р†Р В°РЎР‚: Р’В«Р Р…Р В°Р В±Р С•РЎР‚ Р С”Р С‘РЎРѓРЎвЂљР ВµР в„– Р Т‘Р В»РЎРЏ Р СР В°Р С”Р С‘РЎРЏР В¶Р В° Р Р† РЎвЂЎР ВµРЎвЂ¦Р В»Р ВµР’В»' : 'Р С›Р С—Р С‘РЎРѓР В°РЎвЂљРЎРЉ РЎвЂљР С•Р Р†Р В°РЎР‚ РЎРѓ Р Р…РЎС“Р В»РЎРЏ: Р’В«Р С”РЎР‚РЎС“Р С–Р В»Р В°РЎРЏ Р В±Р В°Р Р…Р С•РЎвЂЎР С”Р В° Р С”РЎР‚Р ВµР СР В° РЎРѓ Р В·Р С•Р В»Р С•РЎвЂљР С•Р в„– Р С”РЎР‚РЎвЂ№РЎв‚¬Р С”Р С•Р в„–Р’В»'}
               value={customProductPrompt} 
               onChange={e => setCustomProductPrompt(e.target.value)} />
           </div>
         </motion.div>
 
-        {/* в•ђв•ђв•ђ РњРћР”Р•Р›Р¬-Р§Р•Р›РћР’Р•Рљ Р’ РџР Р•Р”РњР•РўРќРћР™ РЎРЄРЃРњРљР• в•ђв•ђв•ђ */}
+        {/* РІвЂўС’РІвЂўС’РІвЂўС’ Р СљР С›Р вЂќР вЂўР вЂєР В¬-Р В§Р вЂўР вЂєР С›Р вЂ™Р вЂўР С™ Р вЂ™ Р СџР В Р вЂўР вЂќР СљР вЂўР СћР СњР С›Р в„ў Р РЋР Р„Р РѓР СљР С™Р вЂў РІвЂўС’РІвЂўС’РІвЂўС’ */}
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.35,duration:0.5,ease:[0.16,1,0.3,1]}}>
           <div className="section-title" style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
-            <span><span className="icon">рџ‘¤</span> РњРѕРґРµР»СЊ-С‡РµР»РѕРІРµРє</span>
+            <span><span className="icon">СЂСџвЂВ¤</span> Р СљР С•Р Т‘Р ВµР В»РЎРЉ-РЎвЂЎР ВµР В»Р С•Р Р†Р ВµР С”</span>
             {productWithModel && (
               <motion.button 
                 initial={{opacity:0, scale:0.9}}
@@ -3285,7 +3285,7 @@ ${userProductInfo.trim()}
                 className="remove-model-btn" 
                 onClick={() => setProductWithModel(false)}
               >
-                вњ• РСЃРєР»СЋС‡РёС‚СЊ РјРѕРґРµР»СЊ
+                РІСљвЂў Р ВРЎРѓР С”Р В»РЎР‹РЎвЂЎР С‘РЎвЂљРЎРЉ Р СР С•Р Т‘Р ВµР В»РЎРЉ
               </motion.button>
             )}
           </div>
@@ -3303,11 +3303,11 @@ ${userProductInfo.trim()}
                 transition={{ type: 'spring', stiffness: 400, damping: 25, mass: 0.5 }}
               >
                 <div className="add-model-card-content">
-                  <div className="add-model-icon">рџ‘¤вњЁ</div>
+                  <div className="add-model-icon">СЂСџвЂВ¤РІСљРЃ</div>
                   <div className="add-model-info">
-                    <div className="add-model-title">Р”РѕР±Р°РІРёС‚СЊ РјРѕРґРµР»СЊ-С‡РµР»РѕРІРµРєР°</div>
+                    <div className="add-model-title">Р вЂќР С•Р В±Р В°Р Р†Р С‘РЎвЂљРЎРЉ Р СР С•Р Т‘Р ВµР В»РЎРЉ-РЎвЂЎР ВµР В»Р С•Р Р†Р ВµР С”Р В°</div>
                     <div className="add-model-desc">
-                      РЎРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ Р¶РёРІСѓСЋ РјРѕРґРµР»СЊ, РєРѕС‚РѕСЂР°СЏ РґРµСЂР¶РёС‚ РёР»Рё РґРµРјРѕРЅСЃС‚СЂРёСЂСѓРµС‚ РІР°С€ С‚РѕРІР°СЂ РІ РєР°РґСЂРµ
+                      Р РЋР С–Р ВµР Р…Р ВµРЎР‚Р С‘РЎР‚Р С•Р Р†Р В°РЎвЂљРЎРЉ Р В¶Р С‘Р Р†РЎС“РЎР‹ Р СР С•Р Т‘Р ВµР В»РЎРЉ, Р С”Р С•РЎвЂљР С•РЎР‚Р В°РЎРЏ Р Т‘Р ВµРЎР‚Р В¶Р С‘РЎвЂљ Р С‘Р В»Р С‘ Р Т‘Р ВµР СР С•Р Р…РЎРѓРЎвЂљРЎР‚Р С‘РЎР‚РЎС“Р ВµРЎвЂљ Р Р†Р В°РЎв‚¬ РЎвЂљР С•Р Р†Р В°РЎР‚ Р Р† Р С”Р В°Р Т‘РЎР‚Р Вµ
                     </div>
                   </div>
                 </div>
@@ -3320,8 +3320,8 @@ ${userProductInfo.trim()}
                 style={{overflow:'hidden'}}
               >
                 <div className="tabs-row" style={{marginTop:8}}>
-                  <button className={`tab-btn ${productModelTab==='presets'?'active':''}`} onClick={()=>{setProductModelTab('presets');setProductSavedModelId(null);}}>рџЋ­ РџСЂРµСЃРµС‚С‹</button>
-                  <button className={`tab-btn ${productModelTab==='my_models'?'active':''}`} onClick={()=>setProductModelTab('my_models')}>в­ђ РњРѕРё РњРѕРґРµР»Рё{myModels.length>0?` (${myModels.length})`:''}</button>
+                  <button className={`tab-btn ${productModelTab==='presets'?'active':''}`} onClick={()=>{setProductModelTab('presets');setProductSavedModelId(null);}}>СЂСџР‹В­ Р СџРЎР‚Р ВµРЎРѓР ВµРЎвЂљРЎвЂ№</button>
+                  <button className={`tab-btn ${productModelTab==='my_models'?'active':''}`} onClick={()=>setProductModelTab('my_models')}>РІВ­С’ Р СљР С•Р С‘ Р СљР С•Р Т‘Р ВµР В»Р С‘{myModels.length>0?` (${myModels.length})`:''}</button>
                 </div>
                 {productModelTab === 'presets' ? (
                   <>
@@ -3336,7 +3336,7 @@ ${userProductInfo.trim()}
                     </div>
                     <DetailPanel modelDetails={productModelDetails} setModelDetails={setProductModelDetails} visible={showProductModelDetails && !customProductModelPrompt && !productSavedModelId} gender={productModelGender} extraPrompt={''} setExtraPrompt={() => {}} />
                     <div className="custom-variant-row">
-                      <input className="custom-variant-input" type="text" placeholder="РћРїРёСЃР°С‚СЊ РјРѕРґРµР»СЊ: В«СЂС‹Р¶Р°СЏ РґРµРІСѓС€РєР° 25 Р»РµС‚ СЃ РІРµСЃРЅСѓС€РєР°РјРё РґРµСЂР¶РёС‚ С‚РѕРІР°СЂВ»"
+                      <input className="custom-variant-input" type="text" placeholder="Р С›Р С—Р С‘РЎРѓР В°РЎвЂљРЎРЉ Р СР С•Р Т‘Р ВµР В»РЎРЉ: Р’В«РЎР‚РЎвЂ№Р В¶Р В°РЎРЏ Р Т‘Р ВµР Р†РЎС“РЎв‚¬Р С”Р В° 25 Р В»Р ВµРЎвЂљ РЎРѓ Р Р†Р ВµРЎРѓР Р…РЎС“РЎв‚¬Р С”Р В°Р СР С‘ Р Т‘Р ВµРЎР‚Р В¶Р С‘РЎвЂљ РЎвЂљР С•Р Р†Р В°РЎР‚Р’В»"
                         value={customProductModelPrompt}
                         onFocus={() => { setShowProductModelDetails(false); setProductSavedModelId(null); }}
                         onChange={e => { setCustomProductModelPrompt(e.target.value); setProductSavedModelId(null); setShowProductModelDetails(false); }} />
@@ -3351,22 +3351,22 @@ ${userProductInfo.trim()}
                             onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
                             <img src={m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                             <div className="avatar-name">{m.name}</div>
-                            <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>рџ”Ќ</button>
-                            <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>вњ•</button>
+                            <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>СЂСџвЂќРЊ</button>
+                            <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>РІСљвЂў</button>
                           </div>
                         ))}
                       </div>
                     )}
                     {myModels.length === 0 && (
-                      <p className="section-hint" style={{textAlign:'center',padding:'20px 0'}}>РЈ РІР°СЃ РїРѕРєР° РЅРµС‚ СЃРѕС…СЂР°РЅС‘РЅРЅС‹С… РјРѕРґРµР»РµР№</p>
+                      <p className="section-hint" style={{textAlign:'center',padding:'20px 0'}}>Р Р€ Р Р†Р В°РЎРѓ Р С—Р С•Р С”Р В° Р Р…Р ВµРЎвЂљ РЎРѓР С•РЎвЂ¦РЎР‚Р В°Р Р…РЎвЂР Р…Р Р…РЎвЂ№РЎвЂ¦ Р СР С•Р Т‘Р ВµР В»Р ВµР в„–</p>
                     )}
                     <div className="add-location-card" style={{marginTop: myModels.length ? 12 : 0, background:'rgba(168,85,247,0.08)', borderColor:'rgba(168,85,247,0.2)'}} onClick={() => setShowPersonaWizard(true)}>
-                      <span className="plus-icon" style={{color:'#a855f7'}}>рџ§‘</span>
-                      <span style={{color:'#a855f7'}}>РЎРѕР·РґР°С‚СЊ РїРµСЂСЃРѕРЅР°Р¶Р°</span>
+                      <span className="plus-icon" style={{color:'#a855f7'}}>СЂСџВ§вЂ</span>
+                      <span style={{color:'#a855f7'}}>Р РЋР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р С—Р ВµРЎР‚РЎРѓР С•Р Р…Р В°Р В¶Р В°</span>
                     </div>
                     <div className="add-location-card" style={{marginTop: 8}} onClick={() => setShowLoraModal(true)}>
                       <span className="plus-icon">+</span>
-                      <span>Р”РѕР±Р°РІРёС‚СЊ СЃРІРѕСЋ РјРѕРґРµР»СЊ</span>
+                      <span>Р вЂќР С•Р В±Р В°Р Р†Р С‘РЎвЂљРЎРЉ РЎРѓР Р†Р С•РЎР‹ Р СР С•Р Т‘Р ВµР В»РЎРЉ</span>
                     </div>
                   </>
                 )}
@@ -3377,10 +3377,10 @@ ${userProductInfo.trim()}
         </>
       ) : (
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.3,duration:0.5,ease:[0.16,1,0.3,1]}}>
-          <div className="section-title"><span className="icon">рџ‘¤</span> РљР°СЃС‚РёРЅРі-Р СѓРј вЂ” РІС‹Р±РѕСЂ РјРѕРґРµР»Рё</div>
+          <div className="section-title"><span className="icon">СЂСџвЂВ¤</span> Р С™Р В°РЎРѓРЎвЂљР С‘Р Р…Р С–-Р В РЎС“Р С РІР‚вЂќ Р Р†РЎвЂ№Р В±Р С•РЎР‚ Р СР С•Р Т‘Р ВµР В»Р С‘</div>
           <div className="tabs-row">
-            <button className={`tab-btn ${modelTab==='presets'?'active':''}`} onClick={()=>{setModelTab('presets');setSelectedSavedModelId(null);}}>рџЋ­ РџСЂРµСЃРµС‚С‹</button>
-            <button className={`tab-btn ${modelTab==='my_models'?'active':''}`} onClick={()=>setModelTab('my_models')}>в­ђ РњРѕРё РњРѕРґРµР»Рё{myModels.length>0?` (${myModels.length})`:''}</button>
+            <button className={`tab-btn ${modelTab==='presets'?'active':''}`} onClick={()=>{setModelTab('presets');setSelectedSavedModelId(null);}}>СЂСџР‹В­ Р СџРЎР‚Р ВµРЎРѓР ВµРЎвЂљРЎвЂ№</button>
+            <button className={`tab-btn ${modelTab==='my_models'?'active':''}`} onClick={()=>setModelTab('my_models')}>РІВ­С’ Р СљР С•Р С‘ Р СљР С•Р Т‘Р ВµР В»Р С‘{myModels.length>0?` (${myModels.length})`:''}</button>
           </div>
           {modelTab === 'presets' ? (
             <>
@@ -3388,8 +3388,8 @@ ${userProductInfo.trim()}
               {/* Multi-select info popover */}
               {!customModelPrompt && !selectedSavedModelId && (selectedModels.length + customModelChips.length) > 1 && (
                 <div className="multi-select-info">
-                  <span className="info-icon">в„№пёЏ</span>
-                  Р’С‹Р±СЂР°РЅРѕ {selectedModels.length + customModelChips.length} С‚РёРїРѕРІ РјРѕРґРµР»РµР№ вЂ” РєР°Р¶РґС‹Р№ С‚РёРї = РѕС‚РґРµР»СЊРЅР°СЏ РіРµРЅРµСЂР°С†РёСЏ. РС‚РѕРіРѕ: Г—{selectedModels.length + customModelChips.length} Рє РєРѕР»РёС‡РµСЃС‚РІСѓ РєР°РґСЂРѕРІ. РњР°РєСЃРёРјСѓРј 20 Р·Р° СЂР°Р·.
+                  <span className="info-icon">РІвЂћв„–РїС‘РЏ</span>
+                  Р вЂ™РЎвЂ№Р В±РЎР‚Р В°Р Р…Р С• {selectedModels.length + customModelChips.length} РЎвЂљР С‘Р С—Р С•Р Р† Р СР С•Р Т‘Р ВµР В»Р ВµР в„– РІР‚вЂќ Р С”Р В°Р В¶Р Т‘РЎвЂ№Р в„– РЎвЂљР С‘Р С— = Р С•РЎвЂљР Т‘Р ВµР В»РЎРЉР Р…Р В°РЎРЏ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘РЎРЏ. Р ВРЎвЂљР С•Р С–Р С•: Р“вЂ”{selectedModels.length + customModelChips.length} Р С” Р С”Р С•Р В»Р С‘РЎвЂЎР ВµРЎРѓРЎвЂљР Р†РЎС“ Р С”Р В°Р Т‘РЎР‚Р С•Р Р†. Р СљР В°Р С”РЎРѓР С‘Р СРЎС“Р С 20 Р В·Р В° РЎР‚Р В°Р В·.
                 </div>
               )}
               <div className={`preset-grid${customModelPrompt && !selectedSavedModelId ? ' dimmed' : ''}`}>
@@ -3411,10 +3411,10 @@ ${userProductInfo.trim()}
                           const alreadySelected = selectedModels.some(s => s.id === m.id);
                           if (alreadySelected) {
                             if (activeModelDetailsId === m.id) {
-                              // РџРѕРІС‚РѕСЂРЅС‹Р№ РєР»РёРє РЅР° СѓР¶Рµ Р°РєС‚РёРІРЅСѓСЋ РєР°СЂС‚РѕС‡РєСѓ вЂ” СЃРєСЂС‹С‚СЊ/РїРѕРєР°Р·Р°С‚СЊ РїР°РЅРµР»СЊ
+                              // Р СџР С•Р Р†РЎвЂљР С•РЎР‚Р Р…РЎвЂ№Р в„– Р С”Р В»Р С‘Р С” Р Р…Р В° РЎС“Р В¶Р Вµ Р В°Р С”РЎвЂљР С‘Р Р†Р Р…РЎС“РЎР‹ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”РЎС“ РІР‚вЂќ РЎРѓР С”РЎР‚РЎвЂ№РЎвЂљРЎРЉ/Р С—Р С•Р С”Р В°Р В·Р В°РЎвЂљРЎРЉ Р С—Р В°Р Р…Р ВµР В»РЎРЉ
                               setShowDetails(v => !v);
                             } else {
-                              // РљР»РёРє РЅР° РґСЂСѓРіСѓСЋ РІС‹Р±СЂР°РЅРЅСѓСЋ РєР°СЂС‚РѕС‡РєСѓ вЂ” РїРµСЂРµРєР»СЋС‡РёС‚СЊ С„РѕРєСѓСЃ, РќР• СЃРЅРёРјР°С‚СЊ РІС‹РґРµР»РµРЅРёРµ
+                              // Р С™Р В»Р С‘Р С” Р Р…Р В° Р Т‘РЎР‚РЎС“Р С–РЎС“РЎР‹ Р Р†РЎвЂ№Р В±РЎР‚Р В°Р Р…Р Р…РЎС“РЎР‹ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”РЎС“ РІР‚вЂќ Р С—Р ВµРЎР‚Р ВµР С”Р В»РЎР‹РЎвЂЎР С‘РЎвЂљРЎРЉ РЎвЂћР С•Р С”РЎС“РЎРѓ, Р СњР вЂў РЎРѓР Р…Р С‘Р СР В°РЎвЂљРЎРЉ Р Р†РЎвЂ№Р Т‘Р ВµР В»Р ВµР Р…Р С‘Р Вµ
                               setActiveModelDetailsId(m.id);
                               setShowDetails(true);
                             }
@@ -3430,8 +3430,8 @@ ${userProductInfo.trim()}
                         <button
                           className="preset-card-remove"
                           onClick={e => { e.stopPropagation(); setSelectedModels(prev => prev.filter(s => s.id !== m.id)); if (activeModelDetailsId === m.id) { const remaining = selectedModels.filter(s => s.id !== m.id); if (remaining.length > 0) setActiveModelDetailsId(remaining[0].id); } }}
-                          title="РЎРЅСЏС‚СЊ РІС‹Р±РѕСЂ"
-                        >вњ•</button>
+                          title="Р РЋР Р…РЎРЏРЎвЂљРЎРЉ Р Р†РЎвЂ№Р В±Р С•РЎР‚"
+                        >РІСљвЂў</button>
                       )}
                     </div>
                   );
@@ -3451,8 +3451,8 @@ ${userProductInfo.trim()}
                       }}>
                       <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
                       <div className="chip-actions">
-                        <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('model', chip); }}>вњЏпёЏ</button>
-                        <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('model', chip.id); }}>вњ•</button>
+                        <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('model', chip); }}>РІСљРЏРїС‘РЏ</button>
+                        <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('model', chip.id); }}>РІСљвЂў</button>
                       </div>
                     </div>
                   );
@@ -3460,13 +3460,13 @@ ${userProductInfo.trim()}
                 {/* Add custom variant button */}
                 {!customModelPrompt && !selectedSavedModelId && (
                   <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('model'); setNewChipText(''); }}>
-                    <span className="emoji">вћ•</span><span className="label">РЎРІРѕР№ РІР°СЂРёР°РЅС‚</span>
+                    <span className="emoji">РІС›вЂў</span><span className="label">Р РЋР Р†Р С•Р в„– Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ</span>
                   </div>
                 )}
               </div>
               <DetailPanel modelDetails={modelDetails} setModelDetails={setModelDetails} visible={showDetails && !customModelPrompt && !selectedSavedModelId} gender={gender} extraPrompt={extraModelPrompt} setExtraPrompt={setExtraModelPrompt} title={getActiveModelLabel()} onClose={() => setShowDetails(false)} />
-              {(customModelChips.some(c => /С‚Р°С‚Сѓ|tattoo/i.test(c.prompt)) || /С‚Р°С‚Сѓ|tattoo/i.test(customModelPrompt)) && (
-                <div className="tattoo-warning">вљ пёЏ РўР°С‚СѓРёСЂРѕРІРєР° РѕС‚Р»РёС‡РЅРѕ РїРѕР»СѓС‡РёС‚СЃСЏ РЅР° РѕРґРёРЅРѕС‡РЅРѕРј С„РѕС‚Рѕ, РЅРѕ РІ СЃРµСЂРёРё (С„РѕС‚РѕСЃРµСЃСЃРёСЏ) РјРѕР¶РµС‚ РёСЃРєР°Р¶Р°С‚СЊСЃСЏ. Р”Р»СЏ СЃС‚Р°Р±РёР»СЊРЅРѕР№ РјРѕРґРµР»Рё СЃС‚Р°СЂР°Р№С‚РµСЃСЊ РЅРµ РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ С‚Р°С‚Сѓ.</div>
+              {(customModelChips.some(c => /РЎвЂљР В°РЎвЂљРЎС“|tattoo/i.test(c.prompt)) || /РЎвЂљР В°РЎвЂљРЎС“|tattoo/i.test(customModelPrompt)) && (
+                <div className="tattoo-warning">РІС™В РїС‘РЏ Р СћР В°РЎвЂљРЎС“Р С‘РЎР‚Р С•Р Р†Р С”Р В° Р С•РЎвЂљР В»Р С‘РЎвЂЎР Р…Р С• Р С—Р С•Р В»РЎС“РЎвЂЎР С‘РЎвЂљРЎРѓРЎРЏ Р Р…Р В° Р С•Р Т‘Р С‘Р Р…Р С•РЎвЂЎР Р…Р С•Р С РЎвЂћР С•РЎвЂљР С•, Р Р…Р С• Р Р† РЎРѓР ВµРЎР‚Р С‘Р С‘ (РЎвЂћР С•РЎвЂљР С•РЎРѓР ВµРЎРѓРЎРѓР С‘РЎРЏ) Р СР С•Р В¶Р ВµРЎвЂљ Р С‘РЎРѓР С”Р В°Р В¶Р В°РЎвЂљРЎРЉРЎРѓРЎРЏ. Р вЂќР В»РЎРЏ РЎРѓРЎвЂљР В°Р В±Р С‘Р В»РЎРЉР Р…Р С•Р в„– Р СР С•Р Т‘Р ВµР В»Р С‘ РЎРѓРЎвЂљР В°РЎР‚Р В°Р в„–РЎвЂљР ВµРЎРѓРЎРЉ Р Р…Р Вµ Р С‘РЎРѓР С—Р С•Р В»РЎРЉР В·Р С•Р Р†Р В°РЎвЂљРЎРЉ РЎвЂљР В°РЎвЂљРЎС“.</div>
               )}
             </>
           ) : (
@@ -3479,34 +3479,34 @@ ${userProductInfo.trim()}
                         onClick={() => { setSelectedSavedModelId(m.id); setCustomModelPrompt(''); setShowDetails(false); }}>
                         <img src={m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                         <div className="avatar-name">{m.name}</div>
-                        <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>рџ”Ќ</button>
-                        <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>вњ•</button>
+                        <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>СЂСџвЂќРЊ</button>
+                        <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>РІСљвЂў</button>
                       </div>
                     ))}
                   </div>
-                  {selectedSavedModelId && <div className="selected-model-indicator">в­ђ Р’Р°С€Р° РјРѕРґРµР»СЊ РІС‹Р±СЂР°РЅР°</div>}
+                  {selectedSavedModelId && <div className="selected-model-indicator">РІВ­С’ Р вЂ™Р В°РЎв‚¬Р В° Р СР С•Р Т‘Р ВµР В»РЎРЉ Р Р†РЎвЂ№Р В±РЎР‚Р В°Р Р…Р В°</div>}
                   {selectedSavedModelId && (
                     <div className="modifier-block">
                       <button className="modifier-toggle" onClick={() => { setShowModelModifier(!showModelModifier); setModelPreviewSrc(null); }}>
-                        {showModelModifier ? 'вњ– РЎРєСЂС‹С‚СЊ' : 'вњЏпёЏ РР·РјРµРЅРёС‚СЊ РјРѕРґРµР»СЊ'}
+                        {showModelModifier ? 'РІСљвЂ“ Р РЋР С”РЎР‚РЎвЂ№РЎвЂљРЎРЉ' : 'РІСљРЏРїС‘РЏ Р ВР В·Р СР ВµР Р…Р С‘РЎвЂљРЎРЉ Р СР С•Р Т‘Р ВµР В»РЎРЉ'}
                       </button>
                       {showModelModifier && (
                         <div className="modifier-content">
-                          <textarea className="modifier-input" rows={2} placeholder="РќР°РїСЂРёРјРµСЂ: РґРѕР±Р°РІРёС‚СЊ С‚Р°С‚СѓРёСЂРѕРІРєСѓ РЅР° Р»РµРІСѓСЋ СЂСѓРєСѓ, СЃРґРµР»Р°С‚СЊ РІРѕР»РѕСЃС‹ СЂС‹Р¶РёРјРё, СЂРѕСЃС‚ РІС‹С€Рµ"
+                          <textarea className="modifier-input" rows={2} placeholder="Р СњР В°Р С—РЎР‚Р С‘Р СР ВµРЎР‚: Р Т‘Р С•Р В±Р В°Р Р†Р С‘РЎвЂљРЎРЉ РЎвЂљР В°РЎвЂљРЎС“Р С‘РЎР‚Р С•Р Р†Р С”РЎС“ Р Р…Р В° Р В»Р ВµР Р†РЎС“РЎР‹ РЎР‚РЎС“Р С”РЎС“, РЎРѓР Т‘Р ВµР В»Р В°РЎвЂљРЎРЉ Р Р†Р С•Р В»Р С•РЎРѓРЎвЂ№ РЎР‚РЎвЂ№Р В¶Р С‘Р СР С‘, РЎР‚Р С•РЎРѓРЎвЂљ Р Р†РЎвЂ№РЎв‚¬Р Вµ"
                             value={modelModifier} onChange={e => setModelModifier(e.target.value)} />
                           {/* Tattoo warning (text input) */}
-                          {/С‚Р°С‚Сѓ/i.test(modelModifier) && (
-                            <div className="tattoo-warning">вљ пёЏ РўР°С‚СѓРёСЂРѕРІРєР° РѕС‚Р»РёС‡РЅРѕ РїРѕР»СѓС‡РёС‚СЃСЏ РЅР° РѕРґРёРЅРѕС‡РЅРѕРј С„РѕС‚Рѕ, РЅРѕ РІ СЃРµСЂРёРё (С„РѕС‚РѕСЃРµСЃСЃРёСЏ) РјРѕР¶РµС‚ РёСЃРєР°Р¶Р°С‚СЊСЃСЏ. Р”Р»СЏ СЃС‚Р°Р±РёР»СЊРЅРѕР№ РјРѕРґРµР»Рё СЃС‚Р°СЂР°Р№С‚РµСЃСЊ РЅРµ РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ С‚Р°С‚Сѓ.</div>
+                          {/РЎвЂљР В°РЎвЂљРЎС“/i.test(modelModifier) && (
+                            <div className="tattoo-warning">РІС™В РїС‘РЏ Р СћР В°РЎвЂљРЎС“Р С‘РЎР‚Р С•Р Р†Р С”Р В° Р С•РЎвЂљР В»Р С‘РЎвЂЎР Р…Р С• Р С—Р С•Р В»РЎС“РЎвЂЎР С‘РЎвЂљРЎРѓРЎРЏ Р Р…Р В° Р С•Р Т‘Р С‘Р Р…Р С•РЎвЂЎР Р…Р С•Р С РЎвЂћР С•РЎвЂљР С•, Р Р…Р С• Р Р† РЎРѓР ВµРЎР‚Р С‘Р С‘ (РЎвЂћР С•РЎвЂљР С•РЎРѓР ВµРЎРѓРЎРѓР С‘РЎРЏ) Р СР С•Р В¶Р ВµРЎвЂљ Р С‘РЎРѓР С”Р В°Р В¶Р В°РЎвЂљРЎРЉРЎРѓРЎРЏ. Р вЂќР В»РЎРЏ РЎРѓРЎвЂљР В°Р В±Р С‘Р В»РЎРЉР Р…Р С•Р в„– Р СР С•Р Т‘Р ВµР В»Р С‘ РЎРѓРЎвЂљР В°РЎР‚Р В°Р в„–РЎвЂљР ВµРЎРѓРЎРЉ Р Р…Р Вµ Р С‘РЎРѓР С—Р С•Р В»РЎРЉР В·Р С•Р Р†Р В°РЎвЂљРЎРЉ РЎвЂљР В°РЎвЂљРЎС“.</div>
                           )}
                           <button className="modifier-save-btn" onClick={handlePreviewModel} disabled={!modelModifier.trim() || isPreviewingModel}>
-                            {isPreviewingModel ? 'вЏі Р“РµРЅРµСЂРёСЂСѓРµРј РїСЂРµРІСЊСЋ...' : 'рџ‘ЃпёЏ РџСЂРµРґРїСЂРѕСЃРјРѕС‚СЂ'}
+                            {isPreviewingModel ? 'РІРЏС– Р вЂњР ВµР Р…Р ВµРЎР‚Р С‘РЎР‚РЎС“Р ВµР С Р С—РЎР‚Р ВµР Р†РЎРЉРЎР‹...' : 'СЂСџвЂРѓРїС‘РЏ Р СџРЎР‚Р ВµР Т‘Р С—РЎР‚Р С•РЎРѓР СР С•РЎвЂљРЎР‚'}
                           </button>
                           {modelPreviewSrc && (
                             <div className="model-preview-block">
-                              <img src={modelPreviewSrc} alt="РџСЂРµРІСЊСЋ РјРѕРґРµР»Рё" className="model-preview-img" onClick={() => setLightboxSrc(modelPreviewSrc)} />
-                              <input className="custom-variant-input" type="text" placeholder="РќР°Р·РѕРІРёС‚Рµ РЅРѕРІСѓСЋ РјРѕРґРµР»СЊ" value={modelPreviewName} onChange={e => setModelPreviewName(e.target.value)} />
+                              <img src={modelPreviewSrc} alt="Р СџРЎР‚Р ВµР Р†РЎРЉРЎР‹ Р СР С•Р Т‘Р ВµР В»Р С‘" className="model-preview-img" onClick={() => setLightboxSrc(modelPreviewSrc)} />
+                              <input className="custom-variant-input" type="text" placeholder="Р СњР В°Р В·Р С•Р Р†Р С‘РЎвЂљР Вµ Р Р…Р С•Р Р†РЎС“РЎР‹ Р СР С•Р Т‘Р ВµР В»РЎРЉ" value={modelPreviewName} onChange={e => setModelPreviewName(e.target.value)} />
                               <button className="modifier-save-btn" onClick={saveModelAsNew} disabled={!modelPreviewName.trim() || isSaving}>
-                                {isSaving ? 'вЏі РЎРѕС…СЂР°РЅСЏРµРј...' : 'рџ’ѕ РЎРѕС…СЂР°РЅРёС‚СЊ РєР°Рє РЅРѕРІСѓСЋ РјРѕРґРµР»СЊ'}
+                                {isSaving ? 'РІРЏС– Р РЋР С•РЎвЂ¦РЎР‚Р В°Р Р…РЎРЏР ВµР С...' : 'СЂСџвЂ™С• Р РЋР С•РЎвЂ¦РЎР‚Р В°Р Р…Р С‘РЎвЂљРЎРЉ Р С”Р В°Р С” Р Р…Р С•Р Р†РЎС“РЎР‹ Р СР С•Р Т‘Р ВµР В»РЎРЉ'}
                               </button>
                             </div>
                           )}
@@ -3517,22 +3517,22 @@ ${userProductInfo.trim()}
                 </>
               )}
               <div className="add-location-card" style={{marginTop: myModels.length ? 12 : 0, background:'rgba(168,85,247,0.08)', borderColor:'rgba(168,85,247,0.2)'}} onClick={() => setShowPersonaWizard(true)}>
-                <span className="plus-icon" style={{color:'#a855f7'}}>рџ§‘</span>
-                <span style={{color:'#a855f7'}}>РЎРѕР·РґР°С‚СЊ РїРµСЂСЃРѕРЅР°Р¶Р°</span>
+                <span className="plus-icon" style={{color:'#a855f7'}}>СЂСџВ§вЂ</span>
+                <span style={{color:'#a855f7'}}>Р РЋР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р С—Р ВµРЎР‚РЎРѓР С•Р Р…Р В°Р В¶Р В°</span>
               </div>
               <div className="add-location-card" style={{marginTop: 8}} onClick={() => setShowLoraModal(true)}>
                 <span className="plus-icon">+</span>
-                <span>Р”РѕР±Р°РІРёС‚СЊ СЃРІРѕСЋ РјРѕРґРµР»СЊ</span>
+                <span>Р вЂќР С•Р В±Р В°Р Р†Р С‘РЎвЂљРЎРЉ РЎРѓР Р†Р С•РЎР‹ Р СР С•Р Т‘Р ВµР В»РЎРЉ</span>
               </div>
             </>
           )}
         </motion.div>
       ))}
 
-      {/* 3. РџРћР—Рђ РР›Р РљРћРњРџРћР—РР¦РРЇ */}
+      {/* 3. Р СџР С›Р вЂ”Р С’ Р ВР вЂєР В Р С™Р С›Р СљР СџР С›Р вЂ”Р ВР В¦Р ВР Р‡ */}
       {appMode !== 'quick' && (appMode === 'product' ? (
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.45,duration:0.5,ease:[0.16,1,0.3,1]}}>
-          <div className="section-title"><span className="icon">рџ“ђ</span> РљРѕРјРїРѕР·РёС†РёСЏ РєР°РґСЂР°</div>
+          <div className="section-title"><span className="icon">СЂСџвЂњС’</span> Р С™Р С•Р СР С—Р С•Р В·Р С‘РЎвЂ Р С‘РЎРЏ Р С”Р В°Р Т‘РЎР‚Р В°</div>
           <div className="preset-grid">
             {PRODUCT_COMPOSITIONS.map(p => {
               const isActive = selectedProductCompositions.some(c => c.id === p.id) && !customPoseText;
@@ -3554,18 +3554,18 @@ ${userProductInfo.trim()}
             })}
           </div>
           <div className="custom-variant-row">
-            <input className="custom-variant-input" type="text" placeholder="РР»Рё РѕРїРёС€РёС‚Рµ СЃРІРѕСЋ РєРѕРјРїРѕР·РёС†РёСЋ: В«РўРѕРІР°СЂ Р»РµР¶РёС‚ РЅР° Р·РµСЂРєР°Р»СЊРЅРѕР№ РїРѕРІРµСЂС…РЅРѕСЃС‚Рё РїРѕРґ СѓРіР»РѕРјВ»"
+            <input className="custom-variant-input" type="text" placeholder="Р ВР В»Р С‘ Р С•Р С—Р С‘РЎв‚¬Р С‘РЎвЂљР Вµ РЎРѓР Р†Р С•РЎР‹ Р С”Р С•Р СР С—Р С•Р В·Р С‘РЎвЂ Р С‘РЎР‹: Р’В«Р СћР С•Р Р†Р В°РЎР‚ Р В»Р ВµР В¶Р С‘РЎвЂљ Р Р…Р В° Р В·Р ВµРЎР‚Р С”Р В°Р В»РЎРЉР Р…Р С•Р в„– Р С—Р С•Р Р†Р ВµРЎР‚РЎвЂ¦Р Р…Р С•РЎРѓРЎвЂљР С‘ Р С—Р С•Р Т‘ РЎС“Р С–Р В»Р С•Р СР’В»"
               value={customPoseText} onChange={e => setCustomPoseText(e.target.value)} />
           </div>
         </motion.div>
       ) : (
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.45,duration:0.5,ease:[0.16,1,0.3,1]}}>
-          <div className="section-title"><span className="icon">рџ§Ќ</span> РџРѕР·Р° РјРѕРґРµР»Рё</div>
+          <div className="section-title"><span className="icon">СЂСџВ§РЊ</span> Р СџР С•Р В·Р В° Р СР С•Р Т‘Р ВµР В»Р С‘</div>
           {/* Multi-select info */}
           {!customPoseText && (selectedPoses.length + customPoseChips.length) > 1 && (
             <div className="multi-select-info">
-              <span className="info-icon">в„№пёЏ</span>
-              Р’С‹Р±СЂР°РЅРѕ {selectedPoses.length + customPoseChips.length} РїРѕР· вЂ” РєР°Р¶РґР°СЏ РїРѕР·Р° = РѕС‚РґРµР»СЊРЅР°СЏ РіРµРЅРµСЂР°С†РёСЏ. РС‚РѕРіРѕ: Г—{selectedPoses.length + customPoseChips.length} Рє РєРѕР»РёС‡РµСЃС‚РІСѓ РєР°РґСЂРѕРІ.
+              <span className="info-icon">РІвЂћв„–РїС‘РЏ</span>
+              Р вЂ™РЎвЂ№Р В±РЎР‚Р В°Р Р…Р С• {selectedPoses.length + customPoseChips.length} Р С—Р С•Р В· РІР‚вЂќ Р С”Р В°Р В¶Р Т‘Р В°РЎРЏ Р С—Р С•Р В·Р В° = Р С•РЎвЂљР Т‘Р ВµР В»РЎРЉР Р…Р В°РЎРЏ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘РЎРЏ. Р ВРЎвЂљР С•Р С–Р С•: Р“вЂ”{selectedPoses.length + customPoseChips.length} Р С” Р С”Р С•Р В»Р С‘РЎвЂЎР ВµРЎРѓРЎвЂљР Р†РЎС“ Р С”Р В°Р Т‘РЎР‚Р С•Р Р†.
             </div>
           )}
           <div className={`preset-grid${customPoseText ? ' dimmed' : ''}`}>
@@ -3590,7 +3590,7 @@ ${userProductInfo.trim()}
                 </div>
               );
             })}
-            {/* РРјРїСЂРѕРІРёР·Р°С†РёСЏ вЂ” always visible */}
+            {/* Р ВР СР С—РЎР‚Р С•Р Р†Р С‘Р В·Р В°РЎвЂ Р С‘РЎРЏ РІР‚вЂќ always visible */}
             {(() => {
               const isImprovActive = selectedPoses.some(s => s.id === IMPROV_POSE.id) && !customPoseText;
               return (
@@ -3617,28 +3617,28 @@ ${userProductInfo.trim()}
               <div key={chip.id} className="preset-card active custom-chip-card">
                 <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
                 <div className="chip-actions">
-                  <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('pose', chip); }}>вњЏпёЏ</button>
-                  <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('pose', chip.id); }}>вњ•</button>
+                  <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('pose', chip); }}>РІСљРЏРїС‘РЏ</button>
+                  <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('pose', chip.id); }}>РІСљвЂў</button>
                 </div>
               </div>
             ))}
             {/* Add custom variant */}
             {!customPoseText && (
               <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('pose'); setNewChipText(''); }}>
-                <span className="emoji">вћ•</span><span className="label">РЎРІРѕР№ РІР°СЂРёР°РЅС‚</span>
+                <span className="emoji">РІС›вЂў</span><span className="label">Р РЋР Р†Р С•Р в„– Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ</span>
               </div>
             )}
           </div>
         </motion.div>
       ))}
 
-      {/* 4. Р РђРљРЈР РЎ РљРђРњР•Р Р« (РўРѕР»СЊРєРѕ РІ СЂРµР¶РёРјРµ РѕРґРµР¶РґС‹) */}
+      {/* 4. Р В Р С’Р С™Р Р€Р В Р РЋ Р С™Р С’Р СљР вЂўР В Р В« (Р СћР С•Р В»РЎРЉР С”Р С• Р Р† РЎР‚Р ВµР В¶Р С‘Р СР Вµ Р С•Р Т‘Р ВµР В¶Р Т‘РЎвЂ№) */}
       {appMode === 'fashion' && (
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.6,duration:0.5,ease:[0.16,1,0.3,1]}}>
-          <div className="section-title"><span className="icon">рџ“·</span> Р Р°РєСѓСЂСЃ РєР°РјРµСЂС‹</div>
+          <div className="section-title"><span className="icon">СЂСџвЂњВ·</span> Р В Р В°Р С”РЎС“РЎР‚РЎРѓ Р С”Р В°Р СР ВµРЎР‚РЎвЂ№</div>
           {selectedCameras.length > 1 && (
             <div style={{ fontSize: '0.72rem', color: 'var(--gold)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.03em' }}>
-              вњ… {selectedCameras.length} СЂР°РєСѓСЂСЃР° РІС‹Р±СЂР°РЅРѕ
+              РІСљвЂ¦ {selectedCameras.length} РЎР‚Р В°Р С”РЎС“РЎР‚РЎРѓР В° Р Р†РЎвЂ№Р В±РЎР‚Р В°Р Р…Р С•
             </div>
           )}
           <div className="preset-grid">
@@ -3663,12 +3663,12 @@ ${userProductInfo.trim()}
         </motion.div>
       )}
 
-      {/* 5. Р¤РћРќ / Р›РћРљРђР¦РРЇ */}
+      {/* 5. Р В¤Р С›Р Сњ / Р вЂєР С›Р С™Р С’Р В¦Р ВР Р‡ */}
       {appMode !== 'quick' && <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.75,duration:0.5,ease:[0.16,1,0.3,1]}}>
-        <div className="section-title"><span className="icon">рџЋЁ</span> {appMode === 'product' ? 'РЎС†РµРЅР° / РћРєСЂСѓР¶РµРЅРёРµ' : 'Р¤РѕРЅ / Р›РѕРєР°С†РёСЏ'}</div>
+        <div className="section-title"><span className="icon">СЂСџР‹РЃ</span> {appMode === 'product' ? 'Р РЋРЎвЂ Р ВµР Р…Р В° / Р С›Р С”РЎР‚РЎС“Р В¶Р ВµР Р…Р С‘Р Вµ' : 'Р В¤Р С•Р Р… / Р вЂєР С•Р С”Р В°РЎвЂ Р С‘РЎРЏ'}</div>
         <div className="tabs-row">
-          <button className={`tab-btn ${bgTab==='presets'?'active':''}`} onClick={()=>{setBgTab('presets');setSelectedLocId(null);}}>рџЋЁ РџСЂРµСЃРµС‚С‹</button>
-          <button className={`tab-btn ${bgTab==='my_locations'?'active':''}`} onClick={()=>setBgTab('my_locations')}>рџ“Ќ РњРѕРё Р»РѕРєР°С†РёРё{myLocations.length>0?` (${myLocations.length})`:''}</button>
+          <button className={`tab-btn ${bgTab==='presets'?'active':''}`} onClick={()=>{setBgTab('presets');setSelectedLocId(null);}}>СЂСџР‹РЃ Р СџРЎР‚Р ВµРЎРѓР ВµРЎвЂљРЎвЂ№</button>
+          <button className={`tab-btn ${bgTab==='my_locations'?'active':''}`} onClick={()=>setBgTab('my_locations')}>СЂСџвЂњРЊ Р СљР С•Р С‘ Р В»Р С•Р С”Р В°РЎвЂ Р С‘Р С‘{myLocations.length>0?` (${myLocations.length})`:''}</button>
         </div>
         {bgTab === 'presets' ? (
           <>
@@ -3676,7 +3676,7 @@ ${userProductInfo.trim()}
               <>
                 {!customProductBg && !selectedLocId && selectedProductBgs.length > 1 && (
                   <div style={{ fontSize: '0.72rem', color: 'var(--gold)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.03em' }}>
-                    вњ… {selectedProductBgs.length} СЃС†РµРЅС‹ РІС‹Р±СЂР°РЅРѕ вЂ” СЃРіРµРЅРµСЂРёСЂСѓРµС‚СЃСЏ {selectedProductBgs.length * selectedProductCompositions.length} {selectedProductBgs.length * selectedProductCompositions.length === 1 ? 'РІР°СЂРёР°РЅС‚' : 'РІР°СЂРёР°РЅС‚Р°'}
+                    РІСљвЂ¦ {selectedProductBgs.length} РЎРѓРЎвЂ Р ВµР Р…РЎвЂ№ Р Р†РЎвЂ№Р В±РЎР‚Р В°Р Р…Р С• РІР‚вЂќ РЎРѓР С–Р ВµР Р…Р ВµРЎР‚Р С‘РЎР‚РЎС“Р ВµРЎвЂљРЎРѓРЎРЏ {selectedProductBgs.length * selectedProductCompositions.length} {selectedProductBgs.length * selectedProductCompositions.length === 1 ? 'Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ' : 'Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљР В°'}
                   </div>
                 )}
                 <div className="preset-grid">
@@ -3703,11 +3703,11 @@ ${userProductInfo.trim()}
                   })}
                 </div>
                 <div className="custom-variant-row" style={{marginTop: 12}}>
-                  <input className="custom-variant-input" placeholder="Р›РѕРєР°С†РёСЏ СЃ РЅСѓР»СЏ: В«РґРµСЂРµРІСЏРЅРЅС‹Р№ СЃС‚РѕР» РІ СЃРєР°РЅРґРёРЅР°РІСЃРєРѕРј СЃС‚РёР»Рµ, РЅР° С„РѕРЅРµ СЂР°Р·РјС‹С‚РѕРµ РѕРєРЅРѕВ»"
+                  <input className="custom-variant-input" placeholder="Р вЂєР С•Р С”Р В°РЎвЂ Р С‘РЎРЏ РЎРѓ Р Р…РЎС“Р В»РЎРЏ: Р’В«Р Т‘Р ВµРЎР‚Р ВµР Р†РЎРЏР Р…Р Р…РЎвЂ№Р в„– РЎРѓРЎвЂљР С•Р В» Р Р† РЎРѓР С”Р В°Р Р…Р Т‘Р С‘Р Р…Р В°Р Р†РЎРѓР С”Р С•Р С РЎРѓРЎвЂљР С‘Р В»Р Вµ, Р Р…Р В° РЎвЂћР С•Р Р…Р Вµ РЎР‚Р В°Р В·Р СРЎвЂ№РЎвЂљР С•Р Вµ Р С•Р С”Р Р…Р С•Р’В»"
                     value={customProductBg} onChange={e => { setCustomProductBg(e.target.value); setSelectedLocId(null); }} />
                 </div>
                 <div className="section-subtitle-small" style={{marginTop: 18, marginBottom: 8, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px'}}>
-                  <span>вњЁ</span> Р”РѕР±Р°РІРёС‚СЊ СЃРїРµС†СЌС„С„РµРєС‚
+                  <span>РІСљРЃ</span> Р вЂќР С•Р В±Р В°Р Р†Р С‘РЎвЂљРЎРЉ РЎРѓР С—Р ВµРЎвЂ РЎРЊРЎвЂћРЎвЂћР ВµР С”РЎвЂљ
                 </div>
                 <div className="preset-grid">
                   {PRODUCT_EFFECTS.map(e => {
@@ -3739,7 +3739,7 @@ ${userProductInfo.trim()}
                   <div className="custom-variant-row" style={{marginTop:10}}>
                     <input
                       className="custom-variant-input"
-                      placeholder="РћРїРёС€РёС‚Рµ РІР°С€ СЃРїРµС†СЌС„С„РµРєС‚: В«РІР·СЂС‹РІ РєРѕРЅС„РµС‚С‚Рё, СЃРЅРµР¶РёРЅРєРё, РґС‹РјВ»"
+                      placeholder="Р С›Р С—Р С‘РЎв‚¬Р С‘РЎвЂљР Вµ Р Р†Р В°РЎв‚¬ РЎРѓР С—Р ВµРЎвЂ РЎРЊРЎвЂћРЎвЂћР ВµР С”РЎвЂљ: Р’В«Р Р†Р В·РЎР‚РЎвЂ№Р Р† Р С”Р С•Р Р…РЎвЂћР ВµРЎвЂљРЎвЂљР С‘, РЎРѓР Р…Р ВµР В¶Р С‘Р Р…Р С”Р С‘, Р Т‘РЎвЂ№Р СР’В»"
                       value={customProductEffectText}
                       onChange={ev => setCustomProductEffectText(ev.target.value)}
                     />
@@ -3751,8 +3751,8 @@ ${userProductInfo.trim()}
                 {/* Multi-select info */}
                 {!customBgText && !selectedLocId && (selectedBgs.length + customBgChips.length) > 1 && (
                   <div className="multi-select-info">
-                    <span className="info-icon">в„№пёЏ</span>
-                    Р’С‹Р±СЂР°РЅРѕ {selectedBgs.length + customBgChips.length} С„РѕРЅРѕРІ вЂ” РєР°Р¶РґС‹Р№ С„РѕРЅ = РѕС‚РґРµР»СЊРЅР°СЏ РіРµРЅРµСЂР°С†РёСЏ. РС‚РѕРіРѕ: Г—{selectedBgs.length + customBgChips.length} Рє РєРѕР»РёС‡РµСЃС‚РІСѓ РєР°РґСЂРѕРІ.
+                    <span className="info-icon">РІвЂћв„–РїС‘РЏ</span>
+                    Р вЂ™РЎвЂ№Р В±РЎР‚Р В°Р Р…Р С• {selectedBgs.length + customBgChips.length} РЎвЂћР С•Р Р…Р С•Р Р† РІР‚вЂќ Р С”Р В°Р В¶Р Т‘РЎвЂ№Р в„– РЎвЂћР С•Р Р… = Р С•РЎвЂљР Т‘Р ВµР В»РЎРЉР Р…Р В°РЎРЏ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘РЎРЏ. Р ВРЎвЂљР С•Р С–Р С•: Р“вЂ”{selectedBgs.length + customBgChips.length} Р С” Р С”Р С•Р В»Р С‘РЎвЂЎР ВµРЎРѓРЎвЂљР Р†РЎС“ Р С”Р В°Р Т‘РЎР‚Р С•Р Р†.
                   </div>
                 )}
                 <div className={`preset-grid${customBgText ? ' dimmed' : ''}`}>
@@ -3782,20 +3782,20 @@ ${userProductInfo.trim()}
                     <div key={chip.id} className="preset-card active custom-chip-card">
                       <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
                       <div className="chip-actions">
-                        <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('bg', chip); }}>вњЏпёЏ</button>
-                        <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('bg', chip.id); }}>вњ•</button>
+                        <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('bg', chip); }}>РІСљРЏРїС‘РЏ</button>
+                        <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('bg', chip.id); }}>РІСљвЂў</button>
                       </div>
                     </div>
                   ))}
                   {/* Add custom variant */}
                   {!customBgText && !selectedLocId && (
                     <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('bg'); setNewChipText(''); }}>
-                      <span className="emoji">вћ•</span><span className="label">РЎРІРѕР№ РІР°СЂРёР°РЅС‚</span>
+                      <span className="emoji">РІС›вЂў</span><span className="label">Р РЋР Р†Р С•Р в„– Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ</span>
                     </div>
                   )}
                 </div>
                 <div className="modifier-block" style={{marginTop:10}}>
-                  <textarea className="modifier-input" rows={1} placeholder="Р”РѕР±Р°РІРёС‚СЊ Рє Р»РѕРєР°С†РёРё: В«Р·Р°РєР°С‚, РјРѕРєСЂС‹Р№ Р°СЃС„Р°Р»СЊС‚, РЅРµРѕРЅРѕРІС‹Рµ РѕРіРЅРёВ»"
+                  <textarea className="modifier-input" rows={1} placeholder="Р вЂќР С•Р В±Р В°Р Р†Р С‘РЎвЂљРЎРЉ Р С” Р В»Р С•Р С”Р В°РЎвЂ Р С‘Р С‘: Р’В«Р В·Р В°Р С”Р В°РЎвЂљ, Р СР С•Р С”РЎР‚РЎвЂ№Р в„– Р В°РЎРѓРЎвЂћР В°Р В»РЎРЉРЎвЂљ, Р Р…Р ВµР С•Р Р…Р С•Р Р†РЎвЂ№Р Вµ Р С•Р С–Р Р…Р С‘Р’В»"
                     value={bgExtraText} onChange={e => setBgExtraText(e.target.value)} />
                 </div>
               </>
@@ -3813,37 +3813,37 @@ ${userProductInfo.trim()}
                       <img src={loc.imageBase64[0]} alt={loc.title || loc.name || ''} onError={(e) => { e.target.style.display = 'none'; }} />
                     ) : (
                       <div style={{width:'100%', height:'80px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'4px', background:'rgba(255,160,0,0.08)', borderRadius:'6px'}}>
-                        <span style={{fontSize:'20px'}}>вљ пёЏ</span>
-                        <span style={{fontSize:'10px', color:'rgba(255,180,0,0.9)', textAlign:'center', lineHeight:'1.2'}}>Р¤РѕС‚Рѕ РЅРµРґРѕСЃС‚СѓРїРЅРѕ</span>
+                        <span style={{fontSize:'20px'}}>РІС™В РїС‘РЏ</span>
+                        <span style={{fontSize:'10px', color:'rgba(255,180,0,0.9)', textAlign:'center', lineHeight:'1.2'}}>Р В¤Р С•РЎвЂљР С• Р Р…Р ВµР Т‘Р С•РЎРѓРЎвЂљРЎС“Р С—Р Р…Р С•</span>
                         <button
                           style={{marginTop:'2px', padding:'3px 8px', fontSize:'10px', background:'rgba(255,160,0,0.2)', border:'1px solid rgba(255,160,0,0.5)', borderRadius:'4px', color:'#ffb300', cursor:'pointer'}}
                           onClick={async (e) => {
                             e.stopPropagation();
-                            if (window.confirm(`РЈРґР°Р»РёС‚СЊ "${loc.title || 'Р»РѕРєР°С†РёСЋ'}" Рё Р·Р°РіСЂСѓР·РёС‚СЊ С„РѕС‚Рѕ Р·Р°РЅРѕРІРѕ?`)) {
+                            if (window.confirm(`Р Р€Р Т‘Р В°Р В»Р С‘РЎвЂљРЎРЉ "${loc.title || 'Р В»Р С•Р С”Р В°РЎвЂ Р С‘РЎР‹'}" Р С‘ Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљРЎРЉ РЎвЂћР С•РЎвЂљР С• Р В·Р В°Р Р…Р С•Р Р†Р С•?`)) {
                               await deleteLoc(loc.id);
                               setShowLocModal(true);
                             }
                           }}
-                        >рџ“ё РџРµСЂРµР·Р°РіСЂСѓР·РёС‚СЊ</button>
+                        >СЂСџвЂњС‘ Р СџР ВµРЎР‚Р ВµР В·Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљРЎРЉ</button>
                       </div>
                     )}
-                    <div className="loc-name">{loc.title || loc.name || 'Р‘РµР· РЅР°Р·РІР°РЅРёСЏ'}</div>
-                    <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteLoc(loc.id); }}>вњ•</button>
+                    <div className="loc-name">{loc.title || loc.name || 'Р вЂР ВµР В· Р Р…Р В°Р В·Р Р†Р В°Р Р…Р С‘РЎРЏ'}</div>
+                    <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteLoc(loc.id); }}>РІСљвЂў</button>
                   </div>
                 );
               })}
               <div className="add-location-card" onClick={() => setShowLocModal(true)}>
-                <span className="plus-icon">+</span><span>РћС†РёС„СЂРѕРІР°С‚СЊ Р»РѕРєР°С†РёСЋ</span>
+                <span className="plus-icon">+</span><span>Р С›РЎвЂ Р С‘РЎвЂћРЎР‚Р С•Р Р†Р В°РЎвЂљРЎРЉ Р В»Р С•Р С”Р В°РЎвЂ Р С‘РЎР‹</span>
               </div>
             </div>
-            {/* РљРЅРѕРїРєР° РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ СѓРґР°Р»С‘РЅРЅС‹С… Р»РѕРєР°С†РёР№ РёР· Storage */}
+            {/* Р С™Р Р…Р С•Р С—Р С”Р В° Р Р†Р С•РЎРѓРЎРѓРЎвЂљР В°Р Р…Р С•Р Р†Р В»Р ВµР Р…Р С‘РЎРЏ РЎС“Р Т‘Р В°Р В»РЎвЂР Р…Р Р…РЎвЂ№РЎвЂ¦ Р В»Р С•Р С”Р В°РЎвЂ Р С‘Р в„– Р С‘Р В· Storage */}
             <div style={{marginTop: '8px', textAlign: 'center'}}>
               <button
                 style={{background: 'none', border: 'none', color: 'rgba(255,180,0,0.6)', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline', padding: '4px'}}
                 onClick={async () => {
                   try {
                     const idToken = await user.getIdToken();
-                    const locName = prompt('РќР°Р·РІР°РЅРёРµ РґР»СЏ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРЅРѕР№ Р»РѕРєР°С†РёРё:', 'РҐР°С‚Р° РєСЃРѕРЅР°') || 'Р’РѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРЅР°СЏ Р»РѕРєР°С†РёСЏ';
+                    const locName = prompt('Р СњР В°Р В·Р Р†Р В°Р Р…Р С‘Р Вµ Р Т‘Р В»РЎРЏ Р Р†Р С•РЎРѓРЎРѓРЎвЂљР В°Р Р…Р С•Р Р†Р В»Р ВµР Р…Р Р…Р С•Р в„– Р В»Р С•Р С”Р В°РЎвЂ Р С‘Р С‘:', 'Р ТђР В°РЎвЂљР В° Р С”РЎРѓР С•Р Р…Р В°') || 'Р вЂ™Р С•РЎРѓРЎРѓРЎвЂљР В°Р Р…Р С•Р Р†Р В»Р ВµР Р…Р Р…Р В°РЎРЏ Р В»Р С•Р С”Р В°РЎвЂ Р С‘РЎРЏ';
                     const resp = await fetch('/api/admin/recover-locations', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
@@ -3851,31 +3851,31 @@ ${userProductInfo.trim()}
                     });
                     const data = await resp.json();
                     if (data.ok) {
-                      alert(`вњ… Р’РѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРѕ ${data.count} С„РѕС‚Рѕ! РџРµСЂРµР·Р°РіСЂСѓР¶Р°РµРј...`);
+                      alert(`РІСљвЂ¦ Р вЂ™Р С•РЎРѓРЎРѓРЎвЂљР В°Р Р…Р С•Р Р†Р В»Р ВµР Р…Р С• ${data.count} РЎвЂћР С•РЎвЂљР С•! Р СџР ВµРЎР‚Р ВµР В·Р В°Р С–РЎР‚РЎС“Р В¶Р В°Р ВµР С...`);
                       const locs = await getLocations(user.uid);
                       setMyLocations(locs || []);
                       const cache = {};
                       (locs || []).forEach(l => { if (l.imageBase64?.length) cache[l.id] = l.imageBase64; });
                       setLocBase64Cache(prev => ({ ...prev, ...cache }));
                     } else {
-                      alert(`вљ пёЏ РќРµ СѓРґР°Р»РѕСЃСЊ РІРѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ: ${data.error}\n\nРџРѕРґСЃРєР°Р·РєР°: ${data.hint || 'Р¤Р°Р№Р»С‹ РјРѕРіСѓС‚ Р±С‹С‚СЊ СѓРґР°Р»РµРЅС‹ РёР· Storage. РџСЂРёРґС‘С‚СЃСЏ Р·Р°РіСЂСѓР·РёС‚СЊ Р·Р°РЅРѕРІРѕ.'}`);
+                      alert(`РІС™В РїС‘РЏ Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ Р Р†Р С•РЎРѓРЎРѓРЎвЂљР В°Р Р…Р С•Р Р†Р С‘РЎвЂљРЎРЉ: ${data.error}\n\nР СџР С•Р Т‘РЎРѓР С”Р В°Р В·Р С”Р В°: ${data.hint || 'Р В¤Р В°Р в„–Р В»РЎвЂ№ Р СР С•Р С–РЎС“РЎвЂљ Р В±РЎвЂ№РЎвЂљРЎРЉ РЎС“Р Т‘Р В°Р В»Р ВµР Р…РЎвЂ№ Р С‘Р В· Storage. Р СџРЎР‚Р С‘Р Т‘РЎвЂРЎвЂљРЎРѓРЎРЏ Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљРЎРЉ Р В·Р В°Р Р…Р С•Р Р†Р С•.'}`);
                     }
                   } catch (e) {
-                    alert('РћС€РёР±РєР°: ' + e.message);
+                    alert('Р С›РЎв‚¬Р С‘Р В±Р С”Р В°: ' + e.message);
                   }
                 }}
-              >рџ”„ Р’РѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ СѓРґР°Р»С‘РЅРЅС‹Рµ Р»РѕРєР°С†РёРё РёР· Storage</button>
+              >СЂСџвЂќвЂћ Р вЂ™Р С•РЎРѓРЎРѓРЎвЂљР В°Р Р…Р С•Р Р†Р С‘РЎвЂљРЎРЉ РЎС“Р Т‘Р В°Р В»РЎвЂР Р…Р Р…РЎвЂ№Р Вµ Р В»Р С•Р С”Р В°РЎвЂ Р С‘Р С‘ Р С‘Р В· Storage</button>
             </div>
             {selectedLocId && (
               <div className="modifier-block">
                 <button className="modifier-toggle" onClick={() => setShowLocModifier(!showLocModifier)}>
-                  {showLocModifier ? 'вњ– РЎРєСЂС‹С‚СЊ' : 'вњЏпёЏ РР·РјРµРЅРёС‚СЊ Р»РѕРєР°С†РёСЋ'}
+                  {showLocModifier ? 'РІСљвЂ“ Р РЋР С”РЎР‚РЎвЂ№РЎвЂљРЎРЉ' : 'РІСљРЏРїС‘РЏ Р ВР В·Р СР ВµР Р…Р С‘РЎвЂљРЎРЉ Р В»Р С•Р С”Р В°РЎвЂ Р С‘РЎР‹'}
                 </button>
                 {showLocModifier && (
                   <div className="modifier-content">
-                    <textarea className="modifier-input" rows={2} placeholder="РќР°РїСЂРёРјРµСЂ: РґРѕР±Р°РІРёС‚СЊ Р·Р°РєР°С‚, СЃРґРµР»Р°С‚СЊ СЃС‚РµРЅС‹ РєРёСЂРїРёС‡РЅС‹РјРё, РЅРµРѕРЅРѕРІР°СЏ РІС‹РІРµСЃРєР°"
+                    <textarea className="modifier-input" rows={2} placeholder="Р СњР В°Р С—РЎР‚Р С‘Р СР ВµРЎР‚: Р Т‘Р С•Р В±Р В°Р Р†Р С‘РЎвЂљРЎРЉ Р В·Р В°Р С”Р В°РЎвЂљ, РЎРѓР Т‘Р ВµР В»Р В°РЎвЂљРЎРЉ РЎРѓРЎвЂљР ВµР Р…РЎвЂ№ Р С”Р С‘РЎР‚Р С—Р С‘РЎвЂЎР Р…РЎвЂ№Р СР С‘, Р Р…Р ВµР С•Р Р…Р С•Р Р†Р В°РЎРЏ Р Р†РЎвЂ№Р Р†Р ВµРЎРѓР С”Р В°"
                       value={locModifier} onChange={e => setLocModifier(e.target.value)} />
-                    <button className="modifier-save-btn" onClick={saveLocMod} disabled={!locModifier.trim()}>рџ’ѕ РЎРѕС…СЂР°РЅРёС‚СЊ РІ Р»РѕРєР°С†РёСЋ</button>
+                    <button className="modifier-save-btn" onClick={saveLocMod} disabled={!locModifier.trim()}>СЂСџвЂ™С• Р РЋР С•РЎвЂ¦РЎР‚Р В°Р Р…Р С‘РЎвЂљРЎРЉ Р Р† Р В»Р С•Р С”Р В°РЎвЂ Р С‘РЎР‹</button>
                   </div>
                 )}
               </div>
@@ -3883,7 +3883,7 @@ ${userProductInfo.trim()}
             {appMode === 'product' && (
               <>
                 <div className="section-subtitle-small" style={{marginTop: 18, marginBottom: 8, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px'}}>
-                  <span>вњЁ</span> Р”РѕР±Р°РІРёС‚СЊ СЃРїРµС†СЌС„С„РµРєС‚
+                  <span>РІСљРЃ</span> Р вЂќР С•Р В±Р В°Р Р†Р С‘РЎвЂљРЎРЉ РЎРѓР С—Р ВµРЎвЂ РЎРЊРЎвЂћРЎвЂћР ВµР С”РЎвЂљ
                 </div>
                 <div className="preset-grid">
                   {PRODUCT_EFFECTS.map(e => {
@@ -3915,7 +3915,7 @@ ${userProductInfo.trim()}
                   <div className="custom-variant-row" style={{marginTop:10}}>
                     <input
                       className="custom-variant-input"
-                      placeholder="РћРїРёС€РёС‚Рµ РІР°С€ СЃРїРµС†СЌС„С„РµРєС‚: В«РІР·СЂС‹РІ РєРѕРЅС„РµС‚С‚Рё, СЃРЅРµР¶РёРЅРєРё, РґС‹РјВ»"
+                      placeholder="Р С›Р С—Р С‘РЎв‚¬Р С‘РЎвЂљР Вµ Р Р†Р В°РЎв‚¬ РЎРѓР С—Р ВµРЎвЂ РЎРЊРЎвЂћРЎвЂћР ВµР С”РЎвЂљ: Р’В«Р Р†Р В·РЎР‚РЎвЂ№Р Р† Р С”Р С•Р Р…РЎвЂћР ВµРЎвЂљРЎвЂљР С‘, РЎРѓР Р…Р ВµР В¶Р С‘Р Р…Р С”Р С‘, Р Т‘РЎвЂ№Р СР’В»"
                       value={customProductEffectText}
                       onChange={ev => setCustomProductEffectText(ev.target.value)}
                     />
@@ -3927,12 +3927,12 @@ ${userProductInfo.trim()}
         )}
       </motion.div>}
 
-      {/* 6. Р¤РћР РњРђРў */}
+      {/* 6. Р В¤Р С›Р В Р СљР С’Р Сћ */}
       {appMode !== 'quick' && <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.9,duration:0.5,ease:[0.16,1,0.3,1]}}>
-        <div className="section-title"><span className="icon">рџ“ђ</span> Р¤РѕСЂРјР°С‚ РёР·РѕР±СЂР°Р¶РµРЅРёСЏ</div>
+        <div className="section-title"><span className="icon">СЂСџвЂњС’</span> Р В¤Р С•РЎР‚Р СР В°РЎвЂљ Р С‘Р В·Р С•Р В±РЎР‚Р В°Р В¶Р ВµР Р…Р С‘РЎРЏ</div>
         {selectedRatios.length > 1 && (
           <div style={{ fontSize: '0.72rem', color: 'var(--gold)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.03em' }}>
-            вњ… {selectedRatios.length} С„РѕСЂРјР°С‚Р° РІС‹Р±СЂР°РЅРѕ вЂ” Р±СѓРґРµС‚ СЃРѕР·РґР°РЅРѕ РЅРµСЃРєРѕР»СЊРєРѕ РєРѕРїРёР№ РґР»СЏ РєР°Р¶РґРѕРіРѕ С„РѕСЂРјР°С‚Р°
+            РІСљвЂ¦ {selectedRatios.length} РЎвЂћР С•РЎР‚Р СР В°РЎвЂљР В° Р Р†РЎвЂ№Р В±РЎР‚Р В°Р Р…Р С• РІР‚вЂќ Р В±РЎС“Р Т‘Р ВµРЎвЂљ РЎРѓР С•Р В·Р Т‘Р В°Р Р…Р С• Р Р…Р ВµРЎРѓР С”Р С•Р В»РЎРЉР С”Р С• Р С”Р С•Р С—Р С‘Р в„– Р Т‘Р В»РЎРЏ Р С”Р В°Р В¶Р Т‘Р С•Р С–Р С• РЎвЂћР С•РЎР‚Р СР В°РЎвЂљР В°
           </div>
         )}
         <div className="preset-grid">
@@ -3956,31 +3956,31 @@ ${userProductInfo.trim()}
         </div>
       </motion.div>}
 
-      {/* 7. Р“Р•РќР•Р РђР¦РРЇ */}
+      {/* 7. Р вЂњР вЂўР СњР вЂўР В Р С’Р В¦Р ВР Р‡ */}
       {appMode !== 'quick' && <motion.div className="generate-section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:1.05,duration:0.5,ease:[0.16,1,0.3,1]}}>
-        {/* Beauty toggle вЂ” С‚РѕР»СЊРєРѕ РєРѕРіРґР° РµСЃС‚СЊ Р¶РёРІР°СЏ РјРѕРґРµР»СЊ-С‡РµР»РѕРІРµРє */}
+        {/* Beauty toggle РІР‚вЂќ РЎвЂљР С•Р В»РЎРЉР С”Р С• Р С”Р С•Р С–Р Т‘Р В° Р ВµРЎРѓРЎвЂљРЎРЉ Р В¶Р С‘Р Р†Р В°РЎРЏ Р СР С•Р Т‘Р ВµР В»РЎРЉ-РЎвЂЎР ВµР В»Р С•Р Р†Р ВµР С” */}
         {(appMode === 'fashion' || (appMode === 'product' && productWithModel)) && (
           <div className="beauty-toggle">
             <label className={`beauty-switch ${isBeautyMode ? 'active' : ''}`}>
               <input type="checkbox" checked={isBeautyMode} onChange={e => setIsBeautyMode(e.target.checked)} />
-              <span className="beauty-label">{isBeautyMode ? 'вњЁ Beauty-СЂРµС‚СѓС€СЊ' : 'рџ“· Р РµР°Р»РёР·Рј'}</span>
+              <span className="beauty-label">{isBeautyMode ? 'РІСљРЃ Beauty-РЎР‚Р ВµРЎвЂљРЎС“РЎв‚¬РЎРЉ' : 'СЂСџвЂњВ· Р В Р ВµР В°Р В»Р С‘Р В·Р С'}</span>
             </label>
             <span className="beauty-hint">
               {isBeautyMode
-                ? 'Р’С‹Р±СЂР°РЅ Р¶СѓСЂРЅР°Р»СЊРЅС‹Р№ РіР»СЏРЅРµС† В«РРґРµР°Р»СЊРЅР°СЏ РєРѕР¶Р°В». РќР°Р¶РјРёС‚Рµ, С‡С‚РѕР±С‹ РІРµСЂРЅСѓС‚СЊ СЂРµР°Р»РёР·Рј'
-                : 'Р’С‹Р±СЂР°РЅ СЂРµР°Р»РёР·Рј: РЅР°С‚СѓСЂР°Р»СЊРЅР°СЏ РєРѕР¶Р° СЃ С‚РµРєСЃС‚СѓСЂРѕР№. РќР°Р¶РјРёС‚Рµ, С‡С‚РѕР±С‹ РІРєР»СЋС‡РёС‚СЊ Р¶СѓСЂРЅР°Р»СЊРЅС‹Р№ РіР»СЏРЅРµС† В«РРґРµР°Р»СЊРЅР°СЏ РєРѕР¶Р°В»'}
+                ? 'Р вЂ™РЎвЂ№Р В±РЎР‚Р В°Р Р… Р В¶РЎС“РЎР‚Р Р…Р В°Р В»РЎРЉР Р…РЎвЂ№Р в„– Р С–Р В»РЎРЏР Р…Р ВµРЎвЂ  Р’В«Р ВР Т‘Р ВµР В°Р В»РЎРЉР Р…Р В°РЎРЏ Р С”Р С•Р В¶Р В°Р’В». Р СњР В°Р В¶Р СР С‘РЎвЂљР Вµ, РЎвЂЎРЎвЂљР С•Р В±РЎвЂ№ Р Р†Р ВµРЎР‚Р Р…РЎС“РЎвЂљРЎРЉ РЎР‚Р ВµР В°Р В»Р С‘Р В·Р С'
+                : 'Р вЂ™РЎвЂ№Р В±РЎР‚Р В°Р Р… РЎР‚Р ВµР В°Р В»Р С‘Р В·Р С: Р Р…Р В°РЎвЂљРЎС“РЎР‚Р В°Р В»РЎРЉР Р…Р В°РЎРЏ Р С”Р С•Р В¶Р В° РЎРѓ РЎвЂљР ВµР С”РЎРѓРЎвЂљРЎС“РЎР‚Р С•Р в„–. Р СњР В°Р В¶Р СР С‘РЎвЂљР Вµ, РЎвЂЎРЎвЂљР С•Р В±РЎвЂ№ Р Р†Р С”Р В»РЎР‹РЎвЂЎР С‘РЎвЂљРЎРЉ Р В¶РЎС“РЎР‚Р Р…Р В°Р В»РЎРЉР Р…РЎвЂ№Р в„– Р С–Р В»РЎРЏР Р…Р ВµРЎвЂ  Р’В«Р ВР Т‘Р ВµР В°Р В»РЎРЉР Р…Р В°РЎРЏ Р С”Р С•Р В¶Р В°Р’В»'}
             </span>
           </div>
         )}
 
-        {/* РЎРµР»РµРєС‚РѕСЂ РєРѕР»РёС‡РµСЃС‚РІР° РІР°СЂРёР°РЅС‚РѕРІ */}
+        {/* Р РЋР ВµР В»Р ВµР С”РЎвЂљР С•РЎР‚ Р С”Р С•Р В»Р С‘РЎвЂЎР ВµРЎРѓРЎвЂљР Р†Р В° Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљР С•Р Р† */}
         {(() => {
           return (
             <div className="variant-count-section">
-              <div className="variant-count-title">рџЋЇ РљРѕР»РёС‡РµСЃС‚РІРѕ РІР°СЂРёР°РЅС‚РѕРІ РЅР° РѕРґРЅСѓ РєРѕРјР±РёРЅР°С†РёСЋ</div>
+              <div className="variant-count-title">СЂСџР‹Р‡ Р С™Р С•Р В»Р С‘РЎвЂЎР ВµРЎРѓРЎвЂљР Р†Р С• Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљР С•Р Р† Р Р…Р В° Р С•Р Т‘Р Р…РЎС“ Р С”Р С•Р СР В±Р С‘Р Р…Р В°РЎвЂ Р С‘РЎР‹</div>
               {totalShots > variantCount && (
                 <div style={{fontSize:'0.75rem',color:'var(--gold)',textAlign:'center',marginBottom:8,opacity:0.8}}>
-                  РљРѕРјР±РёРЅР°С†РёР№ РїР°СЂР°РјРµС‚СЂРѕРІ Г— {variantCount} РІР°СЂРёР°РЅС‚{variantCount === 1 ? '' : (variantCount < 5 ? 'Р°' : 'РѕРІ')} = <strong>{totalShots} РєР°РґСЂ{totalShots === 1 ? '' : (totalShots < 5 ? 'Р°' : 'РѕРІ')}</strong>
+                  Р С™Р С•Р СР В±Р С‘Р Р…Р В°РЎвЂ Р С‘Р в„– Р С—Р В°РЎР‚Р В°Р СР ВµРЎвЂљРЎР‚Р С•Р Р† Р“вЂ” {variantCount} Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ{variantCount === 1 ? '' : (variantCount < 5 ? 'Р В°' : 'Р С•Р Р†')} = <strong>{totalShots} Р С”Р В°Р Т‘РЎР‚{totalShots === 1 ? '' : (totalShots < 5 ? 'Р В°' : 'Р С•Р Р†')}</strong>
                 </div>
               )}
               <div className="variant-count-grid">
@@ -3994,8 +3994,8 @@ ${userProductInfo.trim()}
                       onClick={() => setVariantCount(n)}
                     >
                       <span className="variant-count-number">{n}</span>
-                      <span className="variant-count-label">{n === 1 ? 'РІР°СЂРёР°РЅС‚' : (n < 5 ? 'РІР°СЂРёР°РЅС‚Р°' : 'РІР°СЂРёР°РЅС‚РѕРІ')}</span>
-                      <span className="variant-count-credits">{total} {total === 1 ? 'РєСЂРµРґРёС‚' : (total < 5 ? 'РєСЂРµРґРёС‚Р°' : 'РєСЂРµРґРёС‚РѕРІ')}</span>
+                      <span className="variant-count-label">{n === 1 ? 'Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ' : (n < 5 ? 'Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљР В°' : 'Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљР С•Р Р†')}</span>
+                      <span className="variant-count-credits">{total} {total === 1 ? 'Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљ' : (total < 5 ? 'Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР В°' : 'Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљР С•Р Р†')}</span>
                     </button>
                   );
                 })}
@@ -4014,19 +4014,19 @@ ${userProductInfo.trim()}
               disabled={!garmentUrls.length||isProcessing||isUploading||totalShots > 20}
             >
               {isUploading 
-                ? 'вЃпёЏ Р—Р°РіСЂСѓР·РєР° РІ РѕР±Р»Р°РєРѕ...' 
-                : `вњЁ РЎРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ ${totalShots > 1 ? totalShots + ' РєР°РґСЂ' + (totalShots < 5 ? 'Р°' : 'РѕРІ') : 'СЃС‚СѓРґРёР№РЅС‹Р№ РєР°РґСЂ'}`}
+                ? 'РІВРѓРїС‘РЏ Р вЂ”Р В°Р С–РЎР‚РЎС“Р В·Р С”Р В° Р Р† Р С•Р В±Р В»Р В°Р С”Р С•...' 
+                : `РІСљРЃ Р РЋР С–Р ВµР Р…Р ВµРЎР‚Р С‘РЎР‚Р С•Р Р†Р В°РЎвЂљРЎРЉ ${totalShots > 1 ? totalShots + ' Р С”Р В°Р Т‘РЎР‚' + (totalShots < 5 ? 'Р В°' : 'Р С•Р Р†') : 'РЎРѓРЎвЂљРЎС“Р Т‘Р С‘Р в„–Р Р…РЎвЂ№Р в„– Р С”Р В°Р Т‘РЎР‚'}`}
             </button>
             <button
               className="auto-catalog-mini-btn"
               onClick={handleAutoCatalog}
               disabled={!garmentUrls.length||isProcessing||isUploading}
-              title="РћС‚РїСЂР°РІРёС‚СЊ РІ Auto-Catalog (Batch)"
-            >рџЏ­</button>
+              title="Р С›РЎвЂљР С—РЎР‚Р В°Р Р†Р С‘РЎвЂљРЎРЉ Р Р† Auto-Catalog (Batch)"
+            >СЂСџРЏВ­</button>
           </div>
           {totalShots > 20 && (
             <div style={{color:'var(--gold)',fontSize:'0.75rem',textAlign:'center',fontWeight:500}}>
-              вљ пёЏ Р’С‹Р±СЂР°РЅРѕ {totalShots} РіРµРЅРµСЂР°С†РёР№. Р›РёРјРёС‚ вЂ” 20 Р·Р° РѕРґРёРЅ СЂР°Р·. РџРѕР¶Р°Р»СѓР№СЃС‚Р°, СЃРЅРёРјРёС‚Рµ РІС‹РґРµР»РµРЅРёРµ СЃ РЅРµРєРѕС‚РѕСЂС‹С… РїР°СЂР°РјРµС‚СЂРѕРІ.
+              РІС™В РїС‘РЏ Р вЂ™РЎвЂ№Р В±РЎР‚Р В°Р Р…Р С• {totalShots} Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р в„–. Р вЂєР С‘Р СР С‘РЎвЂљ РІР‚вЂќ 20 Р В·Р В° Р С•Р Т‘Р С‘Р Р… РЎР‚Р В°Р В·. Р СџР С•Р В¶Р В°Р В»РЎС“Р в„–РЎРѓРЎвЂљР В°, РЎРѓР Р…Р С‘Р СР С‘РЎвЂљР Вµ Р Р†РЎвЂ№Р Т‘Р ВµР В»Р ВµР Р…Р С‘Р Вµ РЎРѓ Р Р…Р ВµР С”Р С•РЎвЂљР С•РЎР‚РЎвЂ№РЎвЂ¦ Р С—Р В°РЎР‚Р В°Р СР ВµРЎвЂљРЎР‚Р С•Р Р†.
             </div>
           )}
         </div>
@@ -4034,7 +4034,7 @@ ${userProductInfo.trim()}
         <div className="status-bar">{statusText && <p className={`status-text ${statusType}`}>{statusText}</p>}</div>
       </motion.div>}
 
-      {/* в•ђв•ђв•ђ STATUS BAR for quick mode в•ђв•ђв•ђ */}
+      {/* РІвЂўС’РІвЂўС’РІвЂўС’ STATUS BAR for quick mode РІвЂўС’РІвЂўС’РІвЂўС’ */}
       {appMode === 'quick' && statusText && (
         <div className="status-bar" style={{textAlign:'center',padding:'12px 0'}}>
           <p className={`status-text ${statusType}`}>{statusText}</p>
@@ -4045,18 +4045,18 @@ ${userProductInfo.trim()}
               onMouseEnter={e => {e.currentTarget.style.background = 'rgba(239,68,68,0.3)'}}
               onMouseLeave={e => {e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}}
             >
-              вњ• РћС‚РјРµРЅРёС‚СЊ РіРµРЅРµСЂР°С†РёСЋ
+              РІСљвЂў Р С›РЎвЂљР СР ВµР Р…Р С‘РЎвЂљРЎРЉ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘РЎР‹
             </button>
           )}
         </div>
       )}
 
-      {/* 8Р°. QUICK MODE RESULT вЂ” Photo or Card */}
+      {/* 8Р В°. QUICK MODE RESULT РІР‚вЂќ Photo or Card */}
       {generatedImage && appMode === 'quick' && !quickCardImage && (
         <motion.div className="section result-section quick-hero-result" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} transition={{duration:0.5}}>
-          <h3>{quickMode === 'ugc' ? 'рџ“± Р¤РѕС‚Рѕ РѕС‚ РїРѕРєСѓРїР°С‚РµР»СЏ' : 'рџ“ё Р’Р°С€Рµ СЃС‚СѓРґРёР№РЅРѕРµ С„РѕС‚Рѕ'}</h3>
+          <h3>{quickMode === 'ugc' ? 'СЂСџвЂњВ± Р В¤Р С•РЎвЂљР С• Р С•РЎвЂљ Р С—Р С•Р С”РЎС“Р С—Р В°РЎвЂљР ВµР В»РЎРЏ' : 'СЂСџвЂњС‘ Р вЂ™Р В°РЎв‚¬Р Вµ РЎРѓРЎвЂљРЎС“Р Т‘Р С‘Р в„–Р Р…Р С•Р Вµ РЎвЂћР С•РЎвЂљР С•'}</h3>
           <div className="result-image-wrap" style={{position:'relative'}}>
-            <img src={generatedImage} alt={quickMode === 'ugc' ? "Р¤РѕС‚Рѕ РѕС‚ РїРѕРєСѓРїР°С‚РµР»СЏ" : "РЎС‚СѓРґРёР№РЅРѕРµ С„РѕС‚Рѕ"} onClick={() => setLightboxSrc(generatedImage)} style={{cursor:'pointer'}} />
+            <img src={generatedImage} alt={quickMode === 'ugc' ? "Р В¤Р С•РЎвЂљР С• Р С•РЎвЂљ Р С—Р С•Р С”РЎС“Р С—Р В°РЎвЂљР ВµР В»РЎРЏ" : "Р РЋРЎвЂљРЎС“Р Т‘Р С‘Р в„–Р Р…Р С•Р Вµ РЎвЂћР С•РЎвЂљР С•"} onClick={() => setLightboxSrc(generatedImage)} style={{cursor:'pointer'}} />
           </div>
           <div className="quick-hero-actions">
             <button className="download-btn" onClick={async () => {
@@ -4084,26 +4084,26 @@ ${userProductInfo.trim()}
                   window.open(generatedImage, '_blank');
                 }
               }
-            }}>в¬‡пёЏ РЎРєР°С‡Р°С‚СЊ С„РѕС‚Рѕ</button>
+            }}>РІВ¬вЂЎРїС‘РЏ Р РЋР С”Р В°РЎвЂЎР В°РЎвЂљРЎРЉ РЎвЂћР С•РЎвЂљР С•</button>
           </div>
           {/* Nav between cached results */}
           {Object.keys(quickResults).length > 0 && (
             <div style={{display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16, flexWrap: 'wrap'}}>
               {quickResults.card && (
                 <button onClick={() => { setQuickMode('card'); setQuickCardImage(quickResults.card.image); setGeneratedImage(quickResults.card.image); setCardEditHistory(quickResults.card.editHistory || []); }}
-                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.08)', color: '#ffd700', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>рџ“‹ РљР°СЂС‚РѕС‡РєР°</button>
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.08)', color: '#ffd700', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>СЂСџвЂњвЂ№ Р С™Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р В°</button>
               )}
               {quickResults.ugc && quickMode !== 'ugc' && (
                 <button onClick={() => { setQuickMode('ugc'); setQuickCardImage(null); setGeneratedImage(quickResults.ugc.image); setCardEditHistory([]); }}
-                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)', color: '#4ade80', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>рџ“± UGC</button>
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)', color: '#4ade80', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>СЂСџвЂњВ± UGC</button>
               )}
               {quickResults.photo && quickMode !== 'photo' && (
                 <button onClick={() => { setQuickMode('photo'); setQuickCardImage(null); setGeneratedImage(quickResults.photo.image); setCardEditHistory([]); }}
-                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>рџ“ё РЎС‚СѓРґРёР№РЅРѕРµ</button>
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>СЂСџвЂњС‘ Р РЋРЎвЂљРЎС“Р Т‘Р С‘Р в„–Р Р…Р С•Р Вµ</button>
               )}
               {quickResults.model && quickMode !== 'model' && (
                 <button onClick={() => { setQuickMode('model'); setQuickCardImage(quickResults.model.image); setGeneratedImage(quickResults.model.image); setCardEditHistory(quickResults.model.editHistory || []); }}
-                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: '#d8b4fe', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>рџ‘¤ РЎ РјРѕРґРµР»СЊСЋ</button>
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: '#d8b4fe', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>СЂСџвЂВ¤ Р РЋ Р СР С•Р Т‘Р ВµР В»РЎРЉРЎР‹</button>
               )}
             </div>
           )}
@@ -4117,11 +4117,11 @@ ${userProductInfo.trim()}
               setGeneratedImage(null);
               setQuickCardImage(null);
             }
-          }}>{quickResults.card && quickMode !== 'card' ? 'в†ђ РќР°Р·Р°Рґ Рє РѕР±Р»РѕР¶РєРµ' : 'в†ђ РќРѕРІР°СЏ РіРµРЅРµСЂР°С†РёСЏ'}</button>
+          }}>{quickResults.card && quickMode !== 'card' ? 'РІвЂ С’ Р СњР В°Р В·Р В°Р Т‘ Р С” Р С•Р В±Р В»Р С•Р В¶Р С”Р Вµ' : 'РІвЂ С’ Р СњР С•Р Р†Р В°РЎРЏ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘РЎРЏ'}</button>
         </motion.div>
       )}
 
-      {/* 8Р°-2. QUICK MODE CARD RESULT вЂ” РєР°СЂС‚РѕС‡РєР° + С‚РµРєСЃС‚РѕРІРѕРµ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ */}
+      {/* 8Р В°-2. QUICK MODE CARD RESULT РІР‚вЂќ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р В° + РЎвЂљР ВµР С”РЎРѓРЎвЂљР С•Р Р†Р С•Р Вµ РЎР‚Р ВµР Т‘Р В°Р С”РЎвЂљР С‘РЎР‚Р С•Р Р†Р В°Р Р…Р С‘Р Вµ */}
       {quickCardImage && appMode === 'quick' && (
         <motion.div className="section result-section" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} transition={{duration:0.5}} style={{maxWidth: 900, margin: '0 auto', padding: '10px 20px'}}>
                     {/* Nav between cached results */}
@@ -4129,22 +4129,22 @@ ${userProductInfo.trim()}
             <div style={{display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 16, flexWrap: 'wrap'}}>
               {quickResults.ugc && quickMode !== 'ugc' && (
                 <button onClick={() => { setQuickMode('ugc'); setQuickCardImage(null); setGeneratedImage(quickResults.ugc.image); setCardEditHistory([]); }}
-                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)', color: '#4ade80', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>рџ“± UGC</button>
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)', color: '#4ade80', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>СЂСџвЂњВ± UGC</button>
               )}
               {quickResults.photo && quickMode !== 'photo' && (
                 <button onClick={() => { setQuickMode('photo'); setQuickCardImage(null); setGeneratedImage(quickResults.photo.image); setCardEditHistory([]); }}
-                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>рџ“ё РЎС‚СѓРґРёР№РЅРѕРµ</button>
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>СЂСџвЂњС‘ Р РЋРЎвЂљРЎС“Р Т‘Р С‘Р в„–Р Р…Р С•Р Вµ</button>
               )}
               {quickResults.model && quickMode !== 'model' && (
                 <button onClick={() => { setQuickMode('model'); setQuickCardImage(quickResults.model.image); setGeneratedImage(quickResults.model.image); setCardEditHistory(quickResults.model.editHistory || []); }}
-                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: '#d8b4fe', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>рџ‘¤ РЎ РјРѕРґРµР»СЊСЋ</button>
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: '#d8b4fe', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>СЂСџвЂВ¤ Р РЋ Р СР С•Р Т‘Р ВµР В»РЎРЉРЎР‹</button>
               )}
             </div>
           )}
 
           <div style={{textAlign: 'center', marginBottom: 30}}>
-            <h3 style={{fontSize: 28, margin: '0 0 10px 0', textTransform: 'uppercase', letterSpacing: 1}}>рџ”Ґ РћР±Р»РѕР¶РєР° РіРѕС‚РѕРІР°!</h3>
-            <p style={{color: 'rgba(255,255,255,0.5)', margin: 0, fontSize: 15}}>РљР°СЂС‚РѕС‡РєР° СѓСЃРїРµС€РЅРѕ СЃРіРµРЅРµСЂРёСЂРѕРІР°РЅР°. Р§С‚Рѕ РґРµР»Р°РµРј РґР°Р»СЊС€Рµ?</p>
+            <h3 style={{fontSize: 28, margin: '0 0 10px 0', textTransform: 'uppercase', letterSpacing: 1}}>СЂСџвЂќТђ Р С›Р В±Р В»Р С•Р В¶Р С”Р В° Р С–Р С•РЎвЂљР С•Р Р†Р В°!</h3>
+            <p style={{color: 'rgba(255,255,255,0.5)', margin: 0, fontSize: 15}}>Р С™Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р В° РЎС“РЎРѓР С—Р ВµРЎв‚¬Р Р…Р С• РЎРѓР С–Р ВµР Р…Р ВµРЎР‚Р С‘РЎР‚Р С•Р Р†Р В°Р Р…Р В°. Р В§РЎвЂљР С• Р Т‘Р ВµР В»Р В°Р ВµР С Р Т‘Р В°Р В»РЎРЉРЎв‚¬Р Вµ?</p>
           </div>
 
           {/* MAIN STAGE */}
@@ -4183,14 +4183,14 @@ ${userProductInfo.trim()}
                     }
                   `}</style>
                   <div style={{color: '#ffd700', fontSize: 16, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1}}>
-                    вњЏпёЏ РџСЂРёРјРµРЅСЏРµРј РёР·РјРµРЅРµРЅРёСЏ...
+                    РІСљРЏРїС‘РЏ Р СџРЎР‚Р С‘Р СР ВµР Р…РЎРЏР ВµР С Р С‘Р В·Р СР ВµР Р…Р ВµР Р…Р С‘РЎРЏ...
                   </div>
                   <div style={{color: 'rgba(255,255,255,0.5)', fontSize: 13}}>
-                    РР РїРµСЂРµСЂРёСЃРѕРІС‹РІР°РµС‚ РєР°СЂС‚РѕС‡РєСѓ РїРѕ РІР°С€РµРјСѓ РѕРїРёСЃР°РЅРёСЋ
+                    Р ВР В Р С—Р ВµРЎР‚Р ВµРЎР‚Р С‘РЎРѓР С•Р Р†РЎвЂ№Р Р†Р В°Р ВµРЎвЂљ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”РЎС“ Р С—Р С• Р Р†Р В°РЎв‚¬Р ВµР СРЎС“ Р С•Р С—Р С‘РЎРѓР В°Р Р…Р С‘РЎР‹
                   </div>
                 </div>
               ) : (
-                <img src={quickCardImage} alt="РљР°СЂС‚РѕС‡РєР° С‚РѕРІР°СЂР°" onClick={() => setLightboxSrc(quickCardImage)} style={{cursor:'pointer', width: '100%', height: '100%', objectFit: 'contain', display: 'block'}} />
+                <img src={quickCardImage} alt="Р С™Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р В° РЎвЂљР С•Р Р†Р В°РЎР‚Р В°" onClick={() => setLightboxSrc(quickCardImage)} style={{cursor:'pointer', width: '100%', height: '100%', objectFit: 'contain', display: 'block'}} />
               )}
             </div>
             {/* Action buttons BELOW image */}
@@ -4217,7 +4217,7 @@ ${userProductInfo.trim()}
                 onMouseEnter={e => { if (!isCardEditing) e.currentTarget.style.transform = 'scale(1.05)'; }}
                 onMouseLeave={e => { if (!isCardEditing) e.currentTarget.style.transform = 'scale(1)'; }}
               >
-                рџ“Ґ РЎРєР°С‡Р°С‚СЊ HD
+                СЂСџвЂњТђ Р РЋР С”Р В°РЎвЂЎР В°РЎвЂљРЎРЉ HD
               </button>
               <button 
                 onClick={() => {
@@ -4234,14 +4234,14 @@ ${userProductInfo.trim()}
                 onMouseEnter={e => { if (!isCardEditing) { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; } }}
                 onMouseLeave={e => { if (!isCardEditing) { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; } }}
               >
-                рџЄ„ РўРѕС‡РµС‡РЅР°СЏ РїСЂР°РІРєР° (1 РєСЂ.)
+                СЂСџР„вЂћ Р СћР С•РЎвЂЎР ВµРЎвЂЎР Р…Р В°РЎРЏ Р С—РЎР‚Р В°Р Р†Р С”Р В° (1 Р С”РЎР‚.)
               </button>
             </div>
           </div>
 
           <div style={{display: 'flex', alignItems: 'center', margin: '0 0 30px 0'}}>
             <div style={{flex: 1, height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.1))'}}></div>
-            <div style={{padding: '0 20px', color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 2}}>РџСЂРѕРєР°С‡Р°С‚СЊ РєР°СЂС‚РѕС‡РєСѓ РґР»СЏ РўРћРџР°</div>
+            <div style={{padding: '0 20px', color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 2}}>Р СџРЎР‚Р С•Р С”Р В°РЎвЂЎР В°РЎвЂљРЎРЉ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”РЎС“ Р Т‘Р В»РЎРЏ Р СћР С›Р СџР В°</div>
             <div style={{flex: 1, height: 1, background: 'linear-gradient(-90deg, transparent, rgba(255,255,255,0.1))'}}></div>
           </div>
 
@@ -4250,10 +4250,10 @@ ${userProductInfo.trim()}
             
             {/* Widget 1: Funnel */}
             <div style={{background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column'}}>
-              <div style={{fontSize: 28, marginBottom: 12}}>рџ“ё</div>
-              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>РЎРѕР±СЂР°С‚СЊ РіР°Р»РµСЂРµСЋ (4 СЃР»Р°Р№РґР°)</h4>
+              <div style={{fontSize: 28, marginBottom: 12}}>СЂСџвЂњС‘</div>
+              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Р РЋР С•Р В±РЎР‚Р В°РЎвЂљРЎРЉ Р С–Р В°Р В»Р ВµРЎР‚Р ВµРЎР‹ (4 РЎРѓР В»Р В°Р в„–Р Т‘Р В°)</h4>
               <p style={{fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 20px 0', lineHeight: 1.5}}>
-                РР РґРѕСЃС‚СЂРѕРёС‚ РІРѕСЂРѕРЅРєСѓ: РєСЂСѓРїРЅС‹Р№ РїР»Р°РЅ, РіР°Р±Р°СЂРёС‚С‹, РёРЅС‚РµСЂСЊРµСЂ. 100% РµРґРёРЅС‹Р№ СЃС‚РёР»СЊ.
+                Р ВР В Р Т‘Р С•РЎРѓРЎвЂљРЎР‚Р С•Р С‘РЎвЂљ Р Р†Р С•РЎР‚Р С•Р Р…Р С”РЎС“: Р С”РЎР‚РЎС“Р С—Р Р…РЎвЂ№Р в„– Р С—Р В»Р В°Р Р…, Р С–Р В°Р В±Р В°РЎР‚Р С‘РЎвЂљРЎвЂ№, Р С‘Р Р…РЎвЂљР ВµРЎР‚РЎРЉР ВµРЎР‚. 100% Р ВµР Т‘Р С‘Р Р…РЎвЂ№Р в„– РЎРѓРЎвЂљР С‘Р В»РЎРЉ.
               </p>
               
               {/* Examples / Real Images */}
@@ -4278,7 +4278,7 @@ ${userProductInfo.trim()}
                       }}>
                         <img 
                           src={img} 
-                          alt={`РЎР»Р°Р№Рґ ${idx+1}`} 
+                          alt={`Р РЋР В»Р В°Р в„–Р Т‘ ${idx+1}`} 
                           style={{width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, cursor: 'pointer'}} 
                           onClick={() => {
                             if (idx === 0 || idx === 2) {
@@ -4309,24 +4309,24 @@ ${userProductInfo.trim()}
                             }
                           }}
                           style={{position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10}}
-                          title="РЎРєР°С‡Р°С‚СЊ"
+                          title="Р РЋР С”Р В°РЎвЂЎР В°РЎвЂљРЎРЉ"
                         >
-                          рџ“Ґ
+                          СЂСџвЂњТђ
                         </button>
                         <span style={{position: 'relative', zIndex: 1, color: '#fff', fontSize: 9, fontWeight: 600, padding: '4px 6px', textAlign: 'center', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', width: '100%'}}>
-                          {idx === 0 ? 'РћР±Р»РѕР¶РєР°' : idx === 1 ? 'Р”РµС‚Р°Р»Рё' : idx === 2 ? 'Р Р°Р·РјРµСЂС‹' : 'Lifestyle'}
+                          {idx === 0 ? 'Р С›Р В±Р В»Р С•Р В¶Р С”Р В°' : idx === 1 ? 'Р вЂќР ВµРЎвЂљР В°Р В»Р С‘' : idx === 2 ? 'Р В Р В°Р В·Р СР ВµРЎР‚РЎвЂ№' : 'Lifestyle'}
                         </span>
                         {isActive && (
-                          <div style={{position: 'absolute', top: 4, left: 4, background: '#ffd700', color: '#000', fontSize: 7, fontWeight: 900, padding: '1px 3px', borderRadius: 3, textTransform: 'uppercase', zIndex: 10}}>РђРєС‚РёРІРµРЅ</div>
+                          <div style={{position: 'absolute', top: 4, left: 4, background: '#ffd700', color: '#000', fontSize: 7, fontWeight: 900, padding: '1px 3px', borderRadius: 3, textTransform: 'uppercase', zIndex: 10}}>Р С’Р С”РЎвЂљР С‘Р Р†Р ВµР Р…</div>
                         )}
                       </div>
                     );
                   })
                 ) : (
                   [
-                    { title: 'РћР±Р»РѕР¶РєР°', src: '/examples/gallery/slide1_cover.png' },
-                    { title: 'Р”РµС‚Р°Р»Рё', src: '/examples/gallery/slide2_detail.png' },
-                    { title: 'Р Р°Р·РјРµСЂС‹', src: '/examples/gallery/slide3_size.png' },
+                    { title: 'Р С›Р В±Р В»Р С•Р В¶Р С”Р В°', src: '/examples/gallery/slide1_cover.png' },
+                    { title: 'Р вЂќР ВµРЎвЂљР В°Р В»Р С‘', src: '/examples/gallery/slide2_detail.png' },
+                    { title: 'Р В Р В°Р В·Р СР ВµРЎР‚РЎвЂ№', src: '/examples/gallery/slide3_size.png' },
                     { title: 'Lifestyle', src: '/examples/gallery/slide4_lifestyle.png' }
                   ].map((slide, idx) => (
                     <div key={idx} style={{flex: 1, aspectRatio: '3/4', position: 'relative', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', opacity: 0.75}}>
@@ -4348,16 +4348,16 @@ ${userProductInfo.trim()}
                     onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.3)'}}
                     onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.2)'}}
                   >
-                    рџ‘ЃпёЏ РџСЂРѕСЃРјРѕС‚СЂ
+                    СЂСџвЂРѓРїС‘РЏ Р СџРЎР‚Р С•РЎРѓР СР С•РЎвЂљРЎР‚
                   </button>
                   <button 
                     onClick={() => triggerConfirm('gallery', 5, handleGenerateGallery)}
                     style={{background: 'rgba(255,215,0,0.08)', color: '#ffd700', border: '1px solid rgba(255,215,0,0.3)', padding: '12px 16px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'}}
                     onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.18)'}}
                     onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.08)'}}
-                    title="РџРµСЂРµСЃРѕР·РґР°С‚СЊ РіР°Р»РµСЂРµСЋ"
+                    title="Р СџР ВµРЎР‚Р ВµРЎРѓР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р С–Р В°Р В»Р ВµРЎР‚Р ВµРЎР‹"
                   >
-                    рџ”„
+                    СЂСџвЂќвЂћ
                   </button>
                 </div>
               ) : (
@@ -4368,17 +4368,17 @@ ${userProductInfo.trim()}
                   onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.2)'}}
                   onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.1)'}}
                 >
-                  {isGalleryGenerating ? 'вЏі РЎРѕР·РґР°С‘Рј...' : <>РЎРѕР·РґР°С‚СЊ Р·Р° 5 РєСЂ. <span style={{textDecoration: 'line-through', opacity: 0.5, fontSize: 11, marginLeft: 6, fontWeight: 400}}>8 РєСЂ.</span></>}
+                  {isGalleryGenerating ? 'РІРЏС– Р РЋР С•Р В·Р Т‘Р В°РЎвЂР С...' : <>Р РЋР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р В·Р В° 5 Р С”РЎР‚. <span style={{textDecoration: 'line-through', opacity: 0.5, fontSize: 11, marginLeft: 6, fontWeight: 400}}>8 Р С”РЎР‚.</span></>}
                 </button>
               )}
             </div>
 
             {/* Widget 3: A/B Test */}
             <div style={{background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column'}}>
-              <div style={{fontSize: 28, marginBottom: 12}}>вљ–пёЏ</div>
-              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>РќР°Р№С‚Рё Р»СѓС‡С€РёР№ CTR (A/B РўРµСЃС‚)</h4>
+              <div style={{fontSize: 28, marginBottom: 12}}>РІС™вЂ“РїС‘РЏ</div>
+              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Р СњР В°Р в„–РЎвЂљР С‘ Р В»РЎС“РЎвЂЎРЎв‚¬Р С‘Р в„– CTR (A/B Р СћР ВµРЎРѓРЎвЂљ)</h4>
               <p style={{fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 20px 0', lineHeight: 1.5}}>
-                РќРµ РіР°РґР°Р№С‚Рµ. РР СЃРіРµРЅРµСЂРёСЂСѓРµС‚ 2 Р°Р»СЊС‚РµСЂРЅР°С‚РёРІРЅС‹Рµ РѕР±Р»РѕР¶РєРё СЃ РґСЂСѓРіРёРјРё С…СѓРєР°РјРё Рё РєРѕРјРїРѕР·РёС†РёРµР№.
+                Р СњР Вµ Р С–Р В°Р Т‘Р В°Р в„–РЎвЂљР Вµ. Р ВР В РЎРѓР С–Р ВµР Р…Р ВµРЎР‚Р С‘РЎР‚РЎС“Р ВµРЎвЂљ 2 Р В°Р В»РЎРЉРЎвЂљР ВµРЎР‚Р Р…Р В°РЎвЂљР С‘Р Р†Р Р…РЎвЂ№Р Вµ Р С•Р В±Р В»Р С•Р В¶Р С”Р С‘ РЎРѓ Р Т‘РЎР‚РЎС“Р С–Р С‘Р СР С‘ РЎвЂ¦РЎС“Р С”Р В°Р СР С‘ Р С‘ Р С”Р С•Р СР С—Р С•Р В·Р С‘РЎвЂ Р С‘Р ВµР в„–.
               </p>
 
               {/* A/B Test Variants view */}
@@ -4400,7 +4400,7 @@ ${userProductInfo.trim()}
                       }}>
                         <img 
                           src={img} 
-                          alt={`Р’Р°СЂРёР°РЅС‚ ${idx === 0 ? 'A' : 'B'}`} 
+                          alt={`Р вЂ™Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ ${idx === 0 ? 'A' : 'B'}`} 
                           style={{width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer'}} 
                           onClick={() => {
                             setQuickCardImage(img);
@@ -4408,7 +4408,7 @@ ${userProductInfo.trim()}
                             setQuickMode('card');
                             setQuickResults(prev => ({
                               ...prev, 
-                              card: { image: img, editHistory: [{ image: img, editText: `Р’С‹Р±СЂР°РЅ РІР°СЂРёР°РЅС‚ ${idx === 0 ? 'A' : 'B'}` }] }
+                              card: { image: img, editHistory: [{ image: img, editText: `Р вЂ™РЎвЂ№Р В±РЎР‚Р В°Р Р… Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ ${idx === 0 ? 'A' : 'B'}` }] }
                             }));
                           }} 
                         />
@@ -4431,12 +4431,12 @@ ${userProductInfo.trim()}
                             }
                           }}
                           style={{position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10}}
-                          title="РЎРєР°С‡Р°С‚СЊ"
+                          title="Р РЋР С”Р В°РЎвЂЎР В°РЎвЂљРЎРЉ"
                         >
-                          рџ“Ґ
+                          СЂСџвЂњТђ
                         </button>
                         {isActive && (
-                          <div style={{position: 'absolute', bottom: 4, left: 4, right: 4, background: '#ffd700', color: '#000', fontSize: 7, fontWeight: 900, padding: '1px 0', borderRadius: 3, textTransform: 'uppercase', textAlign: 'center', zIndex: 10}}>РђРєС‚РёРІРµРЅ</div>
+                          <div style={{position: 'absolute', bottom: 4, left: 4, right: 4, background: '#ffd700', color: '#000', fontSize: 7, fontWeight: 900, padding: '1px 0', borderRadius: 3, textTransform: 'uppercase', textAlign: 'center', zIndex: 10}}>Р С’Р С”РЎвЂљР С‘Р Р†Р ВµР Р…</div>
                         )}
                       </div>
                     );
@@ -4452,16 +4452,16 @@ ${userProductInfo.trim()}
                     onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}}
                     onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}}
                   >
-                    вљ–пёЏ РЎСЂР°РІРЅРёС‚СЊ
+                    РІС™вЂ“РїС‘РЏ Р РЋРЎР‚Р В°Р Р†Р Р…Р С‘РЎвЂљРЎРЉ
                   </button>
                   <button 
                     onClick={() => triggerConfirm('ab', 2, handleGenerateABTest)}
                     style={{background: 'rgba(255,255,255,0.03)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', padding: '12px 16px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'}}
                     onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}}
                     onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}}
-                    title="РџРµСЂРµСЃРѕР·РґР°С‚СЊ A/B РўРµСЃС‚"
+                    title="Р СџР ВµРЎР‚Р ВµРЎРѓР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ A/B Р СћР ВµРЎРѓРЎвЂљ"
                   >
-                    рџ”„
+                    СЂСџвЂќвЂћ
                   </button>
                 </div>
               ) : (
@@ -4472,35 +4472,35 @@ ${userProductInfo.trim()}
                   onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}}
                   onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}}
                 >
-                  {isAbGenerating ? 'вЏі РЎРѕР·РґР°С‘Рј...' : 'РЎРѕР·РґР°С‚СЊ Р·Р° 2 РєСЂ.'}
+                  {isAbGenerating ? 'РІРЏС– Р РЋР С•Р В·Р Т‘Р В°РЎвЂР С...' : 'Р РЋР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р В·Р В° 2 Р С”РЎР‚.'}
                 </button>
               )}
             </div>
 
             {/* Widget 2: Video */}
             <div style={{background: 'linear-gradient(145deg, rgba(167, 139, 250, 0.08) 0%, rgba(0,0,0,0) 100%)', border: '1px solid rgba(167, 139, 250, 0.2)', borderRadius: 20, padding: 24, position: 'relative', display: 'flex', flexDirection: 'column'}}>
-              <div style={{position: 'absolute', top: 20, right: 20, background: 'rgba(167, 139, 250, 0.2)', color: '#d8b4fe', fontSize: 10, fontWeight: 800, padding: '4px 8px', borderRadius: 6, textTransform: 'uppercase', border: '1px solid rgba(167, 139, 250, 0.3)'}}>РўСЂРµРЅРґ 2026</div>
-              <div style={{fontSize: 28, marginBottom: 12}}>рџЋ¬</div>
-              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>РћР¶РёРІРёС‚СЊ РІ Р’РёРґРµРѕРѕР±Р»РѕР¶РєСѓ</h4>
+              <div style={{position: 'absolute', top: 20, right: 20, background: 'rgba(167, 139, 250, 0.2)', color: '#d8b4fe', fontSize: 10, fontWeight: 800, padding: '4px 8px', borderRadius: 6, textTransform: 'uppercase', border: '1px solid rgba(167, 139, 250, 0.3)'}}>Р СћРЎР‚Р ВµР Р…Р Т‘ 2026</div>
+              <div style={{fontSize: 28, marginBottom: 12}}>СЂСџР‹В¬</div>
+              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Р С›Р В¶Р С‘Р Р†Р С‘РЎвЂљРЎРЉ Р Р† Р вЂ™Р С‘Р Т‘Р ВµР С•Р С•Р В±Р В»Р С•Р В¶Р С”РЎС“</h4>
               <p style={{fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 20px 0', lineHeight: 1.5}}>
-                РђР»РіРѕСЂРёС‚РјС‹ WB РѕР±РѕР¶Р°СЋС‚ Motion. Р”РѕР±Р°РІРёРј 3D-РїР°СЂР°Р»Р»Р°РєСЃ, РёРіСЂСѓ СЃРІРµС‚Р° Рё Р°РЅРёРјР°С†РёСЋ РЈРўРџ.
+                Р С’Р В»Р С–Р С•РЎР‚Р С‘РЎвЂљР СРЎвЂ№ WB Р С•Р В±Р С•Р В¶Р В°РЎР‹РЎвЂљ Motion. Р вЂќР С•Р В±Р В°Р Р†Р С‘Р С 3D-Р С—Р В°РЎР‚Р В°Р В»Р В»Р В°Р С”РЎРѓ, Р С‘Р С–РЎР‚РЎС“ РЎРѓР Р†Р ВµРЎвЂљР В° Р С‘ Р В°Р Р…Р С‘Р СР В°РЎвЂ Р С‘РЎР‹ Р Р€Р СћР Сџ.
               </p>
               <button 
-                onClick={() => triggerConfirm('video', 4, () => { setStatusText('рџЋ¬ Р’РёРґРµРѕРіРµРЅРµСЂР°С†РёСЏ СЃРєРѕСЂРѕ Р±СѓРґРµС‚ РґРѕСЃС‚СѓРїРЅР°! РњС‹ СѓР¶Рµ СЂР°Р±РѕС‚Р°РµРј РЅР°Рґ СЌС‚РёРј.'); setStatusType('processing'); })}
+                onClick={() => triggerConfirm('video', 4, () => { setStatusText('СЂСџР‹В¬ Р вЂ™Р С‘Р Т‘Р ВµР С•Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘РЎРЏ РЎРѓР С”Р С•РЎР‚Р С• Р В±РЎС“Р Т‘Р ВµРЎвЂљ Р Т‘Р С•РЎРѓРЎвЂљРЎС“Р С—Р Р…Р В°! Р СљРЎвЂ№ РЎС“Р В¶Р Вµ РЎР‚Р В°Р В±Р С•РЎвЂљР В°Р ВµР С Р Р…Р В°Р Т‘ РЎРЊРЎвЂљР С‘Р С.'); setStatusType('processing'); })}
                 style={{width: '100%', background: 'rgba(167, 139, 250, 0.15)', color: '#d8b4fe', border: '1px solid rgba(167, 139, 250, 0.4)', padding: '12px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', marginTop: 'auto'}}
                 onMouseEnter={e => {e.currentTarget.style.background = 'rgba(167, 139, 250, 0.25)'}}
                 onMouseLeave={e => {e.currentTarget.style.background = 'rgba(167, 139, 250, 0.15)'}}
               >
-                РЎРѕР·РґР°С‚СЊ РІРёРґРµРѕ Р·Р° 4 РєСЂ.
+                Р РЋР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р Р†Р С‘Р Т‘Р ВµР С• Р В·Р В° 4 Р С”РЎР‚.
               </button>
             </div>
 
             {/* Widget 4: UGC Photo */}
             <div style={{background: 'linear-gradient(145deg, rgba(34, 197, 94, 0.08) 0%, rgba(0,0,0,0) 100%)', border: '1px solid rgba(34, 197, 94, 0.2)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column'}}>
-              <div style={{fontSize: 28, marginBottom: 12}}>рџ“±</div>
-              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Р¤РѕС‚Рѕ РѕС‚ РїРѕРєСѓРїР°С‚РµР»РµР№</h4>
+              <div style={{fontSize: 28, marginBottom: 12}}>СЂСџвЂњВ±</div>
+              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Р В¤Р С•РЎвЂљР С• Р С•РЎвЂљ Р С—Р С•Р С”РЎС“Р С—Р В°РЎвЂљР ВµР В»Р ВµР в„–</h4>
               <p style={{fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 20px 0', lineHeight: 1.5}}>
-                Р РµР°Р»РёСЃС‚РёС‡РЅС‹Рµ С„РѕС‚Рѕ С‚РѕРІР°СЂР° РІ РґРѕРјР°С€РЅРµР№ РёР»Рё РµСЃС‚РµСЃС‚РІРµРЅРЅРѕР№ РѕР±СЃС‚Р°РЅРѕРІРєРµ вЂ” РєР°Рє РёР· РѕС‚Р·С‹РІРѕРІ.
+                Р В Р ВµР В°Р В»Р С‘РЎРѓРЎвЂљР С‘РЎвЂЎР Р…РЎвЂ№Р Вµ РЎвЂћР С•РЎвЂљР С• РЎвЂљР С•Р Р†Р В°РЎР‚Р В° Р Р† Р Т‘Р С•Р СР В°РЎв‚¬Р Р…Р ВµР в„– Р С‘Р В»Р С‘ Р ВµРЎРѓРЎвЂљР ВµРЎРѓРЎвЂљР Р†Р ВµР Р…Р Р…Р С•Р в„– Р С•Р В±РЎРѓРЎвЂљР В°Р Р…Р С•Р Р†Р С”Р Вµ РІР‚вЂќ Р С”Р В°Р С” Р С‘Р В· Р С•РЎвЂљР В·РЎвЂ№Р Р†Р С•Р Р†.
               </p>
               {quickResults.ugc ? (
                 <div style={{display: 'flex', gap: 8, marginTop: 'auto'}}>
@@ -4510,16 +4510,16 @@ ${userProductInfo.trim()}
                     onMouseEnter={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.35)'}}
                     onMouseLeave={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.2)'}}
                   >
-                    рџ“± РџРѕРєР°Р·Р°С‚СЊ
+                    СЂСџвЂњВ± Р СџР С•Р С”Р В°Р В·Р В°РЎвЂљРЎРЉ
                   </button>
                   <button 
                     onClick={() => triggerConfirm('ugc', 1, () => handleQuickGenerate('ugc'))}
                     style={{background: 'rgba(34, 197, 94, 0.08)', color: '#4ade80', border: '1px solid rgba(34, 197, 94, 0.3)', padding: '12px 16px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'}}
                     onMouseEnter={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.2)'}}
                     onMouseLeave={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.08)'}}
-                    title="РЎРѕР·РґР°С‚СЊ РЅРѕРІРѕРµ UGC-С„РѕС‚Рѕ"
+                    title="Р РЋР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р Р…Р С•Р Р†Р С•Р Вµ UGC-РЎвЂћР С•РЎвЂљР С•"
                   >
-                    рџ”„
+                    СЂСџвЂќвЂћ
                   </button>
                 </div>
               ) : (
@@ -4529,7 +4529,7 @@ ${userProductInfo.trim()}
                   onMouseEnter={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.25)'}}
                   onMouseLeave={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.15)'}}
                 >
-                  РЎРѕР·РґР°С‚СЊ Р·Р° 1 РєСЂ.
+                  Р РЋР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ Р В·Р В° 1 Р С”РЎР‚.
                 </button>
               )}
             </div>
@@ -4540,21 +4540,21 @@ ${userProductInfo.trim()}
           <div id="edit-panel" style={{display: 'none', background: 'rgba(255,255,255,0.02)', borderRadius: 24, padding: '24px', border: '1px dashed rgba(255,255,255,0.1)', marginBottom: 40}}>
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12}}>
               <div style={{fontSize: 18, fontWeight: 700, color: 'rgba(255,255,255,0.95)'}}>
-                рџЄ„ РўРѕС‡РµС‡РЅР°СЏ РїСЂР°РІРєР°
+                СЂСџР„вЂћ Р СћР С•РЎвЂЎР ВµРЎвЂЎР Р…Р В°РЎРЏ Р С—РЎР‚Р В°Р Р†Р С”Р В°
               </div>
               <button 
                 onClick={() => document.getElementById('edit-panel').style.display = 'none'}
                 style={{background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 24, padding: '0 10px'}}
-              >Г—</button>
+              >Р“вЂ”</button>
             </div>
             <p style={{fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: '0 0 20px 0', lineHeight: '1.5'}}>
-              РћРїРёС€РёС‚Рµ С‚РµРєСЃС‚РѕРј, С‡С‚Рѕ РЅСѓР¶РЅРѕ РёР·РјРµРЅРёС‚СЊ. РљР°Р¶РґР°СЏ РїСЂР°РІРєР° СЃС‚РѕРёС‚ <strong style={{color:'#ffd700'}}>1 РєСЂРµРґРёС‚</strong>.
+              Р С›Р С—Р С‘РЎв‚¬Р С‘РЎвЂљР Вµ РЎвЂљР ВµР С”РЎРѓРЎвЂљР С•Р С, РЎвЂЎРЎвЂљР С• Р Р…РЎС“Р В¶Р Р…Р С• Р С‘Р В·Р СР ВµР Р…Р С‘РЎвЂљРЎРЉ. Р С™Р В°Р В¶Р Т‘Р В°РЎРЏ Р С—РЎР‚Р В°Р Р†Р С”Р В° РЎРѓРЎвЂљР С•Р С‘РЎвЂљ <strong style={{color:'#ffd700'}}>1 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљ</strong>.
             </p>
             <div style={{display:'flex', flexDirection: 'column', gap: 16}}>
               <textarea
                 className="modifier-input"
                 rows={3}
-                placeholder="РќР°РїСЂРёРјРµСЂ: В«РЈР±РµСЂРё С‚РµРєСЃС‚ СЃРїСЂР°РІР° РІРІРµСЂС…СѓВ» РёР»Рё В«РЎРґРµР»Р°Р№ С„РѕРЅ С‚РµРјРЅРµРµВ»"
+                placeholder="Р СњР В°Р С—РЎР‚Р С‘Р СР ВµРЎР‚: Р’В«Р Р€Р В±Р ВµРЎР‚Р С‘ РЎвЂљР ВµР С”РЎРѓРЎвЂљ РЎРѓР С—РЎР‚Р В°Р Р†Р В° Р Р†Р Р†Р ВµРЎР‚РЎвЂ¦РЎС“Р’В» Р С‘Р В»Р С‘ Р’В«Р РЋР Т‘Р ВµР В»Р В°Р в„– РЎвЂћР С•Р Р… РЎвЂљР ВµР СР Р…Р ВµР ВµР’В»"
                 value={cardEditText}
                 onChange={e => setCardEditText(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCardEdit(); } }}
@@ -4568,7 +4568,7 @@ ${userProductInfo.trim()}
                   disabled={isCardEditing || !cardEditText.trim()}
                   style={{padding: '12px 28px', width: 'auto', minWidth: 200, whiteSpace: 'nowrap'}}
                 >
-                  {isCardEditing ? 'вЏі РџСЂРёРјРµРЅСЏРµРј...' : 'рџ”„ РџСЂРёРјРµРЅРёС‚СЊ вЂ” 1 РєСЂ.'}
+                  {isCardEditing ? 'РІРЏС– Р СџРЎР‚Р С‘Р СР ВµР Р…РЎРЏР ВµР С...' : 'СЂСџвЂќвЂћ Р СџРЎР‚Р С‘Р СР ВµР Р…Р С‘РЎвЂљРЎРЉ РІР‚вЂќ 1 Р С”РЎР‚.'}
                 </button>
               </div>
             </div>
@@ -4576,7 +4576,7 @@ ${userProductInfo.trim()}
             {/* Edit history */}
             {cardEditHistory.length > 1 && (
               <div style={{marginTop: 24}}>
-                <div style={{fontSize: 12, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12}}>РСЃС‚РѕСЂРёСЏ РїСЂР°РІРѕРє</div>
+                <div style={{fontSize: 12, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12}}>Р ВРЎРѓРЎвЂљР С•РЎР‚Р С‘РЎРЏ Р С—РЎР‚Р В°Р Р†Р С•Р С”</div>
                 <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
                   {cardEditHistory.map((entry, idx) => (
                     <button
@@ -4597,7 +4597,7 @@ ${userProductInfo.trim()}
                         transition: 'all 0.2s',
                       }}
                     >
-                      {idx === 0 ? 'рџЋЁ РћСЂРёРіРёРЅР°Р»' : `v${idx + 1}: ${entry.editText.substring(0, 25)}${entry.editText.length > 25 ? '...' : ''}`}
+                      {idx === 0 ? 'СЂСџР‹РЃ Р С›РЎР‚Р С‘Р С–Р С‘Р Р…Р В°Р В»' : `v${idx + 1}: ${entry.editText.substring(0, 25)}${entry.editText.length > 25 ? '...' : ''}`}
                     </button>
                   ))}
                 </div>
@@ -4631,19 +4631,19 @@ ${userProductInfo.trim()}
               onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.8)'}
               onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
             >
-              РЎР±СЂРѕСЃРёС‚СЊ Рё РЅР°С‡Р°С‚СЊ Р·Р°РЅРѕРІРѕ СЃ РґСЂСѓРіРёРј С„РѕС‚Рѕ
+              Р РЋР В±РЎР‚Р С•РЎРѓР С‘РЎвЂљРЎРЉ Р С‘ Р Р…Р В°РЎвЂЎР В°РЎвЂљРЎРЉ Р В·Р В°Р Р…Р С•Р Р†Р С• РЎРѓ Р Т‘РЎР‚РЎС“Р С–Р С‘Р С РЎвЂћР С•РЎвЂљР С•
             </button>
           </div>
 
         </motion.div>
       )}
 
-      {/* 8Р±. Р Р•Р—РЈР›Р¬РўРђРў вЂ” СЂРµР¶РёРјС‹ РћРґРµР¶РґР° / РџСЂРµРґРјРµС‚РєР° */}
+      {/* 8Р В±. Р В Р вЂўР вЂ”Р Р€Р вЂєР В¬Р СћР С’Р Сћ РІР‚вЂќ РЎР‚Р ВµР В¶Р С‘Р СРЎвЂ№ Р С›Р Т‘Р ВµР В¶Р Т‘Р В° / Р СџРЎР‚Р ВµР Т‘Р СР ВµРЎвЂљР С”Р В° */}
       <AnimatePresence>
         {generatedImage && appMode !== 'quick' && (
           <motion.div key="result-section" className="section result-section" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} exit={{opacity:0}} transition={{duration:0.5}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px'}}>
-              <h3 style={{margin:0}}>Р¤РёРЅР°Р»СЊРЅС‹Р№ Р РµРЅРґРµСЂ</h3>
+              <h3 style={{margin:0}}>Р В¤Р С‘Р Р…Р В°Р В»РЎРЉР Р…РЎвЂ№Р в„– Р В Р ВµР Р…Р Т‘Р ВµРЎР‚</h3>
               <button
                 onClick={() => {
                   setGeneratedImage(null);
@@ -4651,111 +4651,111 @@ ${userProductInfo.trim()}
                   setHistoryIndex(0);
                   localStorage.removeItem('vton_generatedImage');
                 }}
-                title="Р—Р°РєСЂС‹С‚СЊ СЂРµРЅРґРµСЂ"
+                title="Р вЂ”Р В°Р С”РЎР‚РЎвЂ№РЎвЂљРЎРЉ РЎР‚Р ВµР Р…Р Т‘Р ВµРЎР‚"
                 style={{background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'50%', width:'32px', height:'32px', cursor:'pointer', fontSize:'16px', color:'rgba(255,255,255,0.6)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all 0.2s'}}
                 onMouseEnter={e => { e.currentTarget.style.background='rgba(255,80,80,0.25)'; e.currentTarget.style.color='#ff6060'; e.currentTarget.style.borderColor='rgba(255,80,80,0.4)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,0.08)'; e.currentTarget.style.color='rgba(255,255,255,0.6)'; e.currentTarget.style.borderColor='rgba(255,255,255,0.15)'; }}
-              >вњ•</button>
+              >РІСљвЂў</button>
             </div>
             <div className="result-image-wrap" style={{position:'relative'}}>
-              {/* в†ђ Previous render */}
+              {/* РІвЂ С’ Previous render */}
               {imageHistory.length > 1 && historyIndex > 0 && (
                 <button
                   className="history-nav-btn history-prev"
                   onClick={(e) => { e.stopPropagation(); const ni = historyIndex - 1; setHistoryIndex(ni); setGeneratedImage(imageHistory[ni].image); }}
-                  title="РџСЂРµРґС‹РґСѓС‰РёР№ РІР°СЂРёР°РЅС‚"
-                >вЂ№</button>
+                  title="Р СџРЎР‚Р ВµР Т‘РЎвЂ№Р Т‘РЎС“РЎвЂ°Р С‘Р в„– Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ"
+                >РІР‚в„–</button>
               )}
               <img src={generatedImage} alt="VTON" onClick={() => setLightboxSrc(generatedImage)} style={{cursor:'pointer'}} />
-              {/* в†’ Next render */}
+              {/* РІвЂ вЂ™ Next render */}
               {imageHistory.length > 1 && historyIndex < imageHistory.length - 1 && (
                 <button
                   className="history-nav-btn history-next"
                   onClick={(e) => { e.stopPropagation(); const ni = historyIndex + 1; setHistoryIndex(ni); setGeneratedImage(imageHistory[ni].image); }}
-                  title="РЎР»РµРґСѓСЋС‰РёР№ РІР°СЂРёР°РЅС‚"
-                >вЂє</button>
+                  title="Р РЋР В»Р ВµР Т‘РЎС“РЎР‹РЎвЂ°Р С‘Р в„– Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ"
+                >РІР‚С”</button>
               )}
             </div>
             {imageHistory.length > 1 && (
               <div className="history-info">
                 <p className="history-counter">{historyIndex + 1} / {imageHistory.length}</p>
                 {imageHistory[historyIndex]?.label && (
-                  <p className="history-label">вњЏпёЏ {imageHistory[historyIndex].label}</p>
+                  <p className="history-label">РІСљРЏРїС‘РЏ {imageHistory[historyIndex].label}</p>
                 )}
               </div>
             )}
-            <p className="touch-zoom-hint">рџ‘† РќР°Р¶РјРёС‚Рµ РЅР° С„РѕС‚Рѕ РґР»СЏ СѓРІРµР»РёС‡РµРЅРёСЏ</p>
+            <p className="touch-zoom-hint">СЂСџвЂвЂ  Р СњР В°Р В¶Р СР С‘РЎвЂљР Вµ Р Р…Р В° РЎвЂћР С•РЎвЂљР С• Р Т‘Р В»РЎРЏ РЎС“Р Р†Р ВµР В»Р С‘РЎвЂЎР ВµР Р…Р С‘РЎРЏ</p>
             <div className="result-actions">
-              <button className="download-btn" onClick={handleDownload}>в¬‡пёЏ РЎРєР°С‡Р°С‚СЊ</button>
-              {/* РљР°Р»РёР±СЂРѕРІРєР° Рё В«РџРµСЂРµРѕРґРµС‚СЊВ» вЂ” С‚РѕР»СЊРєРѕ РєРѕРіРґР° РµСЃС‚СЊ С‡РµР»РѕРІРµРє-РјРѕРґРµР»СЊ */}
+              <button className="download-btn" onClick={handleDownload}>РІВ¬вЂЎРїС‘РЏ Р РЋР С”Р В°РЎвЂЎР В°РЎвЂљРЎРЉ</button>
+              {/* Р С™Р В°Р В»Р С‘Р В±РЎР‚Р С•Р Р†Р С”Р В° Р С‘ Р’В«Р СџР ВµРЎР‚Р ВµР С•Р Т‘Р ВµРЎвЂљРЎРЉР’В» РІР‚вЂќ РЎвЂљР С•Р В»РЎРЉР С”Р С• Р С”Р С•Р С–Р Т‘Р В° Р ВµРЎРѓРЎвЂљРЎРЉ РЎвЂЎР ВµР В»Р С•Р Р†Р ВµР С”-Р СР С•Р Т‘Р ВµР В»РЎРЉ */}
               {(appMode === 'fashion' || (appMode === 'product' && productWithModel)) && (
-                <button className="save-model-btn" onClick={() => openCalibration('save')}>рџЋЇ РЎРѕС…СЂР°РЅРёС‚СЊ РјРѕРґРµР»СЊ (РєР°Р»РёР±СЂРѕРІРєР°)</button>
+                <button className="save-model-btn" onClick={() => openCalibration('save')}>СЂСџР‹Р‡ Р РЋР С•РЎвЂ¦РЎР‚Р В°Р Р…Р С‘РЎвЂљРЎРЉ Р СР С•Р Т‘Р ВµР В»РЎРЉ (Р С”Р В°Р В»Р С‘Р В±РЎР‚Р С•Р Р†Р С”Р В°)</button>
               )}
               {appMode === 'fashion' ? (
                 <button
                   className="redress-btn has-tooltip"
                   onClick={handleGenerate}
                   disabled={isProcessing}
-                  data-tooltip="Р’РµСЂРЅСѓС‚СЊ РѕРґРµР¶РґСѓ РІ РёСЃС…РѕРґРЅС‹Р№ РІРёРґ"
-                >рџ‘— РџРµСЂРµРѕРґРµС‚СЊ РјРѕРґРµР»СЊ</button>
+                  data-tooltip="Р вЂ™Р ВµРЎР‚Р Р…РЎС“РЎвЂљРЎРЉ Р С•Р Т‘Р ВµР В¶Р Т‘РЎС“ Р Р† Р С‘РЎРѓРЎвЂ¦Р С•Р Т‘Р Р…РЎвЂ№Р в„– Р Р†Р С‘Р Т‘"
+                >СЂСџвЂвЂ” Р СџР ВµРЎР‚Р ВµР С•Р Т‘Р ВµРЎвЂљРЎРЉ Р СР С•Р Т‘Р ВµР В»РЎРЉ</button>
               ) : (
                 <button
                   className="redress-btn has-tooltip"
                   onClick={handleGenerate}
                   disabled={isProcessing}
-                  data-tooltip="РџРµСЂРµРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ СЃ С‚РµРєСѓС‰РёРјРё РЅР°СЃС‚СЂРѕР№РєР°РјРё"
-                >рџ”„ РќРѕРІС‹Р№ РІР°СЂРёР°РЅС‚</button>
+                  data-tooltip="Р СџР ВµРЎР‚Р ВµР С–Р ВµР Р…Р ВµРЎР‚Р С‘РЎР‚Р С•Р Р†Р В°РЎвЂљРЎРЉ РЎРѓ РЎвЂљР ВµР С”РЎС“РЎвЂ°Р С‘Р СР С‘ Р Р…Р В°РЎРѓРЎвЂљРЎР‚Р С•Р в„–Р С”Р В°Р СР С‘"
+                >СЂСџвЂќвЂћ Р СњР С•Р Р†РЎвЂ№Р в„– Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ</button>
               )}
             </div>
 
-            {/* CARD DESIGNER CTA вЂ” removed from results, lives in "Р’ РґРІР° РєР»РёРєР°" mode only */}
+            {/* CARD DESIGNER CTA РІР‚вЂќ removed from results, lives in "Р вЂ™ Р Т‘Р Р†Р В° Р С”Р В»Р С‘Р С”Р В°" mode only */}
 
             {/* Iterative editing */}
             <div className="shot-modifier-block">
               <div className="shot-modifier-label">
-                {appMode === 'product' ? 'вњЏпёЏ РҐРѕС‚РёС‚Рµ С‡С‚Рѕ-С‚Рѕ РёР·РјРµРЅРёС‚СЊ РІ РєР°РґСЂРµ?' : 'вњЏпёЏ РҐРѕС‚РёС‚Рµ С‡С‚Рѕ-С‚Рѕ РёР·РјРµРЅРёС‚СЊ РІ РєР°РґСЂРµ?'}
+                {appMode === 'product' ? 'РІСљРЏРїС‘РЏ Р ТђР С•РЎвЂљР С‘РЎвЂљР Вµ РЎвЂЎРЎвЂљР С•-РЎвЂљР С• Р С‘Р В·Р СР ВµР Р…Р С‘РЎвЂљРЎРЉ Р Р† Р С”Р В°Р Т‘РЎР‚Р Вµ?' : 'РІСљРЏРїС‘РЏ Р ТђР С•РЎвЂљР С‘РЎвЂљР Вµ РЎвЂЎРЎвЂљР С•-РЎвЂљР С• Р С‘Р В·Р СР ВµР Р…Р С‘РЎвЂљРЎРЉ Р Р† Р С”Р В°Р Т‘РЎР‚Р Вµ?'}
               </div>
               <textarea className="modifier-input" rows={2} placeholder={
                 appMode === 'product'
-                  ? 'РќР°РїСЂРёРјРµСЂ: СЃРґРµР»Р°С‚СЊ С„РѕРЅ С‚РµРјРЅРµРµ, РґРѕР±Р°РІРёС‚СЊ Р±Р»РёРєРё, СѓР±СЂР°С‚СЊ С‚РµРЅРё, РїРѕРІРµСЂРЅСѓС‚СЊ С‚РѕРІР°СЂ'
-                  : 'РќР°РїСЂРёРјРµСЂ: СЃРґРµР»Р°С‚СЊ РјРѕРґРµР»СЊ РІС‹С€Рµ, РёР·РјРµРЅРёС‚СЊ С†РІРµС‚ РІРѕР»РѕСЃ, РґРѕР±Р°РІРёС‚СЊ РѕС‡РєРё, СѓР±СЂР°С‚СЊ С‚РµРЅРё'
+                  ? 'Р СњР В°Р С—РЎР‚Р С‘Р СР ВµРЎР‚: РЎРѓР Т‘Р ВµР В»Р В°РЎвЂљРЎРЉ РЎвЂћР С•Р Р… РЎвЂљР ВµР СР Р…Р ВµР Вµ, Р Т‘Р С•Р В±Р В°Р Р†Р С‘РЎвЂљРЎРЉ Р В±Р В»Р С‘Р С”Р С‘, РЎС“Р В±РЎР‚Р В°РЎвЂљРЎРЉ РЎвЂљР ВµР Р…Р С‘, Р С—Р С•Р Р†Р ВµРЎР‚Р Р…РЎС“РЎвЂљРЎРЉ РЎвЂљР С•Р Р†Р В°РЎР‚'
+                  : 'Р СњР В°Р С—РЎР‚Р С‘Р СР ВµРЎР‚: РЎРѓР Т‘Р ВµР В»Р В°РЎвЂљРЎРЉ Р СР С•Р Т‘Р ВµР В»РЎРЉ Р Р†РЎвЂ№РЎв‚¬Р Вµ, Р С‘Р В·Р СР ВµР Р…Р С‘РЎвЂљРЎРЉ РЎвЂ Р Р†Р ВµРЎвЂљ Р Р†Р С•Р В»Р С•РЎРѓ, Р Т‘Р С•Р В±Р В°Р Р†Р С‘РЎвЂљРЎРЉ Р С•РЎвЂЎР С”Р С‘, РЎС“Р В±РЎР‚Р В°РЎвЂљРЎРЉ РЎвЂљР ВµР Р…Р С‘'
               }
                 value={shotModifier} onChange={e => setShotModifier(e.target.value)} />
               <button className="modifier-regen-btn" onClick={handleRegenerate} disabled={!shotModifier.trim() || isProcessing}>
-                рџ”„ Р’РЅРµСЃС‚Рё РёР·РјРµРЅРµРЅРёСЏ
+                СЂСџвЂќвЂћ Р вЂ™Р Р…Р ВµРЎРѓРЎвЂљР С‘ Р С‘Р В·Р СР ВµР Р…Р ВµР Р…Р С‘РЎРЏ
               </button>
             </div>
 
             {/* Photoshoot */}
             <div className="photoshoot-block">
-              <div className="photoshoot-label">{appMode === 'product' ? 'рџ“ё РЎРґРµР»Р°С‚СЊ СЂР°СЃРєР°РґСЂРѕРІРєСѓ' : 'рџ“ё РЎРґРµР»Р°С‚СЊ С„РѕС‚РѕСЃРµСЃСЃРёСЋ'}</div>
+              <div className="photoshoot-label">{appMode === 'product' ? 'СЂСџвЂњС‘ Р РЋР Т‘Р ВµР В»Р В°РЎвЂљРЎРЉ РЎР‚Р В°РЎРѓР С”Р В°Р Т‘РЎР‚Р С•Р Р†Р С”РЎС“' : 'СЂСџвЂњС‘ Р РЋР Т‘Р ВµР В»Р В°РЎвЂљРЎРЉ РЎвЂћР С•РЎвЂљР С•РЎРѓР ВµРЎРѓРЎРѓР С‘РЎР‹'}</div>
               <p className="photoshoot-hint">
                 {appMode === 'product'
-                  ? 'Р“РµРЅРµСЂР°С†РёСЏ РЅРµСЃРєРѕР»СЊРєРёС… С„РѕС‚Рѕ С‚РѕРІР°СЂР° СЃ СЂР°Р·РЅС‹С… СЂР°РєСѓСЂСЃРѕРІ Рё РєРѕРјРїРѕР·РёС†РёР№'
-                  : 'Р“РµРЅРµСЂР°С†РёСЏ РЅРµСЃРєРѕР»СЊРєРёС… С„РѕС‚Рѕ СЃ СЂР°Р·РЅС‹С… СЂР°РєСѓСЂСЃРѕРІ'}
+                  ? 'Р вЂњР ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘РЎРЏ Р Р…Р ВµРЎРѓР С”Р С•Р В»РЎРЉР С”Р С‘РЎвЂ¦ РЎвЂћР С•РЎвЂљР С• РЎвЂљР С•Р Р†Р В°РЎР‚Р В° РЎРѓ РЎР‚Р В°Р В·Р Р…РЎвЂ№РЎвЂ¦ РЎР‚Р В°Р С”РЎС“РЎР‚РЎРѓР С•Р Р† Р С‘ Р С”Р С•Р СР С—Р С•Р В·Р С‘РЎвЂ Р С‘Р в„–'
+                  : 'Р вЂњР ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘РЎРЏ Р Р…Р ВµРЎРѓР С”Р С•Р В»РЎРЉР С”Р С‘РЎвЂ¦ РЎвЂћР С•РЎвЂљР С• РЎРѓ РЎР‚Р В°Р В·Р Р…РЎвЂ№РЎвЂ¦ РЎР‚Р В°Р С”РЎС“РЎР‚РЎРѓР С•Р Р†'}
               </p>
               <p className="photoshoot-hint" style={{fontSize:'0.72rem', opacity:0.6, marginTop:2}}>
                 {appMode === 'product'
-                  ? 'рџ“¦ Р¤РѕС‚Рѕ С‚РѕРІР°СЂР° Р±РµСЂС‘С‚СЃСЏ РёР· Р·Р°РіСЂСѓР¶РµРЅРЅС‹С… РІР°РјРё С„РѕС‚Рѕ, РЅРµ РёР· СЃРіРµРЅРµСЂРёСЂРѕРІР°РЅРЅРѕРіРѕ РєР°РґСЂР°'
-                  : 'рџ‘• РћРґРµР¶РґР° Р±РµСЂС‘С‚СЃСЏ РёР· Р·Р°РіСЂСѓР¶РµРЅРЅС‹С… РІР°РјРё С„РѕС‚Рѕ, РЅРµ РёР· СЃРіРµРЅРµСЂРёСЂРѕРІР°РЅРЅРѕРіРѕ РєР°РґСЂР°'}
+                  ? 'СЂСџвЂњВ¦ Р В¤Р С•РЎвЂљР С• РЎвЂљР С•Р Р†Р В°РЎР‚Р В° Р В±Р ВµРЎР‚РЎвЂРЎвЂљРЎРѓРЎРЏ Р С‘Р В· Р В·Р В°Р С–РЎР‚РЎС“Р В¶Р ВµР Р…Р Р…РЎвЂ№РЎвЂ¦ Р Р†Р В°Р СР С‘ РЎвЂћР С•РЎвЂљР С•, Р Р…Р Вµ Р С‘Р В· РЎРѓР С–Р ВµР Р…Р ВµРЎР‚Р С‘РЎР‚Р С•Р Р†Р В°Р Р…Р Р…Р С•Р С–Р С• Р С”Р В°Р Т‘РЎР‚Р В°'
+                  : 'СЂСџвЂвЂў Р С›Р Т‘Р ВµР В¶Р Т‘Р В° Р В±Р ВµРЎР‚РЎвЂРЎвЂљРЎРѓРЎРЏ Р С‘Р В· Р В·Р В°Р С–РЎР‚РЎС“Р В¶Р ВµР Р…Р Р…РЎвЂ№РЎвЂ¦ Р Р†Р В°Р СР С‘ РЎвЂћР С•РЎвЂљР С•, Р Р…Р Вµ Р С‘Р В· РЎРѓР С–Р ВµР Р…Р ВµРЎР‚Р С‘РЎР‚Р С•Р Р†Р В°Р Р…Р Р…Р С•Р С–Р С• Р С”Р В°Р Т‘РЎР‚Р В°'}
               </p>
 
-              {/* Calibration prompt вЂ” С‚РѕР»СЊРєРѕ РµСЃР»Рё РµСЃС‚СЊ С‡РµР»РѕРІРµРє-РјРѕРґРµР»СЊ */}
+              {/* Calibration prompt РІР‚вЂќ РЎвЂљР С•Р В»РЎРЉР С”Р С• Р ВµРЎРѓР В»Р С‘ Р ВµРЎРѓРЎвЂљРЎРЉ РЎвЂЎР ВµР В»Р С•Р Р†Р ВµР С”-Р СР С•Р Т‘Р ВµР В»РЎРЉ */}
               {(appMode === 'fashion' || (appMode === 'product' && productWithModel)) && !selectedSavedModelId && !(appMode === 'product' && !productWithModel) && (
                 <div className="calibration-prompt">
-                  <p className="calibration-prompt-text">рџ’Ў Р”Р»СЏ РјР°РєСЃРёРјР°Р»СЊРЅРѕР№ РєРѕРЅСЃРёСЃС‚РµРЅС‚РЅРѕСЃС‚Рё Р»РёС†Р° СЂРµРєРѕРјРµРЅРґСѓРµРј СЃРЅР°С‡Р°Р»Р° <strong>РѕС‚РєР°Р»РёР±СЂРѕРІР°С‚СЊ РјРѕРґРµР»СЊ</strong></p>
+                  <p className="calibration-prompt-text">СЂСџвЂ™РЋ Р вЂќР В»РЎРЏ Р СР В°Р С”РЎРѓР С‘Р СР В°Р В»РЎРЉР Р…Р С•Р в„– Р С”Р С•Р Р…РЎРѓР С‘РЎРѓРЎвЂљР ВµР Р…РЎвЂљР Р…Р С•РЎРѓРЎвЂљР С‘ Р В»Р С‘РЎвЂ Р В° РЎР‚Р ВµР С”Р С•Р СР ВµР Р…Р Т‘РЎС“Р ВµР С РЎРѓР Р…Р В°РЎвЂЎР В°Р В»Р В° <strong>Р С•РЎвЂљР С”Р В°Р В»Р С‘Р В±РЎР‚Р С•Р Р†Р В°РЎвЂљРЎРЉ Р СР С•Р Т‘Р ВµР В»РЎРЉ</strong></p>
                   <button className="calib-prompt-btn" onClick={() => openCalibration('photoshoot')}>
-                    рџЋЇ РћС‚РєР°Р»РёР±СЂРѕРІР°С‚СЊ РјРѕРґРµР»СЊ
+                    СЂСџР‹Р‡ Р С›РЎвЂљР С”Р В°Р В»Р С‘Р В±РЎР‚Р С•Р Р†Р В°РЎвЂљРЎРЉ Р СР С•Р Т‘Р ВµР В»РЎРЉ
                   </button>
                 </div>
               )}
 
               <div className="photoshoot-choice">
                 <button className="photoshoot-btn photoshoot-btn--3" onClick={() => handlePhotoshoot(3)} disabled={isPhotoshooting || isProcessing}>
-                  {isPhotoshooting ? 'вЏі Р“РµРЅРµСЂР°С†РёСЏ...' : photoshootImages.filter(Boolean).length > 0 ? `рџ“· РµС‰С‘ +3` : 'рџ“· 3 С„РѕС‚Рѕ'}
+                  {isPhotoshooting ? 'РІРЏС– Р вЂњР ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘РЎРЏ...' : photoshootImages.filter(Boolean).length > 0 ? `СЂСџвЂњВ· Р ВµРЎвЂ°РЎвЂ +3` : 'СЂСџвЂњВ· 3 РЎвЂћР С•РЎвЂљР С•'}
                 </button>
                 <button className="photoshoot-btn photoshoot-btn--5" onClick={() => handlePhotoshoot(5)} disabled={isPhotoshooting || isProcessing}>
-                  {isPhotoshooting ? 'вЏі Р“РµРЅРµСЂР°С†РёСЏ...' : photoshootImages.filter(Boolean).length > 0 ? `рџ“ё РµС‰С‘ +5` : 'рџ“ё 5 С„РѕС‚Рѕ'}
+                  {isPhotoshooting ? 'РІРЏС– Р вЂњР ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘РЎРЏ...' : photoshootImages.filter(Boolean).length > 0 ? `СЂСџвЂњС‘ Р ВµРЎвЂ°РЎвЂ +5` : 'СЂСџвЂњС‘ 5 РЎвЂћР С•РЎвЂљР С•'}
                 </button>
               </div>
             </div>
@@ -4763,7 +4763,7 @@ ${userProductInfo.trim()}
             {/* Photoshoot gallery */}
             {photoshootImages.length > 0 && (
               <div className="photoshoot-gallery">
-                <h4>рџ“· Р“Р°Р»РµСЂРµСЏ С„РѕС‚РѕСЃРµСЃСЃРёРё</h4>
+                <h4>СЂСџвЂњВ· Р вЂњР В°Р В»Р ВµРЎР‚Р ВµРЎРЏ РЎвЂћР С•РЎвЂљР С•РЎРѓР ВµРЎРѓРЎРѓР С‘Р С‘</h4>
                 <div className="photoshoot-grid">
                   {photoshootImages.map((img, i) => {
                     const versions = photoHistory[i];
@@ -4775,37 +4775,37 @@ ${userProductInfo.trim()}
                     <div key={i} className={`photoshoot-item ${hasEdits ? 'photoshoot-item--edited' : ''} ${isEditing ? 'photoshoot-item--processing' : ''}`}>
                       {displayImg ? (
                         <>
-                          <img src={displayImg} alt={`РљР°РґСЂ ${i+1}`} onClick={() => {
+                          <img src={displayImg} alt={`Р С™Р В°Р Т‘РЎР‚ ${i+1}`} onClick={() => {
                             const gallery = hasEdits ? versions : photoshootImages;
                             openLightboxGallery(gallery, hasEdits ? viewIdx : i);
                           }} style={{cursor:'pointer'}} />
                           {isEditing && (
                             <div className="photo-editing-overlay">
                               <div className="processing-spinner" style={{width:28,height:28}} />
-                              <span>Р РµРґР°РєС‚РёСЂСѓРµС‚СЃСЏ...</span>
+                              <span>Р В Р ВµР Т‘Р В°Р С”РЎвЂљР С‘РЎР‚РЎС“Р ВµРЎвЂљРЎРѓРЎРЏ...</span>
                             </div>
                           )}
                           {hasEdits && (
                             <>
-                              <span className="photo-edited-badge">вњЁ РР·РјРµРЅРµРЅРѕ ({versions.length - 1})</span>
+                              <span className="photo-edited-badge">РІСљРЃ Р ВР В·Р СР ВµР Р…Р ВµР Р…Р С• ({versions.length - 1})</span>
                               <div className="photo-history-nav">
                                 <button className="photo-history-btn" disabled={viewIdx <= 0} onClick={(e) => {
                                   e.stopPropagation();
                                   setPhotoViewIdx(prev => ({ ...prev, [i]: viewIdx - 1 }));
-                                }}>вЂ№</button>
+                                }}>РІР‚в„–</button>
                                 <span className="photo-history-counter">{viewIdx + 1}/{versions.length}</span>
                                 <button className="photo-history-btn" disabled={viewIdx >= versions.length - 1} onClick={(e) => {
                                   e.stopPropagation();
                                   setPhotoViewIdx(prev => ({ ...prev, [i]: viewIdx + 1 }));
-                                }}>вЂє</button>
+                                }}>РІР‚С”</button>
                               </div>
                             </>
                           )}
-                          <button className="edit-mini-btn" title="Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ СЌС‚РѕС‚ РєР°РґСЂ" onClick={(e) => {
+                          <button className="edit-mini-btn" title="Р В Р ВµР Т‘Р В°Р С”РЎвЂљР С‘РЎР‚Р С•Р Р†Р В°РЎвЂљРЎРЉ РЎРЊРЎвЂљР С•РЎвЂљ Р С”Р В°Р Т‘РЎР‚" onClick={(e) => {
                             e.stopPropagation();
                             setEditingPhotoIdx(i);
                             setPhotoEditText('');
-                          }}>вњЏпёЏ</button>
+                          }}>РІСљРЏРїС‘РЏ</button>
                           <div className="download-mini-wrapper">
                             <button className="download-mini-btn" onClick={(e) => {
                               e.stopPropagation();
@@ -4814,14 +4814,14 @@ ${userProductInfo.trim()}
                               } else {
                                 const a = document.createElement('a'); a.href = displayImg; a.download = `SellerStudio_${i+1}_${Date.now()}.jpg`; a.click();
                               }
-                            }}>в¬‡пёЏ</button>
+                            }}>РІВ¬вЂЎРїС‘РЏ</button>
                             {downloadMenuIdx === i && hasEdits && (
                               <div className="download-menu">
                                 <button onClick={(e) => {
                                   e.stopPropagation();
                                   const a = document.createElement('a'); a.href = versions[versions.length - 1]; a.download = `SellerStudio_${i+1}_latest_${Date.now()}.jpg`; a.click();
                                   setDownloadMenuIdx(null);
-                                }}>рџ“ё РџРѕСЃР»РµРґРЅСЋСЋ РІРµСЂСЃРёСЋ</button>
+                                }}>СЂСџвЂњС‘ Р СџР С•РЎРѓР В»Р ВµР Т‘Р Р…РЎР‹РЎР‹ Р Р†Р ВµРЎР‚РЎРѓР С‘РЎР‹</button>
                                 <button onClick={(e) => {
                                   e.stopPropagation();
                                   versions.forEach((v, vi) => {
@@ -4830,7 +4830,7 @@ ${userProductInfo.trim()}
                                     }, vi * 300);
                                   });
                                   setDownloadMenuIdx(null);
-                                }}>рџ“¦ Р’СЃРµ РІРµСЂСЃРёРё ({versions.length})</button>
+                                }}>СЂСџвЂњВ¦ Р вЂ™РЎРѓР Вµ Р Р†Р ВµРЎР‚РЎРѓР С‘Р С‘ ({versions.length})</button>
                               </div>
                             )}
                           </div>
@@ -4849,48 +4849,48 @@ ${userProductInfo.trim()}
       </AnimatePresence>
 
       <footer className="app-footer">
-        <a href="/offer" target="_blank" rel="noreferrer">РџСѓР±Р»РёС‡РЅР°СЏ РѕС„РµСЂС‚Р°</a>
+        <a href="/offer" target="_blank" rel="noreferrer">Р СџРЎС“Р В±Р В»Р С‘РЎвЂЎР Р…Р В°РЎРЏ Р С•РЎвЂћР ВµРЎР‚РЎвЂљР В°</a>
       </footer>
 
       {/* OVERLAYS */}
       <AnimatePresence>
         {isProcessing && (
           <motion.div className="processing-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
-            <button className="processing-close-btn" onClick={() => setIsProcessing(false)} title="РЎРєСЂС‹С‚СЊ">вњ•</button>
+            <button className="processing-close-btn" onClick={() => setIsProcessing(false)} title="Р РЋР С”РЎР‚РЎвЂ№РЎвЂљРЎРЉ">РІСљвЂў</button>
             <div style={{width:'90%', maxWidth:480}}>
               <TerminalOfMagic isActive={isProcessing} customMessage={processingMsg} />
-              <p className="processing-hint" style={{textAlign:'center', marginTop:12}}>РћР±С‹С‡РЅРѕ 30СЃ вЂ” 2 РјРёРЅ</p>
+              <p className="processing-hint" style={{textAlign:'center', marginTop:12}}>Р С›Р В±РЎвЂ№РЎвЂЎР Р…Р С• 30РЎРѓ РІР‚вЂќ 2 Р СР С‘Р Р…</p>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* РњРћР”РђР›РљРђ: Р›РѕРєР°С†РёСЏ */}
+      {/* Р СљР С›Р вЂќР С’Р вЂєР С™Р С’: Р вЂєР С•Р С”Р В°РЎвЂ Р С‘РЎРЏ */}
       <AnimatePresence>
         {showLocModal && (
           <motion.div className="modal-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={()=>setShowLocModal(false)}>
             <motion.div className="modal-content" initial={{scale:0.9}} animate={{scale:1}} exit={{scale:0.9}} onClick={e=>e.stopPropagation()}>
-              <div className="modal-title">рџ“Ќ РћС†РёС„СЂРѕРІР°С‚СЊ Р»РѕРєР°С†РёСЋ</div>
-              <input className="modal-input" placeholder="РќР°Р·РІР°РЅРёРµ (РЅР°РїСЂ. РЎС‚СѓРґРёСЏ Р’РµР»РµСЃ)" value={locName} onChange={e=>setLocName(e.target.value)} />
+              <div className="modal-title">СЂСџвЂњРЊ Р С›РЎвЂ Р С‘РЎвЂћРЎР‚Р С•Р Р†Р В°РЎвЂљРЎРЉ Р В»Р С•Р С”Р В°РЎвЂ Р С‘РЎР‹</div>
+              <input className="modal-input" placeholder="Р СњР В°Р В·Р Р†Р В°Р Р…Р С‘Р Вµ (Р Р…Р В°Р С—РЎР‚. Р РЋРЎвЂљРЎС“Р Т‘Р С‘РЎРЏ Р вЂ™Р ВµР В»Р ВµРЎРѓ)" value={locName} onChange={e=>setLocName(e.target.value)} />
               <div className="drop-zone" onClick={()=>locFileRef.current?.click()}
                 onDragOver={e=>{e.preventDefault();e.currentTarget.classList.add('dragging');}}
                 onDragLeave={e=>e.currentTarget.classList.remove('dragging')}
                 onDrop={e=>{e.preventDefault();e.currentTarget.classList.remove('dragging');handleLocFiles(e.dataTransfer.files);}}>
                 <input type="file" accept="image/*" multiple ref={locFileRef} style={{display:'none'}} onChange={e=>handleLocFiles(e.target.files)} />
-                <p className="drop-zone-text">рџ“ё РџРµСЂРµС‚Р°С‰РёС‚Рµ РёР»Рё РЅР°Р¶РјРёС‚Рµ</p>
-                <p className="drop-zone-hint">2-5 С„РѕС‚РѕРіСЂР°С„РёР№ Р»РѕРєР°С†РёРё СЃ СЂР°Р·РЅС‹С… СЂР°РєСѓСЂСЃРѕРІ</p>
+                <p className="drop-zone-text">СЂСџвЂњС‘ Р СџР ВµРЎР‚Р ВµРЎвЂљР В°РЎвЂ°Р С‘РЎвЂљР Вµ Р С‘Р В»Р С‘ Р Р…Р В°Р В¶Р СР С‘РЎвЂљР Вµ</p>
+                <p className="drop-zone-hint">2-5 РЎвЂћР С•РЎвЂљР С•Р С–РЎР‚Р В°РЎвЂћР С‘Р в„– Р В»Р С•Р С”Р В°РЎвЂ Р С‘Р С‘ РЎРѓ РЎР‚Р В°Р В·Р Р…РЎвЂ№РЎвЂ¦ РЎР‚Р В°Р С”РЎС“РЎР‚РЎРѓР С•Р Р†</p>
                 {locPreviews.length>0 && <div className="drop-zone-previews">{locPreviews.map((p,i)=><img key={i} src={p} alt="" style={{cursor:'zoom-in'}} onClick={(e) => { e.stopPropagation(); setLightboxSrc(p); }} />)}</div>}
               </div>
               <div className="modal-actions">
-                <button className="modal-btn-cancel" onClick={()=>{setShowLocModal(false);setLocName('');setLocPreviews([]);}}>РћС‚РјРµРЅР°</button>
-                <button className="modal-btn-primary" onClick={saveLoc} disabled={!locName.trim()||locPreviews.length<2}>РЎРѕС…СЂР°РЅРёС‚СЊ</button>
+                <button className="modal-btn-cancel" onClick={()=>{setShowLocModal(false);setLocName('');setLocPreviews([]);}}>Р С›РЎвЂљР СР ВµР Р…Р В°</button>
+                <button className="modal-btn-primary" onClick={saveLoc} disabled={!locName.trim()||locPreviews.length<2}>Р РЋР С•РЎвЂ¦РЎР‚Р В°Р Р…Р С‘РЎвЂљРЎРЉ</button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Р’РР—РђР Р”: РЎРѕР·РґР°РЅРёРµ РїРµСЂСЃРѕРЅР°Р¶Р° */}
+      {/* Р вЂ™Р ВР вЂ”Р С’Р В Р вЂќ: Р РЋР С•Р В·Р Т‘Р В°Р Р…Р С‘Р Вµ Р С—Р ВµРЎР‚РЎРѓР С•Р Р…Р В°Р В¶Р В° */}
       <AnimatePresence>
         {showPersonaWizard && (
           <PersonaWizard
@@ -4913,24 +4913,24 @@ ${userProductInfo.trim()}
         )}
       </AnimatePresence>
 
-      {/* РњРћР”РђР›РљРђ: LoRA РјРѕРґРµР»СЊ */}
+      {/* Р СљР С›Р вЂќР С’Р вЂєР С™Р С’: LoRA Р СР С•Р Т‘Р ВµР В»РЎРЉ */}
       <AnimatePresence>
         <LoraModal show={showLoraModal} onClose={()=>{setShowLoraModal(false);setLoraName('');setLoraPhotos({front:null,left34:null,right34:null,fullbody:null});}}
           onSave={saveLoraModel} loraName={loraName} setLoraName={setLoraName} loraPhotos={loraPhotos} setLoraPhotos={setLoraPhotos}
           authHeaders={(() => { const t = user?.accessToken; return t ? { Authorization: 'Bearer ' + t } : {}; })()} />
       </AnimatePresence>
 
-      {/* РњРћР”РђР›РљРђ: РЎРѕС…СЂР°РЅРёС‚СЊ СЃРіРµРЅРµСЂРёСЂРѕРІР°РЅРЅСѓСЋ РјРѕРґРµР»СЊ */}
+      {/* Р СљР С›Р вЂќР С’Р вЂєР С™Р С’: Р РЋР С•РЎвЂ¦РЎР‚Р В°Р Р…Р С‘РЎвЂљРЎРЉ РЎРѓР С–Р ВµР Р…Р ВµРЎР‚Р С‘РЎР‚Р С•Р Р†Р В°Р Р…Р Р…РЎС“РЎР‹ Р СР С•Р Т‘Р ВµР В»РЎРЉ */}
       <AnimatePresence>
         {showSaveModelModal && (
           <motion.div className="modal-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={()=>setShowSaveModelModal(false)}>
             <motion.div className="modal-content" initial={{scale:0.9}} animate={{scale:1}} exit={{scale:0.9}} onClick={e=>e.stopPropagation()}>
-              <div className="modal-title">в­ђ РЎРѕС…СЂР°РЅРёС‚СЊ РР-РјРѕРґРµР»СЊ</div>
-              <p className="modal-hint">Р”Р°Р№С‚Рµ РёРјСЏ СЌС‚РѕР№ РјРѕРґРµР»Рё РґР»СЏ РёСЃРїРѕР»СЊР·РѕРІР°РЅРёСЏ РІ Р±СѓРґСѓС‰РёС… РіРµРЅРµСЂР°С†РёСЏС…</p>
-              <input className="modal-input" placeholder="РќР°РїСЂРёРјРµСЂ: РђР»РёРЅР°, СЂС‹Р¶Р°СЏ" value={saveModelName} onChange={e=>setSaveModelName(e.target.value)} />
+              <div className="modal-title">РІВ­С’ Р РЋР С•РЎвЂ¦РЎР‚Р В°Р Р…Р С‘РЎвЂљРЎРЉ Р ВР В-Р СР С•Р Т‘Р ВµР В»РЎРЉ</div>
+              <p className="modal-hint">Р вЂќР В°Р в„–РЎвЂљР Вµ Р С‘Р СРЎРЏ РЎРЊРЎвЂљР С•Р в„– Р СР С•Р Т‘Р ВµР В»Р С‘ Р Т‘Р В»РЎРЏ Р С‘РЎРѓР С—Р С•Р В»РЎРЉР В·Р С•Р Р†Р В°Р Р…Р С‘РЎРЏ Р Р† Р В±РЎС“Р Т‘РЎС“РЎвЂ°Р С‘РЎвЂ¦ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘РЎРЏРЎвЂ¦</p>
+              <input className="modal-input" placeholder="Р СњР В°Р С—РЎР‚Р С‘Р СР ВµРЎР‚: Р С’Р В»Р С‘Р Р…Р В°, РЎР‚РЎвЂ№Р В¶Р В°РЎРЏ" value={saveModelName} onChange={e=>setSaveModelName(e.target.value)} />
               <div className="modal-actions">
-                <button className="modal-btn-cancel" onClick={()=>{setShowSaveModelModal(false);setSaveModelName('');}}>РћС‚РјРµРЅР°</button>
-                <button className="modal-btn-primary" onClick={saveGenModel} disabled={!saveModelName.trim()}>РЎРѕС…СЂР°РЅРёС‚СЊ</button>
+                <button className="modal-btn-cancel" onClick={()=>{setShowSaveModelModal(false);setSaveModelName('');}}>Р С›РЎвЂљР СР ВµР Р…Р В°</button>
+                <button className="modal-btn-primary" onClick={saveGenModel} disabled={!saveModelName.trim()}>Р РЋР С•РЎвЂ¦РЎР‚Р В°Р Р…Р С‘РЎвЂљРЎРЉ</button>
               </div>
             </motion.div>
           </motion.div>
@@ -4941,25 +4941,25 @@ ${userProductInfo.trim()}
       <AnimatePresence>
         {lightboxSrc && (
           <motion.div className="lightbox-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
-            <button className="lightbox-close" onClick={() => { setLightboxSrc(null); setLightboxGallery([]); }}>вњ•</button>
+            <button className="lightbox-close" onClick={() => { setLightboxSrc(null); setLightboxGallery([]); }}>РІСљвЂў</button>
             {lightboxGallery.length > 1 && (
               <button className="lightbox-nav lightbox-nav--prev" onClick={e => {
                 e.stopPropagation();
                 const newIdx = (lightboxIdx - 1 + lightboxGallery.length) % lightboxGallery.length;
                 setLightboxIdx(newIdx); setLightboxSrc(lightboxGallery[newIdx]);
-              }}>вЂ№</button>
+              }}>РІР‚в„–</button>
             )}
-            <img src={lightboxSrc} alt="РџСЂРѕСЃРјРѕС‚СЂ" className="lightbox-img" onClick={e => e.stopPropagation()} />
+            <img src={lightboxSrc} alt="Р СџРЎР‚Р С•РЎРѓР СР С•РЎвЂљРЎР‚" className="lightbox-img" onClick={e => e.stopPropagation()} />
             {lightboxGallery.length > 1 && (
               <button className="lightbox-nav lightbox-nav--next" onClick={e => {
                 e.stopPropagation();
                 const newIdx = (lightboxIdx + 1) % lightboxGallery.length;
                 setLightboxIdx(newIdx); setLightboxSrc(lightboxGallery[newIdx]);
-              }}>вЂє</button>
+              }}>РІР‚С”</button>
             )}
             <div className="lightbox-footer">
               {lightboxGallery.length > 1 && <span className="lightbox-counter">{lightboxIdx + 1} / {lightboxGallery.length}</span>}
-              <button className="lightbox-download" onClick={e => { e.stopPropagation(); const a = document.createElement('a'); a.href = lightboxSrc; a.download = `SellerStudio_${Date.now()}.jpg`; a.click(); }}>в¬‡пёЏ РЎРєР°С‡Р°С‚СЊ</button>
+              <button className="lightbox-download" onClick={e => { e.stopPropagation(); const a = document.createElement('a'); a.href = lightboxSrc; a.download = `SellerStudio_${Date.now()}.jpg`; a.click(); }}>РІВ¬вЂЎРїС‘РЏ Р РЋР С”Р В°РЎвЂЎР В°РЎвЂљРЎРЉ</button>
             </div>
           </motion.div>
         )}
@@ -4970,34 +4970,34 @@ ${userProductInfo.trim()}
         {editingPhotoIdx !== null && photoshootImages[editingPhotoIdx] && (
           <motion.div className="photo-editor-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => { setEditingPhotoIdx(null); setPhotoEditText(''); }}>
             <motion.div className="photo-editor-modal" initial={{scale:0.9, opacity:0}} animate={{scale:1, opacity:1}} exit={{scale:0.9, opacity:0}} onClick={e => e.stopPropagation()}>
-              <button className="photo-editor-close" onClick={() => { setEditingPhotoIdx(null); setPhotoEditText(''); }}>вњ•</button>
+              <button className="photo-editor-close" onClick={() => { setEditingPhotoIdx(null); setPhotoEditText(''); }}>РІСљвЂў</button>
               <div className="photo-editor-preview">
-                <img src={photoshootImages[editingPhotoIdx]} alt="Р РµРґР°РєС‚РёСЂСѓРµРјС‹Р№ РєР°РґСЂ" />
-                <span className="photo-editor-badge">РљР°РґСЂ {editingPhotoIdx + 1}</span>
+                <img src={photoshootImages[editingPhotoIdx]} alt="Р В Р ВµР Т‘Р В°Р С”РЎвЂљР С‘РЎР‚РЎС“Р ВµР СРЎвЂ№Р в„– Р С”Р В°Р Т‘РЎР‚" />
+                <span className="photo-editor-badge">Р С™Р В°Р Т‘РЎР‚ {editingPhotoIdx + 1}</span>
               </div>
               <div className="photo-editor-controls">
-                <p className="photo-editor-hint">РћРїРёС€РёС‚Рµ, С‡С‚Рѕ РёР·РјРµРЅРёС‚СЊ РІ СЌС‚РѕРј РєР°РґСЂРµ:</p>
+                <p className="photo-editor-hint">Р С›Р С—Р С‘РЎв‚¬Р С‘РЎвЂљР Вµ, РЎвЂЎРЎвЂљР С• Р С‘Р В·Р СР ВµР Р…Р С‘РЎвЂљРЎРЉ Р Р† РЎРЊРЎвЂљР С•Р С Р С”Р В°Р Т‘РЎР‚Р Вµ:</p>
                 <textarea
                   className="photo-editor-input"
                   placeholder={appMode === 'product'
-                    ? 'РЎРґРµР»Р°Р№ С„РѕРЅ С‚РµРјРЅРµРµ, РґРѕР±Р°РІСЊ Р±Р»РёРєРё, СѓР±РµСЂРё С‚РµРЅРё, РїРѕРІРµСЂРЅРё С‚РѕРІР°СЂ...'
-                    : 'РЈР±РµСЂРё С‚Р°С‚СѓРёСЂРѕРІРєСѓ, РґРѕР±Р°РІСЊ РѕС‡РєРё, СЃРјРµРЅРё С†РІРµС‚ РІРѕР»РѕСЃ...'}
+                    ? 'Р РЋР Т‘Р ВµР В»Р В°Р в„– РЎвЂћР С•Р Р… РЎвЂљР ВµР СР Р…Р ВµР Вµ, Р Т‘Р С•Р В±Р В°Р Р†РЎРЉ Р В±Р В»Р С‘Р С”Р С‘, РЎС“Р В±Р ВµРЎР‚Р С‘ РЎвЂљР ВµР Р…Р С‘, Р С—Р С•Р Р†Р ВµРЎР‚Р Р…Р С‘ РЎвЂљР С•Р Р†Р В°РЎР‚...'
+                    : 'Р Р€Р В±Р ВµРЎР‚Р С‘ РЎвЂљР В°РЎвЂљРЎС“Р С‘РЎР‚Р С•Р Р†Р С”РЎС“, Р Т‘Р С•Р В±Р В°Р Р†РЎРЉ Р С•РЎвЂЎР С”Р С‘, РЎРѓР СР ВµР Р…Р С‘ РЎвЂ Р Р†Р ВµРЎвЂљ Р Р†Р С•Р В»Р С•РЎРѓ...'}
                   value={photoEditText}
                   onChange={e => setPhotoEditText(e.target.value)}
                   rows={3}
                 />
                 <div className="photo-editor-quick-tags">
                   {(appMode === 'product'
-                    ? ['РЈР±СЂР°С‚СЊ С‚РµРЅРё', 'РЇСЂС‡Рµ СЃРІРµС‚', 'РўРµРјРЅРµРµ С„РѕРЅ', 'Р”РѕР±Р°РІРёС‚СЊ Р±Р»РёРєРё', 'Р”РѕР±Р°РІРёС‚СЊ С‚РµРєСЃС‚СѓСЂСѓ', 'Р”СЂСѓРіРѕР№ СЂР°РєСѓСЂСЃ']
-                    : ['РЈР±СЂР°С‚СЊ С‚Р°С‚СѓРёСЂРѕРІРєСѓ', 'Р”РѕР±Р°РІРёС‚СЊ РѕС‡РєРё', 'РЎРјРµРЅРёС‚СЊ С„РѕРЅ', 'РЈР±СЂР°С‚СЊ РїРёСЂСЃРёРЅРі', 'Р”СЂСѓРіР°СЏ РїСЂРёС‡С‘СЃРєР°', 'Р”РѕР±Р°РІРёС‚СЊ СѓР»С‹Р±РєСѓ']
+                    ? ['Р Р€Р В±РЎР‚Р В°РЎвЂљРЎРЉ РЎвЂљР ВµР Р…Р С‘', 'Р Р‡РЎР‚РЎвЂЎР Вµ РЎРѓР Р†Р ВµРЎвЂљ', 'Р СћР ВµР СР Р…Р ВµР Вµ РЎвЂћР С•Р Р…', 'Р вЂќР С•Р В±Р В°Р Р†Р С‘РЎвЂљРЎРЉ Р В±Р В»Р С‘Р С”Р С‘', 'Р вЂќР С•Р В±Р В°Р Р†Р С‘РЎвЂљРЎРЉ РЎвЂљР ВµР С”РЎРѓРЎвЂљРЎС“РЎР‚РЎС“', 'Р вЂќРЎР‚РЎС“Р С–Р С•Р в„– РЎР‚Р В°Р С”РЎС“РЎР‚РЎРѓ']
+                    : ['Р Р€Р В±РЎР‚Р В°РЎвЂљРЎРЉ РЎвЂљР В°РЎвЂљРЎС“Р С‘РЎР‚Р С•Р Р†Р С”РЎС“', 'Р вЂќР С•Р В±Р В°Р Р†Р С‘РЎвЂљРЎРЉ Р С•РЎвЂЎР С”Р С‘', 'Р РЋР СР ВµР Р…Р С‘РЎвЂљРЎРЉ РЎвЂћР С•Р Р…', 'Р Р€Р В±РЎР‚Р В°РЎвЂљРЎРЉ Р С—Р С‘РЎР‚РЎРѓР С‘Р Р…Р С–', 'Р вЂќРЎР‚РЎС“Р С–Р В°РЎРЏ Р С—РЎР‚Р С‘РЎвЂЎРЎвЂРЎРѓР С”Р В°', 'Р вЂќР С•Р В±Р В°Р Р†Р С‘РЎвЂљРЎРЉ РЎС“Р В»РЎвЂ№Р В±Р С”РЎС“']
                   ).map(tag => (
                     <button key={tag} className="photo-editor-tag" onClick={() => setPhotoEditText(prev => prev ? `${prev}, ${tag.toLowerCase()}` : tag.toLowerCase())}>{tag}</button>
                   ))}
                 </div>
                 <button className="photo-editor-submit" onClick={handlePhotoEdit} disabled={!photoEditText.trim()}>
-                  вњЁ РџСЂРёРјРµРЅРёС‚СЊ РёР·РјРµРЅРµРЅРёСЏ
+                  РІСљРЃ Р СџРЎР‚Р С‘Р СР ВµР Р…Р С‘РЎвЂљРЎРЉ Р С‘Р В·Р СР ВµР Р…Р ВµР Р…Р С‘РЎРЏ
                 </button>
-                <p className="photo-editor-hint" style={{fontSize:'0.7rem', opacity:0.5, textAlign:'center', marginTop:4}}>РњРѕРґР°Р» Р·Р°РєСЂРѕРµС‚СЃСЏ, СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РїРѕР№РґС‘С‚ РІ С„РѕРЅРµ</p>
+                <p className="photo-editor-hint" style={{fontSize:'0.7rem', opacity:0.5, textAlign:'center', marginTop:4}}>Р СљР С•Р Т‘Р В°Р В» Р В·Р В°Р С”РЎР‚Р С•Р ВµРЎвЂљРЎРѓРЎРЏ, РЎР‚Р ВµР Т‘Р В°Р С”РЎвЂљР С‘РЎР‚Р С•Р Р†Р В°Р Р…Р С‘Р Вµ Р С—Р С•Р в„–Р Т‘РЎвЂРЎвЂљ Р Р† РЎвЂћР С•Р Р…Р Вµ</p>
               </div>
             </motion.div>
           </motion.div>
@@ -5013,9 +5013,9 @@ ${userProductInfo.trim()}
             onSave={saveCalibratedModel}
             onStartCalibration={async () => {
               if (!user || user.isGuest || (user.isAnonymous && !user.isTelegramUser)) {
-                throw new Error('Р”Р»СЏ СЃРѕР·РґР°РЅРёСЏ РјРѕРґРµР»Рё РЅРµРѕР±С…РѕРґРёРјРѕ Р°РІС‚РѕСЂРёР·РѕРІР°С‚СЊСЃСЏ');
+                throw new Error('Р вЂќР В»РЎРЏ РЎРѓР С•Р В·Р Т‘Р В°Р Р…Р С‘РЎРЏ Р СР С•Р Т‘Р ВµР В»Р С‘ Р Р…Р ВµР С•Р В±РЎвЂ¦Р С•Р Т‘Р С‘Р СР С• Р В°Р Р†РЎвЂљР С•РЎР‚Р С‘Р В·Р С•Р Р†Р В°РЎвЂљРЎРЉРЎРѓРЎРЏ');
               }
-              // РљР°Р»РёР±СЂРѕРІРєР° РјРѕРґРµР»Рё С‚РµРїРµСЂСЊ Р±РµСЃРїР»Р°С‚РЅР°, РєСЂРµРґРёС‚С‹ РЅРµ СЃРїРёСЃС‹РІР°СЋС‚СЃСЏ.
+              // Р С™Р В°Р В»Р С‘Р В±РЎР‚Р С•Р Р†Р С”Р В° Р СР С•Р Т‘Р ВµР В»Р С‘ РЎвЂљР ВµР С—Р ВµРЎР‚РЎРЉ Р В±Р ВµРЎРѓР С—Р В»Р В°РЎвЂљР Р…Р В°, Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљРЎвЂ№ Р Р…Р Вµ РЎРѓР С—Р С‘РЎРѓРЎвЂ№Р Р†Р В°РЎР‹РЎвЂљРЎРѓРЎРЏ.
             }}
             modelPrompt={getCurrentModelPrompt()}
             modelRefImages={getCurrentModelRefs()}
@@ -5025,7 +5025,7 @@ ${userProductInfo.trim()}
         )}
       </AnimatePresence>
 
-      {/* в•ђв•ђв•ђ CARD COUNT SELECTION MODAL в•ђв•ђв•ђ */}
+      {/* РІвЂўС’РІвЂўС’РІвЂўС’ CARD COUNT SELECTION MODAL РІвЂўС’РІвЂўС’РІвЂўС’ */}
       <AnimatePresence>
         {showCardCountModal && (
           <motion.div
@@ -5043,8 +5043,8 @@ ${userProductInfo.trim()}
               transition={{type:'spring',stiffness:400,damping:25,mass:0.5}}
               onClick={e => e.stopPropagation()}
             >
-              <h3 className="card-count-title">рџЋЇ РЎРєРѕР»СЊРєРѕ РєР°СЂС‚РѕС‡РµРє СЃРґРµР»Р°С‚СЊ?</h3>
-              <p className="card-count-subtitle">РљР°Р¶РґР°СЏ РєР°СЂС‚РѕС‡РєР° = 1 РєСЂРµРґРёС‚</p>
+              <h3 className="card-count-title">СЂСџР‹Р‡ Р РЋР С”Р С•Р В»РЎРЉР С”Р С• Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР ВµР С” РЎРѓР Т‘Р ВµР В»Р В°РЎвЂљРЎРЉ?</h3>
+              <p className="card-count-subtitle">Р С™Р В°Р В¶Р Т‘Р В°РЎРЏ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р В° = 1 Р С”РЎР‚Р ВµР Т‘Р С‘РЎвЂљ</p>
               <div className="card-count-grid">
                 {[1, 2, 3, 4].map(n => (
                   <button
@@ -5053,7 +5053,7 @@ ${userProductInfo.trim()}
                     onClick={() => { setCardVariantCount(n); startCardGeneration(n); }}
                   >
                     <span className="card-count-number">{n}</span>
-                    <span className="card-count-label">{n === 1 ? 'РєР°СЂС‚РѕС‡РєР°' : (n < 5 ? 'РєР°СЂС‚РѕС‡РєРё' : 'РєР°СЂС‚РѕС‡РµРє')}</span>
+                    <span className="card-count-label">{n === 1 ? 'Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р В°' : (n < 5 ? 'Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р С‘' : 'Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР ВµР С”')}</span>
                   </button>
                 ))}
               </div>
@@ -5062,7 +5062,7 @@ ${userProductInfo.trim()}
                   type="number"
                   min="1"
                   max="20"
-                  placeholder="РЎРІРѕС‘ РєРѕР»РёС‡РµСЃС‚РІРѕ"
+                  placeholder="Р РЋР Р†Р С•РЎвЂ Р С”Р С•Р В»Р С‘РЎвЂЎР ВµРЎРѓРЎвЂљР Р†Р С•"
                   className="card-count-input"
                   value={customCardCount}
                   onChange={e => setCustomCardCount(e.target.value)}
@@ -5073,7 +5073,7 @@ ${userProductInfo.trim()}
                   disabled={!customCardCount || parseInt(customCardCount) < 1}
                   onClick={() => { const n = parseInt(customCardCount); if (n > 0) startCardGeneration(n); }}
                 >
-                  РЎРѕР·РґР°С‚СЊ в†’
+                  Р РЋР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ РІвЂ вЂ™
                 </button>
               </div>
             </motion.div>
@@ -5081,7 +5081,7 @@ ${userProductInfo.trim()}
         )}
       </AnimatePresence>
 
-      {/* в•ђв•ђв•ђ CARD EXAMPLES MODAL в•ђв•ђв•ђ */}
+      {/* РІвЂўС’РІвЂўС’РІвЂўС’ CARD EXAMPLES MODAL РІвЂўС’РІвЂўС’РІвЂўС’ */}
       <AnimatePresence>
         {showCardExamples && (
           <motion.div
@@ -5100,45 +5100,45 @@ ${userProductInfo.trim()}
               onClick={e => e.stopPropagation()}
             >
               <div className="card-examples-header">
-                <h3>РџСЂРёРјРµСЂС‹ РєР°СЂС‚РѕС‡РµРє РґРѕ / РїРѕСЃР»Рµ</h3>
-                <button className="card-examples-close" onClick={() => setShowCardExamples(false)}>вњ•</button>
+                <h3>Р СџРЎР‚Р С‘Р СР ВµРЎР‚РЎвЂ№ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР ВµР С” Р Т‘Р С• / Р С—Р С•РЎРѓР В»Р Вµ</h3>
+                <button className="card-examples-close" onClick={() => setShowCardExamples(false)}>РІСљвЂў</button>
               </div>
 
               <div className="card-examples-tabs">
                 <button
                   className={`card-examples-tab ${cardDesignStyle === 'natural' ? 'active' : ''}`}
                   onClick={() => setCardDesignStyle('natural')}
-                >рџЊї Р•СЃС‚РµСЃС‚РІРµРЅРЅР°СЏ</button>
+                >СЂСџРЉС— Р вЂўРЎРѓРЎвЂљР ВµРЎРѓРЎвЂљР Р†Р ВµР Р…Р Р…Р В°РЎРЏ</button>
                 <button
                   className={`card-examples-tab ${cardDesignStyle === 'epic' ? 'active' : ''}`}
                   onClick={() => setCardDesignStyle('epic')}
-                >рџ”Ґ Р­РїРёС‡РЅР°СЏ</button>
+                >СЂСџвЂќТђ Р В­Р С—Р С‘РЎвЂЎР Р…Р В°РЎРЏ</button>
               </div>
 
               <div className="card-examples-grid">
                 {/* Glass example */}
                 <div className="card-example-pair">
                   <div className="card-example-item">
-                    <div className="card-example-label">Р”Рѕ</div>
-                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-glass-before.jpg' : '/examples/cards/epic-glass-before.jpg'} alt="РЎС‚Р°РєР°РЅ РґРѕ" />
+                    <div className="card-example-label">Р вЂќР С•</div>
+                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-glass-before.jpg' : '/examples/cards/epic-glass-before.jpg'} alt="Р РЋРЎвЂљР В°Р С”Р В°Р Р… Р Т‘Р С•" />
                   </div>
-                  <div className="card-example-arrow">в†’</div>
+                  <div className="card-example-arrow">РІвЂ вЂ™</div>
                   <div className="card-example-item">
-                    <div className="card-example-label">РџРѕСЃР»Рµ</div>
-                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-glass-after.png' : '/examples/cards/epic-glass-after.png'} alt="РЎС‚Р°РєР°РЅ РїРѕСЃР»Рµ" />
+                    <div className="card-example-label">Р СџР С•РЎРѓР В»Р Вµ</div>
+                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-glass-after.png' : '/examples/cards/epic-glass-after.png'} alt="Р РЋРЎвЂљР В°Р С”Р В°Р Р… Р С—Р С•РЎРѓР В»Р Вµ" />
                   </div>
                 </div>
 
                 {/* Pajama example */}
                 <div className="card-example-pair">
                   <div className="card-example-item">
-                    <div className="card-example-label">Р”Рѕ</div>
-                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-pajama-before.png' : '/examples/cards/epic-pajama-before.jpg'} alt="РџРёР¶Р°РјР° РґРѕ" />
+                    <div className="card-example-label">Р вЂќР С•</div>
+                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-pajama-before.png' : '/examples/cards/epic-pajama-before.jpg'} alt="Р СџР С‘Р В¶Р В°Р СР В° Р Т‘Р С•" />
                   </div>
-                  <div className="card-example-arrow">в†’</div>
+                  <div className="card-example-arrow">РІвЂ вЂ™</div>
                   <div className="card-example-item">
-                    <div className="card-example-label">РџРѕСЃР»Рµ</div>
-                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-pajama-after.png' : '/examples/cards/epic-pajama-after.png'} alt="РџРёР¶Р°РјР° РїРѕСЃР»Рµ" />
+                    <div className="card-example-label">Р СџР С•РЎРѓР В»Р Вµ</div>
+                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-pajama-after.png' : '/examples/cards/epic-pajama-after.png'} alt="Р СџР С‘Р В¶Р В°Р СР В° Р С—Р С•РЎРѓР В»Р Вµ" />
                   </div>
                 </div>
               </div>
@@ -5147,26 +5147,26 @@ ${userProductInfo.trim()}
         )}
       </AnimatePresence>
 
-      {/* РњРћР”РђР›РљРђ: Р”РѕР±Р°РІР»РµРЅРёРµ/Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РєР°СЃС‚РѕРјРЅРѕРіРѕ С‡РёРїР° */}
+      {/* Р СљР С›Р вЂќР С’Р вЂєР С™Р С’: Р вЂќР С•Р В±Р В°Р Р†Р В»Р ВµР Р…Р С‘Р Вµ/Р В Р ВµР Т‘Р В°Р С”РЎвЂљР С‘РЎР‚Р С•Р Р†Р В°Р Р…Р С‘Р Вµ Р С”Р В°РЎРѓРЎвЂљР С•Р СР Р…Р С•Р С–Р С• РЎвЂЎР С‘Р С—Р В° */}
       <AnimatePresence>
         {(customChipModalSection || editingChip) && (
           <motion.div className="modal-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} 
             onClick={() => { setCustomChipModalSection(null); setEditingChip(null); setNewChipText(''); }}>
             <motion.div className="modal-content" initial={{scale:0.9}} animate={{scale:1}} exit={{scale:0.9}} onClick={e=>e.stopPropagation()}>
               <div className="modal-title">
-                {editingChip ? 'вњЏпёЏ Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ РІР°СЂРёР°РЅС‚' : (
-                  customChipModalSection === 'model' ? 'вћ• РЎРІРѕР№ РІР°СЂРёР°РЅС‚ РјРѕРґРµР»Рё' :
-                  customChipModalSection === 'pose' ? 'вћ• РЎРІРѕР№ РІР°СЂРёР°РЅС‚ РїРѕР·С‹' :
-                  'вћ• РЎРІРѕР№ РІР°СЂРёР°РЅС‚ С„РѕРЅР°'
+                {editingChip ? 'РІСљРЏРїС‘РЏ Р В Р ВµР Т‘Р В°Р С”РЎвЂљР С‘РЎР‚Р С•Р Р†Р В°РЎвЂљРЎРЉ Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ' : (
+                  customChipModalSection === 'model' ? 'РІС›вЂў Р РЋР Р†Р С•Р в„– Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ Р СР С•Р Т‘Р ВµР В»Р С‘' :
+                  customChipModalSection === 'pose' ? 'РІС›вЂў Р РЋР Р†Р С•Р в„– Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ Р С—Р С•Р В·РЎвЂ№' :
+                  'РІС›вЂў Р РЋР Р†Р С•Р в„– Р Р†Р В°РЎР‚Р С‘Р В°Р Р…РЎвЂљ РЎвЂћР С•Р Р…Р В°'
                 )}
               </div>
               <input 
                 className="modal-input" 
                 autoFocus 
                 placeholder={
-                  (editingChip?.section || customChipModalSection) === 'model' ? "РќР°РїСЂРёРјРµСЂ: СЂС‹Р¶Р°СЏ РґРµРІСѓС€РєР° РІ РѕС‡РєР°С…..." :
-                  (editingChip?.section || customChipModalSection) === 'pose' ? "РќР°РїСЂРёРјРµСЂ: РјРѕРґРµР»СЊ СЃРёРґРёС‚ РЅР° СЃС‚СѓР»Рµ..." :
-                  "РќР°РїСЂРёРјРµСЂ: РєРёСЂРїРёС‡РЅР°СЏ СЃС‚РµРЅР°, РЅРµРѕРЅРѕРІС‹Р№ СЃРІРµС‚..."
+                  (editingChip?.section || customChipModalSection) === 'model' ? "Р СњР В°Р С—РЎР‚Р С‘Р СР ВµРЎР‚: РЎР‚РЎвЂ№Р В¶Р В°РЎРЏ Р Т‘Р ВµР Р†РЎС“РЎв‚¬Р С”Р В° Р Р† Р С•РЎвЂЎР С”Р В°РЎвЂ¦..." :
+                  (editingChip?.section || customChipModalSection) === 'pose' ? "Р СњР В°Р С—РЎР‚Р С‘Р СР ВµРЎР‚: Р СР С•Р Т‘Р ВµР В»РЎРЉ РЎРѓР С‘Р Т‘Р С‘РЎвЂљ Р Р…Р В° РЎРѓРЎвЂљРЎС“Р В»Р Вµ..." :
+                  "Р СњР В°Р С—РЎР‚Р С‘Р СР ВµРЎР‚: Р С”Р С‘РЎР‚Р С—Р С‘РЎвЂЎР Р…Р В°РЎРЏ РЎРѓРЎвЂљР ВµР Р…Р В°, Р Р…Р ВµР С•Р Р…Р С•Р Р†РЎвЂ№Р в„– РЎРѓР Р†Р ВµРЎвЂљ..."
                 } 
                 value={newChipText} 
                 onChange={e=>setNewChipText(e.target.value)} 
@@ -5186,7 +5186,7 @@ ${userProductInfo.trim()}
                 }}
               />
               <div className="modal-actions">
-                <button className="modal-btn-cancel" onClick={()=>{ setCustomChipModalSection(null); setEditingChip(null); setNewChipText(''); }}>РћС‚РјРµРЅР°</button>
+                <button className="modal-btn-cancel" onClick={()=>{ setCustomChipModalSection(null); setEditingChip(null); setNewChipText(''); }}>Р С›РЎвЂљР СР ВµР Р…Р В°</button>
                 <button className="modal-btn-primary" onClick={() => {
                   if (editingChip) saveEditCustomChip();
                   else {
@@ -5194,7 +5194,7 @@ ${userProductInfo.trim()}
                     setCustomChipModalSection(null);
                   }
                 }} disabled={!newChipText.trim()}>
-                  {editingChip ? 'РЎРѕС…СЂР°РЅРёС‚СЊ' : 'Р”РѕР±Р°РІРёС‚СЊ'}
+                  {editingChip ? 'Р РЋР С•РЎвЂ¦РЎР‚Р В°Р Р…Р С‘РЎвЂљРЎРЉ' : 'Р вЂќР С•Р В±Р В°Р Р†Р С‘РЎвЂљРЎРЉ'}
                 </button>
               </div>
             </motion.div>
