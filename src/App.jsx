@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+﻿import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MODEL_PRESETS, POSE_PRESETS, BACKGROUND_PRESETS, ASPECT_RATIOS, CAMERA_ANGLES, getModelDetails, PRODUCT_CATEGORIES, PRODUCT_COMPOSITIONS, PRODUCT_BACKGROUNDS, PRODUCT_EFFECTS } from './data/presets';
 import { runBatchQueue, MAX_BATCH_SIZE, BATCH_CONFIRM_THRESHOLD, BATCH_CONCURRENCY } from './utils/batchQueue';
@@ -17,29 +17,29 @@ import { useAuth } from './contexts/AuthContext';
 import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt, patchLocation } from './lib/firestoreService';
 import { uploadBase64Image, compressImage, uploadImage, deleteImage, downloadStoragePathAsBase64 } from './lib/storageService';
 import { getSubscription, checkFeature, canGenerate, activatePlan } from './lib/subscriptionService';
-// CardLayerStudio removed — replaced by text-based card editing
+// CardLayerStudio removed вЂ” replaced by text-based card editing
 import './App.css';
 
-const MSGS = ['Анализируем текстуру ткани...','Выставляем студийный свет...','Строим 3D-модель фигуры...','Натягиваем одежду с учетом физики...','Рендерим финальный кадр...'];
+const MSGS = ['РђРЅР°Р»РёР·РёСЂСѓРµРј С‚РµРєСЃС‚СѓСЂСѓ С‚РєР°РЅРё...','Р’С‹СЃС‚Р°РІР»СЏРµРј СЃС‚СѓРґРёР№РЅС‹Р№ СЃРІРµС‚...','РЎС‚СЂРѕРёРј 3D-РјРѕРґРµР»СЊ С„РёРіСѓСЂС‹...','РќР°С‚СЏРіРёРІР°РµРј РѕРґРµР¶РґСѓ СЃ СѓС‡РµС‚РѕРј С„РёР·РёРєРё...','Р РµРЅРґРµСЂРёРј С„РёРЅР°Р»СЊРЅС‹Р№ РєР°РґСЂ...'];
 const initDetails = () => { const d={}; Object.keys(getModelDetails('female')).forEach(k=>{d[k]=null;}); return d; };
 
-// Safe JSON parser — handles Vercel timeouts that return HTML instead of JSON
+// Safe JSON parser вЂ” handles Vercel timeouts that return HTML instead of JSON
 const safeParseJSON = async (resp) => {
   // Check HTTP status first
   if (resp.status === 413) {
-    console.error('⚠️ 413 Payload Too Large — image files are too big');
-    return { success: false, error: 'Файл слишком большой. Попробуйте фото меньшего размера.' };
+    console.error('вљ пёЏ 413 Payload Too Large вЂ” image files are too big');
+    return { success: false, error: 'Р¤Р°Р№Р» СЃР»РёС€РєРѕРј Р±РѕР»СЊС€РѕР№. РџРѕРїСЂРѕР±СѓР№С‚Рµ С„РѕС‚Рѕ РјРµРЅСЊС€РµРіРѕ СЂР°Р·РјРµСЂР°.' };
   }
   const text = await resp.text();
   try {
     return JSON.parse(text);
   } catch {
     // Vercel returned HTML error page (timeout/crash)
-    console.error('⚠️ Non-JSON response from API:', resp.status, text.substring(0, 200));
+    console.error('вљ пёЏ Non-JSON response from API:', resp.status, text.substring(0, 200));
     if (text.includes('FUNCTION_INVOCATION_TIMEOUT') || text.includes('An error occurred')) {
-      return { success: false, error: 'Сервер не успел ответить (таймаут). Попробуйте ещё раз.' };
+      return { success: false, error: 'РЎРµСЂРІРµСЂ РЅРµ СѓСЃРїРµР» РѕС‚РІРµС‚РёС‚СЊ (С‚Р°Р№РјР°СѓС‚). РџРѕРїСЂРѕР±СѓР№С‚Рµ РµС‰С‘ СЂР°Р·.' };
     }
-    return { success: false, error: `Ошибка сервера (${resp.status}). Попробуйте позже.` };
+    return { success: false, error: `РћС€РёР±РєР° СЃРµСЂРІРµСЂР° (${resp.status}). РџРѕРїСЂРѕР±СѓР№С‚Рµ РїРѕР·Р¶Рµ.` };
   }
 };
 
@@ -124,7 +124,7 @@ function App() {
   const [locFiles, setLocFiles] = useState([]);
   const [locPreviews, setLocPreviews] = useState([]);
   const [selectedLocId, setSelectedLocId] = useState(null);
-  const [locBase64Cache, setLocBase64Cache] = useState({}); // id → base64 image array
+  const [locBase64Cache, setLocBase64Cache] = useState({}); // id в†’ base64 image array
   const locFileRef = useRef(null);
 
   // Saved models (LoRA)
@@ -192,12 +192,12 @@ function App() {
   const [showBatchConfirm, setShowBatchConfirm] = useState(false);
   const [pendingBatchTasks, setPendingBatchTasks] = useState(null);
 
-  // ═══ CUSTOM CHIP HELPERS ═══
-  const IMPROV_POSE = { id: 'improvisation', label: 'Импровизация', emoji: '🎲', prompt: 'random aesthetic fashion pose, natural dynamic body positioning, editorial spontaneous movement, varied creative posture' };
+  // в•ђв•ђв•ђ CUSTOM CHIP HELPERS в•ђв•ђв•ђ
+  const IMPROV_POSE = { id: 'improvisation', label: 'РРјРїСЂРѕРІРёР·Р°С†РёСЏ', emoji: 'рџЋІ', prompt: 'random aesthetic fashion pose, natural dynamic body positioning, editorial spontaneous movement, varied creative posture' };
 
   const addCustomChip = (section) => {
     if (!newChipText.trim()) { setAddingCustom(null); return; }
-    const chip = { id: `custom_${Date.now()}`, label: newChipText.trim(), prompt: newChipText.trim(), emoji: '✏️', isCustomChip: true };
+    const chip = { id: `custom_${Date.now()}`, label: newChipText.trim(), prompt: newChipText.trim(), emoji: 'вњЏпёЏ', isCustomChip: true };
     if (section === 'model') { 
       setCustomModelChips(prev => [...prev, chip]); 
       setCustomModelPrompt(''); 
@@ -247,13 +247,13 @@ function App() {
     if (foundPreset) return foundPreset.label;
     const foundCustom = customModelChips.find(c => c.id === activeModelDetailsId);
     if (foundCustom) return foundCustom.label;
-    return 'выбранной модели';
+    return 'РІС‹Р±СЂР°РЅРЅРѕР№ РјРѕРґРµР»Рё';
   };
 
-  // Is multi-model selected? (for showing Импровизация pose)
+  // Is multi-model selected? (for showing РРјРїСЂРѕРІРёР·Р°С†РёСЏ pose)
   const isMultiModel = !customModelPrompt && !selectedSavedModelId && (selectedModels.length + customModelChips.length) > 1;
 
-  // ═══ TOTAL SHOTS CALCULATION ═══
+  // в•ђв•ђв•ђ TOTAL SHOTS CALCULATION в•ђв•ђв•ђ
   const totalShots = React.useMemo(() => {
     if (appMode === 'quick') return 1;
 
@@ -323,7 +323,7 @@ function App() {
   // Download menu open state
   const [downloadMenuIdx, setDownloadMenuIdx] = useState(null);
 
-  // ═══ CARD DESIGNER (marketplace card) ═══
+  // в•ђв•ђв•ђ CARD DESIGNER (marketplace card) в•ђв•ђв•ђ
   const [cardDesignStyle, setCardDesignStyle] = useState('natural'); // 'natural' | 'epic'
   const [isCardGenerating, setIsCardGenerating] = useState(false);
   const [cardResult, setCardResult] = useState(null);
@@ -335,7 +335,7 @@ function App() {
   const [quickCardStyle, setQuickCardStyle] = useState('natural');
   const [quickWithModel, setQuickWithModel] = useState(false);
   const [quickCardText, setQuickCardText] = useState(null);
-  // [QUICK_MODE_V2] — Card generation + text-based editing
+  // [QUICK_MODE_V2] вЂ” Card generation + text-based editing
   const [quickMode, setQuickMode] = useState(() => {
     return localStorage.getItem('vton_quickMode') || 'card';
   }); // 'photo' | 'card'
@@ -370,7 +370,7 @@ function App() {
   const [isAbGenerating, setIsAbGenerating] = useState(false);
   const [confirmModal, setConfirmModal] = useState(null); // null | { type, cost, onConfirm }
 
-  // ═══ LOCALSTORAGE SYNC EFFECTS ═══
+  // в•ђв•ђв•ђ LOCALSTORAGE SYNC EFFECTS в•ђв•ђв•ђ
   useEffect(() => {
     localStorage.setItem('vton_appMode', appMode);
   }, [appMode]);
@@ -430,7 +430,7 @@ function App() {
   const [showModelPreviewSave, setShowModelPreviewSave] = useState(false);
   const [modelPreviewName, setModelPreviewName] = useState('');
 
-  // ═══ TELEGRAM BACK BUTTON ═══
+  // в•ђв•ђв•ђ TELEGRAM BACK BUTTON в•ђв•ђв•ђ
   // Show/hide Telegram's native back button based on app state
   useEffect(() => {
     if (!isTelegram) return;
@@ -460,13 +460,13 @@ function App() {
   useEffect(() => {
     if (!user || user.isGuest || (user.isAnonymous && !user.isTelegramUser)) return;
     
-    // Загружаем данные параллельно и асинхронно, не блокируя отрисовку интерфейса
+    // Р—Р°РіСЂСѓР¶Р°РµРј РґР°РЅРЅС‹Рµ РїР°СЂР°Р»Р»РµР»СЊРЅРѕ Рё Р°СЃРёРЅС…СЂРѕРЅРЅРѕ, РЅРµ Р±Р»РѕРєРёСЂСѓСЏ РѕС‚СЂРёСЃРѕРІРєСѓ РёРЅС‚РµСЂС„РµР№СЃР°
     getModels(user.uid)
       .then((models) => {
 
         setMyModels(models || []);
       })
-      .catch((err) => console.error('Ошибка загрузки моделей:', err));
+      .catch((err) => console.error('РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё РјРѕРґРµР»РµР№:', err));
 
     getLocations(user.uid)
       .then(async (locations) => {
@@ -485,11 +485,11 @@ function App() {
           loc => !loc.imageBase64 && loc.storagePaths && loc.storagePaths.length > 0
         );
         if (needsMigration.length > 0) {
-          console.log(`🔄 Migrating ${needsMigration.length} legacy location(s) via Firebase SDK...`);
+          console.log(`рџ”„ Migrating ${needsMigration.length} legacy location(s) via Firebase SDK...`);
           const uid = user.uid;
           for (const loc of needsMigration) {
             try {
-              // Use Firebase Storage SDK (auth-aware) — bypasses CORS and Storage Rules
+              // Use Firebase Storage SDK (auth-aware) вЂ” bypasses CORS and Storage Rules
               // Strategy 1: Firebase SDK getBytes (auth-aware, bypasses CORS)
               let b64arr = [];
               if (loc.storagePaths && loc.storagePaths.length > 0) {
@@ -497,9 +497,9 @@ function App() {
                   loc.storagePaths.slice(0, 5).map(path => downloadStoragePathAsBase64(path))
                 );
               }
-              // Strategy 2: fallback — direct URL fetch
+              // Strategy 2: fallback вЂ” direct URL fetch
               if (b64arr.filter(Boolean).length === 0 && loc.imageUrls && loc.imageUrls.length > 0) {
-                console.log(`↩️ SDK failed for '${loc.title}', trying direct URL fetch...`);
+                console.log(`в†©пёЏ SDK failed for '${loc.title}', trying direct URL fetch...`);
                 b64arr = await Promise.all(
                   loc.imageUrls.slice(0, 5).map(async (url) => {
                     try {
@@ -518,7 +518,7 @@ function App() {
               }
               // Strategy 3: Server-side Admin SDK migration (bypasses ALL client restrictions)
               if (b64arr.filter(Boolean).length === 0 && loc.storagePaths && loc.storagePaths.length > 0) {
-                console.log(`🖥️ Trying server-side migration for '${loc.title}'...`);
+                console.log(`рџ–ҐпёЏ Trying server-side migration for '${loc.title}'...`);
                 try {
                   const idToken = await user.getIdToken();
                   if (idToken) {
@@ -530,13 +530,13 @@ function App() {
                     const data = await resp.json();
                     if (data.ok && data.base64 && data.base64.length > 0) {
                       b64arr = data.base64;
-                      console.log(`✅ Server migration succeeded for '${loc.title}' (${data.count} images)`);
+                      console.log(`вњ… Server migration succeeded for '${loc.title}' (${data.count} images)`);
                     } else {
-                      console.warn(`⚠️ Server migration failed for '${loc.title}':`, data.error);
+                      console.warn(`вљ пёЏ Server migration failed for '${loc.title}':`, data.error);
                     }
                   }
                 } catch (srvErr) {
-                  console.warn(`⚠️ Server migration request failed:`, srvErr.message);
+                  console.warn(`вљ пёЏ Server migration request failed:`, srvErr.message);
                 }
               }
               const validB64 = b64arr.filter(Boolean);
@@ -547,55 +547,55 @@ function App() {
                 setMyLocations(prev => prev.map(l =>
                   l.id === loc.id ? { ...l, imageBase64: validB64 } : l
                 ));
-                console.log(`✅ Migrated loc '${loc.title}' (${validB64.length} images)`);
+                console.log(`вњ… Migrated loc '${loc.title}' (${validB64.length} images)`);
               } else {
-                console.warn(`⚠️ Could not migrate loc '${loc.title}' — all 3 strategies failed. Files may be permanently inaccessible.`);
+                console.warn(`вљ пёЏ Could not migrate loc '${loc.title}' вЂ” all 3 strategies failed. Files may be permanently inaccessible.`);
               }
             } catch (err) {
-              console.warn(`⚠️ Migration failed for loc '${loc.title}':`, err.message);
+              console.warn(`вљ пёЏ Migration failed for loc '${loc.title}':`, err.message);
             }
           }
-          console.log('✅ Location migration complete');
+          console.log('вњ… Location migration complete');
         }
       })
-      .catch((err) => console.error('Ошибка загрузки локаций:', err));
-    // Загрузка подписки
-    // Миграция legacy-подписок теперь происходит в /api/auth-telegram при входе,
-    // поэтому здесь просто читаем подписку по стабильному UID
+      .catch((err) => console.error('РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё Р»РѕРєР°С†РёР№:', err));
+    // Р—Р°РіСЂСѓР·РєР° РїРѕРґРїРёСЃРєРё
+    // РњРёРіСЂР°С†РёСЏ legacy-РїРѕРґРїРёСЃРѕРє С‚РµРїРµСЂСЊ РїСЂРѕРёСЃС…РѕРґРёС‚ РІ /api/auth-telegram РїСЂРё РІС…РѕРґРµ,
+    // РїРѕСЌС‚РѕРјСѓ Р·РґРµСЃСЊ РїСЂРѕСЃС‚Рѕ С‡РёС‚Р°РµРј РїРѕРґРїРёСЃРєСѓ РїРѕ СЃС‚Р°Р±РёР»СЊРЅРѕРјСѓ UID
     getSubscription(user.uid, user.email, user.telegramId)
       .then((sub) => {
         if (sub) setSubscription(sub);
       })
       .catch((err) => {
-        console.error('Ошибка загрузки подписки:', err);
+        console.error('РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё РїРѕРґРїРёСЃРєРё:', err);
         setSubscription({ plan: 'none', credits: 0, creditsTotal: 0 });
       });
   }, [user]);
 
-  // Обновляет баланс кредитов после генерации — переполучает подписку из Firestore
+  // РћР±РЅРѕРІР»СЏРµС‚ Р±Р°Р»Р°РЅСЃ РєСЂРµРґРёС‚РѕРІ РїРѕСЃР»Рµ РіРµРЅРµСЂР°С†РёРё вЂ” РїРµСЂРµРїРѕР»СѓС‡Р°РµС‚ РїРѕРґРїРёСЃРєСѓ РёР· Firestore
   const refreshCreditsFromResponse = async (_responseData) => {
     if (!user?.uid) return;
     try {
       const fresh = await getSubscription(user.uid, user.email, user.telegramId);
       if (fresh) setSubscription(fresh);
     } catch (_e) {
-      // Silent fail — UI balance stays until next reload
+      // Silent fail вЂ” UI balance stays until next reload
     }
   };
 
-  // Проверка успешной оплаты ЮKassa при возврате на сайт (return_url)
+  // РџСЂРѕРІРµСЂРєР° СѓСЃРїРµС€РЅРѕР№ РѕРїР»Р°С‚С‹ Р®Kassa РїСЂРё РІРѕР·РІСЂР°С‚Рµ РЅР° СЃР°Р№С‚ (return_url)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('payment') === 'success') {
       const plan = params.get('plan') || '';
-      setStatusText(`⏳ Платеж обрабатывается. Ваш тариф «${plan.toUpperCase()}» активируется...`);
+      setStatusText(`вЏі РџР»Р°С‚РµР¶ РѕР±СЂР°Р±Р°С‚С‹РІР°РµС‚СЃСЏ. Р’Р°С€ С‚Р°СЂРёС„ В«${plan.toUpperCase()}В» Р°РєС‚РёРІРёСЂСѓРµС‚СЃСЏ...`);
       setStatusType('success');
 
-      // Очищаем параметры из адресной строки без перезагрузки
+      // РћС‡РёС‰Р°РµРј РїР°СЂР°РјРµС‚СЂС‹ РёР· Р°РґСЂРµСЃРЅРѕР№ СЃС‚СЂРѕРєРё Р±РµР· РїРµСЂРµР·Р°РіСЂСѓР·РєРё
       const newUrl = window.location.pathname;
       window.history.replaceState({}, document.title, newUrl);
 
-      // Запускаем поллинг подписки в течение 12 секунд
+      // Р—Р°РїСѓСЃРєР°РµРј РїРѕР»Р»РёРЅРі РїРѕРґРїРёСЃРєРё РІ С‚РµС‡РµРЅРёРµ 12 СЃРµРєСѓРЅРґ
       if (user && user.uid) {
         let attempts = 0;
         const interval = setInterval(async () => {
@@ -604,7 +604,7 @@ function App() {
             const sub = await getSubscription(user.uid, user.email, user.telegramId);
             if (sub && sub.plan === plan) {
               setSubscription(sub);
-              setStatusText(`✅ Тариф «${plan.toUpperCase()}» успешно активирован! Начислено ${sub.credits} кадров.`);
+              setStatusText(`вњ… РўР°СЂРёС„ В«${plan.toUpperCase()}В» СѓСЃРїРµС€РЅРѕ Р°РєС‚РёРІРёСЂРѕРІР°РЅ! РќР°С‡РёСЃР»РµРЅРѕ ${sub.credits} РєР°РґСЂРѕРІ.`);
               setStatusType('success');
               clearInterval(interval);
             }
@@ -627,7 +627,7 @@ function App() {
     try {
       const idToken = await user.getIdToken();
       console.log('[Payment] Starting payment for plan:', planId, 'uid:', user.uid);
-      // Шаг 1: Создаём платёжную сессию ЮKassa на бэкенде
+      // РЁР°Рі 1: РЎРѕР·РґР°С‘Рј РїР»Р°С‚С‘Р¶РЅСѓСЋ СЃРµСЃСЃРёСЋ Р®Kassa РЅР° Р±СЌРєРµРЅРґРµ
       const invoiceResp = await fetch('/api/create-payment', {
         method: 'POST',
         headers: { 
@@ -641,27 +641,27 @@ function App() {
       console.log('[Payment] API response body:', JSON.stringify(invoiceData));
 
       if (!invoiceData.ok || !invoiceData.invoiceLink) {
-        throw new Error(invoiceData.error || 'Не удалось создать платеж');
+        throw new Error(invoiceData.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РїР»Р°С‚РµР¶');
       }
 
-      // Шаг 2: Перенаправляем пользователя на форму оплаты ЮKassa
+      // РЁР°Рі 2: РџРµСЂРµРЅР°РїСЂР°РІР»СЏРµРј РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РЅР° С„РѕСЂРјСѓ РѕРїР»Р°С‚С‹ Р®Kassa
       const paymentUrl = invoiceData.invoiceLink;
       console.log('[Payment] Redirecting to:', paymentUrl);
       
       setShowPricing(false);
-      setStatusText('⏳ Перенаправляем на защищенную страницу оплаты ЮKassa...');
+      setStatusText('вЏі РџРµСЂРµРЅР°РїСЂР°РІР»СЏРµРј РЅР° Р·Р°С‰РёС‰РµРЅРЅСѓСЋ СЃС‚СЂР°РЅРёС†Сѓ РѕРїР»Р°С‚С‹ Р®Kassa...');
       setStatusType('success');
 
       if (window.Telegram?.WebApp?.openLink) {
-        // Открываем платежный шлюз прямо в Telegram
+        // РћС‚РєСЂС‹РІР°РµРј РїР»Р°С‚РµР¶РЅС‹Р№ С€Р»СЋР· РїСЂСЏРјРѕ РІ Telegram
         window.Telegram.WebApp.openLink(paymentUrl);
       } else {
-        // Fallback для обычного веб-интерфейса
+        // Fallback РґР»СЏ РѕР±С‹С‡РЅРѕРіРѕ РІРµР±-РёРЅС‚РµСЂС„РµР№СЃР°
         window.location.href = paymentUrl;
       }
     } catch (err) {
-      console.error('[Payment] Ошибка оплаты:', err);
-      setStatusText(`Ошибка: ${err.message}`);
+      console.error('[Payment] РћС€РёР±РєР° РѕРїР»Р°С‚С‹:', err);
+      setStatusText(`РћС€РёР±РєР°: ${err.message}`);
       setStatusType('error');
     } finally {
       setPricingLoading(false);
@@ -671,7 +671,7 @@ function App() {
   // Disable subscription auto-renew while keeping the paid period active.
   const handleCancelAutoRenew = async () => {
     if (!user) return;
-    if (!window.confirm('Вы действительно хотите отключить автопродление вашей подписки?')) return;
+    if (!window.confirm('Р’С‹ РґРµР№СЃС‚РІРёС‚РµР»СЊРЅРѕ С…РѕС‚РёС‚Рµ РѕС‚РєР»СЋС‡РёС‚СЊ Р°РІС‚РѕРїСЂРѕРґР»РµРЅРёРµ РІР°С€РµР№ РїРѕРґРїРёСЃРєРё?')) return;
 
     setCancelingSubscription(true);
     try {
@@ -687,14 +687,14 @@ function App() {
       const data = await resp.json();
 
       if (!data.ok) {
-        throw new Error(data.error || 'Не удалось отключить автопродление');
+        throw new Error(data.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РєР»СЋС‡РёС‚СЊ Р°РІС‚РѕРїСЂРѕРґР»РµРЅРёРµ');
       }
 
       setSubscription(prev => ({ ...prev, autoRenew: false }));
-      alert('Автопродление подписки отключено. Тариф продолжит действовать до конца оплаченного периода.');
+      alert('РђРІС‚РѕРїСЂРѕРґР»РµРЅРёРµ РїРѕРґРїРёСЃРєРё РѕС‚РєР»СЋС‡РµРЅРѕ. РўР°СЂРёС„ РїСЂРѕРґРѕР»Р¶РёС‚ РґРµР№СЃС‚РІРѕРІР°С‚СЊ РґРѕ РєРѕРЅС†Р° РѕРїР»Р°С‡РµРЅРЅРѕРіРѕ РїРµСЂРёРѕРґР°.');
     } catch (err) {
       console.error('Failed to cancel auto-renew:', err);
-      alert(err.message || 'Произошла ошибка при отмене автопродления');
+      alert(err.message || 'РџСЂРѕРёР·РѕС€Р»Р° РѕС€РёР±РєР° РїСЂРё РѕС‚РјРµРЅРµ Р°РІС‚РѕРїСЂРѕРґР»РµРЅРёСЏ');
     } finally {
       setCancelingSubscription(false);
     }
@@ -721,7 +721,7 @@ function App() {
     reader.readAsDataURL(file);
   });
 
-  // Multi-file upload — try Firebase Storage first, fall back to base64
+  // Multi-file upload вЂ” try Firebase Storage first, fall back to base64
   const handleFilesChange = useCallback(async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -730,7 +730,7 @@ function App() {
     const localUrls = newFiles.map(f => URL.createObjectURL(f));
     setPreviewUrls(localUrls);
     setGeneratedImage(null);
-    setStatusText('☁️ Загружаем фото...');
+    setStatusText('вЃпёЏ Р—Р°РіСЂСѓР¶Р°РµРј С„РѕС‚Рѕ...');
     setStatusType('');
     setIsUploading(true);
     try {
@@ -744,16 +744,16 @@ function App() {
           return url;
         } catch (storageErr) {
           // Fallback: convert to base64 data URL (works without Storage)
-          console.warn('⚠️ Storage unavailable, using base64 fallback:', storageErr.message);
+          console.warn('вљ пёЏ Storage unavailable, using base64 fallback:', storageErr.message);
           return await fileToBase64(compressed);
         }
       }));
       const allUrls = [...garmentUrls, ...newUrls].slice(0, 9);
       setGarmentUrls(allUrls);
-      setStatusText(`Загружено ${newFiles.length} вещ${newFiles.length === 1 ? 'ь' : newFiles.length < 5 ? 'и' : 'ей'}. Все будут надеты на модель.`);
+      setStatusText(`Р—Р°РіСЂСѓР¶РµРЅРѕ ${newFiles.length} РІРµС‰${newFiles.length === 1 ? 'СЊ' : newFiles.length < 5 ? 'Рё' : 'РµР№'}. Р’СЃРµ Р±СѓРґСѓС‚ РЅР°РґРµС‚С‹ РЅР° РјРѕРґРµР»СЊ.`);
     } catch (err) {
       console.error('Upload error:', err);
-      setStatusText('Ошибка загрузки. Попробуйте ещё раз.');
+      setStatusText('РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё. РџРѕРїСЂРѕР±СѓР№С‚Рµ РµС‰С‘ СЂР°Р·.');
       setStatusType('error');
     } finally {
       setIsUploading(false);
@@ -795,46 +795,46 @@ function App() {
     reader.readAsDataURL(blob);
   });
 
-  // ═══ RU→EN Prompt Mapping — ULTRA-DETAILED descriptors ═══
+  // в•ђв•ђв•ђ RUв†’EN Prompt Mapping вЂ” ULTRA-DETAILED descriptors в•ђв•ђв•ђ
   // Each characteristic MUST be described in enough detail that Gemini cannot skip it.
   const DETAIL_TO_PROMPT = {
-    // ─── BODY TYPE (critical — needs strongest overrides) ───
-    'Худощавое': 'BODY TYPE: slim lean body with thin limbs, narrow bony shoulders, visible collarbones and wrist bones, very low body fat, elongated proportions, delicate frame. The person must look noticeably thin.',
-    'Спортивное': 'BODY TYPE: athletic fit body with visibly toned muscles, defined arms and shoulders, flat toned stomach, healthy skin glow. Body of a person who exercises regularly. NOT overweight, NOT skinny.',
-    'Среднее': 'BODY TYPE: average normal healthy body build, neither thin nor heavy, standard proportions, BMI 20-25. Natural everyday person, not a fitness model.',
-    'Полное': 'BODY TYPE: obese plus-size body, BMI 35+, large round fat belly, thick heavy neck, prominent double chin, chubby cheeks, wide thick torso, US clothing size 3XL, heavy-set build with visible body fat and round chubby face. The person MUST look explicitly fat and overweight, not slim.',
-    'Мускулистое': 'BODY TYPE: muscular body with clearly visible muscle definition on arms, shoulders, chest and legs. Broad powerful shoulders, narrow waist (V-taper), low body fat 12-18%. Veins visible on forearms. Strong thick neck. The body MUST look like a fitness competitor or bodybuilder — NOT soft, NOT average, NOT overweight.',
+    // в”Ђв”Ђв”Ђ BODY TYPE (critical вЂ” needs strongest overrides) в”Ђв”Ђв”Ђ
+    'РҐСѓРґРѕС‰Р°РІРѕРµ': 'BODY TYPE: slim lean body with thin limbs, narrow bony shoulders, visible collarbones and wrist bones, very low body fat, elongated proportions, delicate frame. The person must look noticeably thin.',
+    'РЎРїРѕСЂС‚РёРІРЅРѕРµ': 'BODY TYPE: athletic fit body with visibly toned muscles, defined arms and shoulders, flat toned stomach, healthy skin glow. Body of a person who exercises regularly. NOT overweight, NOT skinny.',
+    'РЎСЂРµРґРЅРµРµ': 'BODY TYPE: average normal healthy body build, neither thin nor heavy, standard proportions, BMI 20-25. Natural everyday person, not a fitness model.',
+    'РџРѕР»РЅРѕРµ': 'BODY TYPE: obese plus-size body, BMI 35+, large round fat belly, thick heavy neck, prominent double chin, chubby cheeks, wide thick torso, US clothing size 3XL, heavy-set build with visible body fat and round chubby face. The person MUST look explicitly fat and overweight, not slim.',
+    'РњСѓСЃРєСѓР»РёСЃС‚РѕРµ': 'BODY TYPE: muscular body with clearly visible muscle definition on arms, shoulders, chest and legs. Broad powerful shoulders, narrow waist (V-taper), low body fat 12-18%. Veins visible on forearms. Strong thick neck. The body MUST look like a fitness competitor or bodybuilder вЂ” NOT soft, NOT average, NOT overweight.',
 
-    // ─── HAIR COLOR (specific tones, not generic words) ───
-    'Брюнетка': 'HAIR: rich dark brunette brown hair color', 'Брюнет': 'HAIR: rich dark brunette brown hair color',
-    'Шатенка': 'HAIR: warm chestnut medium-brown hair color with natural highlights', 'Шатен': 'HAIR: warm chestnut medium-brown hair color with natural highlights',
-    'Блондинка': 'HAIR: light golden blonde hair color', 'Блондин': 'HAIR: light golden blonde hair color',
-    'Рыжая': 'HAIR: vibrant red-ginger copper hair color (clearly red, not brown)', 'Рыжий': 'HAIR: vibrant red-ginger copper hair color (clearly red, not brown)',
-    'Чёрные': 'HAIR: jet black hair color, deep dark without any brown tint',
-    'Седые': 'HAIR: natural silver-gray hair color suggesting age 50+',
+    // в”Ђв”Ђв”Ђ HAIR COLOR (specific tones, not generic words) в”Ђв”Ђв”Ђ
+    'Р‘СЂСЋРЅРµС‚РєР°': 'HAIR: rich dark brunette brown hair color', 'Р‘СЂСЋРЅРµС‚': 'HAIR: rich dark brunette brown hair color',
+    'РЁР°С‚РµРЅРєР°': 'HAIR: warm chestnut medium-brown hair color with natural highlights', 'РЁР°С‚РµРЅ': 'HAIR: warm chestnut medium-brown hair color with natural highlights',
+    'Р‘Р»РѕРЅРґРёРЅРєР°': 'HAIR: light golden blonde hair color', 'Р‘Р»РѕРЅРґРёРЅ': 'HAIR: light golden blonde hair color',
+    'Р С‹Р¶Р°СЏ': 'HAIR: vibrant red-ginger copper hair color (clearly red, not brown)', 'Р С‹Р¶РёР№': 'HAIR: vibrant red-ginger copper hair color (clearly red, not brown)',
+    'Р§С‘СЂРЅС‹Рµ': 'HAIR: jet black hair color, deep dark without any brown tint',
+    'РЎРµРґС‹Рµ': 'HAIR: natural silver-gray hair color suggesting age 50+',
 
-    // ─── HAIR LENGTH (explicit visual description) ───
-    'Короткие': 'HAIR LENGTH: short hair above the ears, cropped close to the head',
-    'Средние': 'HAIR LENGTH: medium-length hair reaching the shoulders',
-    'Длинные': 'HAIR LENGTH: long flowing hair reaching well below the shoulders, past the chest',
-    'Бритая': 'HAIR LENGTH: completely shaved bald head, no hair visible', 'Бритый': 'HAIR LENGTH: completely shaved bald head, no hair visible',
+    // в”Ђв”Ђв”Ђ HAIR LENGTH (explicit visual description) в”Ђв”Ђв”Ђ
+    'РљРѕСЂРѕС‚РєРёРµ': 'HAIR LENGTH: short hair above the ears, cropped close to the head',
+    'РЎСЂРµРґРЅРёРµ': 'HAIR LENGTH: medium-length hair reaching the shoulders',
+    'Р”Р»РёРЅРЅС‹Рµ': 'HAIR LENGTH: long flowing hair reaching well below the shoulders, past the chest',
+    'Р‘СЂРёС‚Р°СЏ': 'HAIR LENGTH: completely shaved bald head, no hair visible', 'Р‘СЂРёС‚С‹Р№': 'HAIR LENGTH: completely shaved bald head, no hair visible',
 
-    // ─── EMOTION (describe facial muscles, not abstract feelings) ───
-    'Нейтральная': 'EXPRESSION: neutral calm relaxed face, mouth closed, no smile, eyes looking directly at camera',
-    'Лёгкая улыбка': 'EXPRESSION: gentle slight warm smile with lips slightly curved upward, soft friendly eyes',
-    'Серьёзная': 'EXPRESSION: serious intense focused expression, strong direct eye contact, slight frown, no smile', 'Серьёзный': 'EXPRESSION: serious intense focused expression, strong direct eye contact, slight frown, no smile',
-    'Уверенная': 'EXPRESSION: confident powerful self-assured expression, chin slightly raised, bold direct gaze, subtle commanding smile', 'Уверенный': 'EXPRESSION: confident powerful self-assured expression, chin slightly raised, bold direct gaze, subtle commanding smile',
-    'Дерзкая': 'EXPRESSION: bold edgy rebellious attitude, slightly squinted eyes, smirk, defiant look', 'Дерзкий': 'EXPRESSION: bold edgy rebellious attitude, slightly squinted eyes, smirk, defiant look',
+    // в”Ђв”Ђв”Ђ EMOTION (describe facial muscles, not abstract feelings) в”Ђв”Ђв”Ђ
+    'РќРµР№С‚СЂР°Р»СЊРЅР°СЏ': 'EXPRESSION: neutral calm relaxed face, mouth closed, no smile, eyes looking directly at camera',
+    'Р›С‘РіРєР°СЏ СѓР»С‹Р±РєР°': 'EXPRESSION: gentle slight warm smile with lips slightly curved upward, soft friendly eyes',
+    'РЎРµСЂСЊС‘Р·РЅР°СЏ': 'EXPRESSION: serious intense focused expression, strong direct eye contact, slight frown, no smile', 'РЎРµСЂСЊС‘Р·РЅС‹Р№': 'EXPRESSION: serious intense focused expression, strong direct eye contact, slight frown, no smile',
+    'РЈРІРµСЂРµРЅРЅР°СЏ': 'EXPRESSION: confident powerful self-assured expression, chin slightly raised, bold direct gaze, subtle commanding smile', 'РЈРІРµСЂРµРЅРЅС‹Р№': 'EXPRESSION: confident powerful self-assured expression, chin slightly raised, bold direct gaze, subtle commanding smile',
+    'Р”РµСЂР·РєР°СЏ': 'EXPRESSION: bold edgy rebellious attitude, slightly squinted eyes, smirk, defiant look', 'Р”РµСЂР·РєРёР№': 'EXPRESSION: bold edgy rebellious attitude, slightly squinted eyes, smirk, defiant look',
 
-    // ─── PIERCING (specific placement and visibility) ───
-    'Уши': 'PIERCING: visible small metallic stud earrings in both earlobes, must be clearly visible',
-    'Нос': 'PIERCING: visible small subtle nose ring or stud piercing on one nostril, must be clearly visible',
-    'Уши + Нос': 'PIERCING: visible metallic stud earrings in both earlobes AND a small nose ring/stud on one nostril — both must be clearly visible',
+    // в”Ђв”Ђв”Ђ PIERCING (specific placement and visibility) в”Ђв”Ђв”Ђ
+    'РЈС€Рё': 'PIERCING: visible small metallic stud earrings in both earlobes, must be clearly visible',
+    'РќРѕСЃ': 'PIERCING: visible small subtle nose ring or stud piercing on one nostril, must be clearly visible',
+    'РЈС€Рё + РќРѕСЃ': 'PIERCING: visible metallic stud earrings in both earlobes AND a small nose ring/stud on one nostril вЂ” both must be clearly visible',
 
-    // ─── TATTOO (MANDATORY visibility — these must actually appear) ───
-    'Минимализм': 'TATTOO (MANDATORY — MUST BE VISIBLE): small minimalist fine-line black ink tattoos on visible skin areas such as wrists, collarbones, or fingers. The tattoos MUST be clearly visible in the final image.',
-    'Рукав': 'TATTOO (MANDATORY — MUST BE VISIBLE): full detailed tattoo sleeve covering one entire arm from shoulder to wrist with intricate dark ink artwork. The tattooed arm MUST be clearly visible in the final image.',
-    'Шея': 'TATTOO (MANDATORY — MUST BE VISIBLE): prominent artistic tattoo on the neck/throat area with dark ink design clearly visible against the skin. The neck tattoo MUST be unmistakably present in the final image.',
+    // в”Ђв”Ђв”Ђ TATTOO (MANDATORY visibility вЂ” these must actually appear) в”Ђв”Ђв”Ђ
+    'РњРёРЅРёРјР°Р»РёР·Рј': 'TATTOO (MANDATORY вЂ” MUST BE VISIBLE): small minimalist fine-line black ink tattoos on visible skin areas such as wrists, collarbones, or fingers. The tattoos MUST be clearly visible in the final image.',
+    'Р СѓРєР°РІ': 'TATTOO (MANDATORY вЂ” MUST BE VISIBLE): full detailed tattoo sleeve covering one entire arm from shoulder to wrist with intricate dark ink artwork. The tattooed arm MUST be clearly visible in the final image.',
+    'РЁРµСЏ': 'TATTOO (MANDATORY вЂ” MUST BE VISIBLE): prominent artistic tattoo on the neck/throat area with dark ink design clearly visible against the skin. The neck tattoo MUST be unmistakably present in the final image.',
   };
 
   // Build detail string (supports arrays for multi-select fields like tattoo)
@@ -842,8 +842,8 @@ function App() {
     const parts = [];
     const details = detailsOverride || modelDetails;
     Object.entries(details).forEach(([k, v]) => {
-      // EXPLICIT NEGATIVE CONSTRAINTS — when "Нет" is selected, add hard prohibition
-      if (v === 'Нет' || (Array.isArray(v) && v.length === 1 && v[0] === 'Нет')) {
+      // EXPLICIT NEGATIVE CONSTRAINTS вЂ” when "РќРµС‚" is selected, add hard prohibition
+      if (v === 'РќРµС‚' || (Array.isArray(v) && v.length === 1 && v[0] === 'РќРµС‚')) {
         if (k === 'tattoo') {
           parts.push('absolutely NO tattoos anywhere on the body, completely clean unmarked skin, zero ink');
         }
@@ -854,7 +854,7 @@ function App() {
       }
       if (!v) return;
       if (Array.isArray(v)) {
-        const filtered = v.filter(x => x !== 'Нет');
+        const filtered = v.filter(x => x !== 'РќРµС‚');
         filtered.forEach(item => {
           parts.push(DETAIL_TO_PROMPT[item] || item);
         });
@@ -867,7 +867,7 @@ function App() {
     return parts.length ? `, ${parts.join(', ')}` : '';
   };
 
-  // ═══ AUTH FETCH: добавляет Firebase ID Token ко всем API-запросам ═══
+  // в•ђв•ђв•ђ AUTH FETCH: РґРѕР±Р°РІР»СЏРµС‚ Firebase ID Token РєРѕ РІСЃРµРј API-Р·Р°РїСЂРѕСЃР°Рј в•ђв•ђв•ђ
   const authFetch = async (url, options = {}) => {
     const token = user ? await user.getIdToken() : null;
     return fetch(url, {
@@ -882,24 +882,24 @@ function App() {
   const handleGenerate = async (skipConfirm = false) => {
     if (!garmentUrls.length) return;
 
-    // ═══ SUBSCRIPTION CHECK ═══
+    // в•ђв•ђв•ђ SUBSCRIPTION CHECK в•ђв•ђв•ђ
     if (!canGenerate(subscription)) {
       setShowPricing(true);
-      setStatusText('⚡ Для генерации нужен активный тариф'); setStatusType('error');
+      setStatusText('вљЎ Р”Р»СЏ РіРµРЅРµСЂР°С†РёРё РЅСѓР¶РµРЅ Р°РєС‚РёРІРЅС‹Р№ С‚Р°СЂРёС„'); setStatusType('error');
       return;
     }
     if ((subscription.credits || 0) < totalShots) {
-      setStatusText(`⚡ Недостаточно кредитов: нужно ${totalShots}, доступно ${subscription.credits || 0}`); setStatusType('error');
+      setStatusText(`вљЎ РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РєСЂРµРґРёС‚РѕРІ: РЅСѓР¶РЅРѕ ${totalShots}, РґРѕСЃС‚СѓРїРЅРѕ ${subscription.credits || 0}`); setStatusType('error');
       return;
     }
 
-    // Лимит 20 генераций за раз
+    // Р›РёРјРёС‚ 20 РіРµРЅРµСЂР°С†РёР№ Р·Р° СЂР°Р·
     if (totalShots > 20) {
-      setStatusText('⚠️ Превышен лимит: максимум 20 генераций за раз.'); setStatusType('error');
+      setStatusText('вљ пёЏ РџСЂРµРІС‹С€РµРЅ Р»РёРјРёС‚: РјР°РєСЃРёРјСѓРј 20 РіРµРЅРµСЂР°С†РёР№ Р·Р° СЂР°Р·.'); setStatusType('error');
       return;
     }
 
-    // Если кадров >= 6, запрашиваем подтверждение
+    // Р•СЃР»Рё РєР°РґСЂРѕРІ >= 6, Р·Р°РїСЂР°С€РёРІР°РµРј РїРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ
     if (totalShots >= 6 && !skipConfirm) {
       triggerConfirm('batch', totalShots, () => handleGenerate(true));
       return;
@@ -907,31 +907,31 @@ function App() {
 
     const runBatchGeneration = async () => {
       setIsProcessing(true); setGeneratedImage(null); setStatusText('');
-      setProcessingMsg('Подготавливаем исходники...');
+      setProcessingMsg('РџРѕРґРіРѕС‚Р°РІР»РёРІР°РµРј РёСЃС…РѕРґРЅРёРєРё...');
       
       let msgI = 0;
       const iv = setInterval(() => { 
         if (totalShots === 1) {
-          setProcessingMsg(msgI < MSGS.length ? MSGS[msgI++] : 'Финальные штрихи...'); 
+          setProcessingMsg(msgI < MSGS.length ? MSGS[msgI++] : 'Р¤РёРЅР°Р»СЊРЅС‹Рµ С€С‚СЂРёС…Рё...'); 
         }
       }, 8000);
 
       try {
-        // Формируем плоский список задач
+        // Р¤РѕСЂРјРёСЂСѓРµРј РїР»РѕСЃРєРёР№ СЃРїРёСЃРѕРє Р·Р°РґР°С‡
         const tasks = [];
 
         if (appMode === 'product') {
-          // Композиции
-          const compsToUse = customPoseText.trim() ? [{ id: 'custom', prompt: customPoseText.trim(), label: 'Своя композиция' }] : selectedProductCompositions;
-          // Фоны
+          // РљРѕРјРїРѕР·РёС†РёРё
+          const compsToUse = customPoseText.trim() ? [{ id: 'custom', prompt: customPoseText.trim(), label: 'РЎРІРѕСЏ РєРѕРјРїРѕР·РёС†РёСЏ' }] : selectedProductCompositions;
+          // Р¤РѕРЅС‹
           const bgsToUse = (customProductBg.trim() || selectedLocId) 
             ? [{ id: selectedLocId || 'custom', prompt: customProductBg.trim(), isLoc: !!selectedLocId }]
             : selectedProductBgs;
-          // Спецэффекты
+          // РЎРїРµС†СЌС„С„РµРєС‚С‹
           const effectsToUse = customProductEffectText.trim()
-            ? [{ id: 'custom', prompt: customProductEffectText.trim(), label: 'Свой эффект' }]
+            ? [{ id: 'custom', prompt: customProductEffectText.trim(), label: 'РЎРІРѕР№ СЌС„С„РµРєС‚' }]
             : selectedProductEffects;
-          // Форматы
+          // Р¤РѕСЂРјР°С‚С‹
           const ratiosToUse = selectedRatios;
 
           compsToUse.forEach(comp => {
@@ -948,21 +948,21 @@ function App() {
           });
         } else {
           // appMode === 'fashion' (VTON)
-          // Модели
+          // РњРѕРґРµР»Рё
           const modelsToUse = (customModelPrompt.trim() || selectedSavedModelId)
             ? [{ id: selectedSavedModelId || 'custom', prompt: customModelPrompt.trim(), isSaved: !!selectedSavedModelId }]
             : [...selectedModels, ...customModelChips];
-          // Позы
+          // РџРѕР·С‹
           const posesToUse = customPoseText.trim()
-            ? [{ id: 'custom', prompt: customPoseText.trim(), label: 'Своя поза' }]
+            ? [{ id: 'custom', prompt: customPoseText.trim(), label: 'РЎРІРѕСЏ РїРѕР·Р°' }]
             : [...selectedPoses, ...customPoseChips];
-          // Ракурсы
+          // Р Р°РєСѓСЂСЃС‹
           const camerasToUse = selectedCameras;
-          // Фоны
+          // Р¤РѕРЅС‹
           const bgsToUse = (customBgText.trim() || selectedLocId)
             ? [{ id: selectedLocId || 'custom', prompt: customBgText.trim(), isLoc: !!selectedLocId }]
             : [...selectedBgs, ...customBgChips];
-          // Форматы
+          // Р¤РѕСЂРјР°С‚С‹
           const ratiosToUse = selectedRatios;
 
           modelsToUse.forEach(model => {
@@ -981,8 +981,8 @@ function App() {
           });
         }
 
-        // 1. Бронируем/списываем кредиты пакетно перед запуском
-        setProcessingMsg('⚡ Бронируем кредиты...');
+        // 1. Р‘СЂРѕРЅРёСЂСѓРµРј/СЃРїРёСЃС‹РІР°РµРј РєСЂРµРґРёС‚С‹ РїР°РєРµС‚РЅРѕ РїРµСЂРµРґ Р·Р°РїСѓСЃРєРѕРј
+        setProcessingMsg('вљЎ Р‘СЂРѕРЅРёСЂСѓРµРј РєСЂРµРґРёС‚С‹...');
         const deductResp = await authFetch('/api/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -993,20 +993,20 @@ function App() {
         });
         const deductData = await safeParseJSON(deductResp);
         if (!deductData.success) {
-          throw new Error(deductData.error || 'Не удалось списать кредиты');
+          throw new Error(deductData.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРїРёСЃР°С‚СЊ РєСЂРµРґРёС‚С‹');
         }
         refreshCreditsFromResponse(deductData);
 
-        // 2. Очередь выполнения задач с конкурентностью = 3
+        // 2. РћС‡РµСЂРµРґСЊ РІС‹РїРѕР»РЅРµРЅРёСЏ Р·Р°РґР°С‡ СЃ РєРѕРЅРєСѓСЂРµРЅС‚РЅРѕСЃС‚СЊСЋ = 3
         let completedCount = 0;
         let failedCount = 0;
         const results = [];
 
         const updateProgressText = () => {
           if (totalShots > 1) {
-            setProcessingMsg(`📸 Генерация: готово ${completedCount} из ${totalShots} кадров` + 
-              (failedCount > 0 ? ` (ошибок: ${failedCount})` : '') + 
-              `...\nПожалуйста, не закрывайте вкладку.`);
+            setProcessingMsg(`рџ“ё Р“РµРЅРµСЂР°С†РёСЏ: РіРѕС‚РѕРІРѕ ${completedCount} РёР· ${totalShots} РєР°РґСЂРѕРІ` + 
+              (failedCount > 0 ? ` (РѕС€РёР±РѕРє: ${failedCount})` : '') + 
+              `...\nРџРѕР¶Р°Р»СѓР№СЃС‚Р°, РЅРµ Р·Р°РєСЂС‹РІР°Р№С‚Рµ РІРєР»Р°РґРєСѓ.`);
           }
         };
 
@@ -1130,8 +1130,8 @@ function App() {
               setGeneratedImage(img);
               setImageHistory(prev => {
                 const label = appMode === 'product'
-                  ? `🎨 ${task.comp.label || 'Кадр'} (${task.variantIndex})`
-                  : `🎨 ${task.pose.label || 'Поза'} (${task.variantIndex})`;
+                  ? `рџЋЁ ${task.comp.label || 'РљР°РґСЂ'} (${task.variantIndex})`
+                  : `рџЋЁ ${task.pose.label || 'РџРѕР·Р°'} (${task.variantIndex})`;
                 const h = [...prev, { image: img, label }];
                 setHistoryIndex(h.length - 1);
                 return h;
@@ -1149,7 +1149,7 @@ function App() {
           }
         };
 
-        // Запуск очереди с concurrency = 3
+        // Р—Р°РїСѓСЃРє РѕС‡РµСЂРµРґРё СЃ concurrency = 3
         let taskIndex = 0;
         const worker = async () => {
           while (taskIndex < tasks.length) {
@@ -1166,7 +1166,7 @@ function App() {
 
         clearInterval(iv);
 
-        // ═══ REFUND кредитов за неудачные генерации ═══
+        // в•ђв•ђв•ђ REFUND РєСЂРµРґРёС‚РѕРІ Р·Р° РЅРµСѓРґР°С‡РЅС‹Рµ РіРµРЅРµСЂР°С†РёРё в•ђв•ђв•ђ
         if (failedCount > 0) {
           try {
             const refundResp = await authFetch('/api/generate-image', {
@@ -1177,7 +1177,7 @@ function App() {
             const refundData = await safeParseJSON(refundResp);
             if (refundData.success) {
               refreshCreditsFromResponse(refundData);
-              console.log(`💰 Refunded ${failedCount} credit(s) for failed generations`);
+              console.log(`рџ’° Refunded ${failedCount} credit(s) for failed generations`);
             }
           } catch (refundErr) {
             console.warn('Failed to refund credits:', refundErr.message);
@@ -1186,14 +1186,14 @@ function App() {
 
         const successItems = results.filter(r => r.success);
         if (successItems.length > 0) {
-          const pluralForm = successItems.length === 1 ? '' : (successItems.length < 5 ? 'а — листайте ◀▶' : ' — листайте ◀▶');
-          setStatusText(`Готово! ${successItems.length} вариант${pluralForm}${failedCount > 0 ? ` (${failedCount} не удалось — кредиты возвращены)` : ''}`); setStatusType('success');
+          const pluralForm = successItems.length === 1 ? '' : (successItems.length < 5 ? 'Р° вЂ” Р»РёСЃС‚Р°Р№С‚Рµ в—Ђв–¶' : ' вЂ” Р»РёСЃС‚Р°Р№С‚Рµ в—Ђв–¶');
+          setStatusText(`Р“РѕС‚РѕРІРѕ! ${successItems.length} РІР°СЂРёР°РЅС‚${pluralForm}${failedCount > 0 ? ` (${failedCount} РЅРµ СѓРґР°Р»РѕСЃСЊ вЂ” РєСЂРµРґРёС‚С‹ РІРѕР·РІСЂР°С‰РµРЅС‹)` : ''}`); setStatusType('success');
         } else {
-          setStatusText(`Ошибка: ${results[0]?.details || results[0]?.error || 'Неизвестная ошибка'}. Кредиты возвращены.`); setStatusType('error');
+          setStatusText(`РћС€РёР±РєР°: ${results[0]?.details || results[0]?.error || 'РќРµРёР·РІРµСЃС‚РЅР°СЏ РѕС€РёР±РєР°'}. РљСЂРµРґРёС‚С‹ РІРѕР·РІСЂР°С‰РµРЅС‹.`); setStatusType('error');
         }
 
       } catch (err) {
-        setStatusText(`Ошибка: ${err.message}`); setStatusType('error');
+        setStatusText(`РћС€РёР±РєР°: ${err.message}`); setStatusType('error');
         clearInterval(iv);
       } finally {
         setIsProcessing(false);
@@ -1212,7 +1212,7 @@ function App() {
     setLocPreviews(arr.map(f => URL.createObjectURL(f)));
   };
 
-  // Конвертация URL → base64 на клиенте (обходим проблемы Firebase Storage Rules)
+  // РљРѕРЅРІРµСЂС‚Р°С†РёСЏ URL в†’ base64 РЅР° РєР»РёРµРЅС‚Рµ (РѕР±С…РѕРґРёРј РїСЂРѕР±Р»РµРјС‹ Firebase Storage Rules)
   const urlToBase64Client = async (url) => {
     try {
       const resp = await fetch(url);
@@ -1230,19 +1230,19 @@ function App() {
     }
   };
 
-  // Выбор локации с предварительной конвертацией картинок в base64
+  // Р’С‹Р±РѕСЂ Р»РѕРєР°С†РёРё СЃ РїСЂРµРґРІР°СЂРёС‚РµР»СЊРЅРѕР№ РєРѕРЅРІРµСЂС‚Р°С†РёРµР№ РєР°СЂС‚РёРЅРѕРє РІ base64
   const selectLocation = async (locId) => {
     setSelectedLocId(locId);
-    if (!locId || locBase64Cache[locId]) return; // уже есть в кеше
+    if (!locId || locBase64Cache[locId]) return; // СѓР¶Рµ РµСЃС‚СЊ РІ РєРµС€Рµ
     const loc = myLocations.find(l => l.id === locId);
     if (!loc || !loc.imageUrls) return;
     const b64arr = await Promise.all(loc.imageUrls.slice(0, 5).map(urlToBase64Client));
     const valid = b64arr.filter(Boolean);
     if (valid.length > 0) {
       setLocBase64Cache(prev => ({ ...prev, [locId]: valid }));
-      console.log(`📍 Pre-fetched ${valid.length} loc images as base64 for loc ${locId}`);
+      console.log(`рџ“Ќ Pre-fetched ${valid.length} loc images as base64 for loc ${locId}`);
     } else {
-      console.warn(`⚠️ Could not pre-fetch any loc images for ${locId}, will use raw URLs`);
+      console.warn(`вљ пёЏ Could not pre-fetch any loc images for ${locId}, will use raw URLs`);
     }
   };
 
@@ -1250,9 +1250,9 @@ function App() {
     if (!locName.trim() || locFiles.length < 2 || !user) return;
     setIsSaving(true);
     try {
-      // PRIMARY: Сохраняем inline base64 (главный механизм — не зависит от Firebase Storage)
+      // PRIMARY: РЎРѕС…СЂР°РЅСЏРµРј inline base64 (РіР»Р°РІРЅС‹Р№ РјРµС…Р°РЅРёР·Рј вЂ” РЅРµ Р·Р°РІРёСЃРёС‚ РѕС‚ Firebase Storage)
       const imageBase64 = await Promise.all(locFiles.map(async (f) => {
-        const compressed = await compressImage(f, 500); // 500px — достаточно для AI-reference
+        const compressed = await compressImage(f, 500); // 500px вЂ” РґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РґР»СЏ AI-reference
         return new Promise((resolve) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result);
@@ -1261,9 +1261,9 @@ function App() {
         });
       }));
       const validBase64 = imageBase64.filter(Boolean);
-      if (validBase64.length === 0) throw new Error('Не удалось обработать фотографии');
+      if (validBase64.length === 0) throw new Error('РќРµ СѓРґР°Р»РѕСЃСЊ РѕР±СЂР°Р±РѕС‚Р°С‚СЊ С„РѕС‚РѕРіСЂР°С„РёРё');
 
-      // BONUS: пробуем загрузить в Firebase Storage (не критично если упадёт)
+      // BONUS: РїСЂРѕР±СѓРµРј Р·Р°РіСЂСѓР·РёС‚СЊ РІ Firebase Storage (РЅРµ РєСЂРёС‚РёС‡РЅРѕ РµСЃР»Рё СѓРїР°РґС‘С‚)
       let imageUrls = [];
       let storagePaths = [];
       try {
@@ -1274,29 +1274,29 @@ function App() {
         imageUrls = uploads.map(u => u.url);
         storagePaths = uploads.map(u => u.path);
       } catch (storageErr) {
-        console.warn('⚠️ Firebase Storage upload failed (non-critical):', storageErr.message);
-        // Продолжаем — у нас есть base64, этого достаточно
+        console.warn('вљ пёЏ Firebase Storage upload failed (non-critical):', storageErr.message);
+        // РџСЂРѕРґРѕР»Р¶Р°РµРј вЂ” Сѓ РЅР°СЃ РµСЃС‚СЊ base64, СЌС‚РѕРіРѕ РґРѕСЃС‚Р°С‚РѕС‡РЅРѕ
       }
 
       await saveLocation(user.uid, {
         title: locName.trim(),
-        imageUrls,      // может быть пустым если Storage недоступен
-        storagePaths,   // может быть пустым если Storage недоступен
+        imageUrls,      // РјРѕР¶РµС‚ Р±С‹С‚СЊ РїСѓСЃС‚С‹Рј РµСЃР»Рё Storage РЅРµРґРѕСЃС‚СѓРїРµРЅ
+        storagePaths,   // РјРѕР¶РµС‚ Р±С‹С‚СЊ РїСѓСЃС‚С‹Рј РµСЃР»Рё Storage РЅРµРґРѕСЃС‚СѓРїРµРЅ
         thumbnail: imageUrls[0] || null,
-        imageBase64: validBase64, // ГЛАВНЫЙ источник фото
+        imageBase64: validBase64, // Р“Р›РђР’РќР«Р™ РёСЃС‚РѕС‡РЅРёРє С„РѕС‚Рѕ
       });
       const locations = await getLocations(user.uid);
       setMyLocations(locations);
-      // Сразу заполняем кеш для новой локации
+      // РЎСЂР°Р·Сѓ Р·Р°РїРѕР»РЅСЏРµРј РєРµС€ РґР»СЏ РЅРѕРІРѕР№ Р»РѕРєР°С†РёРё
       if (validBase64.length > 0) {
         const newLocId = locations.find(l => l.title === locName.trim())?.id;
         if (newLocId) setLocBase64Cache(prev => ({ ...prev, [newLocId]: validBase64 }));
       }
       setShowLocModal(false); setLocName(''); setLocFiles([]); setLocPreviews([]);
-      setStatusText('📍 Локация сохранена!'); setStatusType('success');
+      setStatusText('рџ“Ќ Р›РѕРєР°С†РёСЏ СЃРѕС…СЂР°РЅРµРЅР°!'); setStatusType('success');
     } catch (err) {
-      console.error('Ошибка сохранения локации:', err);
-      setStatusText(`❌ Ошибка сохранения локации: ${err.message || 'Неизвестная ошибка'}`); setStatusType('error');
+      console.error('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ Р»РѕРєР°С†РёРё:', err);
+      setStatusText(`вќЊ РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ Р»РѕРєР°С†РёРё: ${err.message || 'РќРµРёР·РІРµСЃС‚РЅР°СЏ РѕС€РёР±РєР°'}`); setStatusType('error');
     }
     finally { setIsSaving(false); }
   };
@@ -1310,19 +1310,19 @@ function App() {
     if (selectedLocId === id) setSelectedLocId(null);
   };
 
-  // LoRA model save (Firebase) — base64-first, Storage optional
+  // LoRA model save (Firebase) вЂ” base64-first, Storage optional
   const saveLoraModel = async (photosOverride) => {
     if (!loraName.trim() || !user) return;
     setIsSaving(true);
     try {
       const photos = photosOverride || loraPhotos;
       const photoEntries = Object.entries(photos).filter(([, v]) => v);
-      if (photoEntries.length === 0) throw new Error('Нет фотографий для сохранения');
+      if (photoEntries.length === 0) throw new Error('РќРµС‚ С„РѕС‚РѕРіСЂР°С„РёР№ РґР»СЏ СЃРѕС…СЂР°РЅРµРЅРёСЏ');
 
-      // PRIMARY: base64 inline (гарантированно работает)
+      // PRIMARY: base64 inline (РіР°СЂР°РЅС‚РёСЂРѕРІР°РЅРЅРѕ СЂР°Р±РѕС‚Р°РµС‚)
       const imageBase64 = photoEntries.map(([, base64]) => base64);
 
-      // BONUS: Storage upload (не блокирует если упадёт)
+      // BONUS: Storage upload (РЅРµ Р±Р»РѕРєРёСЂСѓРµС‚ РµСЃР»Рё СѓРїР°РґС‘С‚)
       let imageUrls = [];
       let storagePaths = [];
       try {
@@ -1332,22 +1332,22 @@ function App() {
         imageUrls = uploads.map(u => u.url);
         storagePaths = uploads.map(u => u.path);
       } catch (storageErr) {
-        console.warn('⚠️ Storage upload failed (non-critical):', storageErr.message);
+        console.warn('вљ пёЏ Storage upload failed (non-critical):', storageErr.message);
       }
 
       await saveModel(user.uid, { name: loraName.trim(), type: 'lora', modelType: 'own_model', imageUrls, storagePaths, imageBase64, prompt: '' });
       const models = await getModels(user.uid);
       setMyModels(models);
       setShowLoraModal(false); setLoraName(''); setLoraPhotos({ front: null, left34: null, right34: null, fullbody: null });
-      setStatusText('⭐ Модель сохранена!'); setStatusType('success');
+      setStatusText('в­ђ РњРѕРґРµР»СЊ СЃРѕС…СЂР°РЅРµРЅР°!'); setStatusType('success');
     } catch (err) {
-      console.error('Ошибка сохранения модели:', err);
+      console.error('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ РјРѕРґРµР»Рё:', err);
       throw err;
     }
     finally { setIsSaving(false); }
   };
 
-  // Save generated model (Firebase) — base64-first, Storage optional
+  // Save generated model (Firebase) вЂ” base64-first, Storage optional
   const saveGenModel = async () => {
     if (!saveModelName.trim() || !generatedImage || !user) return;
     setIsSaving(true);
@@ -1367,23 +1367,23 @@ function App() {
         imageUrls = [url];
         storagePaths = [path];
       } catch (storageErr) {
-        console.warn('⚠️ Storage upload failed (non-critical):', storageErr.message);
+        console.warn('вљ пёЏ Storage upload failed (non-critical):', storageErr.message);
       }
 
       await saveModel(user.uid, { name: saveModelName.trim(), type: 'generated', imageUrls, storagePaths, imageBase64, prompt: mp });
       const models = await getModels(user.uid);
       setMyModels(models);
       setShowSaveModelModal(false); setSaveModelName('');
-      setStatusText('✅ Модель сохранена!');
+      setStatusText('вњ… РњРѕРґРµР»СЊ СЃРѕС…СЂР°РЅРµРЅР°!');
       setStatusType('success');
-    } catch (err) { console.error('Ошибка сохранения модели:', err); setStatusText('Ошибка сохранения'); setStatusType('error'); }
+    } catch (err) { console.error('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ РјРѕРґРµР»Рё:', err); setStatusText('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ'); setStatusType('error'); }
     finally { setIsSaving(false); }
   };
 
-  // Save calibrated model from wizard (3-angle photos) — base64-first
+  // Save calibrated model from wizard (3-angle photos) вЂ” base64-first
   const saveCalibratedModel = async (name, photos, prompt) => {
     if (!user) {
-      throw new Error('Пользователь не авторизован. Войдите в аккаунт.');
+      throw new Error('РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ. Р’РѕР№РґРёС‚Рµ РІ Р°РєРєР°СѓРЅС‚.');
     }
     setIsSaving(true);
     try {
@@ -1409,7 +1409,7 @@ function App() {
         const fullbodyEntry = uploadResults.find(u => u.key === 'fullbody');
         fullbodyUrl = fullbodyEntry?.url || null;
       } catch (storageErr) {
-        console.warn('⚠️ Storage upload failed (non-critical):', storageErr.message);
+        console.warn('вљ пёЏ Storage upload failed (non-critical):', storageErr.message);
       }
 
       await saveModel(user.uid, {
@@ -1425,12 +1425,12 @@ function App() {
       const models = await getModels(user.uid);
       setMyModels(models);
       setShowCalibWizard(false);
-      setStatusText('✅ Откалиброванная модель сохранена!');
+      setStatusText('вњ… РћС‚РєР°Р»РёР±СЂРѕРІР°РЅРЅР°СЏ РјРѕРґРµР»СЊ СЃРѕС…СЂР°РЅРµРЅР°!');
       setStatusType('success');
 
     } catch (err) {
-      console.error('Ошибка сохранения модели:', err);
-      setStatusText('Ошибка сохранения модели');
+      console.error('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ РјРѕРґРµР»Рё:', err);
+      setStatusText('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ РјРѕРґРµР»Рё');
       setStatusType('error');
       throw err;
     } finally {
@@ -1441,7 +1441,7 @@ function App() {
 
   // Save persona model (from PersonaWizard comp card)
   const savePersonaModel = async ({ name, type, compCardBase64, compCardUrl, sourcePhotos }) => {
-    if (!user) throw new Error('Не авторизован');
+    if (!user) throw new Error('РќРµ Р°РІС‚РѕСЂРёР·РѕРІР°РЅ');
     setIsSaving(true);
     try {
       const compUpload = await uploadBase64Image(user.uid, compCardBase64, 'models');
@@ -1451,8 +1451,8 @@ function App() {
       await saveModel(user.uid, {
         name,
         type: 'persona',
-        modelType: 'persona',  // ← маркер для VTON pipeline
-        // imageUrls = только comp card (1 файл) — именно он уйдёт в GPT Image 2 как референс
+        modelType: 'persona',  // в†ђ РјР°СЂРєРµСЂ РґР»СЏ VTON pipeline
+        // imageUrls = С‚РѕР»СЊРєРѕ comp card (1 С„Р°Р№Р») вЂ” РёРјРµРЅРЅРѕ РѕРЅ СѓР№РґС‘С‚ РІ GPT Image 2 РєР°Рє СЂРµС„РµСЂРµРЅСЃ
         imageUrls: [compUpload.url],
         sourcePhotoUrls: sourceUploads.map(u => u.url),
         storagePaths: [compUpload.path, ...sourceUploads.map(u => u.path)],
@@ -1461,10 +1461,10 @@ function App() {
       });
       const models = await getModels(user.uid);
       setMyModels(models);
-      setStatusText('\u2705 Персонаж сохранён!');
+      setStatusText('\u2705 РџРµСЂСЃРѕРЅР°Р¶ СЃРѕС…СЂР°РЅС‘РЅ!');
       setStatusType('success');
     } catch (err) {
-      console.error('Ошибка сохранения персонажа:', err);
+      console.error('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ РїРµСЂСЃРѕРЅР°Р¶Р°:', err);
       throw err;
     } finally {
       setIsSaving(false);
@@ -1500,7 +1500,7 @@ function App() {
   };
 
   // Get current model ref images for calibration
-  // CRITICAL: Do NOT include generatedImage — it may contain product objects (cups, bottles etc.)
+  // CRITICAL: Do NOT include generatedImage вЂ” it may contain product objects (cups, bottles etc.)
   // Only include clean model reference photos from saved models.
   const getCurrentModelRefs = () => {
     const refs = [];
@@ -1559,13 +1559,13 @@ function App() {
       const data = await safeParseJSON(resp);
       if (data.success) {
         setModelPreviewSrc(data.imageUrl || data.imageBase64);
-        setStatusText('Превью модели готово! Сохранить как новую?'); setStatusType('success');
-      } else { setStatusText(`Ошибка: ${data.details||data.error}`); setStatusType('error'); }
-    } catch (err) { setStatusText(`Ошибка: ${err.message}`); setStatusType('error'); }
+        setStatusText('РџСЂРµРІСЊСЋ РјРѕРґРµР»Рё РіРѕС‚РѕРІРѕ! РЎРѕС…СЂР°РЅРёС‚СЊ РєР°Рє РЅРѕРІСѓСЋ?'); setStatusType('success');
+      } else { setStatusText(`РћС€РёР±РєР°: ${data.details||data.error}`); setStatusType('error'); }
+    } catch (err) { setStatusText(`РћС€РёР±РєР°: ${err.message}`); setStatusType('error'); }
     finally { setIsPreviewingModel(false); }
   };
 
-  // Save modified model as NEW — base64-first
+  // Save modified model as NEW вЂ” base64-first
   const saveModelAsNew = async () => {
     if (!user || !modelPreviewSrc || !modelPreviewName.trim()) return;
     setIsSaving(true);
@@ -1584,7 +1584,7 @@ function App() {
         imageUrls = [url];
         storagePaths = [path];
       } catch (storageErr) {
-        console.warn('⚠️ Storage upload failed (non-critical):', storageErr.message);
+        console.warn('вљ пёЏ Storage upload failed (non-critical):', storageErr.message);
       }
 
       await saveModel(user.uid, { name: modelPreviewName.trim(), type: 'generated', imageUrls, storagePaths, imageBase64, prompt: newPrompt });
@@ -1592,8 +1592,8 @@ function App() {
       setMyModels(models);
       setModelPreviewSrc(null); setModelPreviewName(''); setModelModifier(''); setShowModelModifier(false);
       setShowModelPreviewSave(false);
-      setStatusText('✅ Новая модель сохранена!'); setStatusType('success');
-    } catch (err) { console.error(err); setStatusText('Ошибка сохранения'); setStatusType('error'); }
+      setStatusText('вњ… РќРѕРІР°СЏ РјРѕРґРµР»СЊ СЃРѕС…СЂР°РЅРµРЅР°!'); setStatusType('success');
+    } catch (err) { console.error(err); setStatusText('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ'); setStatusType('error'); }
     finally { setIsSaving(false); }
   };
 
@@ -1606,29 +1606,29 @@ function App() {
       await updateLocationPrompt(user.uid, selectedLocId, newPrompt);
       setMyLocations(prev => prev.map(l => l.id === selectedLocId ? { ...l, prompt: newPrompt } : l));
       setLocModifier('');
-      setStatusText('✅ Изменения локации сохранены!'); setStatusType('success');
-    } catch (err) { console.error(err); setStatusText('Ошибка сохранения'); setStatusType('error'); }
+      setStatusText('вњ… РР·РјРµРЅРµРЅРёСЏ Р»РѕРєР°С†РёРё СЃРѕС…СЂР°РЅРµРЅС‹!'); setStatusType('success');
+    } catch (err) { console.error(err); setStatusText('РћС€РёР±РєР° СЃРѕС…СЂР°РЅРµРЅРёСЏ'); setStatusType('error'); }
   };
 
   // Re-generate with shot modifier (iterative editing)
   const handleRegenerate = async () => {
     if (!shotModifier.trim() || !garmentUrls.length) return;
 
-    // ═══ SUBSCRIPTION CHECK ═══
+    // в•ђв•ђв•ђ SUBSCRIPTION CHECK в•ђв•ђв•ђ
     if (!canGenerate(subscription)) {
       setShowPricing(true);
-      setStatusText('⚡ Для генерации нужен активный тариф'); setStatusType('error');
+      setStatusText('вљЎ Р”Р»СЏ РіРµРЅРµСЂР°С†РёРё РЅСѓР¶РµРЅ Р°РєС‚РёРІРЅС‹Р№ С‚Р°СЂРёС„'); setStatusType('error');
       return;
     }
 
     setIsProcessing(true);
-    // DON'T clear generatedImage here — preserve it in case of error
+    // DON'T clear generatedImage here вЂ” preserve it in case of error
     setStatusText('');
     let msgI = 0;
-    const iv = setInterval(() => { setProcessingMsg(msgI < MSGS.length ? MSGS[msgI++] : 'Финальные штрихи...'); }, 8000);
+    const iv = setInterval(() => { setProcessingMsg(msgI < MSGS.length ? MSGS[msgI++] : 'Р¤РёРЅР°Р»СЊРЅС‹Рµ С€С‚СЂРёС…Рё...'); }, 8000);
 
     try {
-      setProcessingMsg('Подготавливаем исходники...');
+      setProcessingMsg('РџРѕРґРіРѕС‚Р°РІР»РёРІР°РµРј РёСЃС…РѕРґРЅРёРєРё...');
 
       let modelPrompt = '';
       let posePrompt = '';
@@ -1638,7 +1638,7 @@ function App() {
       const mod = shotModifier.trim();
 
       if (appMode === 'product') {
-        // Товарный режим
+        // РўРѕРІР°СЂРЅС‹Р№ СЂРµР¶РёРј
         modelPrompt = customProductPrompt.trim() || selectedProductCategory.defaultPrompt;
         posePrompt = customPoseText.trim() || selectedProductCompositions[0].prompt;
         bgPrompt = customProductBg.trim() || selectedProductBgs[0].prompt;
@@ -1663,25 +1663,25 @@ function App() {
           }
         }
         
-        // Применение правок пользователя к товару или фону
-        const bgKeywords = /(?:фон|задний|пляж|улиц|город|парк|лес|горы|интерьер|студи|background|beach|street|city|park|forest|mountain|interior|studio|wood|marble|table|desk|neon|droplets|splash|petals|glow)/i;
+        // РџСЂРёРјРµРЅРµРЅРёРµ РїСЂР°РІРѕРє РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ Рє С‚РѕРІР°СЂСѓ РёР»Рё С„РѕРЅСѓ
+        const bgKeywords = /(?:С„РѕРЅ|Р·Р°РґРЅРёР№|РїР»СЏР¶|СѓР»РёС†|РіРѕСЂРѕРґ|РїР°СЂРє|Р»РµСЃ|РіРѕСЂС‹|РёРЅС‚РµСЂСЊРµСЂ|СЃС‚СѓРґРё|background|beach|street|city|park|forest|mountain|interior|studio|wood|marble|table|desk|neon|droplets|splash|petals|glow)/i;
         if (bgKeywords.test(mod)) {
           bgPrompt += `. Additionally: ${mod}`;
         } else {
           modelPrompt += `. Additionally: ${mod}`;
         }
       } else {
-        // Режим одежды (VTON)
+        // Р РµР¶РёРј РѕРґРµР¶РґС‹ (VTON)
         modelPrompt = customModelPrompt.trim()
           || (customModelChips.length > 0 ? customModelChips[0].prompt : null)
           || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
         if (selectedSavedModelId) {
           const sm = myModels.find(m => m.id === selectedSavedModelId);
-          if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
+          if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = (sm.imageBase64?.length ? sm.imageBase64 : null) || sm.imageUrls || []; }
         }
 
         posePrompt = customPoseText.trim() || selectedPoses[0].prompt;
-        const poseKeywords = /(?:поз[аеуы]|сид(?:ит|я|еть)|стоит|лежит|идёт|идет|ходит|бежит|танцу|прыга|lotus|sitting|standing|lying|walking|running|dancing|crouching|leaning|kneeling|jumping|squat)/i;
+        const poseKeywords = /(?:РїРѕР·[Р°РµСѓС‹]|СЃРёРґ(?:РёС‚|СЏ|РµС‚СЊ)|СЃС‚РѕРёС‚|Р»РµР¶РёС‚|РёРґС‘С‚|РёРґРµС‚|С…РѕРґРёС‚|Р±РµР¶РёС‚|С‚Р°РЅС†Сѓ|РїСЂС‹РіР°|lotus|sitting|standing|lying|walking|running|dancing|crouching|leaning|kneeling|jumping|squat)/i;
         if (poseKeywords.test(mod)) {
           posePrompt = `${mod}. ${posePrompt}`;
         }
@@ -1697,15 +1697,15 @@ function App() {
         if (locModifier.trim()) bgPrompt += `. Additionally: ${locModifier.trim()}`;
         if (bgExtraText.trim() && !customBgText.trim()) bgPrompt += `. MANDATORY SCENE ADDITION (must be visible): ${bgExtraText.trim()}`;
 
-        const bgKeywords = /(?:фон|бали|пляж|улиц|город|парк|лес|горы|интерьер|студи|background|beach|street|city|park|forest|mountain|interior|studio)/i;
+        const bgKeywords = /(?:С„РѕРЅ|Р±Р°Р»Рё|РїР»СЏР¶|СѓР»РёС†|РіРѕСЂРѕРґ|РїР°СЂРє|Р»РµСЃ|РіРѕСЂС‹|РёРЅС‚РµСЂСЊРµСЂ|СЃС‚СѓРґРё|background|beach|street|city|park|forest|mountain|interior|studio)/i;
         if (bgKeywords.test(mod)) {
           bgPrompt += `. ${mod}`;
         }
       }
 
-      setProcessingMsg('🚀 Отправляем в Nano Banano 2...');
-      // ═══ STATELESS REGENERATION ═══
-      // NEVER send the generated photo back as reference — it creates "Visual Attention Sink"
+      setProcessingMsg('рџљЂ РћС‚РїСЂР°РІР»СЏРµРј РІ Nano Banano 2...');
+      // в•ђв•ђв•ђ STATELESS REGENERATION в•ђв•ђв•ђ
+      // NEVER send the generated photo back as reference вЂ” it creates "Visual Attention Sink"
       // where Gemini locks onto the photorealistic result and refuses to change body geometry.
       // Instead, we re-send ONLY the original garment photos + text edit instruction.
       // Gemini will regenerate the body from scratch with new metrics.
@@ -1729,21 +1729,21 @@ function App() {
       clearInterval(iv);
       const data = await safeParseJSON(resp);
       if (data.success) {
-        // Кредиты уже списаны бэкендом — обновляем баланс из ответа
+        // РљСЂРµРґРёС‚С‹ СѓР¶Рµ СЃРїРёСЃР°РЅС‹ Р±СЌРєРµРЅРґРѕРј вЂ” РѕР±РЅРѕРІР»СЏРµРј Р±Р°Р»Р°РЅСЃ РёР· РѕС‚РІРµС‚Р°
         refreshCreditsFromResponse(data);
 
         const newImg = data.imageUrl || data.imageBase64;
         setGeneratedImage(newImg);
-        const editLabel = shotModifier.trim() || 'Перегенерация';
+        const editLabel = shotModifier.trim() || 'РџРµСЂРµРіРµРЅРµСЂР°С†РёСЏ';
         setImageHistory(prev => { const h = [...prev, { image: newImg, label: editLabel }]; setHistoryIndex(h.length - 1); return h; });
-        setStatusText('Кадр обновлён!');
+        setStatusText('РљР°РґСЂ РѕР±РЅРѕРІР»С‘РЅ!');
         setStatusType('success');
       } else {
-        setStatusText(`Ошибка: ${data.details || data.error}`);
+        setStatusText(`РћС€РёР±РєР°: ${data.details || data.error}`);
         setStatusType('error');
       }
     } catch (err) {
-      setStatusText(`Ошибка: ${err.message}`);
+      setStatusText(`РћС€РёР±РєР°: ${err.message}`);
       setStatusType('error');
       clearInterval(iv);
     } finally {
@@ -1752,7 +1752,7 @@ function App() {
     }
   };
 
-  // ═══ CARD DESIGN — show count modal first ═══
+  // в•ђв•ђв•ђ CARD DESIGN вЂ” show count modal first в•ђв•ђв•ђ
   const handleCardDesignClick = () => {
     if (!generatedImage) return;
     setShowCardCountModal(true);
@@ -1768,20 +1768,20 @@ function App() {
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < totalCredits && !subscription?.local) {
       setShowPricing(true);
-      setStatusText(`⚡ Для ${count} карточек нужно ${totalCredits} кредитов`); setStatusType('error');
+      setStatusText(`вљЎ Р”Р»СЏ ${count} РєР°СЂС‚РѕС‡РµРє РЅСѓР¶РЅРѕ ${totalCredits} РєСЂРµРґРёС‚РѕРІ`); setStatusType('error');
       return;
     }
     if (subscription?.local && creditsAvailable < totalCredits) {
-      setStatusText(`⚡ Для ${count} карточек нужно ${totalCredits} кредитов`); setStatusType('error');
+      setStatusText(`вљЎ Р”Р»СЏ ${count} РєР°СЂС‚РѕС‡РµРє РЅСѓР¶РЅРѕ ${totalCredits} РєСЂРµРґРёС‚РѕРІ`); setStatusType('error');
       return;
     }
 
     setIsCardGenerating(true);
     setCardResult(null);
-    setStatusText(`🎴 Создаём ${count > 1 ? count + ' карточек' : 'карточку'}...`);
+    setStatusText(`рџЋґ РЎРѕР·РґР°С‘Рј ${count > 1 ? count + ' РєР°СЂС‚РѕС‡РµРє' : 'РєР°СЂС‚РѕС‡РєСѓ'}...`);
     setStatusType('processing');
 
-    const progressSteps = ['🎴 Анализируем товар...', '🎨 Подбираем стиль...', '✍️ Генерируем типографику...', '📐 Компонуем макет...', '✨ Финальная полировка...'];
+    const progressSteps = ['рџЋґ РђРЅР°Р»РёР·РёСЂСѓРµРј С‚РѕРІР°СЂ...', 'рџЋЁ РџРѕРґР±РёСЂР°РµРј СЃС‚РёР»СЊ...', 'вњЌпёЏ Р“РµРЅРµСЂРёСЂСѓРµРј С‚РёРїРѕРіСЂР°С„РёРєСѓ...', 'рџ“ђ РљРѕРјРїРѕРЅСѓРµРј РјР°РєРµС‚...', 'вњЁ Р¤РёРЅР°Р»СЊРЅР°СЏ РїРѕР»РёСЂРѕРІРєР°...'];
     let stepIdx = 0;
     const iv = setInterval(() => {
       stepIdx = (stepIdx + 1) % progressSteps.length;
@@ -1812,50 +1812,50 @@ function App() {
       const successCards = results.filter(d => d.success).map(d => d.imageUrl);
       
       if (successCards.length > 0) {
-        // Кредиты уже списаны бэкендом — обновляем баланс из ответа
+        // РљСЂРµРґРёС‚С‹ СѓР¶Рµ СЃРїРёСЃР°РЅС‹ Р±СЌРєРµРЅРґРѕРј вЂ” РѕР±РЅРѕРІР»СЏРµРј Р±Р°Р»Р°РЅСЃ РёР· РѕС‚РІРµС‚Р°
         const lastCard = results.find(d => d.success && d.creditsRemaining != null);
         refreshCreditsFromResponse(lastCard || results.find(d => d.success));
         setCardResult(successCards);
-        setStatusText(`🎴 Готово! ${successCards.length} ${successCards.length === 1 ? 'карточка' : 'карточек'}`);
+        setStatusText(`рџЋґ Р“РѕС‚РѕРІРѕ! ${successCards.length} ${successCards.length === 1 ? 'РєР°СЂС‚РѕС‡РєР°' : 'РєР°СЂС‚РѕС‡РµРє'}`);
         setStatusType('success');
       } else {
         const firstError = results.find(d => !d.success);
-        setStatusText(`Ошибка: ${firstError?.error || 'Не удалось создать карточку'}`);
+        setStatusText(`РћС€РёР±РєР°: ${firstError?.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РєР°СЂС‚РѕС‡РєСѓ'}`);
         setStatusType('error');
       }
     } catch (err) {
       clearInterval(iv);
-      setStatusText(`Ошибка: ${err.message}`);
+      setStatusText(`РћС€РёР±РєР°: ${err.message}`);
       setStatusType('error');
     } finally {
       setIsCardGenerating(false);
     }
   };
 
-  // ═══ GALLERY GENERATION ═══
+  // в•ђв•ђв•ђ GALLERY GENERATION в•ђв•ђв•ђ
   const handleGenerateGallery = async () => {
     if (!garmentUrls.length) {
-      setStatusText('Сначала загрузите фото товара'); setStatusType('error');
+      setStatusText('РЎРЅР°С‡Р°Р»Р° Р·Р°РіСЂСѓР·РёС‚Рµ С„РѕС‚Рѕ С‚РѕРІР°СЂР°'); setStatusType('error');
       return;
     }
     const creditsNeeded = 5;
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < creditsNeeded && !subscription?.local) {
       setShowPricing(true);
-      setStatusText(`⚡ Для генерации галереи нужно 5 кредитов`); setStatusType('error');
+      setStatusText(`вљЎ Р”Р»СЏ РіРµРЅРµСЂР°С†РёРё РіР°Р»РµСЂРµРё РЅСѓР¶РЅРѕ 5 РєСЂРµРґРёС‚РѕРІ`); setStatusType('error');
       return;
     }
     if (subscription?.local && creditsAvailable < creditsNeeded) {
-      setStatusText(`⚡ Для генерации галереи нужно 5 кредитов`); setStatusType('error');
+      setStatusText(`вљЎ Р”Р»СЏ РіРµРЅРµСЂР°С†РёРё РіР°Р»РµСЂРµРё РЅСѓР¶РЅРѕ 5 РєСЂРµРґРёС‚РѕРІ`); setStatusType('error');
       return;
     }
     
     setIsGalleryGenerating(true);
     setIsProcessing(true);
     setStatusType('processing');
-    setStatusText('📋 Начинаем сборку галереи (4 слайда)...');
+    setStatusText('рџ“‹ РќР°С‡РёРЅР°РµРј СЃР±РѕСЂРєСѓ РіР°Р»РµСЂРµРё (4 СЃР»Р°Р№РґР°)...');
 
-    // Списываем 5 кредитов
+    // РЎРїРёСЃС‹РІР°РµРј 5 РєСЂРµРґРёС‚РѕРІ
     try {
       const deductResp = await authFetch('/api/generate-image', {
         method: 'POST',
@@ -1867,11 +1867,11 @@ function App() {
       });
       const deductData = await safeParseJSON(deductResp);
       if (!deductData.success) {
-        throw new Error(deductData.error || 'Не удалось списать кредиты');
+        throw new Error(deductData.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРїРёСЃР°С‚СЊ РєСЂРµРґРёС‚С‹');
       }
       refreshCreditsFromResponse(deductData);
     } catch (deductErr) {
-      setStatusText(`⚠️ Ошибка списания кредитов: ${deductErr.message}`);
+      setStatusText(`вљ пёЏ РћС€РёР±РєР° СЃРїРёСЃР°РЅРёСЏ РєСЂРµРґРёС‚РѕРІ: ${deductErr.message}`);
       setStatusType('error');
       setIsGalleryGenerating(false);
       setIsProcessing(false);
@@ -1879,14 +1879,14 @@ function App() {
     }
 
     const gallerySlides = [
-      quickCardImage || generatedImage || garmentUrls[0] // Слайд 1: текущая обложка
+      quickCardImage || generatedImage || garmentUrls[0] // РЎР»Р°Р№Рґ 1: С‚РµРєСѓС‰Р°СЏ РѕР±Р»РѕР¶РєР°
     ];
 
     try {
       const isFashion = appMode === 'fashion';
 
-      // Слайд 2: Крупный план
-      setStatusText('🔍 Шаг 1/3: Генерируем крупный план деталей...');
+      // РЎР»Р°Р№Рґ 2: РљСЂСѓРїРЅС‹Р№ РїР»Р°РЅ
+      setStatusText('рџ”Ќ РЁР°Рі 1/3: Р“РµРЅРµСЂРёСЂСѓРµРј РєСЂСѓРїРЅС‹Р№ РїР»Р°РЅ РґРµС‚Р°Р»РµР№...');
       const detailPose = isFashion
         ? 'extreme close-up macro, focusing on fabric texture, stitching details, seams, organic texture'
         : 'extreme close-up macro, focusing on product details, premium material texture, high-end commercial shot';
@@ -1906,37 +1906,37 @@ function App() {
         }),
       });
       const dataDetail = await safeParseJSON(respDetail);
-      if (!dataDetail.success) throw new Error(dataDetail.error || 'Не удалось создать крупный план');
+      if (!dataDetail.success) throw new Error(dataDetail.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РєСЂСѓРїРЅС‹Р№ РїР»Р°РЅ');
       const imgDetail = dataDetail.imageBase64 || dataDetail.imageUrl;
       gallerySlides.push(imgDetail);
 
-      // Слайд 3: Размеры (Инфографика)
-      setStatusText('📐 Шаг 2/3: Достраиваем инфографику с размерами...');
+      // РЎР»Р°Р№Рґ 3: Р Р°Р·РјРµСЂС‹ (РРЅС„РѕРіСЂР°С„РёРєР°)
+      setStatusText('рџ“ђ РЁР°Рі 2/3: Р”РѕСЃС‚СЂР°РёРІР°РµРј РёРЅС„РѕРіСЂР°С„РёРєСѓ СЃ СЂР°Р·РјРµСЂР°РјРё...');
       const infoText = isFashion
         ? (userProductInfo && userProductInfo.trim()
-            ? `ИНФОРМАЦИЯ О ТОВАРЕ:
+            ? `РРќР¤РћР РњРђР¦РРЇ Рћ РўРћР’РђР Р•:
 ${userProductInfo.trim()}
 
-РАЗМЕРНАЯ СЕТКА:
+Р РђР—РњР•Р РќРђРЇ РЎР•РўРљРђ:
 S (42-44), M (44-46), L (46-48), XL (48-50)`
-            : `ТАБЛИЦА РАЗМЕРОВ:
+            : `РўРђР‘Р›РР¦Рђ Р РђР—РњР•Р РћР’:
 S (42-44)
 M (44-46)
 L (46-48)
 XL (48-50)
-Премиальный материал, идеальный крой.`)
+РџСЂРµРјРёР°Р»СЊРЅС‹Р№ РјР°С‚РµСЂРёР°Р», РёРґРµР°Р»СЊРЅС‹Р№ РєСЂРѕР№.`)
         : (userProductInfo && userProductInfo.trim()
-            ? `ИНФОРМАЦИЯ О ТОВАРЕ:
+            ? `РРќР¤РћР РњРђР¦РРЇ Рћ РўРћР’РђР Р•:
 ${userProductInfo.trim()}
 
-ГАБАРИТЫ ТОВАРА:
-Высота, ширина, глубина, эргономичный премиум дизайн.`
-            : `ГАБАРИТЫ И ХАРАКТЕРИСТИКИ:
-Оптимальный размер
-Высота: 30 см
-Ширина: 28 см
-Глубина: 10 см
-Премиальные материалы, максимальное удобство.`);
+Р“РђР‘РђР РРўР« РўРћР’РђР Рђ:
+Р’С‹СЃРѕС‚Р°, С€РёСЂРёРЅР°, РіР»СѓР±РёРЅР°, СЌСЂРіРѕРЅРѕРјРёС‡РЅС‹Р№ РїСЂРµРјРёСѓРј РґРёР·Р°Р№РЅ.`
+            : `Р“РђР‘РђР РРўР« Р РҐРђР РђРљРўР•Р РРЎРўРРљР:
+РћРїС‚РёРјР°Р»СЊРЅС‹Р№ СЂР°Р·РјРµСЂ
+Р’С‹СЃРѕС‚Р°: 30 СЃРј
+РЁРёСЂРёРЅР°: 28 СЃРј
+Р“Р»СѓР±РёРЅР°: 10 СЃРј
+РџСЂРµРјРёР°Р»СЊРЅС‹Рµ РјР°С‚РµСЂРёР°Р»С‹, РјР°РєСЃРёРјР°Р»СЊРЅРѕРµ СѓРґРѕР±СЃС‚РІРѕ.`);
       
       const respSize = await authFetch('/api/generate-image', {
         method: 'POST',
@@ -1951,12 +1951,12 @@ ${userProductInfo.trim()}
         }),
       });
       const dataSize = await safeParseJSON(respSize);
-      if (!dataSize.success) throw new Error(dataSize.error || 'Не удалось создать инфографику размеров');
+      if (!dataSize.success) throw new Error(dataSize.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РёРЅС„РѕРіСЂР°С„РёРєСѓ СЂР°Р·РјРµСЂРѕРІ');
       const imgSize = dataSize.imageBase64 || dataSize.imageUrl;
       gallerySlides.push(imgSize);
 
-      // Слайд 4: Lifestyle
-      setStatusText(isFashion ? '🌳 Шаг 3/3: Генерируем фото модели на улице (Lifestyle)...' : '🏠 Шаг 3/3: Генерируем фото в интерьере (Lifestyle)...');
+      // РЎР»Р°Р№Рґ 4: Lifestyle
+      setStatusText(isFashion ? 'рџЊі РЁР°Рі 3/3: Р“РµРЅРµСЂРёСЂСѓРµРј С„РѕС‚Рѕ РјРѕРґРµР»Рё РЅР° СѓР»РёС†Рµ (Lifestyle)...' : 'рџЏ  РЁР°Рі 3/3: Р“РµРЅРµСЂРёСЂСѓРµРј С„РѕС‚Рѕ РІ РёРЅС‚РµСЂСЊРµСЂРµ (Lifestyle)...');
       
       let slide4Payload = {};
       if (isFashion) {
@@ -2004,16 +2004,16 @@ ${userProductInfo.trim()}
         body: JSON.stringify(slide4Payload),
       });
       const dataLife = await safeParseJSON(respLife);
-      if (!dataLife.success) throw new Error(dataLife.error || 'Не удалось создать lifestyle фото');
+      if (!dataLife.success) throw new Error(dataLife.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ lifestyle С„РѕС‚Рѕ');
       const imgLife = dataLife.imageBase64 || dataLife.imageUrl;
       gallerySlides.push(imgLife);
 
       setQuickResults(prev => ({ ...prev, gallery: gallerySlides }));
-      setStatusText('✅ Галерея из 4-х слайдов успешно собрана!');
+      setStatusText('вњ… Р“Р°Р»РµСЂРµСЏ РёР· 4-С… СЃР»Р°Р№РґРѕРІ СѓСЃРїРµС€РЅРѕ СЃРѕР±СЂР°РЅР°!');
       setStatusType('success');
     } catch (err) {
       console.error('Gallery generation error:', err);
-      setStatusText(`⚠️ Ошибка при генерации галереи: ${err.message}`);
+      setStatusText(`вљ пёЏ РћС€РёР±РєР° РїСЂРё РіРµРЅРµСЂР°С†РёРё РіР°Р»РµСЂРµРё: ${err.message}`);
       setStatusType('error');
     } finally {
       setIsGalleryGenerating(false);
@@ -2021,30 +2021,30 @@ ${userProductInfo.trim()}
     }
   };
 
-  // ═══ A/B TEST GENERATION ═══
+  // в•ђв•ђв•ђ A/B TEST GENERATION в•ђв•ђв•ђ
   const handleGenerateABTest = async () => {
     if (!garmentUrls.length) {
-      setStatusText('Сначала загрузите фото товара'); setStatusType('error');
+      setStatusText('РЎРЅР°С‡Р°Р»Р° Р·Р°РіСЂСѓР·РёС‚Рµ С„РѕС‚Рѕ С‚РѕРІР°СЂР°'); setStatusType('error');
       return;
     }
     const creditsNeeded = 2;
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < creditsNeeded && !subscription?.local) {
       setShowPricing(true);
-      setStatusText(`⚡ Для запуска A/B теста нужно 2 кредита`); setStatusType('error');
+      setStatusText(`вљЎ Р”Р»СЏ Р·Р°РїСѓСЃРєР° A/B С‚РµСЃС‚Р° РЅСѓР¶РЅРѕ 2 РєСЂРµРґРёС‚Р°`); setStatusType('error');
       return;
     }
     if (subscription?.local && creditsAvailable < creditsNeeded) {
-      setStatusText(`⚡ Для запуска A/B теста нужно 2 кредита`); setStatusType('error');
+      setStatusText(`вљЎ Р”Р»СЏ Р·Р°РїСѓСЃРєР° A/B С‚РµСЃС‚Р° РЅСѓР¶РЅРѕ 2 РєСЂРµРґРёС‚Р°`); setStatusType('error');
       return;
     }
 
     setIsAbGenerating(true);
     setIsProcessing(true);
     setStatusType('processing');
-    setStatusText('⚖️ Запускаем A/B Тестирование (2 обложки)...');
+    setStatusText('вљ–пёЏ Р—Р°РїСѓСЃРєР°РµРј A/B РўРµСЃС‚РёСЂРѕРІР°РЅРёРµ (2 РѕР±Р»РѕР¶РєРё)...');
 
-    // Списываем 2 кредита
+    // РЎРїРёСЃС‹РІР°РµРј 2 РєСЂРµРґРёС‚Р°
     try {
       const deductResp = await authFetch('/api/generate-image', {
         method: 'POST',
@@ -2056,11 +2056,11 @@ ${userProductInfo.trim()}
       });
       const deductData = await safeParseJSON(deductResp);
       if (!deductData.success) {
-        throw new Error(deductData.error || 'Не удалось списать кредиты');
+        throw new Error(deductData.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРїРёСЃР°С‚СЊ РєСЂРµРґРёС‚С‹');
       }
       refreshCreditsFromResponse(deductData);
     } catch (deductErr) {
-      setStatusText(`⚠️ Ошибка списания кредитов: ${deductErr.message}`);
+      setStatusText(`вљ пёЏ РћС€РёР±РєР° СЃРїРёСЃР°РЅРёСЏ РєСЂРµРґРёС‚РѕРІ: ${deductErr.message}`);
       setStatusType('error');
       setIsAbGenerating(false);
       setIsProcessing(false);
@@ -2068,8 +2068,8 @@ ${userProductInfo.trim()}
     }
 
     try {
-      // Вариант A (Natural)
-      setStatusText('⚖️ Шаг 1/2: Генерируем светлый вариант (Natural)...');
+      // Р’Р°СЂРёР°РЅС‚ A (Natural)
+      setStatusText('вљ–пёЏ РЁР°Рі 1/2: Р“РµРЅРµСЂРёСЂСѓРµРј СЃРІРµС‚Р»С‹Р№ РІР°СЂРёР°РЅС‚ (Natural)...');
       const seedA = Math.floor(Math.random() * 1000000);
       const respA = await authFetch('/api/generate-image', {
         method: 'POST',
@@ -2081,16 +2081,16 @@ ${userProductInfo.trim()}
           userProductInfo: userProductInfo.trim() || '',
           garmentImageUrls: garmentUrls,
           biometricSeed: seedA,
-          skipCreditDeduction: true, // Пропускаем списание кредитов на бэкенде
+          skipCreditDeduction: true, // РџСЂРѕРїСѓСЃРєР°РµРј СЃРїРёСЃР°РЅРёРµ РєСЂРµРґРёС‚РѕРІ РЅР° Р±СЌРєРµРЅРґРµ
         }),
       });
       const dataA = await safeParseJSON(respA);
-      if (!dataA.success) throw new Error(dataA.error || 'Не удалось создать вариант А');
+      if (!dataA.success) throw new Error(dataA.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РІР°СЂРёР°РЅС‚ Рђ');
       const imgA = dataA.imageBase64 || dataA.imageUrl;
 
-      // Вариант B (Epic)
-      setStatusText('⚖️ Шаг 2/2: Генерируем тёмный вариант (Epic)...');
-      const seedB = Math.floor(Math.random() * 1000000) + 7; // Другой сид для уникальности
+      // Р’Р°СЂРёР°РЅС‚ B (Epic)
+      setStatusText('вљ–пёЏ РЁР°Рі 2/2: Р“РµРЅРµСЂРёСЂСѓРµРј С‚С‘РјРЅС‹Р№ РІР°СЂРёР°РЅС‚ (Epic)...');
+      const seedB = Math.floor(Math.random() * 1000000) + 7; // Р”СЂСѓРіРѕР№ СЃРёРґ РґР»СЏ СѓРЅРёРєР°Р»СЊРЅРѕСЃС‚Рё
       const respB = await authFetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2101,19 +2101,19 @@ ${userProductInfo.trim()}
           userProductInfo: userProductInfo.trim() || '',
           garmentImageUrls: garmentUrls,
           biometricSeed: seedB,
-          skipCreditDeduction: true, // Пропускаем списание кредитов на бэкенде
+          skipCreditDeduction: true, // РџСЂРѕРїСѓСЃРєР°РµРј СЃРїРёСЃР°РЅРёРµ РєСЂРµРґРёС‚РѕРІ РЅР° Р±СЌРєРµРЅРґРµ
         }),
       });
       const dataB = await safeParseJSON(respB);
-      if (!dataB.success) throw new Error(dataB.error || 'Не удалось создать вариант B');
+      if (!dataB.success) throw new Error(dataB.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РІР°СЂРёР°РЅС‚ B');
       const imgB = dataB.imageBase64 || dataB.imageUrl;
 
       setQuickResults(prev => ({ ...prev, abTest: [imgA, imgB] }));
-      setStatusText('✅ Альтернативные обложки для A/B Теста готовы!');
+      setStatusText('вњ… РђР»СЊС‚РµСЂРЅР°С‚РёРІРЅС‹Рµ РѕР±Р»РѕР¶РєРё РґР»СЏ A/B РўРµСЃС‚Р° РіРѕС‚РѕРІС‹!');
       setStatusType('success');
     } catch (err) {
       console.error('A/B test generation error:', err);
-      setStatusText(`⚠️ Ошибка при A/B тестировании: ${err.message}`);
+      setStatusText(`вљ пёЏ РћС€РёР±РєР° РїСЂРё A/B С‚РµСЃС‚РёСЂРѕРІР°РЅРёРё: ${err.message}`);
       setStatusType('error');
     } finally {
       setIsAbGenerating(false);
@@ -2125,10 +2125,10 @@ ${userProductInfo.trim()}
     setConfirmModal({ type, cost, onConfirm });
   };
 
-  // ═══ QUICK MODE V2 — GPT Image 2 card generation ═══
+  // в•ђв•ђв•ђ QUICK MODE V2 вЂ” GPT Image 2 card generation в•ђв•ђв•ђ
   const handleQuickGenerate = async () => {
     if (!garmentUrls.length) {
-      setStatusText('Сначала загрузите фото товара'); setStatusType('error');
+      setStatusText('РЎРЅР°С‡Р°Р»Р° Р·Р°РіСЂСѓР·РёС‚Рµ С„РѕС‚Рѕ С‚РѕРІР°СЂР°'); setStatusType('error');
       return;
     }
     const isCardMode = quickMode === 'card';
@@ -2138,11 +2138,11 @@ ${userProductInfo.trim()}
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < creditsNeeded && !subscription?.local) {
       setShowPricing(true);
-      setStatusText(`⚡ Для генерации нужно ${creditsNeeded} кредит${creditsNeeded > 1 ? 'а' : ''}`); setStatusType('error');
+      setStatusText(`вљЎ Р”Р»СЏ РіРµРЅРµСЂР°С†РёРё РЅСѓР¶РЅРѕ ${creditsNeeded} РєСЂРµРґРёС‚${creditsNeeded > 1 ? 'Р°' : ''}`); setStatusType('error');
       return;
     }
     if (subscription?.local && creditsAvailable < creditsNeeded) {
-      setStatusText(`⚡ Для генерации нужно ${creditsNeeded} кредит${creditsNeeded > 1 ? 'а' : ''}`); setStatusType('error');
+      setStatusText(`вљЎ Р”Р»СЏ РіРµРЅРµСЂР°С†РёРё РЅСѓР¶РЅРѕ ${creditsNeeded} РєСЂРµРґРёС‚${creditsNeeded > 1 ? 'Р°' : ''}`); setStatusType('error');
       return;
     }
 
@@ -2161,16 +2161,16 @@ ${userProductInfo.trim()}
     setQuickCardImage(null);
     setCardEditHistory([]);
     setCardEditText('');
-    setStatusText(isCardMode ? '📋 Создаём карточку маркетплейса...' : isUgcMode ? '📱 Создаём фото от покупателя...' : isModelMode ? '👤 Создаём карточку с моделью...' : '🎨 Генерируем студийный кадр...');
+    setStatusText(isCardMode ? 'рџ“‹ РЎРѕР·РґР°С‘Рј РєР°СЂС‚РѕС‡РєСѓ РјР°СЂРєРµС‚РїР»РµР№СЃР°...' : isUgcMode ? 'рџ“± РЎРѕР·РґР°С‘Рј С„РѕС‚Рѕ РѕС‚ РїРѕРєСѓРїР°С‚РµР»СЏ...' : isModelMode ? 'рџ‘¤ РЎРѕР·РґР°С‘Рј РєР°СЂС‚РѕС‡РєСѓ СЃ РјРѕРґРµР»СЊСЋ...' : 'рџЋЁ Р“РµРЅРµСЂРёСЂСѓРµРј СЃС‚СѓРґРёР№РЅС‹Р№ РєР°РґСЂ...');
     setStatusType('processing');
 
     const statusMessages = isCardMode
-      ? ['📋 Анализируем товар...', '🎨 Подбираем дизайн и тексты...', '📐 Компонуем карточку...', '✨ Финальная полировка...']
+      ? ['рџ“‹ РђРЅР°Р»РёР·РёСЂСѓРµРј С‚РѕРІР°СЂ...', 'рџЋЁ РџРѕРґР±РёСЂР°РµРј РґРёР·Р°Р№РЅ Рё С‚РµРєСЃС‚С‹...', 'рџ“ђ РљРѕРјРїРѕРЅСѓРµРј РєР°СЂС‚РѕС‡РєСѓ...', 'вњЁ Р¤РёРЅР°Р»СЊРЅР°СЏ РїРѕР»РёСЂРѕРІРєР°...']
       : isModelMode
-      ? ['👤 Анализируем товар...', '👗 Подбираем модель...', '🎨 Компонуем карточку...', '✨ Финальная полировка...']
+      ? ['рџ‘¤ РђРЅР°Р»РёР·РёСЂСѓРµРј С‚РѕРІР°СЂ...', 'рџ‘— РџРѕРґР±РёСЂР°РµРј РјРѕРґРµР»СЊ...', 'рџЋЁ РљРѕРјРїРѕРЅСѓРµРј РєР°СЂС‚РѕС‡РєСѓ...', 'вњЁ Р¤РёРЅР°Р»СЊРЅР°СЏ РїРѕР»РёСЂРѕРІРєР°...']
       : isUgcMode
-      ? ['📱 Распознаём товар...', '🏠 Подбираем домашнюю сцену...', '📷 Имитируем снимок на смартфон...', '✨ Добавляем реализм...']
-      : ['📸 Выставляем свет...', '🎨 Рендерим кадр...', '✨ Финальная полировка...'];
+      ? ['рџ“± Р Р°СЃРїРѕР·РЅР°С‘Рј С‚РѕРІР°СЂ...', 'рџЏ  РџРѕРґР±РёСЂР°РµРј РґРѕРјР°С€РЅСЋСЋ СЃС†РµРЅСѓ...', 'рџ“· РРјРёС‚РёСЂСѓРµРј СЃРЅРёРјРѕРє РЅР° СЃРјР°СЂС‚С„РѕРЅ...', 'вњЁ Р”РѕР±Р°РІР»СЏРµРј СЂРµР°Р»РёР·Рј...']
+      : ['рџ“ё Р’С‹СЃС‚Р°РІР»СЏРµРј СЃРІРµС‚...', 'рџЋЁ Р РµРЅРґРµСЂРёРј РєР°РґСЂ...', 'вњЁ Р¤РёРЅР°Р»СЊРЅР°СЏ РїРѕР»РёСЂРѕРІРєР°...'];
     let msgIdx = 0;
     const statusIv = setInterval(() => {
       msgIdx = (msgIdx + 1) % statusMessages.length;
@@ -2179,7 +2179,7 @@ ${userProductInfo.trim()}
 
     try {
       if (isModelMode) {
-        // ═══ MODEL MODE: карточка с моделью через GPT Image 2 ═══
+        // в•ђв•ђв•ђ MODEL MODE: РєР°СЂС‚РѕС‡РєР° СЃ РјРѕРґРµР»СЊСЋ С‡РµСЂРµР· GPT Image 2 в•ђв•ђв•ђ
         const resp = await authFetch('/api/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2199,16 +2199,16 @@ ${userProductInfo.trim()}
           refreshCreditsFromResponse(data);
           setQuickCardImage(img);
           setGeneratedImage(img);
-          setCardEditHistory([{ image: img, editText: 'Оригинал' }]);
-          setQuickResults(prev => ({...prev, model: { image: img, editHistory: [{ image: img, editText: 'Оригинал' }] }}));
-          setStatusText('✅ Карточка с моделью готова!');
+          setCardEditHistory([{ image: img, editText: 'РћСЂРёРіРёРЅР°Р»' }]);
+          setQuickResults(prev => ({...prev, model: { image: img, editHistory: [{ image: img, editText: 'РћСЂРёРіРёРЅР°Р»' }] }}));
+          setStatusText('вњ… РљР°СЂС‚РѕС‡РєР° СЃ РјРѕРґРµР»СЊСЋ РіРѕС‚РѕРІР°!');
           setStatusType('success');
         } else {
-          setStatusText(`⚠️ ${data.error || 'Не удалось создать фото с моделью'}`);
+          setStatusText(`вљ пёЏ ${data.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ С„РѕС‚Рѕ СЃ РјРѕРґРµР»СЊСЋ'}`);
           setStatusType('error');
         }
       } else if (isUgcMode) {
-        // ═══ UGC MODE: реалистичное фото «от покупателя» через GPT Image 2 ═══
+        // в•ђв•ђв•ђ UGC MODE: СЂРµР°Р»РёСЃС‚РёС‡РЅРѕРµ С„РѕС‚Рѕ В«РѕС‚ РїРѕРєСѓРїР°С‚РµР»СЏВ» С‡РµСЂРµР· GPT Image 2 в•ђв•ђв•ђ
         const resp = await authFetch('/api/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2227,14 +2227,14 @@ ${userProductInfo.trim()}
           refreshCreditsFromResponse(data);
           setGeneratedImage(img);
           setQuickResults(prev => ({...prev, ugc: { image: img }}));
-          setStatusText('✅ Фото «от покупателя» готово!');
+          setStatusText('вњ… Р¤РѕС‚Рѕ В«РѕС‚ РїРѕРєСѓРїР°С‚РµР»СЏВ» РіРѕС‚РѕРІРѕ!');
           setStatusType('success');
         } else {
-          setStatusText(`⚠️ ${data.error || 'Не удалось создать UGC-фото'}`);
+          setStatusText(`вљ пёЏ ${data.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ UGC-С„РѕС‚Рѕ'}`);
           setStatusType('error');
         }
       } else if (isCardMode) {
-        // ═══ CARD MODE: полноценная карточка маркетплейса через GPT Image 2 ═══
+        // в•ђв•ђв•ђ CARD MODE: РїРѕР»РЅРѕС†РµРЅРЅР°СЏ РєР°СЂС‚РѕС‡РєР° РјР°СЂРєРµС‚РїР»РµР№СЃР° С‡РµСЂРµР· GPT Image 2 в•ђв•ђв•ђ
         const resp = await authFetch('/api/generate-image', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2256,16 +2256,16 @@ ${userProductInfo.trim()}
           refreshCreditsFromResponse(data);
           setQuickCardImage(img);
           setGeneratedImage(img);
-          setCardEditHistory([{ image: img, editText: 'Оригинал' }]);
-          setQuickResults(prev => ({...prev, card: { image: img, editHistory: [{ image: img, editText: 'Оригинал' }] }}));
-          setStatusText('✅ Карточка готова! Вы можете отредактировать результат.');
+          setCardEditHistory([{ image: img, editText: 'РћСЂРёРіРёРЅР°Р»' }]);
+          setQuickResults(prev => ({...prev, card: { image: img, editHistory: [{ image: img, editText: 'РћСЂРёРіРёРЅР°Р»' }] }}));
+          setStatusText('вњ… РљР°СЂС‚РѕС‡РєР° РіРѕС‚РѕРІР°! Р’С‹ РјРѕР¶РµС‚Рµ РѕС‚СЂРµРґР°РєС‚РёСЂРѕРІР°С‚СЊ СЂРµР·СѓР»СЊС‚Р°С‚.');
           setStatusType('success');
         } else {
-          setStatusText(`⚠️ ${data.error || 'Не удалось создать карточку'}`);
+          setStatusText(`вљ пёЏ ${data.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РєР°СЂС‚РѕС‡РєСѓ'}`);
           setStatusType('error');
         }
       } else {
-        // ═══ PHOTO MODE: красивый студийный кадр (Product Mode pipeline) ═══
+        // в•ђв•ђв•ђ PHOTO MODE: РєСЂР°СЃРёРІС‹Р№ СЃС‚СѓРґРёР№РЅС‹Р№ РєР°РґСЂ (Product Mode pipeline) в•ђв•ђв•ђ
         const modelPrompt = quickWithModel
           ? (customProductModelPrompt || productModelPreset?.prompt || 'young European female model')
           : '';
@@ -2296,10 +2296,10 @@ ${userProductInfo.trim()}
           refreshCreditsFromResponse(data);
           setGeneratedImage(img);
           setQuickResults(prev => ({...prev, photo: { image: img }}));
-          setStatusText('✅ Студийное фото готово!');
+          setStatusText('вњ… РЎС‚СѓРґРёР№РЅРѕРµ С„РѕС‚Рѕ РіРѕС‚РѕРІРѕ!');
           setStatusType('success');
         } else {
-          setStatusText(`⚠️ ${data.error || 'Не удалось создать фото'}`);
+          setStatusText(`вљ пёЏ ${data.error || 'РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ С„РѕС‚Рѕ'}`);
           setStatusType('error');
         }
       }
@@ -2311,10 +2311,10 @@ ${userProductInfo.trim()}
           setGeneratedImage(cached.image);
           if (cached.editHistory) { setQuickCardImage(cached.image); setCardEditHistory(cached.editHistory); }
         }
-        setStatusText('⛔ Генерация отменена');
+        setStatusText('в›” Р“РµРЅРµСЂР°С†РёСЏ РѕС‚РјРµРЅРµРЅР°');
         setStatusType('error');
       } else {
-        setStatusText(`⚠️ Ошибка: ${err.message}`);
+        setStatusText(`вљ пёЏ РћС€РёР±РєР°: ${err.message}`);
         setStatusType('error');
       }
     } finally {
@@ -2323,18 +2323,18 @@ ${userProductInfo.trim()}
     }
   };
 
-  // ═══ CARD EDIT — текстовое редактирование карточки через GPT Image 2 ═══
+  // в•ђв•ђв•ђ CARD EDIT вЂ” С‚РµРєСЃС‚РѕРІРѕРµ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РєР°СЂС‚РѕС‡РєРё С‡РµСЂРµР· GPT Image 2 в•ђв•ђв•ђ
   const handleCardEdit = async () => {
     if (!cardEditText.trim() || !quickCardImage) return;
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < 1 && !subscription?.local) {
       setShowPricing(true);
-      setStatusText('⚡ Для редактирования нужен 1 кредит'); setStatusType('error');
+      setStatusText('вљЎ Р”Р»СЏ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ РЅСѓР¶РµРЅ 1 РєСЂРµРґРёС‚'); setStatusType('error');
       return;
     }
 
     setIsCardEditing(true);
-    setStatusText('✏️ Применяем изменения...'); setStatusType('processing');
+    setStatusText('вњЏпёЏ РџСЂРёРјРµРЅСЏРµРј РёР·РјРµРЅРµРЅРёСЏ...'); setStatusType('processing');
 
     try {
       const resp = await authFetch('/api/generate-image', {
@@ -2355,12 +2355,12 @@ ${userProductInfo.trim()}
         setGeneratedImage(newImg);
         setCardEditHistory(prev => [...prev, { image: newImg, editText: cardEditText.trim() }]);
         setCardEditText('');
-        setStatusText('✅ Изменения применены!'); setStatusType('success');
+        setStatusText('вњ… РР·РјРµРЅРµРЅРёСЏ РїСЂРёРјРµРЅРµРЅС‹!'); setStatusType('success');
       } else {
-        setStatusText(`⚠️ ${data.error || 'Ошибка редактирования'}`); setStatusType('error');
+        setStatusText(`вљ пёЏ ${data.error || 'РћС€РёР±РєР° СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ'}`); setStatusType('error');
       }
     } catch (err) {
-      setStatusText(`⚠️ Ошибка: ${err.message}`); setStatusType('error');
+      setStatusText(`вљ пёЏ РћС€РёР±РєР°: ${err.message}`); setStatusType('error');
     } finally {
       setIsCardEditing(false);
     }
@@ -2370,28 +2370,28 @@ ${userProductInfo.trim()}
   // Auto-Catalog integration
   const handleAutoCatalog = async () => {
     if (!garmentUrls.length) {
-      setStatusText('Сначала загрузите фото одежды'); setStatusType('error');
+      setStatusText('РЎРЅР°С‡Р°Р»Р° Р·Р°РіСЂСѓР·РёС‚Рµ С„РѕС‚Рѕ РѕРґРµР¶РґС‹'); setStatusType('error');
       return;
     }
     
-    // ═══ SUBSCRIPTION CHECK (requires 3 credits) ═══
+    // в•ђв•ђв•ђ SUBSCRIPTION CHECK (requires 3 credits) в•ђв•ђв•ђ
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < 3 && !subscription?.local) {
       setShowPricing(true);
-      setStatusText('⚡ Для автокаталога требуется минимум 3 кредита'); setStatusType('error');
+      setStatusText('вљЎ Р”Р»СЏ Р°РІС‚РѕРєР°С‚Р°Р»РѕРіР° С‚СЂРµР±СѓРµС‚СЃСЏ РјРёРЅРёРјСѓРј 3 РєСЂРµРґРёС‚Р°'); setStatusType('error');
       return;
     }
     if (subscription?.local && (subscription.credits || 0) < 3) {
-      setStatusText('⚡ Для автокаталога требуется минимум 3 кредита'); setStatusType('error');
+      setStatusText('вљЎ Р”Р»СЏ Р°РІС‚РѕРєР°С‚Р°Р»РѕРіР° С‚СЂРµР±СѓРµС‚СЃСЏ РјРёРЅРёРјСѓРј 3 РєСЂРµРґРёС‚Р°'); setStatusType('error');
       return;
     }
 
-    setStatusText('Отправка батча в Auto-Catalog...'); setStatusType('');
+    setStatusText('РћС‚РїСЂР°РІРєР° Р±Р°С‚С‡Р° РІ Auto-Catalog...'); setStatusType('');
     
     // Transform uploaded garment URLs into SKU items
     const items = garmentUrls.map((url, i) => ({
       skuId: `SKU-${Date.now()}-${i}`,
-      name: `Товар ${i + 1}`,
+      name: `РўРѕРІР°СЂ ${i + 1}`,
       imageUrl: url
     }));
 
@@ -2409,17 +2409,17 @@ ${userProductInfo.trim()}
       });
       const data = await safeParseJSON(resp);
       if (data.success) {
-        // Списание 3 кредитов (локальный сервер — используем оптимистичное списание)
+        // РЎРїРёСЃР°РЅРёРµ 3 РєСЂРµРґРёС‚РѕРІ (Р»РѕРєР°Р»СЊРЅС‹Р№ СЃРµСЂРІРµСЂ вЂ” РёСЃРїРѕР»СЊР·СѓРµРј РѕРїС‚РёРјРёСЃС‚РёС‡РЅРѕРµ СЃРїРёСЃР°РЅРёРµ)
         setSubscription(prev => ({ ...prev, credits: Math.max(0, (prev.credits || 0) - 3) }));
 
-        setStatusText(`✅ Auto-Catalog запущен! Батч отправлен на фоновую обработку.`);
+        setStatusText(`вњ… Auto-Catalog Р·Р°РїСѓС‰РµРЅ! Р‘Р°С‚С‡ РѕС‚РїСЂР°РІР»РµРЅ РЅР° С„РѕРЅРѕРІСѓСЋ РѕР±СЂР°Р±РѕС‚РєСѓ.`);
         setStatusType('success');
       } else {
-        setStatusText(`❌ Ошибка: ${data.error}`);
+        setStatusText(`вќЊ РћС€РёР±РєР°: ${data.error}`);
         setStatusType('error');
       }
     } catch (err) {
-      setStatusText(`❌ Ошибка сети: ${err.message}. Убедитесь что сервер на порту 3002 запущен.`);
+      setStatusText(`вќЊ РћС€РёР±РєР° СЃРµС‚Рё: ${err.message}. РЈР±РµРґРёС‚РµСЃСЊ С‡С‚Рѕ СЃРµСЂРІРµСЂ РЅР° РїРѕСЂС‚Сѓ 3002 Р·Р°РїСѓС‰РµРЅ.`);
       setStatusType('error');
     }
   };
@@ -2452,7 +2452,7 @@ ${userProductInfo.trim()}
     // APPEND: add null placeholders for new batch at the end of existing gallery
     const existingCount = photoshootImages.filter(Boolean).length;
     setPhotoshootImages(prev => [...prev.filter(Boolean), ...new Array(count).fill(null)]);
-    setStatusText(`📸 Генерируем ещё ${count} кадров...`); setStatusType('');
+    setStatusText(`рџ“ё Р“РµРЅРµСЂРёСЂСѓРµРј РµС‰С‘ ${count} РєР°РґСЂРѕРІ...`); setStatusType('');
     try {
       let modelPrompt = '';
       let bgPrompt = '';
@@ -2468,12 +2468,15 @@ ${userProductInfo.trim()}
             : selectedProductEffect.prompt;
           if (effectPrompt) bgPrompt += `. Additionally: ${effectPrompt}`;
         }
-        // Модель-человек в фотосессии товаров
+        // РњРѕРґРµР»СЊ-С‡РµР»РѕРІРµРє РІ С„РѕС‚РѕСЃРµСЃСЃРёРё С‚РѕРІР°СЂРѕРІ
         if (productWithModel) {
           let humanPrompt = customProductModelPrompt.trim() || (productModelPreset.prompt + buildDetailString(productModelDetails));
           if (productSavedModelId) {
             const sm = myModels.find(m => m.id === productSavedModelId);
-            if (sm) { humanPrompt = sm.prompt || humanPrompt; modelRefImages = sm.imageUrls || []; }
+            if (sm) {
+              humanPrompt = sm.prompt || humanPrompt;
+              modelRefImages = (sm.imageBase64?.length ? sm.imageBase64 : null) || sm.imageUrls || [];
+            }
           }
           window.__humanModelPrompt = humanPrompt;
           window.__humanModelRefImages = modelRefImages;
@@ -2500,7 +2503,7 @@ ${userProductInfo.trim()}
           || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
         if (selectedSavedModelId) {
           const sm = myModels.find(m => m.id === selectedSavedModelId);
-          if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
+          if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = (sm.imageBase64?.length ? sm.imageBase64 : null) || sm.imageUrls || []; }
         }
         bgPrompt = customBgText.trim() || selectedBgs[0].prompt;
         if (selectedLocId) {
@@ -2509,46 +2512,67 @@ ${userProductInfo.trim()}
         }
       }
 
-      // PARALLEL generation — all shots fire simultaneously for speed
-      const promises = angles.map((angle, idx) => {
-        const biometricSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
-        return authFetch('/api/generate-image', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: user?.uid || null,
-            garmentImageUrls: garmentUrls, modelPreset: modelPrompt,
-            posePreset: angle.pose, cameraAngle: angle.camera,
-            backgroundPreset: bgPrompt, aspectRatio: selectedRatios[0].id,
-            modelReferenceImages: modelRefImages, locationImages: locImages,
-            attributes: appMode === 'product' ? productModelDetails : modelDetails, isBeautyMode, biometricSeed,
-            isProductMode: appMode === 'product',
-            categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
-            withHumanModel: appMode === 'product' && productWithModel,
-            humanModelPrompt: window.__humanModelPrompt || undefined,
-            humanModelRefImages: window.__humanModelRefImages || undefined,
-          }),
-        }).then(r => safeParseJSON(r)).then(data => {
+      // SEQUENTIAL generation вЂ” one at a time, each gets full 55s before timeout
+      // This avoids rate-limiting and ensures each frame gets the full Vercel 60s window
+      let successCount = 0;
+      for (let idx = 0; idx < angles.length; idx++) {
+        const angle = angles[idx];
+        const slotIdx = existingCount + idx;
+        setStatusText(`рџ“ё РљР°РґСЂ ${idx + 1}/${count}...`); setStatusType('');
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 55000); // 55s client-side timeout
+          const biometricSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
+          const resp = await authFetch('/api/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify({
+              userId: user?.uid || null,
+              garmentImageUrls: garmentUrls, modelPreset: modelPrompt,
+              posePreset: angle.pose, cameraAngle: angle.camera,
+              backgroundPreset: bgPrompt, aspectRatio: selectedRatios[0].id,
+              modelReferenceImages: modelRefImages, locationImages: locImages,
+              attributes: appMode === 'product' ? productModelDetails : modelDetails, isBeautyMode, biometricSeed,
+              isProductMode: appMode === 'product',
+              categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
+              withHumanModel: appMode === 'product' && productWithModel,
+              humanModelPrompt: window.__humanModelPrompt || undefined,
+              humanModelRefImages: window.__humanModelRefImages || undefined,
+            }),
+          });
+          clearTimeout(timeoutId);
+          const data = await safeParseJSON(resp);
           if (data.success) {
             const imgData = data.imageUrl || data.imageBase64;
-            const slotIdx = existingCount + idx;
-            // Place at the correct offset position (existing photos + batch index)
             setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = imgData; return n; });
-            // Initialize history with original
             setPhotoHistory(prev => ({ ...prev, [slotIdx]: [imgData] }));
             setPhotoViewIdx(prev => ({ ...prev, [slotIdx]: 0 }));
+            successCount++;
           } else {
-            console.warn(`Кадр ${existingCount + idx + 1}: ${data.details || data.error}`);
+            console.warn(`РљР°РґСЂ ${idx + 1}: ${data.details || data.error}`);
+            // Remove the null placeholder for failed frame
+            setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = null; return n; });
           }
-        }).catch(err => console.warn(`Кадр ${existingCount + idx + 1} ошибка:`, err.message))
-      });
-      await Promise.all(promises);
-      const totalReady = photoshootImages.filter(Boolean).length + count;
-      setStatusText(`🎉 Фотосессия: ${totalReady} кадров готово!`); setStatusType('success');
-    } catch (err) { setStatusText(`Ошибка фотосессии: ${err.message}`); setStatusType('error'); }
+        } catch (frameErr) {
+          if (frameErr.name === 'AbortError') {
+            console.warn(`РљР°РґСЂ ${idx + 1}: С‚Р°Р№РјР°СѓС‚ 55 СЃРµРє`);
+          } else {
+            console.warn(`РљР°РґСЂ ${idx + 1} РѕС€РёР±РєР°:`, frameErr.message);
+          }
+          // Remove null placeholder
+          setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = null; return n; });
+        }
+      }
+      // Clean up nulls from failed frames
+      setPhotoshootImages(prev => prev.filter(Boolean));
+      setStatusText(successCount > 0 ? `рџЋ‰ Р¤РѕС‚РѕСЃРµСЃСЃРёСЏ: ${successCount} РєР°РґСЂРѕРІ РіРѕС‚РѕРІРѕ!` : 'вќЊ РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ РЅРё РѕРґРЅРѕРіРѕ РєР°РґСЂР°. РџРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°.');
+      setStatusType(successCount > 0 ? 'success' : 'error');
+    } catch (err) { setStatusText(`РћС€РёР±РєР° С„РѕС‚РѕСЃРµСЃСЃРёРё: ${err.message}`); setStatusType('error'); }
     finally { setIsPhotoshooting(false); }
   };
 
-  // ═══ PER-PHOTO EDITOR ═══
+  // в•ђв•ђв•ђ PER-PHOTO EDITOR в•ђв•ђв•ђ
   // Takes a specific photo from the photoshoot gallery, sends it with an edit instruction,
   // and replaces the original photo with the result.
   const handlePhotoEdit = async () => {
@@ -2559,7 +2583,7 @@ ${userProductInfo.trim()}
     const currentImg = currentVersions[currentVersions.length - 1];
     if (!currentImg) return;
 
-    // Close modal immediately — editing runs in background
+    // Close modal immediately вЂ” editing runs in background
     setEditingPhotoIdx(null);
     setPhotoEditText('');
 
@@ -2596,10 +2620,10 @@ ${userProductInfo.trim()}
           return { ...prev, [idx]: versions.length };
         });
       } else {
-        setStatusText(`Ошибка редактирования кадра ${idx + 1}: ${data.details || data.error}`); setStatusType('error');
+        setStatusText(`РћС€РёР±РєР° СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ РєР°РґСЂР° ${idx + 1}: ${data.details || data.error}`); setStatusType('error');
       }
     } catch (err) {
-      setStatusText(`Ошибка: ${err.message}`); setStatusType('error');
+      setStatusText(`РћС€РёР±РєР°: ${err.message}`); setStatusType('error');
     } finally {
       setEditingPhotos(prev => { const n = new Set(prev); n.delete(idx); return n; });
     }
@@ -2682,17 +2706,17 @@ ${userProductInfo.trim()}
     
     setShowHistory(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    setStatusText('✅ Настройки генерации успешно загружены!');
+    setStatusText('вњ… РќР°СЃС‚СЂРѕР№РєРё РіРµРЅРµСЂР°С†РёРё СѓСЃРїРµС€РЅРѕ Р·Р°РіСЂСѓР¶РµРЅС‹!');
     setStatusType('success');
   };
 
   return (
     <div className="app-wrapper">
       <header className="app-header">
-        <motion.h1 className="app-logo" initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} transition={{duration:0.6}}>Селлер-Студия</motion.h1>
-        <p className="app-subtitle">ИИ-фотостудия для маркетплейсов Ozon, WB и других</p>
+        <motion.h1 className="app-logo" initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} transition={{duration:0.6}}>РЎРµР»Р»РµСЂ-РЎС‚СѓРґРёСЏ</motion.h1>
+        <p className="app-subtitle">РР-С„РѕС‚РѕСЃС‚СѓРґРёСЏ РґР»СЏ РјР°СЂРєРµС‚РїР»РµР№СЃРѕРІ Ozon, WB Рё РґСЂСѓРіРёС…</p>
         
-        {/* Премиальный переключатель режимов */}
+        {/* РџСЂРµРјРёР°Р»СЊРЅС‹Р№ РїРµСЂРµРєР»СЋС‡Р°С‚РµР»СЊ СЂРµР¶РёРјРѕРІ */}
         <div className="mode-selector-wrapper">
           <div className="mode-selector-bg mode-selector-3">
             <motion.div
@@ -2704,34 +2728,34 @@ ${userProductInfo.trim()}
               className={`mode-btn ${appMode === 'fashion' ? 'active' : ''}`}
               onClick={() => { setAppMode('fashion'); setQuickCardImage(null); setCardEditHistory([]); }}
             >
-              👕 Одежда
+              рџ‘• РћРґРµР¶РґР°
             </button>
             <button
               className={`mode-btn ${appMode === 'product' ? 'active' : ''}`}
               onClick={() => { setAppMode('product'); setQuickCardImage(null); setCardEditHistory([]); }}
             >
-              📦 Предметка
+              рџ“¦ РџСЂРµРґРјРµС‚РєР°
             </button>
             <button
               className={`mode-btn ${appMode === 'quick' ? 'active' : ''}`}
               onClick={() => { setAppMode('quick'); setGeneratedImage(null); }}
             >
-              ⚡ В два клика
+              вљЎ Р’ РґРІР° РєР»РёРєР°
             </button>
           </div>
         </div>
 
         <div style={{marginTop:16,display:'flex',alignItems:'center',justifyContent:'center',gap:8,flexWrap:'wrap'}}>
           <SubscriptionBadge subscription={subscription} onClick={() => setShowPricing(true)} />
-          <button className="my-history-btn" onClick={() => setShowHistory(true)} title="Мои работы">
-            🖼️ Мои работы
+          <button className="my-history-btn" onClick={() => setShowHistory(true)} title="РњРѕРё СЂР°Р±РѕС‚С‹">
+            рџ–јпёЏ РњРѕРё СЂР°Р±РѕС‚С‹
           </button>
           <span style={{fontSize:'0.75rem',color:'var(--text-muted)'}}>{user.displayName || user.email}</span>
-          {!isEmbedded && <button onClick={signOut} style={{fontSize:'0.7rem',color:'var(--text-muted)',background:'none',border:'1px solid var(--border-subtle)',borderRadius:'9999px',padding:'4px 14px',cursor:'pointer',fontFamily:'var(--font-body)',letterSpacing:'1px',textTransform:'uppercase'}}>Выйти</button>}
+          {!isEmbedded && <button onClick={signOut} style={{fontSize:'0.7rem',color:'var(--text-muted)',background:'none',border:'1px solid var(--border-subtle)',borderRadius:'9999px',padding:'4px 14px',cursor:'pointer',fontFamily:'var(--font-body)',letterSpacing:'1px',textTransform:'uppercase'}}>Р’С‹Р№С‚Рё</button>}
         </div>
       </header>
 
-      {/* ═══ PRICING MODAL ═══ */}
+      {/* в•ђв•ђв•ђ PRICING MODAL в•ђв•ђв•ђ */}
       <PricingModal
         isOpen={showPricing}
         onClose={() => setShowPricing(false)}
@@ -2743,7 +2767,7 @@ ${userProductInfo.trim()}
         canceling={cancelingSubscription}
       />
 
-      {/* ═══ CONFIRM MODAL ═══ */}
+      {/* в•ђв•ђв•ђ CONFIRM MODAL в•ђв•ђв•ђ */}
       {confirmModal && (
         <div style={{
           position: 'fixed',
@@ -2777,18 +2801,18 @@ ${userProductInfo.trim()}
             }}
           >
             <h3 style={{ margin: '0 0 10px 0', fontSize: 22, fontWeight: 800, color: '#fff', textAlign: 'center' }}>
-              {confirmModal.type === 'gallery' ? '📸 Собрать галерею?' : 
-               confirmModal.type === 'ab' ? '⚖️ Запустить A/B Тест?' : 
-               confirmModal.type === 'video' ? '🎬 Оживить в Видеообложку?' : 
-               confirmModal.type === 'batch' ? '📸 Запустить серию генераций?' :
-               '📱 Создать фото от покупателей?'}
+              {confirmModal.type === 'gallery' ? 'рџ“ё РЎРѕР±СЂР°С‚СЊ РіР°Р»РµСЂРµСЋ?' : 
+               confirmModal.type === 'ab' ? 'вљ–пёЏ Р—Р°РїСѓСЃС‚РёС‚СЊ A/B РўРµСЃС‚?' : 
+               confirmModal.type === 'video' ? 'рџЋ¬ РћР¶РёРІРёС‚СЊ РІ Р’РёРґРµРѕРѕР±Р»РѕР¶РєСѓ?' : 
+               confirmModal.type === 'batch' ? 'рџ“ё Р—Р°РїСѓСЃС‚РёС‚СЊ СЃРµСЂРёСЋ РіРµРЅРµСЂР°С†РёР№?' :
+               'рџ“± РЎРѕР·РґР°С‚СЊ С„РѕС‚Рѕ РѕС‚ РїРѕРєСѓРїР°С‚РµР»РµР№?'}
             </h3>
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: '0 0 20px 0', textAlign: 'center', lineHeight: 1.5 }}>
-              {confirmModal.type === 'gallery' ? 'ИИ сгенерирует 3 дополнительных слайда воронки (крупный план деталей, размеры и lifestyle-кадр) на основе выбранного кадра.' : 
-               confirmModal.type === 'ab' ? 'ИИ создаст 2 альтернативных варианта обложки (светлый и темный стили) для тестирования CTR.' : 
-               confirmModal.type === 'video' ? 'ИИ создаст 3D-анимацию и motion-эффекты для видеообложки.' : 
-               confirmModal.type === 'batch' ? `ИИ сгенерирует серию из ${confirmModal.cost} кадров на основе ваших настроек мультивыбора. Кадры будут создаваться параллельно.` :
-               'ИИ перенесет товар с выбранного кадра в домашнюю реалистичную обстановку.'}
+              {confirmModal.type === 'gallery' ? 'РР СЃРіРµРЅРµСЂРёСЂСѓРµС‚ 3 РґРѕРїРѕР»РЅРёС‚РµР»СЊРЅС‹С… СЃР»Р°Р№РґР° РІРѕСЂРѕРЅРєРё (РєСЂСѓРїРЅС‹Р№ РїР»Р°РЅ РґРµС‚Р°Р»РµР№, СЂР°Р·РјРµСЂС‹ Рё lifestyle-РєР°РґСЂ) РЅР° РѕСЃРЅРѕРІРµ РІС‹Р±СЂР°РЅРЅРѕРіРѕ РєР°РґСЂР°.' : 
+               confirmModal.type === 'ab' ? 'РР СЃРѕР·РґР°СЃС‚ 2 Р°Р»СЊС‚РµСЂРЅР°С‚РёРІРЅС‹С… РІР°СЂРёР°РЅС‚Р° РѕР±Р»РѕР¶РєРё (СЃРІРµС‚Р»С‹Р№ Рё С‚РµРјРЅС‹Р№ СЃС‚РёР»Рё) РґР»СЏ С‚РµСЃС‚РёСЂРѕРІР°РЅРёСЏ CTR.' : 
+               confirmModal.type === 'video' ? 'РР СЃРѕР·РґР°СЃС‚ 3D-Р°РЅРёРјР°С†РёСЋ Рё motion-СЌС„С„РµРєС‚С‹ РґР»СЏ РІРёРґРµРѕРѕР±Р»РѕР¶РєРё.' : 
+               confirmModal.type === 'batch' ? `РР СЃРіРµРЅРµСЂРёСЂСѓРµС‚ СЃРµСЂРёСЋ РёР· ${confirmModal.cost} РєР°РґСЂРѕРІ РЅР° РѕСЃРЅРѕРІРµ РІР°С€РёС… РЅР°СЃС‚СЂРѕРµРє РјСѓР»СЊС‚РёРІС‹Р±РѕСЂР°. РљР°РґСЂС‹ Р±СѓРґСѓС‚ СЃРѕР·РґР°РІР°С‚СЊСЃСЏ РїР°СЂР°Р»Р»РµР»СЊРЅРѕ.` :
+               'РР РїРµСЂРµРЅРµСЃРµС‚ С‚РѕРІР°СЂ СЃ РІС‹Р±СЂР°РЅРЅРѕРіРѕ РєР°РґСЂР° РІ РґРѕРјР°С€РЅСЋСЋ СЂРµР°Р»РёСЃС‚РёС‡РЅСѓСЋ РѕР±СЃС‚Р°РЅРѕРІРєСѓ.'}
             </p>
 
             {/* Preview of active frame */}
@@ -2806,7 +2830,7 @@ ${userProductInfo.trim()}
               }}>
                 <img 
                   src={quickCardImage || generatedImage} 
-                  alt="Исходный кадр" 
+                  alt="РСЃС…РѕРґРЅС‹Р№ РєР°РґСЂ" 
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
                 />
               <div style={{
@@ -2822,15 +2846,15 @@ ${userProductInfo.trim()}
                 textAlign: 'center',
                 textTransform: 'uppercase'
               }}>
-                Исходный кадр
+                РСЃС…РѕРґРЅС‹Р№ РєР°РґСЂ
               </div>
             </div>
             )}
 
             <div style={{ margin: '15px 0 25px 0', textAlign: 'center' }}>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>Стоимость генерации</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>РЎС‚РѕРёРјРѕСЃС‚СЊ РіРµРЅРµСЂР°С†РёРё</div>
               <div style={{ fontSize: 28, fontWeight: 900, color: '#ffd700', marginTop: 4 }}>
-                {confirmModal.cost} кр.
+                {confirmModal.cost} РєСЂ.
               </div>
             </div>
 
@@ -2852,7 +2876,7 @@ ${userProductInfo.trim()}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
               >
-                Отмена
+                РћС‚РјРµРЅР°
               </button>
               <button 
                 onClick={() => {
@@ -2876,21 +2900,21 @@ ${userProductInfo.trim()}
                 onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
                 onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
               >
-                Да, создать
+                Р”Р°, СЃРѕР·РґР°С‚СЊ
               </button>
             </div>
           </motion.div>
         </div>
       )}
 
-      {/* ═══ МОИ РАБОТЫ ═══ */}
+      {/* в•ђв•ђв•ђ РњРћР Р РђР‘РћРўР« в•ђв•ђв•ђ */}
       {showHistory && <MyHistoryPage onClose={() => setShowHistory(false)} onReuseSettings={handleReuseSettings} />}
 
-      {/* ═══ QUICK MODE PANEL ═══ */}
+      {/* в•ђв•ђв•ђ QUICK MODE PANEL в•ђв•ђв•ђ */}
       {appMode === 'quick' && !generatedImage && (
         <motion.div className="section quick-mode-panel" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.1,duration:0.5,ease:[0.16,1,0.3,1]}}>
           <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', flexWrap: 'wrap', gap: '8px' }}>
-            <span><span className="icon">⚡</span> В два клика</span>
+            <span><span className="icon">вљЎ</span> Р’ РґРІР° РєР»РёРєР°</span>
             {Object.keys(quickResults).length > 0 && (
               <button
                 onClick={() => {
@@ -2929,72 +2953,72 @@ ${userProductInfo.trim()}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(255, 215, 0, 0.18)'}
                 onMouseLeave={e => e.currentTarget.style.background = 'rgba(255, 215, 0, 0.08)'}
               >
-                👁️ Показать созданное
+                рџ‘ЃпёЏ РџРѕРєР°Р·Р°С‚СЊ СЃРѕР·РґР°РЅРЅРѕРµ
               </button>
             )}
           </div>
-          <p className="quick-mode-subtitle">Загрузите фото товара — получите готовую карточку для маркетплейса</p>
+          <p className="quick-mode-subtitle">Р—Р°РіСЂСѓР·РёС‚Рµ С„РѕС‚Рѕ С‚РѕРІР°СЂР° вЂ” РїРѕР»СѓС‡РёС‚Рµ РіРѕС‚РѕРІСѓСЋ РєР°СЂС‚РѕС‡РєСѓ РґР»СЏ РјР°СЂРєРµС‚РїР»РµР№СЃР°</p>
 
-          {/* Upload zone — reuse garmentUrls */}
+          {/* Upload zone вЂ” reuse garmentUrls */}
           <div className="quick-upload-zone">
             {previewUrls.length > 0 ? (
               <div className="multi-preview-grid">
                 {previewUrls.map((url, i) => (
                   <div key={i} className="multi-preview-item">
-                    <img src={url} alt={`Товар ${i+1}`} style={{cursor:'zoom-in'}} onClick={() => setLightboxSrc(url)} />
-                    <button className="remove-preview" onClick={() => removeFile(i)}>✕</button>
+                    <img src={url} alt={`РўРѕРІР°СЂ ${i+1}`} style={{cursor:'zoom-in'}} onClick={() => setLightboxSrc(url)} />
+                    <button className="remove-preview" onClick={() => removeFile(i)}>вњ•</button>
                   </div>
                 ))}
               </div>
             ) : (
               <label className="drop-zone compact" htmlFor="quick-upload">
-                <span className="dz-emoji">📷</span>
-                <span className="dz-text">Загрузите фото товара</span>
+                <span className="dz-emoji">рџ“·</span>
+                <span className="dz-text">Р—Р°РіСЂСѓР·РёС‚Рµ С„РѕС‚Рѕ С‚РѕРІР°СЂР°</span>
                 <input id="quick-upload" type="file" accept="image/*" multiple onChange={handleFilesChange} style={{display:'none'}} />
               </label>
             )}
           </div>
 
-          {/* ═══ MODE TOGGLE: Красивый кадр / Готовая карточка / UGC ═══ */}
+          {/* в•ђв•ђв•ђ MODE TOGGLE: РљСЂР°СЃРёРІС‹Р№ РєР°РґСЂ / Р“РѕС‚РѕРІР°СЏ РєР°СЂС‚РѕС‡РєР° / UGC в•ђв•ђв•ђ */}
           <div className="card-style-picker" style={{marginBottom: 16}}>
-            <div className="card-style-label">Что создаём:</div>
+            <div className="card-style-label">Р§С‚Рѕ СЃРѕР·РґР°С‘Рј:</div>
             <div className="card-style-options">
               <button
                 className={`card-style-btn ${quickMode === 'photo' ? 'active' : ''}`}
                 onClick={() => setQuickMode('photo')}
               >
-                <span className="card-style-icon">🎨</span>
-                <span className="card-style-name">Красивый кадр</span>
-                <span className="card-style-desc">Студийное фото товара</span>
+                <span className="card-style-icon">рџЋЁ</span>
+                <span className="card-style-name">РљСЂР°СЃРёРІС‹Р№ РєР°РґСЂ</span>
+                <span className="card-style-desc">РЎС‚СѓРґРёР№РЅРѕРµ С„РѕС‚Рѕ С‚РѕРІР°СЂР°</span>
               </button>
               <button
                 className={`card-style-btn ${quickMode === 'card' ? 'active' : ''}`}
                 onClick={() => setQuickMode('card')}
               >
-                <span className="card-style-icon">📋</span>
-                <span className="card-style-name">Готовая карточка</span>
-                <span className="card-style-desc">Инфографика для маркетплейса</span>
+                <span className="card-style-icon">рџ“‹</span>
+                <span className="card-style-name">Р“РѕС‚РѕРІР°СЏ РєР°СЂС‚РѕС‡РєР°</span>
+                <span className="card-style-desc">РРЅС„РѕРіСЂР°С„РёРєР° РґР»СЏ РјР°СЂРєРµС‚РїР»РµР№СЃР°</span>
               </button>
               <button
                 className={`card-style-btn ${quickMode === 'ugc' ? 'active' : ''}`}
                 onClick={() => setQuickMode('ugc')}
               >
-                <span className="card-style-icon">📱</span>
-                <span className="card-style-name">Фото от покупателей</span>
-                <span className="card-style-desc">Реалистичные фото для отзывов</span>
+                <span className="card-style-icon">рџ“±</span>
+                <span className="card-style-name">Р¤РѕС‚Рѕ РѕС‚ РїРѕРєСѓРїР°С‚РµР»РµР№</span>
+                <span className="card-style-desc">Р РµР°Р»РёСЃС‚РёС‡РЅС‹Рµ С„РѕС‚Рѕ РґР»СЏ РѕС‚Р·С‹РІРѕРІ</span>
               </button>
               <button
                 className={`card-style-btn ${quickMode === 'model' ? 'active' : ''}`}
                 onClick={() => setQuickMode('model')}
               >
-                <span className="card-style-icon">👤</span>
-                <span className="card-style-name">Фото с моделью</span>
-                <span className="card-style-desc">Модель позирует с товаром</span>
+                <span className="card-style-icon">рџ‘¤</span>
+                <span className="card-style-name">Р¤РѕС‚Рѕ СЃ РјРѕРґРµР»СЊСЋ</span>
+                <span className="card-style-desc">РњРѕРґРµР»СЊ РїРѕР·РёСЂСѓРµС‚ СЃ С‚РѕРІР°СЂРѕРј</span>
               </button>
             </div>
           </div>
 
-          {/* ═══ CARD MODE: стиль + информация о товаре ═══ */}
+          {/* в•ђв•ђв•ђ CARD MODE: СЃС‚РёР»СЊ + РёРЅС„РѕСЂРјР°С†РёСЏ Рѕ С‚РѕРІР°СЂРµ в•ђв•ђв•ђ */}
           <AnimatePresence mode="wait">
             {quickMode === 'card' && (
               <motion.div
@@ -3006,29 +3030,29 @@ ${userProductInfo.trim()}
                 {/* Card info banner */}
                 <div style={{background:'rgba(255,215,0,0.06)', border:'1px solid rgba(255,215,0,0.15)', borderRadius:12, padding:'12px 16px', marginBottom:16}}>
                   <p style={{margin:0, fontSize:13, color:'rgba(255,255,255,0.7)', lineHeight:'1.5'}}>
-                    ⚡ Система автоматически создаст профессиональную карточку товара с текстами, дизайном и типографикой. Стоимость: <strong style={{color:'#ffd700'}}>2 кредита</strong>. После генерации вы сможете отредактировать результат (<strong>1 кредит</strong> за правку).
+                    вљЎ РЎРёСЃС‚РµРјР° Р°РІС‚РѕРјР°С‚РёС‡РµСЃРєРё СЃРѕР·РґР°СЃС‚ РїСЂРѕС„РµСЃСЃРёРѕРЅР°Р»СЊРЅСѓСЋ РєР°СЂС‚РѕС‡РєСѓ С‚РѕРІР°СЂР° СЃ С‚РµРєСЃС‚Р°РјРё, РґРёР·Р°Р№РЅРѕРј Рё С‚РёРїРѕРіСЂР°С„РёРєРѕР№. РЎС‚РѕРёРјРѕСЃС‚СЊ: <strong style={{color:'#ffd700'}}>2 РєСЂРµРґРёС‚Р°</strong>. РџРѕСЃР»Рµ РіРµРЅРµСЂР°С†РёРё РІС‹ СЃРјРѕР¶РµС‚Рµ РѕС‚СЂРµРґР°РєС‚РёСЂРѕРІР°С‚СЊ СЂРµР·СѓР»СЊС‚Р°С‚ (<strong>1 РєСЂРµРґРёС‚</strong> Р·Р° РїСЂР°РІРєСѓ).
                   </p>
                 </div>
 
                 {/* Card style picker */}
                 <div className="card-style-picker">
-                  <div className="card-style-label">Стиль карточки:</div>
+                  <div className="card-style-label">РЎС‚РёР»СЊ РєР°СЂС‚РѕС‡РєРё:</div>
                   <div className="card-style-options">
                     <button
                       className={`card-style-btn ${quickCardStyle === 'natural' ? 'active' : ''}`}
                       onClick={() => setQuickCardStyle('natural')}
                     >
-                      <span className="card-style-icon">🌿</span>
-                      <span className="card-style-name">Естественная</span>
-                      <span className="card-style-desc">Элегантная, минимализм</span>
+                      <span className="card-style-icon">рџЊї</span>
+                      <span className="card-style-name">Р•СЃС‚РµСЃС‚РІРµРЅРЅР°СЏ</span>
+                      <span className="card-style-desc">Р­Р»РµРіР°РЅС‚РЅР°СЏ, РјРёРЅРёРјР°Р»РёР·Рј</span>
                     </button>
                     <button
                       className={`card-style-btn ${quickCardStyle === 'epic' ? 'active' : ''}`}
                       onClick={() => setQuickCardStyle('epic')}
                     >
-                      <span className="card-style-icon">🔥</span>
-                      <span className="card-style-name">Эпичная</span>
-                      <span className="card-style-desc">Кинематограф, wow</span>
+                      <span className="card-style-icon">рџ”Ґ</span>
+                      <span className="card-style-name">Р­РїРёС‡РЅР°СЏ</span>
+                      <span className="card-style-desc">РљРёРЅРµРјР°С‚РѕРіСЂР°С„, wow</span>
                     </button>
                   </div>
                 </div>
@@ -3036,12 +3060,12 @@ ${userProductInfo.trim()}
                 {/* Optional product info */}
                 <div style={{marginTop: 16}}>
                   <div className="detail-label" style={{marginBottom: 8}}>
-                    💡 Информация о товаре <span style={{color:'rgba(255,255,255,0.4)', fontSize:12}}>(необязательно)</span>
+                    рџ’Ў РРЅС„РѕСЂРјР°С†РёСЏ Рѕ С‚РѕРІР°СЂРµ <span style={{color:'rgba(255,255,255,0.4)', fontSize:12}}>(РЅРµРѕР±СЏР·Р°С‚РµР»СЊРЅРѕ)</span>
                   </div>
                   <textarea
                     className="modifier-input"
                     rows={3}
-                    placeholder="Например: «Офисный стул, стальной каркас, до 120 кг, ткань оксфорд». ИИ сам определит товар по фото — здесь можно уточнить детали, чтобы тексты на карточке были точнее."
+                    placeholder="РќР°РїСЂРёРјРµСЂ: В«РћС„РёСЃРЅС‹Р№ СЃС‚СѓР», СЃС‚Р°Р»СЊРЅРѕР№ РєР°СЂРєР°СЃ, РґРѕ 120 РєРі, С‚РєР°РЅСЊ РѕРєСЃС„РѕСЂРґВ». РР СЃР°Рј РѕРїСЂРµРґРµР»РёС‚ С‚РѕРІР°СЂ РїРѕ С„РѕС‚Рѕ вЂ” Р·РґРµСЃСЊ РјРѕР¶РЅРѕ СѓС‚РѕС‡РЅРёС‚СЊ РґРµС‚Р°Р»Рё, С‡С‚РѕР±С‹ С‚РµРєСЃС‚С‹ РЅР° РєР°СЂС‚РѕС‡РєРµ Р±С‹Р»Рё С‚РѕС‡РЅРµРµ."
                     value={userProductInfo}
                     onChange={e => setUserProductInfo(e.target.value)}
                     style={{width:'100%', resize:'vertical'}}
@@ -3051,7 +3075,7 @@ ${userProductInfo.trim()}
             )}
           </AnimatePresence>
 
-          {/* ═══ PHOTO MODE: модель-человек ═══ */}
+          {/* в•ђв•ђв•ђ PHOTO MODE: РјРѕРґРµР»СЊ-С‡РµР»РѕРІРµРє в•ђв•ђв•ђ */}
           <AnimatePresence mode="wait">
             {quickMode === 'photo' && (
               <motion.div
@@ -3068,7 +3092,7 @@ ${userProductInfo.trim()}
                       checked={quickWithModel}
                       onChange={e => setQuickWithModel(e.target.checked)}
                     />
-                    <span className="quick-toggle-text">👤 Добавить модель-человека</span>
+                    <span className="quick-toggle-text">рџ‘¤ Р”РѕР±Р°РІРёС‚СЊ РјРѕРґРµР»СЊ-С‡РµР»РѕРІРµРєР°</span>
                   </label>
                 </div>
 
@@ -3081,8 +3105,8 @@ ${userProductInfo.trim()}
                       style={{overflow:'hidden', marginTop: 16, marginBottom: 16, background: 'rgba(255,255,255,0.02)', padding: 16, borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)'}}
                     >
                       <div className="tabs-row" style={{marginBottom: 16}}>
-                        <button className={`tab-btn ${productModelTab==='presets'?'active':''}`} onClick={()=>{setProductModelTab('presets');setProductSavedModelId(null);}}>🎭 Пресеты</button>
-                        <button className={`tab-btn ${productModelTab==='my_models'?'active':''}`} onClick={()=>setProductModelTab('my_models')}>⭐ Мои Модели{myModels.length>0?` (${myModels.length})`:''}</button>
+                        <button className={`tab-btn ${productModelTab==='presets'?'active':''}`} onClick={()=>{setProductModelTab('presets');setProductSavedModelId(null);}}>рџЋ­ РџСЂРµСЃРµС‚С‹</button>
+                        <button className={`tab-btn ${productModelTab==='my_models'?'active':''}`} onClick={()=>setProductModelTab('my_models')}>в­ђ РњРѕРё РњРѕРґРµР»Рё{myModels.length>0?` (${myModels.length})`:''}</button>
                       </div>
                       {productModelTab === 'presets' ? (
                         <>
@@ -3097,7 +3121,7 @@ ${userProductInfo.trim()}
                           </div>
                           <DetailPanel modelDetails={productModelDetails} setModelDetails={setProductModelDetails} visible={showProductModelDetails && !customProductModelPrompt && !productSavedModelId} gender={productModelGender} extraPrompt={''} setExtraPrompt={() => {}} />
                           <div className="custom-variant-row" style={{marginTop: 16}}>
-                            <input className="custom-variant-input" type="text" placeholder="Описать модель: «рыжая девушка 25 лет с веснушками»"
+                            <input className="custom-variant-input" type="text" placeholder="РћРїРёСЃР°С‚СЊ РјРѕРґРµР»СЊ: В«СЂС‹Р¶Р°СЏ РґРµРІСѓС€РєР° 25 Р»РµС‚ СЃ РІРµСЃРЅСѓС€РєР°РјРёВ»"
                               value={customProductModelPrompt}
                               onFocus={() => { setShowProductModelDetails(false); setProductSavedModelId(null); }}
                               onChange={e => { setCustomProductModelPrompt(e.target.value); setProductSavedModelId(null); setShowProductModelDetails(false); }} />
@@ -3112,13 +3136,13 @@ ${userProductInfo.trim()}
                                   onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
                                   <img src={m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                                   <div className="avatar-name">{m.name}</div>
-                                  <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
-                                  <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>✕</button>
+                                  <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>рџ”Ќ</button>
+                                  <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>вњ•</button>
                                 </div>
                               ))}
                             </div>
                           ) : (
-                            <p className="section-hint" style={{textAlign:'center',padding:'20px 0'}}>У вас пока нет сохранённых моделей.</p>
+                            <p className="section-hint" style={{textAlign:'center',padding:'20px 0'}}>РЈ РІР°СЃ РїРѕРєР° РЅРµС‚ СЃРѕС…СЂР°РЅС‘РЅРЅС‹С… РјРѕРґРµР»РµР№.</p>
                           )}
                         </>
                       )}
@@ -3129,7 +3153,7 @@ ${userProductInfo.trim()}
             )}
           </AnimatePresence>
 
-          {/* ═══ MODEL MODE: инфо-баннер ═══ */}
+          {/* в•ђв•ђв•ђ MODEL MODE: РёРЅС„Рѕ-Р±Р°РЅРЅРµСЂ в•ђв•ђв•ђ */}
           <AnimatePresence mode="wait">
             {quickMode === 'model' && (
               <motion.div
@@ -3140,14 +3164,14 @@ ${userProductInfo.trim()}
               >
                 <div style={{background:'rgba(168,85,247,0.06)', border:'1px solid rgba(168,85,247,0.15)', borderRadius:12, padding:'12px 16px', marginBottom:16}}>
                   <p style={{margin:0, fontSize:13, color:'rgba(255,255,255,0.7)', lineHeight:1.5}}>
-                    👤 <strong>ИИ поместит товар в руки модели</strong> — сам определит, как человек будет держать, носить или использовать ваш товар.
+                    рџ‘¤ <strong>РР РїРѕРјРµСЃС‚РёС‚ С‚РѕРІР°СЂ РІ СЂСѓРєРё РјРѕРґРµР»Рё</strong> вЂ” СЃР°Рј РѕРїСЂРµРґРµР»РёС‚, РєР°Рє С‡РµР»РѕРІРµРє Р±СѓРґРµС‚ РґРµСЂР¶Р°С‚СЊ, РЅРѕСЃРёС‚СЊ РёР»Рё РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ РІР°С€ С‚РѕРІР°СЂ.
                   </p>
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
 
-          {/* ═══ UGC MODE: настройки фото от покупателей ═══ */}
+          {/* в•ђв•ђв•ђ UGC MODE: РЅР°СЃС‚СЂРѕР№РєРё С„РѕС‚Рѕ РѕС‚ РїРѕРєСѓРїР°С‚РµР»РµР№ в•ђв•ђв•ђ */}
           <AnimatePresence mode="wait">
             {quickMode === 'ugc' && (
               <motion.div
@@ -3158,8 +3182,8 @@ ${userProductInfo.trim()}
               >
                 <div style={{background:'rgba(34,197,94,0.06)', border:'1px solid rgba(34,197,94,0.15)', borderRadius:12, padding:'12px 16px', marginBottom:16}}>
                   <p style={{margin:0, fontSize:13, color:'rgba(255,255,255,0.7)', lineHeight:1.5}}>
-                    📱 <strong>ИИ создаст реалистичные фото товара</strong>, похожие на снимки реальных покупателей — с домашним фоном, естественным светом и лёгким шумом смартфона.
-                    Стоимость: <strong style={{color:'#22c55e'}}>1 кредит</strong> за фото.
+                    рџ“± <strong>РР СЃРѕР·РґР°СЃС‚ СЂРµР°Р»РёСЃС‚РёС‡РЅС‹Рµ С„РѕС‚Рѕ С‚РѕРІР°СЂР°</strong>, РїРѕС…РѕР¶РёРµ РЅР° СЃРЅРёРјРєРё СЂРµР°Р»СЊРЅС‹С… РїРѕРєСѓРїР°С‚РµР»РµР№ вЂ” СЃ РґРѕРјР°С€РЅРёРј С„РѕРЅРѕРј, РµСЃС‚РµСЃС‚РІРµРЅРЅС‹Рј СЃРІРµС‚РѕРј Рё Р»С‘РіРєРёРј С€СѓРјРѕРј СЃРјР°СЂС‚С„РѕРЅР°.
+                    РЎС‚РѕРёРјРѕСЃС‚СЊ: <strong style={{color:'#22c55e'}}>1 РєСЂРµРґРёС‚</strong> Р·Р° С„РѕС‚Рѕ.
                   </p>
                 </div>
               </motion.div>
@@ -3168,7 +3192,7 @@ ${userProductInfo.trim()}
 
           {/* Examples button */}
           <button className="card-examples-btn" onClick={() => setShowCardExamples(true)}>
-            👁 Посмотреть примеры до/после
+            рџ‘Ѓ РџРѕСЃРјРѕС‚СЂРµС‚СЊ РїСЂРёРјРµСЂС‹ РґРѕ/РїРѕСЃР»Рµ
           </button>
 
           {/* Generate button */}
@@ -3178,30 +3202,30 @@ ${userProductInfo.trim()}
               onClick={handleQuickGenerate}
               disabled={isProcessing || !garmentUrls.length}
             >
-              {isProcessing ? '⏳ Генерируем...' : (quickMode === 'card' ? '📋 Создать карточку' : quickMode === 'ugc' ? '📱 Создать фото от покупателя' : quickMode === 'model' ? '👤 Создать карточку с моделью' : '🎨 Создать фото')}
+              {isProcessing ? 'вЏі Р“РµРЅРµСЂРёСЂСѓРµРј...' : (quickMode === 'card' ? 'рџ“‹ РЎРѕР·РґР°С‚СЊ РєР°СЂС‚РѕС‡РєСѓ' : quickMode === 'ugc' ? 'рџ“± РЎРѕР·РґР°С‚СЊ С„РѕС‚Рѕ РѕС‚ РїРѕРєСѓРїР°С‚РµР»СЏ' : quickMode === 'model' ? 'рџ‘¤ РЎРѕР·РґР°С‚СЊ РєР°СЂС‚РѕС‡РєСѓ СЃ РјРѕРґРµР»СЊСЋ' : 'рџЋЁ РЎРѕР·РґР°С‚СЊ С„РѕС‚Рѕ')}
             </button>
-            <span className="quick-credits-hint">{quickMode === 'card' ? '2 кредита' : '1 кредит'}</span>
+            <span className="quick-credits-hint">{quickMode === 'card' ? '2 РєСЂРµРґРёС‚Р°' : '1 РєСЂРµРґРёС‚'}</span>
           </div>
         </motion.div>
       )}
 
 
-      {/* 1. МУЛЬТИЗАГРУЗКА */}
+      {/* 1. РњРЈР›Р¬РўРР—РђР“Р РЈР—РљРђ */}
       {appMode !== 'quick' && <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.15,duration:0.5,ease:[0.16,1,0.3,1]}}>
         <div className="section-title">
-          <span className="icon">{appMode === 'product' ? '📦' : '📸'}</span> 
-          {appMode === 'product' ? ' Загрузка товаров' : ' Загрузка вещей'}
+          <span className="icon">{appMode === 'product' ? 'рџ“¦' : 'рџ“ё'}</span> 
+          {appMode === 'product' ? ' Р—Р°РіСЂСѓР·РєР° С‚РѕРІР°СЂРѕРІ' : ' Р—Р°РіСЂСѓР·РєР° РІРµС‰РµР№'}
         </div>
         {previewUrls.length > 0 ? (
           <div className="multi-preview-grid">
             {previewUrls.map((url, i) => (
               <div key={i} className="multi-preview-item">
-                <img src={url} alt={`Объект ${i+1}`} style={{cursor:'zoom-in'}} onClick={() => setLightboxSrc(url)} />
-                <button className="remove-btn" onClick={() => removeFile(i)}>✕</button>
+                <img src={url} alt={`РћР±СЉРµРєС‚ ${i+1}`} style={{cursor:'zoom-in'}} onClick={() => setLightboxSrc(url)} />
+                <button className="remove-btn" onClick={() => removeFile(i)}>вњ•</button>
               </div>
             ))}
             <div className="add-more-btn" onClick={() => fileInputRef.current?.click()}>
-              <span className="plus">+</span><span>Ещё</span>
+              <span className="plus">+</span><span>Р•С‰С‘</span>
             </div>
             <input type="file" accept="image/*" multiple ref={fileInputRef} style={{display:'none'}} onChange={handleFilesChange} />
           </div>
@@ -3212,22 +3236,22 @@ ${userProductInfo.trim()}
             onDragLeave={e => { e.preventDefault(); e.currentTarget.classList.remove('dragging'); }}
             onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('dragging'); if (e.dataTransfer.files?.length) handleFilesChange({ target: { files: e.dataTransfer.files } }); }}>
             <input type="file" accept="image/*" multiple ref={fileInputRef} style={{display:'none'}} onChange={handleFilesChange} />
-            <div className="upload-icon">{appMode === 'product' ? '🧴' : '👕'}</div>
+            <div className="upload-icon">{appMode === 'product' ? 'рџ§ґ' : 'рџ‘•'}</div>
             <p className="upload-text">
-              {appMode === 'product' ? 'Загрузите фото вашего товара — флакон, баночку, аксессуар' : 'Загрузите фото одежды — раскладки или фото на модели'}
+              {appMode === 'product' ? 'Р—Р°РіСЂСѓР·РёС‚Рµ С„РѕС‚Рѕ РІР°С€РµРіРѕ С‚РѕРІР°СЂР° вЂ” С„Р»Р°РєРѕРЅ, Р±Р°РЅРѕС‡РєСѓ, Р°РєСЃРµСЃСЃСѓР°СЂ' : 'Р—Р°РіСЂСѓР·РёС‚Рµ С„РѕС‚Рѕ РѕРґРµР¶РґС‹ вЂ” СЂР°СЃРєР»Р°РґРєРё РёР»Рё С„РѕС‚Рѕ РЅР° РјРѕРґРµР»Рё'}
             </p>
             <p className="upload-hint">
-              {appMode === 'product' ? 'JPG, PNG • Перетащите сюда или нажмите • Постарайтесь сделать фото при хорошем свете' : 'JPG, PNG • Перетащите сюда или нажмите • Можно несколько: футболка + брюки + серьги = всё на модели'}
+              {appMode === 'product' ? 'JPG, PNG вЂў РџРµСЂРµС‚Р°С‰РёС‚Рµ СЃСЋРґР° РёР»Рё РЅР°Р¶РјРёС‚Рµ вЂў РџРѕСЃС‚Р°СЂР°Р№С‚РµСЃСЊ СЃРґРµР»Р°С‚СЊ С„РѕС‚Рѕ РїСЂРё С…РѕСЂРѕС€РµРј СЃРІРµС‚Рµ' : 'JPG, PNG вЂў РџРµСЂРµС‚Р°С‰РёС‚Рµ СЃСЋРґР° РёР»Рё РЅР°Р¶РјРёС‚Рµ вЂў РњРѕР¶РЅРѕ РЅРµСЃРєРѕР»СЊРєРѕ: С„СѓС‚Р±РѕР»РєР° + Р±СЂСЋРєРё + СЃРµСЂСЊРіРё = РІСЃС‘ РЅР° РјРѕРґРµР»Рё'}
             </p>
           </div>
         )}
       </motion.div>}
 
-      {/* 2. НАСТРОЙКА ОБЪЕКТА / КАСТИНГ-РУМ */}
+      {/* 2. РќРђРЎРўР РћР™РљРђ РћР‘РЄР•РљРўРђ / РљРђРЎРўРРќР“-Р РЈРњ */}
       {appMode !== 'quick' && (appMode === 'product' ? (
         <>
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.3,duration:0.5,ease:[0.16,1,0.3,1]}}>
-          <div className="section-title"><span className="icon">🧴</span> Категория товара</div>
+          <div className="section-title"><span className="icon">рџ§ґ</span> РљР°С‚РµРіРѕСЂРёСЏ С‚РѕРІР°СЂР°</div>
           <div className="preset-grid">
             {PRODUCT_CATEGORIES.map(cat => (
               <div key={cat.id} className={`preset-card ${selectedProductCategory.id===cat.id&&!customProductPrompt?'active':''}`}
@@ -3236,24 +3260,24 @@ ${userProductInfo.trim()}
               </div>
             ))}
             <div className={`preset-card ${selectedProductCategory.id==='other'&&!customProductPrompt?'active':''}`}
-              onClick={() => { setSelectedProductCategory({ id: 'other', label: 'Другое', emoji: '📋', defaultPrompt: 'product item, commercial product photography' }); setCustomProductPrompt(''); }}>
-              <span className="emoji">📋</span><span className="label">Другое</span>
+              onClick={() => { setSelectedProductCategory({ id: 'other', label: 'Р”СЂСѓРіРѕРµ', emoji: 'рџ“‹', defaultPrompt: 'product item, commercial product photography' }); setCustomProductPrompt(''); }}>
+              <span className="emoji">рџ“‹</span><span className="label">Р”СЂСѓРіРѕРµ</span>
             </div>
           </div>
           {selectedProductCategory.id === 'other' && !customProductPrompt && (
-            <p className="section-hint" style={{fontSize:'0.78rem',color:'var(--text-muted)',marginTop:6,textAlign:'center'}}>☝️ Опишите ваш товар в поле ниже — это улучшит качество генерации</p>
+            <p className="section-hint" style={{fontSize:'0.78rem',color:'var(--text-muted)',marginTop:6,textAlign:'center'}}>вќпёЏ РћРїРёС€РёС‚Рµ РІР°С€ С‚РѕРІР°СЂ РІ РїРѕР»Рµ РЅРёР¶Рµ вЂ” СЌС‚Рѕ СѓР»СѓС‡С€РёС‚ РєР°С‡РµСЃС‚РІРѕ РіРµРЅРµСЂР°С†РёРё</p>
           )}
           <div className="custom-variant-row">
-            <input className="custom-variant-input" type="text" placeholder={selectedProductCategory.id === 'other' ? 'Опишите ваш товар: «набор кистей для макияжа в чехле»' : 'Описать товар с нуля: «круглая баночка крема с золотой крышкой»'}
+            <input className="custom-variant-input" type="text" placeholder={selectedProductCategory.id === 'other' ? 'РћРїРёС€РёС‚Рµ РІР°С€ С‚РѕРІР°СЂ: В«РЅР°Р±РѕСЂ РєРёСЃС‚РµР№ РґР»СЏ РјР°РєРёСЏР¶Р° РІ С‡РµС…Р»РµВ»' : 'РћРїРёСЃР°С‚СЊ С‚РѕРІР°СЂ СЃ РЅСѓР»СЏ: В«РєСЂСѓРіР»Р°СЏ Р±Р°РЅРѕС‡РєР° РєСЂРµРјР° СЃ Р·РѕР»РѕС‚РѕР№ РєСЂС‹С€РєРѕР№В»'}
               value={customProductPrompt} 
               onChange={e => setCustomProductPrompt(e.target.value)} />
           </div>
         </motion.div>
 
-        {/* ═══ МОДЕЛЬ-ЧЕЛОВЕК В ПРЕДМЕТНОЙ СЪЁМКЕ ═══ */}
+        {/* в•ђв•ђв•ђ РњРћР”Р•Р›Р¬-Р§Р•Р›РћР’Р•Рљ Р’ РџР Р•Р”РњР•РўРќРћР™ РЎРЄРЃРњРљР• в•ђв•ђв•ђ */}
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.35,duration:0.5,ease:[0.16,1,0.3,1]}}>
           <div className="section-title" style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
-            <span><span className="icon">👤</span> Модель-человек</span>
+            <span><span className="icon">рџ‘¤</span> РњРѕРґРµР»СЊ-С‡РµР»РѕРІРµРє</span>
             {productWithModel && (
               <motion.button 
                 initial={{opacity:0, scale:0.9}}
@@ -3261,7 +3285,7 @@ ${userProductInfo.trim()}
                 className="remove-model-btn" 
                 onClick={() => setProductWithModel(false)}
               >
-                ✕ Исключить модель
+                вњ• РСЃРєР»СЋС‡РёС‚СЊ РјРѕРґРµР»СЊ
               </motion.button>
             )}
           </div>
@@ -3279,11 +3303,11 @@ ${userProductInfo.trim()}
                 transition={{ type: 'spring', stiffness: 400, damping: 25, mass: 0.5 }}
               >
                 <div className="add-model-card-content">
-                  <div className="add-model-icon">👤✨</div>
+                  <div className="add-model-icon">рџ‘¤вњЁ</div>
                   <div className="add-model-info">
-                    <div className="add-model-title">Добавить модель-человека</div>
+                    <div className="add-model-title">Р”РѕР±Р°РІРёС‚СЊ РјРѕРґРµР»СЊ-С‡РµР»РѕРІРµРєР°</div>
                     <div className="add-model-desc">
-                      Сгенерировать живую модель, которая держит или демонстрирует ваш товар в кадре
+                      РЎРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ Р¶РёРІСѓСЋ РјРѕРґРµР»СЊ, РєРѕС‚РѕСЂР°СЏ РґРµСЂР¶РёС‚ РёР»Рё РґРµРјРѕРЅСЃС‚СЂРёСЂСѓРµС‚ РІР°С€ С‚РѕРІР°СЂ РІ РєР°РґСЂРµ
                     </div>
                   </div>
                 </div>
@@ -3296,8 +3320,8 @@ ${userProductInfo.trim()}
                 style={{overflow:'hidden'}}
               >
                 <div className="tabs-row" style={{marginTop:8}}>
-                  <button className={`tab-btn ${productModelTab==='presets'?'active':''}`} onClick={()=>{setProductModelTab('presets');setProductSavedModelId(null);}}>🎭 Пресеты</button>
-                  <button className={`tab-btn ${productModelTab==='my_models'?'active':''}`} onClick={()=>setProductModelTab('my_models')}>⭐ Мои Модели{myModels.length>0?` (${myModels.length})`:''}</button>
+                  <button className={`tab-btn ${productModelTab==='presets'?'active':''}`} onClick={()=>{setProductModelTab('presets');setProductSavedModelId(null);}}>рџЋ­ РџСЂРµСЃРµС‚С‹</button>
+                  <button className={`tab-btn ${productModelTab==='my_models'?'active':''}`} onClick={()=>setProductModelTab('my_models')}>в­ђ РњРѕРё РњРѕРґРµР»Рё{myModels.length>0?` (${myModels.length})`:''}</button>
                 </div>
                 {productModelTab === 'presets' ? (
                   <>
@@ -3312,7 +3336,7 @@ ${userProductInfo.trim()}
                     </div>
                     <DetailPanel modelDetails={productModelDetails} setModelDetails={setProductModelDetails} visible={showProductModelDetails && !customProductModelPrompt && !productSavedModelId} gender={productModelGender} extraPrompt={''} setExtraPrompt={() => {}} />
                     <div className="custom-variant-row">
-                      <input className="custom-variant-input" type="text" placeholder="Описать модель: «рыжая девушка 25 лет с веснушками держит товар»"
+                      <input className="custom-variant-input" type="text" placeholder="РћРїРёСЃР°С‚СЊ РјРѕРґРµР»СЊ: В«СЂС‹Р¶Р°СЏ РґРµРІСѓС€РєР° 25 Р»РµС‚ СЃ РІРµСЃРЅСѓС€РєР°РјРё РґРµСЂР¶РёС‚ С‚РѕРІР°СЂВ»"
                         value={customProductModelPrompt}
                         onFocus={() => { setShowProductModelDetails(false); setProductSavedModelId(null); }}
                         onChange={e => { setCustomProductModelPrompt(e.target.value); setProductSavedModelId(null); setShowProductModelDetails(false); }} />
@@ -3327,22 +3351,22 @@ ${userProductInfo.trim()}
                             onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
                             <img src={m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                             <div className="avatar-name">{m.name}</div>
-                            <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
-                            <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>✕</button>
+                            <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>рџ”Ќ</button>
+                            <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>вњ•</button>
                           </div>
                         ))}
                       </div>
                     )}
                     {myModels.length === 0 && (
-                      <p className="section-hint" style={{textAlign:'center',padding:'20px 0'}}>У вас пока нет сохранённых моделей</p>
+                      <p className="section-hint" style={{textAlign:'center',padding:'20px 0'}}>РЈ РІР°СЃ РїРѕРєР° РЅРµС‚ СЃРѕС…СЂР°РЅС‘РЅРЅС‹С… РјРѕРґРµР»РµР№</p>
                     )}
                     <div className="add-location-card" style={{marginTop: myModels.length ? 12 : 0, background:'rgba(168,85,247,0.08)', borderColor:'rgba(168,85,247,0.2)'}} onClick={() => setShowPersonaWizard(true)}>
-                      <span className="plus-icon" style={{color:'#a855f7'}}>🧑</span>
-                      <span style={{color:'#a855f7'}}>Создать персонажа</span>
+                      <span className="plus-icon" style={{color:'#a855f7'}}>рџ§‘</span>
+                      <span style={{color:'#a855f7'}}>РЎРѕР·РґР°С‚СЊ РїРµСЂСЃРѕРЅР°Р¶Р°</span>
                     </div>
                     <div className="add-location-card" style={{marginTop: 8}} onClick={() => setShowLoraModal(true)}>
                       <span className="plus-icon">+</span>
-                      <span>Добавить свою модель</span>
+                      <span>Р”РѕР±Р°РІРёС‚СЊ СЃРІРѕСЋ РјРѕРґРµР»СЊ</span>
                     </div>
                   </>
                 )}
@@ -3353,10 +3377,10 @@ ${userProductInfo.trim()}
         </>
       ) : (
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.3,duration:0.5,ease:[0.16,1,0.3,1]}}>
-          <div className="section-title"><span className="icon">👤</span> Кастинг-Рум — выбор модели</div>
+          <div className="section-title"><span className="icon">рџ‘¤</span> РљР°СЃС‚РёРЅРі-Р СѓРј вЂ” РІС‹Р±РѕСЂ РјРѕРґРµР»Рё</div>
           <div className="tabs-row">
-            <button className={`tab-btn ${modelTab==='presets'?'active':''}`} onClick={()=>{setModelTab('presets');setSelectedSavedModelId(null);}}>🎭 Пресеты</button>
-            <button className={`tab-btn ${modelTab==='my_models'?'active':''}`} onClick={()=>setModelTab('my_models')}>⭐ Мои Модели{myModels.length>0?` (${myModels.length})`:''}</button>
+            <button className={`tab-btn ${modelTab==='presets'?'active':''}`} onClick={()=>{setModelTab('presets');setSelectedSavedModelId(null);}}>рџЋ­ РџСЂРµСЃРµС‚С‹</button>
+            <button className={`tab-btn ${modelTab==='my_models'?'active':''}`} onClick={()=>setModelTab('my_models')}>в­ђ РњРѕРё РњРѕРґРµР»Рё{myModels.length>0?` (${myModels.length})`:''}</button>
           </div>
           {modelTab === 'presets' ? (
             <>
@@ -3364,8 +3388,8 @@ ${userProductInfo.trim()}
               {/* Multi-select info popover */}
               {!customModelPrompt && !selectedSavedModelId && (selectedModels.length + customModelChips.length) > 1 && (
                 <div className="multi-select-info">
-                  <span className="info-icon">ℹ️</span>
-                  Выбрано {selectedModels.length + customModelChips.length} типов моделей — каждый тип = отдельная генерация. Итого: ×{selectedModels.length + customModelChips.length} к количеству кадров. Максимум 20 за раз.
+                  <span className="info-icon">в„№пёЏ</span>
+                  Р’С‹Р±СЂР°РЅРѕ {selectedModels.length + customModelChips.length} С‚РёРїРѕРІ РјРѕРґРµР»РµР№ вЂ” РєР°Р¶РґС‹Р№ С‚РёРї = РѕС‚РґРµР»СЊРЅР°СЏ РіРµРЅРµСЂР°С†РёСЏ. РС‚РѕРіРѕ: Г—{selectedModels.length + customModelChips.length} Рє РєРѕР»РёС‡РµСЃС‚РІСѓ РєР°РґСЂРѕРІ. РњР°РєСЃРёРјСѓРј 20 Р·Р° СЂР°Р·.
                 </div>
               )}
               <div className={`preset-grid${customModelPrompt && !selectedSavedModelId ? ' dimmed' : ''}`}>
@@ -3387,10 +3411,10 @@ ${userProductInfo.trim()}
                           const alreadySelected = selectedModels.some(s => s.id === m.id);
                           if (alreadySelected) {
                             if (activeModelDetailsId === m.id) {
-                              // Повторный клик на уже активную карточку — скрыть/показать панель
+                              // РџРѕРІС‚РѕСЂРЅС‹Р№ РєР»РёРє РЅР° СѓР¶Рµ Р°РєС‚РёРІРЅСѓСЋ РєР°СЂС‚РѕС‡РєСѓ вЂ” СЃРєСЂС‹С‚СЊ/РїРѕРєР°Р·Р°С‚СЊ РїР°РЅРµР»СЊ
                               setShowDetails(v => !v);
                             } else {
-                              // Клик на другую выбранную карточку — переключить фокус, НЕ снимать выделение
+                              // РљР»РёРє РЅР° РґСЂСѓРіСѓСЋ РІС‹Р±СЂР°РЅРЅСѓСЋ РєР°СЂС‚РѕС‡РєСѓ вЂ” РїРµСЂРµРєР»СЋС‡РёС‚СЊ С„РѕРєСѓСЃ, РќР• СЃРЅРёРјР°С‚СЊ РІС‹РґРµР»РµРЅРёРµ
                               setActiveModelDetailsId(m.id);
                               setShowDetails(true);
                             }
@@ -3406,8 +3430,8 @@ ${userProductInfo.trim()}
                         <button
                           className="preset-card-remove"
                           onClick={e => { e.stopPropagation(); setSelectedModels(prev => prev.filter(s => s.id !== m.id)); if (activeModelDetailsId === m.id) { const remaining = selectedModels.filter(s => s.id !== m.id); if (remaining.length > 0) setActiveModelDetailsId(remaining[0].id); } }}
-                          title="Снять выбор"
-                        >✕</button>
+                          title="РЎРЅСЏС‚СЊ РІС‹Р±РѕСЂ"
+                        >вњ•</button>
                       )}
                     </div>
                   );
@@ -3427,8 +3451,8 @@ ${userProductInfo.trim()}
                       }}>
                       <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
                       <div className="chip-actions">
-                        <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('model', chip); }}>✏️</button>
-                        <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('model', chip.id); }}>✕</button>
+                        <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('model', chip); }}>вњЏпёЏ</button>
+                        <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('model', chip.id); }}>вњ•</button>
                       </div>
                     </div>
                   );
@@ -3436,13 +3460,13 @@ ${userProductInfo.trim()}
                 {/* Add custom variant button */}
                 {!customModelPrompt && !selectedSavedModelId && (
                   <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('model'); setNewChipText(''); }}>
-                    <span className="emoji">➕</span><span className="label">Свой вариант</span>
+                    <span className="emoji">вћ•</span><span className="label">РЎРІРѕР№ РІР°СЂРёР°РЅС‚</span>
                   </div>
                 )}
               </div>
               <DetailPanel modelDetails={modelDetails} setModelDetails={setModelDetails} visible={showDetails && !customModelPrompt && !selectedSavedModelId} gender={gender} extraPrompt={extraModelPrompt} setExtraPrompt={setExtraModelPrompt} title={getActiveModelLabel()} onClose={() => setShowDetails(false)} />
-              {(customModelChips.some(c => /тату|tattoo/i.test(c.prompt)) || /тату|tattoo/i.test(customModelPrompt)) && (
-                <div className="tattoo-warning">⚠️ Татуировка отлично получится на одиночном фото, но в серии (фотосессия) может искажаться. Для стабильной модели старайтесь не использовать тату.</div>
+              {(customModelChips.some(c => /С‚Р°С‚Сѓ|tattoo/i.test(c.prompt)) || /С‚Р°С‚Сѓ|tattoo/i.test(customModelPrompt)) && (
+                <div className="tattoo-warning">вљ пёЏ РўР°С‚СѓРёСЂРѕРІРєР° РѕС‚Р»РёС‡РЅРѕ РїРѕР»СѓС‡РёС‚СЃСЏ РЅР° РѕРґРёРЅРѕС‡РЅРѕРј С„РѕС‚Рѕ, РЅРѕ РІ СЃРµСЂРёРё (С„РѕС‚РѕСЃРµСЃСЃРёСЏ) РјРѕР¶РµС‚ РёСЃРєР°Р¶Р°С‚СЊСЃСЏ. Р”Р»СЏ СЃС‚Р°Р±РёР»СЊРЅРѕР№ РјРѕРґРµР»Рё СЃС‚Р°СЂР°Р№С‚РµСЃСЊ РЅРµ РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ С‚Р°С‚Сѓ.</div>
               )}
             </>
           ) : (
@@ -3455,34 +3479,34 @@ ${userProductInfo.trim()}
                         onClick={() => { setSelectedSavedModelId(m.id); setCustomModelPrompt(''); setShowDetails(false); }}>
                         <img src={m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                         <div className="avatar-name">{m.name}</div>
-                        <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
-                        <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>✕</button>
+                        <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.imageBase64?.[0] || m.fullbodyBase64 || m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>рџ”Ќ</button>
+                        <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>вњ•</button>
                       </div>
                     ))}
                   </div>
-                  {selectedSavedModelId && <div className="selected-model-indicator">⭐ Ваша модель выбрана</div>}
+                  {selectedSavedModelId && <div className="selected-model-indicator">в­ђ Р’Р°С€Р° РјРѕРґРµР»СЊ РІС‹Р±СЂР°РЅР°</div>}
                   {selectedSavedModelId && (
                     <div className="modifier-block">
                       <button className="modifier-toggle" onClick={() => { setShowModelModifier(!showModelModifier); setModelPreviewSrc(null); }}>
-                        {showModelModifier ? '✖ Скрыть' : '✏️ Изменить модель'}
+                        {showModelModifier ? 'вњ– РЎРєСЂС‹С‚СЊ' : 'вњЏпёЏ РР·РјРµРЅРёС‚СЊ РјРѕРґРµР»СЊ'}
                       </button>
                       {showModelModifier && (
                         <div className="modifier-content">
-                          <textarea className="modifier-input" rows={2} placeholder="Например: добавить татуировку на левую руку, сделать волосы рыжими, рост выше"
+                          <textarea className="modifier-input" rows={2} placeholder="РќР°РїСЂРёРјРµСЂ: РґРѕР±Р°РІРёС‚СЊ С‚Р°С‚СѓРёСЂРѕРІРєСѓ РЅР° Р»РµРІСѓСЋ СЂСѓРєСѓ, СЃРґРµР»Р°С‚СЊ РІРѕР»РѕСЃС‹ СЂС‹Р¶РёРјРё, СЂРѕСЃС‚ РІС‹С€Рµ"
                             value={modelModifier} onChange={e => setModelModifier(e.target.value)} />
                           {/* Tattoo warning (text input) */}
-                          {/тату/i.test(modelModifier) && (
-                            <div className="tattoo-warning">⚠️ Татуировка отлично получится на одиночном фото, но в серии (фотосессия) может искажаться. Для стабильной модели старайтесь не использовать тату.</div>
+                          {/С‚Р°С‚Сѓ/i.test(modelModifier) && (
+                            <div className="tattoo-warning">вљ пёЏ РўР°С‚СѓРёСЂРѕРІРєР° РѕС‚Р»РёС‡РЅРѕ РїРѕР»СѓС‡РёС‚СЃСЏ РЅР° РѕРґРёРЅРѕС‡РЅРѕРј С„РѕС‚Рѕ, РЅРѕ РІ СЃРµСЂРёРё (С„РѕС‚РѕСЃРµСЃСЃРёСЏ) РјРѕР¶РµС‚ РёСЃРєР°Р¶Р°С‚СЊСЃСЏ. Р”Р»СЏ СЃС‚Р°Р±РёР»СЊРЅРѕР№ РјРѕРґРµР»Рё СЃС‚Р°СЂР°Р№С‚РµСЃСЊ РЅРµ РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ С‚Р°С‚Сѓ.</div>
                           )}
                           <button className="modifier-save-btn" onClick={handlePreviewModel} disabled={!modelModifier.trim() || isPreviewingModel}>
-                            {isPreviewingModel ? '⏳ Генерируем превью...' : '👁️ Предпросмотр'}
+                            {isPreviewingModel ? 'вЏі Р“РµРЅРµСЂРёСЂСѓРµРј РїСЂРµРІСЊСЋ...' : 'рџ‘ЃпёЏ РџСЂРµРґРїСЂРѕСЃРјРѕС‚СЂ'}
                           </button>
                           {modelPreviewSrc && (
                             <div className="model-preview-block">
-                              <img src={modelPreviewSrc} alt="Превью модели" className="model-preview-img" onClick={() => setLightboxSrc(modelPreviewSrc)} />
-                              <input className="custom-variant-input" type="text" placeholder="Назовите новую модель" value={modelPreviewName} onChange={e => setModelPreviewName(e.target.value)} />
+                              <img src={modelPreviewSrc} alt="РџСЂРµРІСЊСЋ РјРѕРґРµР»Рё" className="model-preview-img" onClick={() => setLightboxSrc(modelPreviewSrc)} />
+                              <input className="custom-variant-input" type="text" placeholder="РќР°Р·РѕРІРёС‚Рµ РЅРѕРІСѓСЋ РјРѕРґРµР»СЊ" value={modelPreviewName} onChange={e => setModelPreviewName(e.target.value)} />
                               <button className="modifier-save-btn" onClick={saveModelAsNew} disabled={!modelPreviewName.trim() || isSaving}>
-                                {isSaving ? '⏳ Сохраняем...' : '💾 Сохранить как новую модель'}
+                                {isSaving ? 'вЏі РЎРѕС…СЂР°РЅСЏРµРј...' : 'рџ’ѕ РЎРѕС…СЂР°РЅРёС‚СЊ РєР°Рє РЅРѕРІСѓСЋ РјРѕРґРµР»СЊ'}
                               </button>
                             </div>
                           )}
@@ -3493,22 +3517,22 @@ ${userProductInfo.trim()}
                 </>
               )}
               <div className="add-location-card" style={{marginTop: myModels.length ? 12 : 0, background:'rgba(168,85,247,0.08)', borderColor:'rgba(168,85,247,0.2)'}} onClick={() => setShowPersonaWizard(true)}>
-                <span className="plus-icon" style={{color:'#a855f7'}}>🧑</span>
-                <span style={{color:'#a855f7'}}>Создать персонажа</span>
+                <span className="plus-icon" style={{color:'#a855f7'}}>рџ§‘</span>
+                <span style={{color:'#a855f7'}}>РЎРѕР·РґР°С‚СЊ РїРµСЂСЃРѕРЅР°Р¶Р°</span>
               </div>
               <div className="add-location-card" style={{marginTop: 8}} onClick={() => setShowLoraModal(true)}>
                 <span className="plus-icon">+</span>
-                <span>Добавить свою модель</span>
+                <span>Р”РѕР±Р°РІРёС‚СЊ СЃРІРѕСЋ РјРѕРґРµР»СЊ</span>
               </div>
             </>
           )}
         </motion.div>
       ))}
 
-      {/* 3. ПОЗА ИЛИ КОМПОЗИЦИЯ */}
+      {/* 3. РџРћР—Рђ РР›Р РљРћРњРџРћР—РР¦РРЇ */}
       {appMode !== 'quick' && (appMode === 'product' ? (
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.45,duration:0.5,ease:[0.16,1,0.3,1]}}>
-          <div className="section-title"><span className="icon">📐</span> Композиция кадра</div>
+          <div className="section-title"><span className="icon">рџ“ђ</span> РљРѕРјРїРѕР·РёС†РёСЏ РєР°РґСЂР°</div>
           <div className="preset-grid">
             {PRODUCT_COMPOSITIONS.map(p => {
               const isActive = selectedProductCompositions.some(c => c.id === p.id) && !customPoseText;
@@ -3530,18 +3554,18 @@ ${userProductInfo.trim()}
             })}
           </div>
           <div className="custom-variant-row">
-            <input className="custom-variant-input" type="text" placeholder="Или опишите свою композицию: «Товар лежит на зеркальной поверхности под углом»"
+            <input className="custom-variant-input" type="text" placeholder="РР»Рё РѕРїРёС€РёС‚Рµ СЃРІРѕСЋ РєРѕРјРїРѕР·РёС†РёСЋ: В«РўРѕРІР°СЂ Р»РµР¶РёС‚ РЅР° Р·РµСЂРєР°Р»СЊРЅРѕР№ РїРѕРІРµСЂС…РЅРѕСЃС‚Рё РїРѕРґ СѓРіР»РѕРјВ»"
               value={customPoseText} onChange={e => setCustomPoseText(e.target.value)} />
           </div>
         </motion.div>
       ) : (
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.45,duration:0.5,ease:[0.16,1,0.3,1]}}>
-          <div className="section-title"><span className="icon">🧍</span> Поза модели</div>
+          <div className="section-title"><span className="icon">рџ§Ќ</span> РџРѕР·Р° РјРѕРґРµР»Рё</div>
           {/* Multi-select info */}
           {!customPoseText && (selectedPoses.length + customPoseChips.length) > 1 && (
             <div className="multi-select-info">
-              <span className="info-icon">ℹ️</span>
-              Выбрано {selectedPoses.length + customPoseChips.length} поз — каждая поза = отдельная генерация. Итого: ×{selectedPoses.length + customPoseChips.length} к количеству кадров.
+              <span className="info-icon">в„№пёЏ</span>
+              Р’С‹Р±СЂР°РЅРѕ {selectedPoses.length + customPoseChips.length} РїРѕР· вЂ” РєР°Р¶РґР°СЏ РїРѕР·Р° = РѕС‚РґРµР»СЊРЅР°СЏ РіРµРЅРµСЂР°С†РёСЏ. РС‚РѕРіРѕ: Г—{selectedPoses.length + customPoseChips.length} Рє РєРѕР»РёС‡РµСЃС‚РІСѓ РєР°РґСЂРѕРІ.
             </div>
           )}
           <div className={`preset-grid${customPoseText ? ' dimmed' : ''}`}>
@@ -3566,7 +3590,7 @@ ${userProductInfo.trim()}
                 </div>
               );
             })}
-            {/* Импровизация — always visible */}
+            {/* РРјРїСЂРѕРІРёР·Р°С†РёСЏ вЂ” always visible */}
             {(() => {
               const isImprovActive = selectedPoses.some(s => s.id === IMPROV_POSE.id) && !customPoseText;
               return (
@@ -3593,28 +3617,28 @@ ${userProductInfo.trim()}
               <div key={chip.id} className="preset-card active custom-chip-card">
                 <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
                 <div className="chip-actions">
-                  <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('pose', chip); }}>✏️</button>
-                  <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('pose', chip.id); }}>✕</button>
+                  <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('pose', chip); }}>вњЏпёЏ</button>
+                  <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('pose', chip.id); }}>вњ•</button>
                 </div>
               </div>
             ))}
             {/* Add custom variant */}
             {!customPoseText && (
               <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('pose'); setNewChipText(''); }}>
-                <span className="emoji">➕</span><span className="label">Свой вариант</span>
+                <span className="emoji">вћ•</span><span className="label">РЎРІРѕР№ РІР°СЂРёР°РЅС‚</span>
               </div>
             )}
           </div>
         </motion.div>
       ))}
 
-      {/* 4. РАКУРС КАМЕРЫ (Только в режиме одежды) */}
+      {/* 4. Р РђРљРЈР РЎ РљРђРњР•Р Р« (РўРѕР»СЊРєРѕ РІ СЂРµР¶РёРјРµ РѕРґРµР¶РґС‹) */}
       {appMode === 'fashion' && (
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.6,duration:0.5,ease:[0.16,1,0.3,1]}}>
-          <div className="section-title"><span className="icon">📷</span> Ракурс камеры</div>
+          <div className="section-title"><span className="icon">рџ“·</span> Р Р°РєСѓСЂСЃ РєР°РјРµСЂС‹</div>
           {selectedCameras.length > 1 && (
             <div style={{ fontSize: '0.72rem', color: 'var(--gold)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.03em' }}>
-              ✅ {selectedCameras.length} ракурса выбрано
+              вњ… {selectedCameras.length} СЂР°РєСѓСЂСЃР° РІС‹Р±СЂР°РЅРѕ
             </div>
           )}
           <div className="preset-grid">
@@ -3639,12 +3663,12 @@ ${userProductInfo.trim()}
         </motion.div>
       )}
 
-      {/* 5. ФОН / ЛОКАЦИЯ */}
+      {/* 5. Р¤РћРќ / Р›РћРљРђР¦РРЇ */}
       {appMode !== 'quick' && <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.75,duration:0.5,ease:[0.16,1,0.3,1]}}>
-        <div className="section-title"><span className="icon">🎨</span> {appMode === 'product' ? 'Сцена / Окружение' : 'Фон / Локация'}</div>
+        <div className="section-title"><span className="icon">рџЋЁ</span> {appMode === 'product' ? 'РЎС†РµРЅР° / РћРєСЂСѓР¶РµРЅРёРµ' : 'Р¤РѕРЅ / Р›РѕРєР°С†РёСЏ'}</div>
         <div className="tabs-row">
-          <button className={`tab-btn ${bgTab==='presets'?'active':''}`} onClick={()=>{setBgTab('presets');setSelectedLocId(null);}}>🎨 Пресеты</button>
-          <button className={`tab-btn ${bgTab==='my_locations'?'active':''}`} onClick={()=>setBgTab('my_locations')}>📍 Мои локации{myLocations.length>0?` (${myLocations.length})`:''}</button>
+          <button className={`tab-btn ${bgTab==='presets'?'active':''}`} onClick={()=>{setBgTab('presets');setSelectedLocId(null);}}>рџЋЁ РџСЂРµСЃРµС‚С‹</button>
+          <button className={`tab-btn ${bgTab==='my_locations'?'active':''}`} onClick={()=>setBgTab('my_locations')}>рџ“Ќ РњРѕРё Р»РѕРєР°С†РёРё{myLocations.length>0?` (${myLocations.length})`:''}</button>
         </div>
         {bgTab === 'presets' ? (
           <>
@@ -3652,7 +3676,7 @@ ${userProductInfo.trim()}
               <>
                 {!customProductBg && !selectedLocId && selectedProductBgs.length > 1 && (
                   <div style={{ fontSize: '0.72rem', color: 'var(--gold)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.03em' }}>
-                    ✅ {selectedProductBgs.length} сцены выбрано — сгенерируется {selectedProductBgs.length * selectedProductCompositions.length} {selectedProductBgs.length * selectedProductCompositions.length === 1 ? 'вариант' : 'варианта'}
+                    вњ… {selectedProductBgs.length} СЃС†РµРЅС‹ РІС‹Р±СЂР°РЅРѕ вЂ” СЃРіРµРЅРµСЂРёСЂСѓРµС‚СЃСЏ {selectedProductBgs.length * selectedProductCompositions.length} {selectedProductBgs.length * selectedProductCompositions.length === 1 ? 'РІР°СЂРёР°РЅС‚' : 'РІР°СЂРёР°РЅС‚Р°'}
                   </div>
                 )}
                 <div className="preset-grid">
@@ -3679,11 +3703,11 @@ ${userProductInfo.trim()}
                   })}
                 </div>
                 <div className="custom-variant-row" style={{marginTop: 12}}>
-                  <input className="custom-variant-input" placeholder="Локация с нуля: «деревянный стол в скандинавском стиле, на фоне размытое окно»"
+                  <input className="custom-variant-input" placeholder="Р›РѕРєР°С†РёСЏ СЃ РЅСѓР»СЏ: В«РґРµСЂРµРІСЏРЅРЅС‹Р№ СЃС‚РѕР» РІ СЃРєР°РЅРґРёРЅР°РІСЃРєРѕРј СЃС‚РёР»Рµ, РЅР° С„РѕРЅРµ СЂР°Р·РјС‹С‚РѕРµ РѕРєРЅРѕВ»"
                     value={customProductBg} onChange={e => { setCustomProductBg(e.target.value); setSelectedLocId(null); }} />
                 </div>
                 <div className="section-subtitle-small" style={{marginTop: 18, marginBottom: 8, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px'}}>
-                  <span>✨</span> Добавить спецэффект
+                  <span>вњЁ</span> Р”РѕР±Р°РІРёС‚СЊ СЃРїРµС†СЌС„С„РµРєС‚
                 </div>
                 <div className="preset-grid">
                   {PRODUCT_EFFECTS.map(e => {
@@ -3715,7 +3739,7 @@ ${userProductInfo.trim()}
                   <div className="custom-variant-row" style={{marginTop:10}}>
                     <input
                       className="custom-variant-input"
-                      placeholder="Опишите ваш спецэффект: «взрыв конфетти, снежинки, дым»"
+                      placeholder="РћРїРёС€РёС‚Рµ РІР°С€ СЃРїРµС†СЌС„С„РµРєС‚: В«РІР·СЂС‹РІ РєРѕРЅС„РµС‚С‚Рё, СЃРЅРµР¶РёРЅРєРё, РґС‹РјВ»"
                       value={customProductEffectText}
                       onChange={ev => setCustomProductEffectText(ev.target.value)}
                     />
@@ -3727,8 +3751,8 @@ ${userProductInfo.trim()}
                 {/* Multi-select info */}
                 {!customBgText && !selectedLocId && (selectedBgs.length + customBgChips.length) > 1 && (
                   <div className="multi-select-info">
-                    <span className="info-icon">ℹ️</span>
-                    Выбрано {selectedBgs.length + customBgChips.length} фонов — каждый фон = отдельная генерация. Итого: ×{selectedBgs.length + customBgChips.length} к количеству кадров.
+                    <span className="info-icon">в„№пёЏ</span>
+                    Р’С‹Р±СЂР°РЅРѕ {selectedBgs.length + customBgChips.length} С„РѕРЅРѕРІ вЂ” РєР°Р¶РґС‹Р№ С„РѕРЅ = РѕС‚РґРµР»СЊРЅР°СЏ РіРµРЅРµСЂР°С†РёСЏ. РС‚РѕРіРѕ: Г—{selectedBgs.length + customBgChips.length} Рє РєРѕР»РёС‡РµСЃС‚РІСѓ РєР°РґСЂРѕРІ.
                   </div>
                 )}
                 <div className={`preset-grid${customBgText ? ' dimmed' : ''}`}>
@@ -3758,20 +3782,20 @@ ${userProductInfo.trim()}
                     <div key={chip.id} className="preset-card active custom-chip-card">
                       <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
                       <div className="chip-actions">
-                        <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('bg', chip); }}>✏️</button>
-                        <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('bg', chip.id); }}>✕</button>
+                        <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('bg', chip); }}>вњЏпёЏ</button>
+                        <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('bg', chip.id); }}>вњ•</button>
                       </div>
                     </div>
                   ))}
                   {/* Add custom variant */}
                   {!customBgText && !selectedLocId && (
                     <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('bg'); setNewChipText(''); }}>
-                      <span className="emoji">➕</span><span className="label">Свой вариант</span>
+                      <span className="emoji">вћ•</span><span className="label">РЎРІРѕР№ РІР°СЂРёР°РЅС‚</span>
                     </div>
                   )}
                 </div>
                 <div className="modifier-block" style={{marginTop:10}}>
-                  <textarea className="modifier-input" rows={1} placeholder="Добавить к локации: «закат, мокрый асфальт, неоновые огни»"
+                  <textarea className="modifier-input" rows={1} placeholder="Р”РѕР±Р°РІРёС‚СЊ Рє Р»РѕРєР°С†РёРё: В«Р·Р°РєР°С‚, РјРѕРєСЂС‹Р№ Р°СЃС„Р°Р»СЊС‚, РЅРµРѕРЅРѕРІС‹Рµ РѕРіРЅРёВ»"
                     value={bgExtraText} onChange={e => setBgExtraText(e.target.value)} />
                 </div>
               </>
@@ -3789,37 +3813,37 @@ ${userProductInfo.trim()}
                       <img src={loc.imageBase64[0]} alt={loc.title || loc.name || ''} onError={(e) => { e.target.style.display = 'none'; }} />
                     ) : (
                       <div style={{width:'100%', height:'80px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'4px', background:'rgba(255,160,0,0.08)', borderRadius:'6px'}}>
-                        <span style={{fontSize:'20px'}}>⚠️</span>
-                        <span style={{fontSize:'10px', color:'rgba(255,180,0,0.9)', textAlign:'center', lineHeight:'1.2'}}>Фото недоступно</span>
+                        <span style={{fontSize:'20px'}}>вљ пёЏ</span>
+                        <span style={{fontSize:'10px', color:'rgba(255,180,0,0.9)', textAlign:'center', lineHeight:'1.2'}}>Р¤РѕС‚Рѕ РЅРµРґРѕСЃС‚СѓРїРЅРѕ</span>
                         <button
                           style={{marginTop:'2px', padding:'3px 8px', fontSize:'10px', background:'rgba(255,160,0,0.2)', border:'1px solid rgba(255,160,0,0.5)', borderRadius:'4px', color:'#ffb300', cursor:'pointer'}}
                           onClick={async (e) => {
                             e.stopPropagation();
-                            if (window.confirm(`Удалить "${loc.title || 'локацию'}" и загрузить фото заново?`)) {
+                            if (window.confirm(`РЈРґР°Р»РёС‚СЊ "${loc.title || 'Р»РѕРєР°С†РёСЋ'}" Рё Р·Р°РіСЂСѓР·РёС‚СЊ С„РѕС‚Рѕ Р·Р°РЅРѕРІРѕ?`)) {
                               await deleteLoc(loc.id);
                               setShowLocModal(true);
                             }
                           }}
-                        >📸 Перезагрузить</button>
+                        >рџ“ё РџРµСЂРµР·Р°РіСЂСѓР·РёС‚СЊ</button>
                       </div>
                     )}
-                    <div className="loc-name">{loc.title || loc.name || 'Без названия'}</div>
-                    <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteLoc(loc.id); }}>✕</button>
+                    <div className="loc-name">{loc.title || loc.name || 'Р‘РµР· РЅР°Р·РІР°РЅРёСЏ'}</div>
+                    <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteLoc(loc.id); }}>вњ•</button>
                   </div>
                 );
               })}
               <div className="add-location-card" onClick={() => setShowLocModal(true)}>
-                <span className="plus-icon">+</span><span>Оцифровать локацию</span>
+                <span className="plus-icon">+</span><span>РћС†РёС„СЂРѕРІР°С‚СЊ Р»РѕРєР°С†РёСЋ</span>
               </div>
             </div>
-            {/* Кнопка восстановления удалённых локаций из Storage */}
+            {/* РљРЅРѕРїРєР° РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРёСЏ СѓРґР°Р»С‘РЅРЅС‹С… Р»РѕРєР°С†РёР№ РёР· Storage */}
             <div style={{marginTop: '8px', textAlign: 'center'}}>
               <button
                 style={{background: 'none', border: 'none', color: 'rgba(255,180,0,0.6)', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline', padding: '4px'}}
                 onClick={async () => {
                   try {
                     const idToken = await user.getIdToken();
-                    const locName = prompt('Название для восстановленной локации:', 'Хата ксона') || 'Восстановленная локация';
+                    const locName = prompt('РќР°Р·РІР°РЅРёРµ РґР»СЏ РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРЅРѕР№ Р»РѕРєР°С†РёРё:', 'РҐР°С‚Р° РєСЃРѕРЅР°') || 'Р’РѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРЅР°СЏ Р»РѕРєР°С†РёСЏ';
                     const resp = await fetch('/api/admin/recover-locations', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
@@ -3827,31 +3851,31 @@ ${userProductInfo.trim()}
                     });
                     const data = await resp.json();
                     if (data.ok) {
-                      alert(`✅ Восстановлено ${data.count} фото! Перезагружаем...`);
+                      alert(`вњ… Р’РѕСЃСЃС‚Р°РЅРѕРІР»РµРЅРѕ ${data.count} С„РѕС‚Рѕ! РџРµСЂРµР·Р°РіСЂСѓР¶Р°РµРј...`);
                       const locs = await getLocations(user.uid);
                       setMyLocations(locs || []);
                       const cache = {};
                       (locs || []).forEach(l => { if (l.imageBase64?.length) cache[l.id] = l.imageBase64; });
                       setLocBase64Cache(prev => ({ ...prev, ...cache }));
                     } else {
-                      alert(`⚠️ Не удалось восстановить: ${data.error}\n\nПодсказка: ${data.hint || 'Файлы могут быть удалены из Storage. Придётся загрузить заново.'}`);
+                      alert(`вљ пёЏ РќРµ СѓРґР°Р»РѕСЃСЊ РІРѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ: ${data.error}\n\nРџРѕРґСЃРєР°Р·РєР°: ${data.hint || 'Р¤Р°Р№Р»С‹ РјРѕРіСѓС‚ Р±С‹С‚СЊ СѓРґР°Р»РµРЅС‹ РёР· Storage. РџСЂРёРґС‘С‚СЃСЏ Р·Р°РіСЂСѓР·РёС‚СЊ Р·Р°РЅРѕРІРѕ.'}`);
                     }
                   } catch (e) {
-                    alert('Ошибка: ' + e.message);
+                    alert('РћС€РёР±РєР°: ' + e.message);
                   }
                 }}
-              >🔄 Восстановить удалённые локации из Storage</button>
+              >рџ”„ Р’РѕСЃСЃС‚Р°РЅРѕРІРёС‚СЊ СѓРґР°Р»С‘РЅРЅС‹Рµ Р»РѕРєР°С†РёРё РёР· Storage</button>
             </div>
             {selectedLocId && (
               <div className="modifier-block">
                 <button className="modifier-toggle" onClick={() => setShowLocModifier(!showLocModifier)}>
-                  {showLocModifier ? '✖ Скрыть' : '✏️ Изменить локацию'}
+                  {showLocModifier ? 'вњ– РЎРєСЂС‹С‚СЊ' : 'вњЏпёЏ РР·РјРµРЅРёС‚СЊ Р»РѕРєР°С†РёСЋ'}
                 </button>
                 {showLocModifier && (
                   <div className="modifier-content">
-                    <textarea className="modifier-input" rows={2} placeholder="Например: добавить закат, сделать стены кирпичными, неоновая вывеска"
+                    <textarea className="modifier-input" rows={2} placeholder="РќР°РїСЂРёРјРµСЂ: РґРѕР±Р°РІРёС‚СЊ Р·Р°РєР°С‚, СЃРґРµР»Р°С‚СЊ СЃС‚РµРЅС‹ РєРёСЂРїРёС‡РЅС‹РјРё, РЅРµРѕРЅРѕРІР°СЏ РІС‹РІРµСЃРєР°"
                       value={locModifier} onChange={e => setLocModifier(e.target.value)} />
-                    <button className="modifier-save-btn" onClick={saveLocMod} disabled={!locModifier.trim()}>💾 Сохранить в локацию</button>
+                    <button className="modifier-save-btn" onClick={saveLocMod} disabled={!locModifier.trim()}>рџ’ѕ РЎРѕС…СЂР°РЅРёС‚СЊ РІ Р»РѕРєР°С†РёСЋ</button>
                   </div>
                 )}
               </div>
@@ -3859,7 +3883,7 @@ ${userProductInfo.trim()}
             {appMode === 'product' && (
               <>
                 <div className="section-subtitle-small" style={{marginTop: 18, marginBottom: 8, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px'}}>
-                  <span>✨</span> Добавить спецэффект
+                  <span>вњЁ</span> Р”РѕР±Р°РІРёС‚СЊ СЃРїРµС†СЌС„С„РµРєС‚
                 </div>
                 <div className="preset-grid">
                   {PRODUCT_EFFECTS.map(e => {
@@ -3891,7 +3915,7 @@ ${userProductInfo.trim()}
                   <div className="custom-variant-row" style={{marginTop:10}}>
                     <input
                       className="custom-variant-input"
-                      placeholder="Опишите ваш спецэффект: «взрыв конфетти, снежинки, дым»"
+                      placeholder="РћРїРёС€РёС‚Рµ РІР°С€ СЃРїРµС†СЌС„С„РµРєС‚: В«РІР·СЂС‹РІ РєРѕРЅС„РµС‚С‚Рё, СЃРЅРµР¶РёРЅРєРё, РґС‹РјВ»"
                       value={customProductEffectText}
                       onChange={ev => setCustomProductEffectText(ev.target.value)}
                     />
@@ -3903,12 +3927,12 @@ ${userProductInfo.trim()}
         )}
       </motion.div>}
 
-      {/* 6. ФОРМАТ */}
+      {/* 6. Р¤РћР РњРђРў */}
       {appMode !== 'quick' && <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.9,duration:0.5,ease:[0.16,1,0.3,1]}}>
-        <div className="section-title"><span className="icon">📐</span> Формат изображения</div>
+        <div className="section-title"><span className="icon">рџ“ђ</span> Р¤РѕСЂРјР°С‚ РёР·РѕР±СЂР°Р¶РµРЅРёСЏ</div>
         {selectedRatios.length > 1 && (
           <div style={{ fontSize: '0.72rem', color: 'var(--gold)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.03em' }}>
-            ✅ {selectedRatios.length} формата выбрано — будет создано несколько копий для каждого формата
+            вњ… {selectedRatios.length} С„РѕСЂРјР°С‚Р° РІС‹Р±СЂР°РЅРѕ вЂ” Р±СѓРґРµС‚ СЃРѕР·РґР°РЅРѕ РЅРµСЃРєРѕР»СЊРєРѕ РєРѕРїРёР№ РґР»СЏ РєР°Р¶РґРѕРіРѕ С„РѕСЂРјР°С‚Р°
           </div>
         )}
         <div className="preset-grid">
@@ -3932,31 +3956,31 @@ ${userProductInfo.trim()}
         </div>
       </motion.div>}
 
-      {/* 7. ГЕНЕРАЦИЯ */}
+      {/* 7. Р“Р•РќР•Р РђР¦РРЇ */}
       {appMode !== 'quick' && <motion.div className="generate-section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:1.05,duration:0.5,ease:[0.16,1,0.3,1]}}>
-        {/* Beauty toggle — только когда есть живая модель-человек */}
+        {/* Beauty toggle вЂ” С‚РѕР»СЊРєРѕ РєРѕРіРґР° РµСЃС‚СЊ Р¶РёРІР°СЏ РјРѕРґРµР»СЊ-С‡РµР»РѕРІРµРє */}
         {(appMode === 'fashion' || (appMode === 'product' && productWithModel)) && (
           <div className="beauty-toggle">
             <label className={`beauty-switch ${isBeautyMode ? 'active' : ''}`}>
               <input type="checkbox" checked={isBeautyMode} onChange={e => setIsBeautyMode(e.target.checked)} />
-              <span className="beauty-label">{isBeautyMode ? '✨ Beauty-ретушь' : '📷 Реализм'}</span>
+              <span className="beauty-label">{isBeautyMode ? 'вњЁ Beauty-СЂРµС‚СѓС€СЊ' : 'рџ“· Р РµР°Р»РёР·Рј'}</span>
             </label>
             <span className="beauty-hint">
               {isBeautyMode
-                ? 'Выбран журнальный глянец «Идеальная кожа». Нажмите, чтобы вернуть реализм'
-                : 'Выбран реализм: натуральная кожа с текстурой. Нажмите, чтобы включить журнальный глянец «Идеальная кожа»'}
+                ? 'Р’С‹Р±СЂР°РЅ Р¶СѓСЂРЅР°Р»СЊРЅС‹Р№ РіР»СЏРЅРµС† В«РРґРµР°Р»СЊРЅР°СЏ РєРѕР¶Р°В». РќР°Р¶РјРёС‚Рµ, С‡С‚РѕР±С‹ РІРµСЂРЅСѓС‚СЊ СЂРµР°Р»РёР·Рј'
+                : 'Р’С‹Р±СЂР°РЅ СЂРµР°Р»РёР·Рј: РЅР°С‚СѓСЂР°Р»СЊРЅР°СЏ РєРѕР¶Р° СЃ С‚РµРєСЃС‚СѓСЂРѕР№. РќР°Р¶РјРёС‚Рµ, С‡С‚РѕР±С‹ РІРєР»СЋС‡РёС‚СЊ Р¶СѓСЂРЅР°Р»СЊРЅС‹Р№ РіР»СЏРЅРµС† В«РРґРµР°Р»СЊРЅР°СЏ РєРѕР¶Р°В»'}
             </span>
           </div>
         )}
 
-        {/* Селектор количества вариантов */}
+        {/* РЎРµР»РµРєС‚РѕСЂ РєРѕР»РёС‡РµСЃС‚РІР° РІР°СЂРёР°РЅС‚РѕРІ */}
         {(() => {
           return (
             <div className="variant-count-section">
-              <div className="variant-count-title">🎯 Количество вариантов на одну комбинацию</div>
+              <div className="variant-count-title">рџЋЇ РљРѕР»РёС‡РµСЃС‚РІРѕ РІР°СЂРёР°РЅС‚РѕРІ РЅР° РѕРґРЅСѓ РєРѕРјР±РёРЅР°С†РёСЋ</div>
               {totalShots > variantCount && (
                 <div style={{fontSize:'0.75rem',color:'var(--gold)',textAlign:'center',marginBottom:8,opacity:0.8}}>
-                  Комбинаций параметров × {variantCount} вариант{variantCount === 1 ? '' : (variantCount < 5 ? 'а' : 'ов')} = <strong>{totalShots} кадр{totalShots === 1 ? '' : (totalShots < 5 ? 'а' : 'ов')}</strong>
+                  РљРѕРјР±РёРЅР°С†РёР№ РїР°СЂР°РјРµС‚СЂРѕРІ Г— {variantCount} РІР°СЂРёР°РЅС‚{variantCount === 1 ? '' : (variantCount < 5 ? 'Р°' : 'РѕРІ')} = <strong>{totalShots} РєР°РґСЂ{totalShots === 1 ? '' : (totalShots < 5 ? 'Р°' : 'РѕРІ')}</strong>
                 </div>
               )}
               <div className="variant-count-grid">
@@ -3970,8 +3994,8 @@ ${userProductInfo.trim()}
                       onClick={() => setVariantCount(n)}
                     >
                       <span className="variant-count-number">{n}</span>
-                      <span className="variant-count-label">{n === 1 ? 'вариант' : (n < 5 ? 'варианта' : 'вариантов')}</span>
-                      <span className="variant-count-credits">{total} {total === 1 ? 'кредит' : (total < 5 ? 'кредита' : 'кредитов')}</span>
+                      <span className="variant-count-label">{n === 1 ? 'РІР°СЂРёР°РЅС‚' : (n < 5 ? 'РІР°СЂРёР°РЅС‚Р°' : 'РІР°СЂРёР°РЅС‚РѕРІ')}</span>
+                      <span className="variant-count-credits">{total} {total === 1 ? 'РєСЂРµРґРёС‚' : (total < 5 ? 'РєСЂРµРґРёС‚Р°' : 'РєСЂРµРґРёС‚РѕРІ')}</span>
                     </button>
                   );
                 })}
@@ -3990,19 +4014,19 @@ ${userProductInfo.trim()}
               disabled={!garmentUrls.length||isProcessing||isUploading||totalShots > 20}
             >
               {isUploading 
-                ? '☁️ Загрузка в облако...' 
-                : `✨ Сгенерировать ${totalShots > 1 ? totalShots + ' кадр' + (totalShots < 5 ? 'а' : 'ов') : 'студийный кадр'}`}
+                ? 'вЃпёЏ Р—Р°РіСЂСѓР·РєР° РІ РѕР±Р»Р°РєРѕ...' 
+                : `вњЁ РЎРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ ${totalShots > 1 ? totalShots + ' РєР°РґСЂ' + (totalShots < 5 ? 'Р°' : 'РѕРІ') : 'СЃС‚СѓРґРёР№РЅС‹Р№ РєР°РґСЂ'}`}
             </button>
             <button
               className="auto-catalog-mini-btn"
               onClick={handleAutoCatalog}
               disabled={!garmentUrls.length||isProcessing||isUploading}
-              title="Отправить в Auto-Catalog (Batch)"
-            >🏭</button>
+              title="РћС‚РїСЂР°РІРёС‚СЊ РІ Auto-Catalog (Batch)"
+            >рџЏ­</button>
           </div>
           {totalShots > 20 && (
             <div style={{color:'var(--gold)',fontSize:'0.75rem',textAlign:'center',fontWeight:500}}>
-              ⚠️ Выбрано {totalShots} генераций. Лимит — 20 за один раз. Пожалуйста, снимите выделение с некоторых параметров.
+              вљ пёЏ Р’С‹Р±СЂР°РЅРѕ {totalShots} РіРµРЅРµСЂР°С†РёР№. Р›РёРјРёС‚ вЂ” 20 Р·Р° РѕРґРёРЅ СЂР°Р·. РџРѕР¶Р°Р»СѓР№СЃС‚Р°, СЃРЅРёРјРёС‚Рµ РІС‹РґРµР»РµРЅРёРµ СЃ РЅРµРєРѕС‚РѕСЂС‹С… РїР°СЂР°РјРµС‚СЂРѕРІ.
             </div>
           )}
         </div>
@@ -4010,7 +4034,7 @@ ${userProductInfo.trim()}
         <div className="status-bar">{statusText && <p className={`status-text ${statusType}`}>{statusText}</p>}</div>
       </motion.div>}
 
-      {/* ═══ STATUS BAR for quick mode ═══ */}
+      {/* в•ђв•ђв•ђ STATUS BAR for quick mode в•ђв•ђв•ђ */}
       {appMode === 'quick' && statusText && (
         <div className="status-bar" style={{textAlign:'center',padding:'12px 0'}}>
           <p className={`status-text ${statusType}`}>{statusText}</p>
@@ -4021,18 +4045,18 @@ ${userProductInfo.trim()}
               onMouseEnter={e => {e.currentTarget.style.background = 'rgba(239,68,68,0.3)'}}
               onMouseLeave={e => {e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}}
             >
-              ✕ Отменить генерацию
+              вњ• РћС‚РјРµРЅРёС‚СЊ РіРµРЅРµСЂР°С†РёСЋ
             </button>
           )}
         </div>
       )}
 
-      {/* 8а. QUICK MODE RESULT — Photo or Card */}
+      {/* 8Р°. QUICK MODE RESULT вЂ” Photo or Card */}
       {generatedImage && appMode === 'quick' && !quickCardImage && (
         <motion.div className="section result-section quick-hero-result" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} transition={{duration:0.5}}>
-          <h3>{quickMode === 'ugc' ? '📱 Фото от покупателя' : '📸 Ваше студийное фото'}</h3>
+          <h3>{quickMode === 'ugc' ? 'рџ“± Р¤РѕС‚Рѕ РѕС‚ РїРѕРєСѓРїР°С‚РµР»СЏ' : 'рџ“ё Р’Р°С€Рµ СЃС‚СѓРґРёР№РЅРѕРµ С„РѕС‚Рѕ'}</h3>
           <div className="result-image-wrap" style={{position:'relative'}}>
-            <img src={generatedImage} alt={quickMode === 'ugc' ? "Фото от покупателя" : "Студийное фото"} onClick={() => setLightboxSrc(generatedImage)} style={{cursor:'pointer'}} />
+            <img src={generatedImage} alt={quickMode === 'ugc' ? "Р¤РѕС‚Рѕ РѕС‚ РїРѕРєСѓРїР°С‚РµР»СЏ" : "РЎС‚СѓРґРёР№РЅРѕРµ С„РѕС‚Рѕ"} onClick={() => setLightboxSrc(generatedImage)} style={{cursor:'pointer'}} />
           </div>
           <div className="quick-hero-actions">
             <button className="download-btn" onClick={async () => {
@@ -4060,26 +4084,26 @@ ${userProductInfo.trim()}
                   window.open(generatedImage, '_blank');
                 }
               }
-            }}>⬇️ Скачать фото</button>
+            }}>в¬‡пёЏ РЎРєР°С‡Р°С‚СЊ С„РѕС‚Рѕ</button>
           </div>
           {/* Nav between cached results */}
           {Object.keys(quickResults).length > 0 && (
             <div style={{display: 'flex', gap: 8, justifyContent: 'center', marginTop: 16, flexWrap: 'wrap'}}>
               {quickResults.card && (
                 <button onClick={() => { setQuickMode('card'); setQuickCardImage(quickResults.card.image); setGeneratedImage(quickResults.card.image); setCardEditHistory(quickResults.card.editHistory || []); }}
-                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.08)', color: '#ffd700', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>📋 Карточка</button>
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,215,0,0.3)', background: 'rgba(255,215,0,0.08)', color: '#ffd700', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>рџ“‹ РљР°СЂС‚РѕС‡РєР°</button>
               )}
               {quickResults.ugc && quickMode !== 'ugc' && (
                 <button onClick={() => { setQuickMode('ugc'); setQuickCardImage(null); setGeneratedImage(quickResults.ugc.image); setCardEditHistory([]); }}
-                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)', color: '#4ade80', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>📱 UGC</button>
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)', color: '#4ade80', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>рџ“± UGC</button>
               )}
               {quickResults.photo && quickMode !== 'photo' && (
                 <button onClick={() => { setQuickMode('photo'); setQuickCardImage(null); setGeneratedImage(quickResults.photo.image); setCardEditHistory([]); }}
-                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>📸 Студийное</button>
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>рџ“ё РЎС‚СѓРґРёР№РЅРѕРµ</button>
               )}
               {quickResults.model && quickMode !== 'model' && (
                 <button onClick={() => { setQuickMode('model'); setQuickCardImage(quickResults.model.image); setGeneratedImage(quickResults.model.image); setCardEditHistory(quickResults.model.editHistory || []); }}
-                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: '#d8b4fe', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>👤 С моделью</button>
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: '#d8b4fe', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>рџ‘¤ РЎ РјРѕРґРµР»СЊСЋ</button>
               )}
             </div>
           )}
@@ -4093,11 +4117,11 @@ ${userProductInfo.trim()}
               setGeneratedImage(null);
               setQuickCardImage(null);
             }
-          }}>{quickResults.card && quickMode !== 'card' ? '← Назад к обложке' : '← Новая генерация'}</button>
+          }}>{quickResults.card && quickMode !== 'card' ? 'в†ђ РќР°Р·Р°Рґ Рє РѕР±Р»РѕР¶РєРµ' : 'в†ђ РќРѕРІР°СЏ РіРµРЅРµСЂР°С†РёСЏ'}</button>
         </motion.div>
       )}
 
-      {/* 8а-2. QUICK MODE CARD RESULT — карточка + текстовое редактирование */}
+      {/* 8Р°-2. QUICK MODE CARD RESULT вЂ” РєР°СЂС‚РѕС‡РєР° + С‚РµРєСЃС‚РѕРІРѕРµ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ */}
       {quickCardImage && appMode === 'quick' && (
         <motion.div className="section result-section" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} transition={{duration:0.5}} style={{maxWidth: 900, margin: '0 auto', padding: '10px 20px'}}>
                     {/* Nav between cached results */}
@@ -4105,22 +4129,22 @@ ${userProductInfo.trim()}
             <div style={{display: 'flex', gap: 8, justifyContent: 'center', marginBottom: 16, flexWrap: 'wrap'}}>
               {quickResults.ugc && quickMode !== 'ugc' && (
                 <button onClick={() => { setQuickMode('ugc'); setQuickCardImage(null); setGeneratedImage(quickResults.ugc.image); setCardEditHistory([]); }}
-                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)', color: '#4ade80', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>📱 UGC</button>
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(34,197,94,0.3)', background: 'rgba(34,197,94,0.08)', color: '#4ade80', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>рџ“± UGC</button>
               )}
               {quickResults.photo && quickMode !== 'photo' && (
                 <button onClick={() => { setQuickMode('photo'); setQuickCardImage(null); setGeneratedImage(quickResults.photo.image); setCardEditHistory([]); }}
-                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>📸 Студийное</button>
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>рџ“ё РЎС‚СѓРґРёР№РЅРѕРµ</button>
               )}
               {quickResults.model && quickMode !== 'model' && (
                 <button onClick={() => { setQuickMode('model'); setQuickCardImage(quickResults.model.image); setGeneratedImage(quickResults.model.image); setCardEditHistory(quickResults.model.editHistory || []); }}
-                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: '#d8b4fe', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>👤 С моделью</button>
+                  style={{padding: '6px 14px', borderRadius: 8, border: '1px solid rgba(167,139,250,0.3)', background: 'rgba(167,139,250,0.08)', color: '#d8b4fe', fontSize: 12, fontWeight: 600, cursor: 'pointer'}}>рџ‘¤ РЎ РјРѕРґРµР»СЊСЋ</button>
               )}
             </div>
           )}
 
           <div style={{textAlign: 'center', marginBottom: 30}}>
-            <h3 style={{fontSize: 28, margin: '0 0 10px 0', textTransform: 'uppercase', letterSpacing: 1}}>🔥 Обложка готова!</h3>
-            <p style={{color: 'rgba(255,255,255,0.5)', margin: 0, fontSize: 15}}>Карточка успешно сгенерирована. Что делаем дальше?</p>
+            <h3 style={{fontSize: 28, margin: '0 0 10px 0', textTransform: 'uppercase', letterSpacing: 1}}>рџ”Ґ РћР±Р»РѕР¶РєР° РіРѕС‚РѕРІР°!</h3>
+            <p style={{color: 'rgba(255,255,255,0.5)', margin: 0, fontSize: 15}}>РљР°СЂС‚РѕС‡РєР° СѓСЃРїРµС€РЅРѕ СЃРіРµРЅРµСЂРёСЂРѕРІР°РЅР°. Р§С‚Рѕ РґРµР»Р°РµРј РґР°Р»СЊС€Рµ?</p>
           </div>
 
           {/* MAIN STAGE */}
@@ -4159,14 +4183,14 @@ ${userProductInfo.trim()}
                     }
                   `}</style>
                   <div style={{color: '#ffd700', fontSize: 16, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1}}>
-                    ✏️ Применяем изменения...
+                    вњЏпёЏ РџСЂРёРјРµРЅСЏРµРј РёР·РјРµРЅРµРЅРёСЏ...
                   </div>
                   <div style={{color: 'rgba(255,255,255,0.5)', fontSize: 13}}>
-                    ИИ перерисовывает карточку по вашему описанию
+                    РР РїРµСЂРµСЂРёСЃРѕРІС‹РІР°РµС‚ РєР°СЂС‚РѕС‡РєСѓ РїРѕ РІР°С€РµРјСѓ РѕРїРёСЃР°РЅРёСЋ
                   </div>
                 </div>
               ) : (
-                <img src={quickCardImage} alt="Карточка товара" onClick={() => setLightboxSrc(quickCardImage)} style={{cursor:'pointer', width: '100%', height: '100%', objectFit: 'contain', display: 'block'}} />
+                <img src={quickCardImage} alt="РљР°СЂС‚РѕС‡РєР° С‚РѕРІР°СЂР°" onClick={() => setLightboxSrc(quickCardImage)} style={{cursor:'pointer', width: '100%', height: '100%', objectFit: 'contain', display: 'block'}} />
               )}
             </div>
             {/* Action buttons BELOW image */}
@@ -4193,7 +4217,7 @@ ${userProductInfo.trim()}
                 onMouseEnter={e => { if (!isCardEditing) e.currentTarget.style.transform = 'scale(1.05)'; }}
                 onMouseLeave={e => { if (!isCardEditing) e.currentTarget.style.transform = 'scale(1)'; }}
               >
-                📥 Скачать HD
+                рџ“Ґ РЎРєР°С‡Р°С‚СЊ HD
               </button>
               <button 
                 onClick={() => {
@@ -4210,14 +4234,14 @@ ${userProductInfo.trim()}
                 onMouseEnter={e => { if (!isCardEditing) { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)'; } }}
                 onMouseLeave={e => { if (!isCardEditing) { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; } }}
               >
-                🪄 Точечная правка (1 кр.)
+                рџЄ„ РўРѕС‡РµС‡РЅР°СЏ РїСЂР°РІРєР° (1 РєСЂ.)
               </button>
             </div>
           </div>
 
           <div style={{display: 'flex', alignItems: 'center', margin: '0 0 30px 0'}}>
             <div style={{flex: 1, height: 1, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.1))'}}></div>
-            <div style={{padding: '0 20px', color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 2}}>Прокачать карточку для ТОПа</div>
+            <div style={{padding: '0 20px', color: 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 2}}>РџСЂРѕРєР°С‡Р°С‚СЊ РєР°СЂС‚РѕС‡РєСѓ РґР»СЏ РўРћРџР°</div>
             <div style={{flex: 1, height: 1, background: 'linear-gradient(-90deg, transparent, rgba(255,255,255,0.1))'}}></div>
           </div>
 
@@ -4226,10 +4250,10 @@ ${userProductInfo.trim()}
             
             {/* Widget 1: Funnel */}
             <div style={{background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column'}}>
-              <div style={{fontSize: 28, marginBottom: 12}}>📸</div>
-              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Собрать галерею (4 слайда)</h4>
+              <div style={{fontSize: 28, marginBottom: 12}}>рџ“ё</div>
+              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>РЎРѕР±СЂР°С‚СЊ РіР°Р»РµСЂРµСЋ (4 СЃР»Р°Р№РґР°)</h4>
               <p style={{fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 20px 0', lineHeight: 1.5}}>
-                ИИ достроит воронку: крупный план, габариты, интерьер. 100% единый стиль.
+                РР РґРѕСЃС‚СЂРѕРёС‚ РІРѕСЂРѕРЅРєСѓ: РєСЂСѓРїРЅС‹Р№ РїР»Р°РЅ, РіР°Р±Р°СЂРёС‚С‹, РёРЅС‚РµСЂСЊРµСЂ. 100% РµРґРёРЅС‹Р№ СЃС‚РёР»СЊ.
               </p>
               
               {/* Examples / Real Images */}
@@ -4254,7 +4278,7 @@ ${userProductInfo.trim()}
                       }}>
                         <img 
                           src={img} 
-                          alt={`Слайд ${idx+1}`} 
+                          alt={`РЎР»Р°Р№Рґ ${idx+1}`} 
                           style={{width: '100%', height: '100%', objectFit: 'cover', position: 'absolute', inset: 0, cursor: 'pointer'}} 
                           onClick={() => {
                             if (idx === 0 || idx === 2) {
@@ -4285,24 +4309,24 @@ ${userProductInfo.trim()}
                             }
                           }}
                           style={{position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10}}
-                          title="Скачать"
+                          title="РЎРєР°С‡Р°С‚СЊ"
                         >
-                          📥
+                          рџ“Ґ
                         </button>
                         <span style={{position: 'relative', zIndex: 1, color: '#fff', fontSize: 9, fontWeight: 600, padding: '4px 6px', textAlign: 'center', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', width: '100%'}}>
-                          {idx === 0 ? 'Обложка' : idx === 1 ? 'Детали' : idx === 2 ? 'Размеры' : 'Lifestyle'}
+                          {idx === 0 ? 'РћР±Р»РѕР¶РєР°' : idx === 1 ? 'Р”РµС‚Р°Р»Рё' : idx === 2 ? 'Р Р°Р·РјРµСЂС‹' : 'Lifestyle'}
                         </span>
                         {isActive && (
-                          <div style={{position: 'absolute', top: 4, left: 4, background: '#ffd700', color: '#000', fontSize: 7, fontWeight: 900, padding: '1px 3px', borderRadius: 3, textTransform: 'uppercase', zIndex: 10}}>Активен</div>
+                          <div style={{position: 'absolute', top: 4, left: 4, background: '#ffd700', color: '#000', fontSize: 7, fontWeight: 900, padding: '1px 3px', borderRadius: 3, textTransform: 'uppercase', zIndex: 10}}>РђРєС‚РёРІРµРЅ</div>
                         )}
                       </div>
                     );
                   })
                 ) : (
                   [
-                    { title: 'Обложка', src: '/examples/gallery/slide1_cover.png' },
-                    { title: 'Детали', src: '/examples/gallery/slide2_detail.png' },
-                    { title: 'Размеры', src: '/examples/gallery/slide3_size.png' },
+                    { title: 'РћР±Р»РѕР¶РєР°', src: '/examples/gallery/slide1_cover.png' },
+                    { title: 'Р”РµС‚Р°Р»Рё', src: '/examples/gallery/slide2_detail.png' },
+                    { title: 'Р Р°Р·РјРµСЂС‹', src: '/examples/gallery/slide3_size.png' },
                     { title: 'Lifestyle', src: '/examples/gallery/slide4_lifestyle.png' }
                   ].map((slide, idx) => (
                     <div key={idx} style={{flex: 1, aspectRatio: '3/4', position: 'relative', borderRadius: 8, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', opacity: 0.75}}>
@@ -4324,16 +4348,16 @@ ${userProductInfo.trim()}
                     onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.3)'}}
                     onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.2)'}}
                   >
-                    👁️ Просмотр
+                    рџ‘ЃпёЏ РџСЂРѕСЃРјРѕС‚СЂ
                   </button>
                   <button 
                     onClick={() => triggerConfirm('gallery', 5, handleGenerateGallery)}
                     style={{background: 'rgba(255,215,0,0.08)', color: '#ffd700', border: '1px solid rgba(255,215,0,0.3)', padding: '12px 16px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'}}
                     onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.18)'}}
                     onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.08)'}}
-                    title="Пересоздать галерею"
+                    title="РџРµСЂРµСЃРѕР·РґР°С‚СЊ РіР°Р»РµСЂРµСЋ"
                   >
-                    🔄
+                    рџ”„
                   </button>
                 </div>
               ) : (
@@ -4344,17 +4368,17 @@ ${userProductInfo.trim()}
                   onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.2)'}}
                   onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.1)'}}
                 >
-                  {isGalleryGenerating ? '⏳ Создаём...' : <>Создать за 5 кр. <span style={{textDecoration: 'line-through', opacity: 0.5, fontSize: 11, marginLeft: 6, fontWeight: 400}}>8 кр.</span></>}
+                  {isGalleryGenerating ? 'вЏі РЎРѕР·РґР°С‘Рј...' : <>РЎРѕР·РґР°С‚СЊ Р·Р° 5 РєСЂ. <span style={{textDecoration: 'line-through', opacity: 0.5, fontSize: 11, marginLeft: 6, fontWeight: 400}}>8 РєСЂ.</span></>}
                 </button>
               )}
             </div>
 
             {/* Widget 3: A/B Test */}
             <div style={{background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column'}}>
-              <div style={{fontSize: 28, marginBottom: 12}}>⚖️</div>
-              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Найти лучший CTR (A/B Тест)</h4>
+              <div style={{fontSize: 28, marginBottom: 12}}>вљ–пёЏ</div>
+              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>РќР°Р№С‚Рё Р»СѓС‡С€РёР№ CTR (A/B РўРµСЃС‚)</h4>
               <p style={{fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 20px 0', lineHeight: 1.5}}>
-                Не гадайте. ИИ сгенерирует 2 альтернативные обложки с другими хуками и композицией.
+                РќРµ РіР°РґР°Р№С‚Рµ. РР СЃРіРµРЅРµСЂРёСЂСѓРµС‚ 2 Р°Р»СЊС‚РµСЂРЅР°С‚РёРІРЅС‹Рµ РѕР±Р»РѕР¶РєРё СЃ РґСЂСѓРіРёРјРё С…СѓРєР°РјРё Рё РєРѕРјРїРѕР·РёС†РёРµР№.
               </p>
 
               {/* A/B Test Variants view */}
@@ -4376,7 +4400,7 @@ ${userProductInfo.trim()}
                       }}>
                         <img 
                           src={img} 
-                          alt={`Вариант ${idx === 0 ? 'A' : 'B'}`} 
+                          alt={`Р’Р°СЂРёР°РЅС‚ ${idx === 0 ? 'A' : 'B'}`} 
                           style={{width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer'}} 
                           onClick={() => {
                             setQuickCardImage(img);
@@ -4384,7 +4408,7 @@ ${userProductInfo.trim()}
                             setQuickMode('card');
                             setQuickResults(prev => ({
                               ...prev, 
-                              card: { image: img, editHistory: [{ image: img, editText: `Выбран вариант ${idx === 0 ? 'A' : 'B'}` }] }
+                              card: { image: img, editHistory: [{ image: img, editText: `Р’С‹Р±СЂР°РЅ РІР°СЂРёР°РЅС‚ ${idx === 0 ? 'A' : 'B'}` }] }
                             }));
                           }} 
                         />
@@ -4407,12 +4431,12 @@ ${userProductInfo.trim()}
                             }
                           }}
                           style={{position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10}}
-                          title="Скачать"
+                          title="РЎРєР°С‡Р°С‚СЊ"
                         >
-                          📥
+                          рџ“Ґ
                         </button>
                         {isActive && (
-                          <div style={{position: 'absolute', bottom: 4, left: 4, right: 4, background: '#ffd700', color: '#000', fontSize: 7, fontWeight: 900, padding: '1px 0', borderRadius: 3, textTransform: 'uppercase', textAlign: 'center', zIndex: 10}}>Активен</div>
+                          <div style={{position: 'absolute', bottom: 4, left: 4, right: 4, background: '#ffd700', color: '#000', fontSize: 7, fontWeight: 900, padding: '1px 0', borderRadius: 3, textTransform: 'uppercase', textAlign: 'center', zIndex: 10}}>РђРєС‚РёРІРµРЅ</div>
                         )}
                       </div>
                     );
@@ -4428,16 +4452,16 @@ ${userProductInfo.trim()}
                     onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}}
                     onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}}
                   >
-                    ⚖️ Сравнить
+                    вљ–пёЏ РЎСЂР°РІРЅРёС‚СЊ
                   </button>
                   <button 
                     onClick={() => triggerConfirm('ab', 2, handleGenerateABTest)}
                     style={{background: 'rgba(255,255,255,0.03)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', padding: '12px 16px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'}}
                     onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}}
                     onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}}
-                    title="Пересоздать A/B Тест"
+                    title="РџРµСЂРµСЃРѕР·РґР°С‚СЊ A/B РўРµСЃС‚"
                   >
-                    🔄
+                    рџ”„
                   </button>
                 </div>
               ) : (
@@ -4448,35 +4472,35 @@ ${userProductInfo.trim()}
                   onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}}
                   onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}}
                 >
-                  {isAbGenerating ? '⏳ Создаём...' : 'Создать за 2 кр.'}
+                  {isAbGenerating ? 'вЏі РЎРѕР·РґР°С‘Рј...' : 'РЎРѕР·РґР°С‚СЊ Р·Р° 2 РєСЂ.'}
                 </button>
               )}
             </div>
 
             {/* Widget 2: Video */}
             <div style={{background: 'linear-gradient(145deg, rgba(167, 139, 250, 0.08) 0%, rgba(0,0,0,0) 100%)', border: '1px solid rgba(167, 139, 250, 0.2)', borderRadius: 20, padding: 24, position: 'relative', display: 'flex', flexDirection: 'column'}}>
-              <div style={{position: 'absolute', top: 20, right: 20, background: 'rgba(167, 139, 250, 0.2)', color: '#d8b4fe', fontSize: 10, fontWeight: 800, padding: '4px 8px', borderRadius: 6, textTransform: 'uppercase', border: '1px solid rgba(167, 139, 250, 0.3)'}}>Тренд 2026</div>
-              <div style={{fontSize: 28, marginBottom: 12}}>🎬</div>
-              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Оживить в Видеообложку</h4>
+              <div style={{position: 'absolute', top: 20, right: 20, background: 'rgba(167, 139, 250, 0.2)', color: '#d8b4fe', fontSize: 10, fontWeight: 800, padding: '4px 8px', borderRadius: 6, textTransform: 'uppercase', border: '1px solid rgba(167, 139, 250, 0.3)'}}>РўСЂРµРЅРґ 2026</div>
+              <div style={{fontSize: 28, marginBottom: 12}}>рџЋ¬</div>
+              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>РћР¶РёРІРёС‚СЊ РІ Р’РёРґРµРѕРѕР±Р»РѕР¶РєСѓ</h4>
               <p style={{fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 20px 0', lineHeight: 1.5}}>
-                Алгоритмы WB обожают Motion. Добавим 3D-параллакс, игру света и анимацию УТП.
+                РђР»РіРѕСЂРёС‚РјС‹ WB РѕР±РѕР¶Р°СЋС‚ Motion. Р”РѕР±Р°РІРёРј 3D-РїР°СЂР°Р»Р»Р°РєСЃ, РёРіСЂСѓ СЃРІРµС‚Р° Рё Р°РЅРёРјР°С†РёСЋ РЈРўРџ.
               </p>
               <button 
-                onClick={() => triggerConfirm('video', 4, () => { setStatusText('🎬 Видеогенерация скоро будет доступна! Мы уже работаем над этим.'); setStatusType('processing'); })}
+                onClick={() => triggerConfirm('video', 4, () => { setStatusText('рџЋ¬ Р’РёРґРµРѕРіРµРЅРµСЂР°С†РёСЏ СЃРєРѕСЂРѕ Р±СѓРґРµС‚ РґРѕСЃС‚СѓРїРЅР°! РњС‹ СѓР¶Рµ СЂР°Р±РѕС‚Р°РµРј РЅР°Рґ СЌС‚РёРј.'); setStatusType('processing'); })}
                 style={{width: '100%', background: 'rgba(167, 139, 250, 0.15)', color: '#d8b4fe', border: '1px solid rgba(167, 139, 250, 0.4)', padding: '12px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', marginTop: 'auto'}}
                 onMouseEnter={e => {e.currentTarget.style.background = 'rgba(167, 139, 250, 0.25)'}}
                 onMouseLeave={e => {e.currentTarget.style.background = 'rgba(167, 139, 250, 0.15)'}}
               >
-                Создать видео за 4 кр.
+                РЎРѕР·РґР°С‚СЊ РІРёРґРµРѕ Р·Р° 4 РєСЂ.
               </button>
             </div>
 
             {/* Widget 4: UGC Photo */}
             <div style={{background: 'linear-gradient(145deg, rgba(34, 197, 94, 0.08) 0%, rgba(0,0,0,0) 100%)', border: '1px solid rgba(34, 197, 94, 0.2)', borderRadius: 20, padding: 24, display: 'flex', flexDirection: 'column'}}>
-              <div style={{fontSize: 28, marginBottom: 12}}>📱</div>
-              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Фото от покупателей</h4>
+              <div style={{fontSize: 28, marginBottom: 12}}>рџ“±</div>
+              <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Р¤РѕС‚Рѕ РѕС‚ РїРѕРєСѓРїР°С‚РµР»РµР№</h4>
               <p style={{fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 20px 0', lineHeight: 1.5}}>
-                Реалистичные фото товара в домашней или естественной обстановке — как из отзывов.
+                Р РµР°Р»РёСЃС‚РёС‡РЅС‹Рµ С„РѕС‚Рѕ С‚РѕРІР°СЂР° РІ РґРѕРјР°С€РЅРµР№ РёР»Рё РµСЃС‚РµСЃС‚РІРµРЅРЅРѕР№ РѕР±СЃС‚Р°РЅРѕРІРєРµ вЂ” РєР°Рє РёР· РѕС‚Р·С‹РІРѕРІ.
               </p>
               {quickResults.ugc ? (
                 <div style={{display: 'flex', gap: 8, marginTop: 'auto'}}>
@@ -4486,16 +4510,16 @@ ${userProductInfo.trim()}
                     onMouseEnter={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.35)'}}
                     onMouseLeave={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.2)'}}
                   >
-                    📱 Показать
+                    рџ“± РџРѕРєР°Р·Р°С‚СЊ
                   </button>
                   <button 
                     onClick={() => triggerConfirm('ugc', 1, () => handleQuickGenerate('ugc'))}
                     style={{background: 'rgba(34, 197, 94, 0.08)', color: '#4ade80', border: '1px solid rgba(34, 197, 94, 0.3)', padding: '12px 16px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'}}
                     onMouseEnter={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.2)'}}
                     onMouseLeave={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.08)'}}
-                    title="Создать новое UGC-фото"
+                    title="РЎРѕР·РґР°С‚СЊ РЅРѕРІРѕРµ UGC-С„РѕС‚Рѕ"
                   >
-                    🔄
+                    рџ”„
                   </button>
                 </div>
               ) : (
@@ -4505,7 +4529,7 @@ ${userProductInfo.trim()}
                   onMouseEnter={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.25)'}}
                   onMouseLeave={e => {e.currentTarget.style.background = 'rgba(34, 197, 94, 0.15)'}}
                 >
-                  Создать за 1 кр.
+                  РЎРѕР·РґР°С‚СЊ Р·Р° 1 РєСЂ.
                 </button>
               )}
             </div>
@@ -4516,21 +4540,21 @@ ${userProductInfo.trim()}
           <div id="edit-panel" style={{display: 'none', background: 'rgba(255,255,255,0.02)', borderRadius: 24, padding: '24px', border: '1px dashed rgba(255,255,255,0.1)', marginBottom: 40}}>
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12}}>
               <div style={{fontSize: 18, fontWeight: 700, color: 'rgba(255,255,255,0.95)'}}>
-                🪄 Точечная правка
+                рџЄ„ РўРѕС‡РµС‡РЅР°СЏ РїСЂР°РІРєР°
               </div>
               <button 
                 onClick={() => document.getElementById('edit-panel').style.display = 'none'}
                 style={{background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 24, padding: '0 10px'}}
-              >×</button>
+              >Г—</button>
             </div>
             <p style={{fontSize: 13, color: 'rgba(255,255,255,0.5)', margin: '0 0 20px 0', lineHeight: '1.5'}}>
-              Опишите текстом, что нужно изменить. Каждая правка стоит <strong style={{color:'#ffd700'}}>1 кредит</strong>.
+              РћРїРёС€РёС‚Рµ С‚РµРєСЃС‚РѕРј, С‡С‚Рѕ РЅСѓР¶РЅРѕ РёР·РјРµРЅРёС‚СЊ. РљР°Р¶РґР°СЏ РїСЂР°РІРєР° СЃС‚РѕРёС‚ <strong style={{color:'#ffd700'}}>1 РєСЂРµРґРёС‚</strong>.
             </p>
             <div style={{display:'flex', flexDirection: 'column', gap: 16}}>
               <textarea
                 className="modifier-input"
                 rows={3}
-                placeholder="Например: «Убери текст справа вверху» или «Сделай фон темнее»"
+                placeholder="РќР°РїСЂРёРјРµСЂ: В«РЈР±РµСЂРё С‚РµРєСЃС‚ СЃРїСЂР°РІР° РІРІРµСЂС…СѓВ» РёР»Рё В«РЎРґРµР»Р°Р№ С„РѕРЅ С‚РµРјРЅРµРµВ»"
                 value={cardEditText}
                 onChange={e => setCardEditText(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleCardEdit(); } }}
@@ -4544,7 +4568,7 @@ ${userProductInfo.trim()}
                   disabled={isCardEditing || !cardEditText.trim()}
                   style={{padding: '12px 28px', width: 'auto', minWidth: 200, whiteSpace: 'nowrap'}}
                 >
-                  {isCardEditing ? '⏳ Применяем...' : '🔄 Применить — 1 кр.'}
+                  {isCardEditing ? 'вЏі РџСЂРёРјРµРЅСЏРµРј...' : 'рџ”„ РџСЂРёРјРµРЅРёС‚СЊ вЂ” 1 РєСЂ.'}
                 </button>
               </div>
             </div>
@@ -4552,7 +4576,7 @@ ${userProductInfo.trim()}
             {/* Edit history */}
             {cardEditHistory.length > 1 && (
               <div style={{marginTop: 24}}>
-                <div style={{fontSize: 12, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12}}>История правок</div>
+                <div style={{fontSize: 12, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12}}>РСЃС‚РѕСЂРёСЏ РїСЂР°РІРѕРє</div>
                 <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
                   {cardEditHistory.map((entry, idx) => (
                     <button
@@ -4573,7 +4597,7 @@ ${userProductInfo.trim()}
                         transition: 'all 0.2s',
                       }}
                     >
-                      {idx === 0 ? '🎨 Оригинал' : `v${idx + 1}: ${entry.editText.substring(0, 25)}${entry.editText.length > 25 ? '...' : ''}`}
+                      {idx === 0 ? 'рџЋЁ РћСЂРёРіРёРЅР°Р»' : `v${idx + 1}: ${entry.editText.substring(0, 25)}${entry.editText.length > 25 ? '...' : ''}`}
                     </button>
                   ))}
                 </div>
@@ -4607,19 +4631,19 @@ ${userProductInfo.trim()}
               onMouseEnter={e => e.currentTarget.style.color = 'rgba(255,255,255,0.8)'}
               onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
             >
-              Сбросить и начать заново с другим фото
+              РЎР±СЂРѕСЃРёС‚СЊ Рё РЅР°С‡Р°С‚СЊ Р·Р°РЅРѕРІРѕ СЃ РґСЂСѓРіРёРј С„РѕС‚Рѕ
             </button>
           </div>
 
         </motion.div>
       )}
 
-      {/* 8б. РЕЗУЛЬТАТ — режимы Одежда / Предметка */}
+      {/* 8Р±. Р Р•Р—РЈР›Р¬РўРђРў вЂ” СЂРµР¶РёРјС‹ РћРґРµР¶РґР° / РџСЂРµРґРјРµС‚РєР° */}
       <AnimatePresence>
         {generatedImage && appMode !== 'quick' && (
           <motion.div key="result-section" className="section result-section" initial={{opacity:0,scale:0.95}} animate={{opacity:1,scale:1}} exit={{opacity:0}} transition={{duration:0.5}}>
             <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px'}}>
-              <h3 style={{margin:0}}>Финальный Рендер</h3>
+              <h3 style={{margin:0}}>Р¤РёРЅР°Р»СЊРЅС‹Р№ Р РµРЅРґРµСЂ</h3>
               <button
                 onClick={() => {
                   setGeneratedImage(null);
@@ -4627,111 +4651,111 @@ ${userProductInfo.trim()}
                   setHistoryIndex(0);
                   localStorage.removeItem('vton_generatedImage');
                 }}
-                title="Закрыть рендер"
+                title="Р—Р°РєСЂС‹С‚СЊ СЂРµРЅРґРµСЂ"
                 style={{background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'50%', width:'32px', height:'32px', cursor:'pointer', fontSize:'16px', color:'rgba(255,255,255,0.6)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all 0.2s'}}
                 onMouseEnter={e => { e.currentTarget.style.background='rgba(255,80,80,0.25)'; e.currentTarget.style.color='#ff6060'; e.currentTarget.style.borderColor='rgba(255,80,80,0.4)'; }}
                 onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,0.08)'; e.currentTarget.style.color='rgba(255,255,255,0.6)'; e.currentTarget.style.borderColor='rgba(255,255,255,0.15)'; }}
-              >✕</button>
+              >вњ•</button>
             </div>
             <div className="result-image-wrap" style={{position:'relative'}}>
-              {/* ← Previous render */}
+              {/* в†ђ Previous render */}
               {imageHistory.length > 1 && historyIndex > 0 && (
                 <button
                   className="history-nav-btn history-prev"
                   onClick={(e) => { e.stopPropagation(); const ni = historyIndex - 1; setHistoryIndex(ni); setGeneratedImage(imageHistory[ni].image); }}
-                  title="Предыдущий вариант"
-                >‹</button>
+                  title="РџСЂРµРґС‹РґСѓС‰РёР№ РІР°СЂРёР°РЅС‚"
+                >вЂ№</button>
               )}
               <img src={generatedImage} alt="VTON" onClick={() => setLightboxSrc(generatedImage)} style={{cursor:'pointer'}} />
-              {/* → Next render */}
+              {/* в†’ Next render */}
               {imageHistory.length > 1 && historyIndex < imageHistory.length - 1 && (
                 <button
                   className="history-nav-btn history-next"
                   onClick={(e) => { e.stopPropagation(); const ni = historyIndex + 1; setHistoryIndex(ni); setGeneratedImage(imageHistory[ni].image); }}
-                  title="Следующий вариант"
-                >›</button>
+                  title="РЎР»РµРґСѓСЋС‰РёР№ РІР°СЂРёР°РЅС‚"
+                >вЂє</button>
               )}
             </div>
             {imageHistory.length > 1 && (
               <div className="history-info">
                 <p className="history-counter">{historyIndex + 1} / {imageHistory.length}</p>
                 {imageHistory[historyIndex]?.label && (
-                  <p className="history-label">✏️ {imageHistory[historyIndex].label}</p>
+                  <p className="history-label">вњЏпёЏ {imageHistory[historyIndex].label}</p>
                 )}
               </div>
             )}
-            <p className="touch-zoom-hint">👆 Нажмите на фото для увеличения</p>
+            <p className="touch-zoom-hint">рџ‘† РќР°Р¶РјРёС‚Рµ РЅР° С„РѕС‚Рѕ РґР»СЏ СѓРІРµР»РёС‡РµРЅРёСЏ</p>
             <div className="result-actions">
-              <button className="download-btn" onClick={handleDownload}>⬇️ Скачать</button>
-              {/* Калибровка и «Переодеть» — только когда есть человек-модель */}
+              <button className="download-btn" onClick={handleDownload}>в¬‡пёЏ РЎРєР°С‡Р°С‚СЊ</button>
+              {/* РљР°Р»РёР±СЂРѕРІРєР° Рё В«РџРµСЂРµРѕРґРµС‚СЊВ» вЂ” С‚РѕР»СЊРєРѕ РєРѕРіРґР° РµСЃС‚СЊ С‡РµР»РѕРІРµРє-РјРѕРґРµР»СЊ */}
               {(appMode === 'fashion' || (appMode === 'product' && productWithModel)) && (
-                <button className="save-model-btn" onClick={() => openCalibration('save')}>🎯 Сохранить модель (калибровка)</button>
+                <button className="save-model-btn" onClick={() => openCalibration('save')}>рџЋЇ РЎРѕС…СЂР°РЅРёС‚СЊ РјРѕРґРµР»СЊ (РєР°Р»РёР±СЂРѕРІРєР°)</button>
               )}
               {appMode === 'fashion' ? (
                 <button
                   className="redress-btn has-tooltip"
                   onClick={handleGenerate}
                   disabled={isProcessing}
-                  data-tooltip="Вернуть одежду в исходный вид"
-                >👗 Переодеть модель</button>
+                  data-tooltip="Р’РµСЂРЅСѓС‚СЊ РѕРґРµР¶РґСѓ РІ РёСЃС…РѕРґРЅС‹Р№ РІРёРґ"
+                >рџ‘— РџРµСЂРµРѕРґРµС‚СЊ РјРѕРґРµР»СЊ</button>
               ) : (
                 <button
                   className="redress-btn has-tooltip"
                   onClick={handleGenerate}
                   disabled={isProcessing}
-                  data-tooltip="Перегенерировать с текущими настройками"
-                >🔄 Новый вариант</button>
+                  data-tooltip="РџРµСЂРµРіРµРЅРµСЂРёСЂРѕРІР°С‚СЊ СЃ С‚РµРєСѓС‰РёРјРё РЅР°СЃС‚СЂРѕР№РєР°РјРё"
+                >рџ”„ РќРѕРІС‹Р№ РІР°СЂРёР°РЅС‚</button>
               )}
             </div>
 
-            {/* CARD DESIGNER CTA — removed from results, lives in "В два клика" mode only */}
+            {/* CARD DESIGNER CTA вЂ” removed from results, lives in "Р’ РґРІР° РєР»РёРєР°" mode only */}
 
             {/* Iterative editing */}
             <div className="shot-modifier-block">
               <div className="shot-modifier-label">
-                {appMode === 'product' ? '✏️ Хотите что-то изменить в кадре?' : '✏️ Хотите что-то изменить в кадре?'}
+                {appMode === 'product' ? 'вњЏпёЏ РҐРѕС‚РёС‚Рµ С‡С‚Рѕ-С‚Рѕ РёР·РјРµРЅРёС‚СЊ РІ РєР°РґСЂРµ?' : 'вњЏпёЏ РҐРѕС‚РёС‚Рµ С‡С‚Рѕ-С‚Рѕ РёР·РјРµРЅРёС‚СЊ РІ РєР°РґСЂРµ?'}
               </div>
               <textarea className="modifier-input" rows={2} placeholder={
                 appMode === 'product'
-                  ? 'Например: сделать фон темнее, добавить блики, убрать тени, повернуть товар'
-                  : 'Например: сделать модель выше, изменить цвет волос, добавить очки, убрать тени'
+                  ? 'РќР°РїСЂРёРјРµСЂ: СЃРґРµР»Р°С‚СЊ С„РѕРЅ С‚РµРјРЅРµРµ, РґРѕР±Р°РІРёС‚СЊ Р±Р»РёРєРё, СѓР±СЂР°С‚СЊ С‚РµРЅРё, РїРѕРІРµСЂРЅСѓС‚СЊ С‚РѕРІР°СЂ'
+                  : 'РќР°РїСЂРёРјРµСЂ: СЃРґРµР»Р°С‚СЊ РјРѕРґРµР»СЊ РІС‹С€Рµ, РёР·РјРµРЅРёС‚СЊ С†РІРµС‚ РІРѕР»РѕСЃ, РґРѕР±Р°РІРёС‚СЊ РѕС‡РєРё, СѓР±СЂР°С‚СЊ С‚РµРЅРё'
               }
                 value={shotModifier} onChange={e => setShotModifier(e.target.value)} />
               <button className="modifier-regen-btn" onClick={handleRegenerate} disabled={!shotModifier.trim() || isProcessing}>
-                🔄 Внести изменения
+                рџ”„ Р’РЅРµСЃС‚Рё РёР·РјРµРЅРµРЅРёСЏ
               </button>
             </div>
 
             {/* Photoshoot */}
             <div className="photoshoot-block">
-              <div className="photoshoot-label">{appMode === 'product' ? '📸 Сделать раскадровку' : '📸 Сделать фотосессию'}</div>
+              <div className="photoshoot-label">{appMode === 'product' ? 'рџ“ё РЎРґРµР»Р°С‚СЊ СЂР°СЃРєР°РґСЂРѕРІРєСѓ' : 'рџ“ё РЎРґРµР»Р°С‚СЊ С„РѕС‚РѕСЃРµСЃСЃРёСЋ'}</div>
               <p className="photoshoot-hint">
                 {appMode === 'product'
-                  ? 'Генерация нескольких фото товара с разных ракурсов и композиций'
-                  : 'Генерация нескольких фото с разных ракурсов'}
+                  ? 'Р“РµРЅРµСЂР°С†РёСЏ РЅРµСЃРєРѕР»СЊРєРёС… С„РѕС‚Рѕ С‚РѕРІР°СЂР° СЃ СЂР°Р·РЅС‹С… СЂР°РєСѓСЂСЃРѕРІ Рё РєРѕРјРїРѕР·РёС†РёР№'
+                  : 'Р“РµРЅРµСЂР°С†РёСЏ РЅРµСЃРєРѕР»СЊРєРёС… С„РѕС‚Рѕ СЃ СЂР°Р·РЅС‹С… СЂР°РєСѓСЂСЃРѕРІ'}
               </p>
               <p className="photoshoot-hint" style={{fontSize:'0.72rem', opacity:0.6, marginTop:2}}>
                 {appMode === 'product'
-                  ? '📦 Фото товара берётся из загруженных вами фото, не из сгенерированного кадра'
-                  : '👕 Одежда берётся из загруженных вами фото, не из сгенерированного кадра'}
+                  ? 'рџ“¦ Р¤РѕС‚Рѕ С‚РѕРІР°СЂР° Р±РµСЂС‘С‚СЃСЏ РёР· Р·Р°РіСЂСѓР¶РµРЅРЅС‹С… РІР°РјРё С„РѕС‚Рѕ, РЅРµ РёР· СЃРіРµРЅРµСЂРёСЂРѕРІР°РЅРЅРѕРіРѕ РєР°РґСЂР°'
+                  : 'рџ‘• РћРґРµР¶РґР° Р±РµСЂС‘С‚СЃСЏ РёР· Р·Р°РіСЂСѓР¶РµРЅРЅС‹С… РІР°РјРё С„РѕС‚Рѕ, РЅРµ РёР· СЃРіРµРЅРµСЂРёСЂРѕРІР°РЅРЅРѕРіРѕ РєР°РґСЂР°'}
               </p>
 
-              {/* Calibration prompt — только если есть человек-модель */}
+              {/* Calibration prompt вЂ” С‚РѕР»СЊРєРѕ РµСЃР»Рё РµСЃС‚СЊ С‡РµР»РѕРІРµРє-РјРѕРґРµР»СЊ */}
               {(appMode === 'fashion' || (appMode === 'product' && productWithModel)) && !selectedSavedModelId && !(appMode === 'product' && !productWithModel) && (
                 <div className="calibration-prompt">
-                  <p className="calibration-prompt-text">💡 Для максимальной консистентности лица рекомендуем сначала <strong>откалибровать модель</strong></p>
+                  <p className="calibration-prompt-text">рџ’Ў Р”Р»СЏ РјР°РєСЃРёРјР°Р»СЊРЅРѕР№ РєРѕРЅСЃРёСЃС‚РµРЅС‚РЅРѕСЃС‚Рё Р»РёС†Р° СЂРµРєРѕРјРµРЅРґСѓРµРј СЃРЅР°С‡Р°Р»Р° <strong>РѕС‚РєР°Р»РёР±СЂРѕРІР°С‚СЊ РјРѕРґРµР»СЊ</strong></p>
                   <button className="calib-prompt-btn" onClick={() => openCalibration('photoshoot')}>
-                    🎯 Откалибровать модель
+                    рџЋЇ РћС‚РєР°Р»РёР±СЂРѕРІР°С‚СЊ РјРѕРґРµР»СЊ
                   </button>
                 </div>
               )}
 
               <div className="photoshoot-choice">
                 <button className="photoshoot-btn photoshoot-btn--3" onClick={() => handlePhotoshoot(3)} disabled={isPhotoshooting || isProcessing}>
-                  {isPhotoshooting ? '⏳ Генерация...' : photoshootImages.filter(Boolean).length > 0 ? `📷 ещё +3` : '📷 3 фото'}
+                  {isPhotoshooting ? 'вЏі Р“РµРЅРµСЂР°С†РёСЏ...' : photoshootImages.filter(Boolean).length > 0 ? `рџ“· РµС‰С‘ +3` : 'рџ“· 3 С„РѕС‚Рѕ'}
                 </button>
                 <button className="photoshoot-btn photoshoot-btn--5" onClick={() => handlePhotoshoot(5)} disabled={isPhotoshooting || isProcessing}>
-                  {isPhotoshooting ? '⏳ Генерация...' : photoshootImages.filter(Boolean).length > 0 ? `📸 ещё +5` : '📸 5 фото'}
+                  {isPhotoshooting ? 'вЏі Р“РµРЅРµСЂР°С†РёСЏ...' : photoshootImages.filter(Boolean).length > 0 ? `рџ“ё РµС‰С‘ +5` : 'рџ“ё 5 С„РѕС‚Рѕ'}
                 </button>
               </div>
             </div>
@@ -4739,7 +4763,7 @@ ${userProductInfo.trim()}
             {/* Photoshoot gallery */}
             {photoshootImages.length > 0 && (
               <div className="photoshoot-gallery">
-                <h4>📷 Галерея фотосессии</h4>
+                <h4>рџ“· Р“Р°Р»РµСЂРµСЏ С„РѕС‚РѕСЃРµСЃСЃРёРё</h4>
                 <div className="photoshoot-grid">
                   {photoshootImages.map((img, i) => {
                     const versions = photoHistory[i];
@@ -4751,37 +4775,37 @@ ${userProductInfo.trim()}
                     <div key={i} className={`photoshoot-item ${hasEdits ? 'photoshoot-item--edited' : ''} ${isEditing ? 'photoshoot-item--processing' : ''}`}>
                       {displayImg ? (
                         <>
-                          <img src={displayImg} alt={`Кадр ${i+1}`} onClick={() => {
+                          <img src={displayImg} alt={`РљР°РґСЂ ${i+1}`} onClick={() => {
                             const gallery = hasEdits ? versions : photoshootImages;
                             openLightboxGallery(gallery, hasEdits ? viewIdx : i);
                           }} style={{cursor:'pointer'}} />
                           {isEditing && (
                             <div className="photo-editing-overlay">
                               <div className="processing-spinner" style={{width:28,height:28}} />
-                              <span>Редактируется...</span>
+                              <span>Р РµРґР°РєС‚РёСЂСѓРµС‚СЃСЏ...</span>
                             </div>
                           )}
                           {hasEdits && (
                             <>
-                              <span className="photo-edited-badge">✨ Изменено ({versions.length - 1})</span>
+                              <span className="photo-edited-badge">вњЁ РР·РјРµРЅРµРЅРѕ ({versions.length - 1})</span>
                               <div className="photo-history-nav">
                                 <button className="photo-history-btn" disabled={viewIdx <= 0} onClick={(e) => {
                                   e.stopPropagation();
                                   setPhotoViewIdx(prev => ({ ...prev, [i]: viewIdx - 1 }));
-                                }}>‹</button>
+                                }}>вЂ№</button>
                                 <span className="photo-history-counter">{viewIdx + 1}/{versions.length}</span>
                                 <button className="photo-history-btn" disabled={viewIdx >= versions.length - 1} onClick={(e) => {
                                   e.stopPropagation();
                                   setPhotoViewIdx(prev => ({ ...prev, [i]: viewIdx + 1 }));
-                                }}>›</button>
+                                }}>вЂє</button>
                               </div>
                             </>
                           )}
-                          <button className="edit-mini-btn" title="Редактировать этот кадр" onClick={(e) => {
+                          <button className="edit-mini-btn" title="Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ СЌС‚РѕС‚ РєР°РґСЂ" onClick={(e) => {
                             e.stopPropagation();
                             setEditingPhotoIdx(i);
                             setPhotoEditText('');
-                          }}>✏️</button>
+                          }}>вњЏпёЏ</button>
                           <div className="download-mini-wrapper">
                             <button className="download-mini-btn" onClick={(e) => {
                               e.stopPropagation();
@@ -4790,14 +4814,14 @@ ${userProductInfo.trim()}
                               } else {
                                 const a = document.createElement('a'); a.href = displayImg; a.download = `SellerStudio_${i+1}_${Date.now()}.jpg`; a.click();
                               }
-                            }}>⬇️</button>
+                            }}>в¬‡пёЏ</button>
                             {downloadMenuIdx === i && hasEdits && (
                               <div className="download-menu">
                                 <button onClick={(e) => {
                                   e.stopPropagation();
                                   const a = document.createElement('a'); a.href = versions[versions.length - 1]; a.download = `SellerStudio_${i+1}_latest_${Date.now()}.jpg`; a.click();
                                   setDownloadMenuIdx(null);
-                                }}>📸 Последнюю версию</button>
+                                }}>рџ“ё РџРѕСЃР»РµРґРЅСЋСЋ РІРµСЂСЃРёСЋ</button>
                                 <button onClick={(e) => {
                                   e.stopPropagation();
                                   versions.forEach((v, vi) => {
@@ -4806,7 +4830,7 @@ ${userProductInfo.trim()}
                                     }, vi * 300);
                                   });
                                   setDownloadMenuIdx(null);
-                                }}>📦 Все версии ({versions.length})</button>
+                                }}>рџ“¦ Р’СЃРµ РІРµСЂСЃРёРё ({versions.length})</button>
                               </div>
                             )}
                           </div>
@@ -4825,48 +4849,48 @@ ${userProductInfo.trim()}
       </AnimatePresence>
 
       <footer className="app-footer">
-        <a href="/offer" target="_blank" rel="noreferrer">Публичная оферта</a>
+        <a href="/offer" target="_blank" rel="noreferrer">РџСѓР±Р»РёС‡РЅР°СЏ РѕС„РµСЂС‚Р°</a>
       </footer>
 
       {/* OVERLAYS */}
       <AnimatePresence>
         {isProcessing && (
           <motion.div className="processing-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
-            <button className="processing-close-btn" onClick={() => setIsProcessing(false)} title="Скрыть">✕</button>
+            <button className="processing-close-btn" onClick={() => setIsProcessing(false)} title="РЎРєСЂС‹С‚СЊ">вњ•</button>
             <div style={{width:'90%', maxWidth:480}}>
               <TerminalOfMagic isActive={isProcessing} customMessage={processingMsg} />
-              <p className="processing-hint" style={{textAlign:'center', marginTop:12}}>Обычно 30с — 2 мин</p>
+              <p className="processing-hint" style={{textAlign:'center', marginTop:12}}>РћР±С‹С‡РЅРѕ 30СЃ вЂ” 2 РјРёРЅ</p>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* МОДАЛКА: Локация */}
+      {/* РњРћР”РђР›РљРђ: Р›РѕРєР°С†РёСЏ */}
       <AnimatePresence>
         {showLocModal && (
           <motion.div className="modal-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={()=>setShowLocModal(false)}>
             <motion.div className="modal-content" initial={{scale:0.9}} animate={{scale:1}} exit={{scale:0.9}} onClick={e=>e.stopPropagation()}>
-              <div className="modal-title">📍 Оцифровать локацию</div>
-              <input className="modal-input" placeholder="Название (напр. Студия Велес)" value={locName} onChange={e=>setLocName(e.target.value)} />
+              <div className="modal-title">рџ“Ќ РћС†РёС„СЂРѕРІР°С‚СЊ Р»РѕРєР°С†РёСЋ</div>
+              <input className="modal-input" placeholder="РќР°Р·РІР°РЅРёРµ (РЅР°РїСЂ. РЎС‚СѓРґРёСЏ Р’РµР»РµСЃ)" value={locName} onChange={e=>setLocName(e.target.value)} />
               <div className="drop-zone" onClick={()=>locFileRef.current?.click()}
                 onDragOver={e=>{e.preventDefault();e.currentTarget.classList.add('dragging');}}
                 onDragLeave={e=>e.currentTarget.classList.remove('dragging')}
                 onDrop={e=>{e.preventDefault();e.currentTarget.classList.remove('dragging');handleLocFiles(e.dataTransfer.files);}}>
                 <input type="file" accept="image/*" multiple ref={locFileRef} style={{display:'none'}} onChange={e=>handleLocFiles(e.target.files)} />
-                <p className="drop-zone-text">📸 Перетащите или нажмите</p>
-                <p className="drop-zone-hint">2-5 фотографий локации с разных ракурсов</p>
+                <p className="drop-zone-text">рџ“ё РџРµСЂРµС‚Р°С‰РёС‚Рµ РёР»Рё РЅР°Р¶РјРёС‚Рµ</p>
+                <p className="drop-zone-hint">2-5 С„РѕС‚РѕРіСЂР°С„РёР№ Р»РѕРєР°С†РёРё СЃ СЂР°Р·РЅС‹С… СЂР°РєСѓСЂСЃРѕРІ</p>
                 {locPreviews.length>0 && <div className="drop-zone-previews">{locPreviews.map((p,i)=><img key={i} src={p} alt="" style={{cursor:'zoom-in'}} onClick={(e) => { e.stopPropagation(); setLightboxSrc(p); }} />)}</div>}
               </div>
               <div className="modal-actions">
-                <button className="modal-btn-cancel" onClick={()=>{setShowLocModal(false);setLocName('');setLocPreviews([]);}}>Отмена</button>
-                <button className="modal-btn-primary" onClick={saveLoc} disabled={!locName.trim()||locPreviews.length<2}>Сохранить</button>
+                <button className="modal-btn-cancel" onClick={()=>{setShowLocModal(false);setLocName('');setLocPreviews([]);}}>РћС‚РјРµРЅР°</button>
+                <button className="modal-btn-primary" onClick={saveLoc} disabled={!locName.trim()||locPreviews.length<2}>РЎРѕС…СЂР°РЅРёС‚СЊ</button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ВИЗАРД: Создание персонажа */}
+      {/* Р’РР—РђР Р”: РЎРѕР·РґР°РЅРёРµ РїРµСЂСЃРѕРЅР°Р¶Р° */}
       <AnimatePresence>
         {showPersonaWizard && (
           <PersonaWizard
@@ -4889,24 +4913,24 @@ ${userProductInfo.trim()}
         )}
       </AnimatePresence>
 
-      {/* МОДАЛКА: LoRA модель */}
+      {/* РњРћР”РђР›РљРђ: LoRA РјРѕРґРµР»СЊ */}
       <AnimatePresence>
         <LoraModal show={showLoraModal} onClose={()=>{setShowLoraModal(false);setLoraName('');setLoraPhotos({front:null,left34:null,right34:null,fullbody:null});}}
           onSave={saveLoraModel} loraName={loraName} setLoraName={setLoraName} loraPhotos={loraPhotos} setLoraPhotos={setLoraPhotos}
           authHeaders={(() => { const t = user?.accessToken; return t ? { Authorization: 'Bearer ' + t } : {}; })()} />
       </AnimatePresence>
 
-      {/* МОДАЛКА: Сохранить сгенерированную модель */}
+      {/* РњРћР”РђР›РљРђ: РЎРѕС…СЂР°РЅРёС‚СЊ СЃРіРµРЅРµСЂРёСЂРѕРІР°РЅРЅСѓСЋ РјРѕРґРµР»СЊ */}
       <AnimatePresence>
         {showSaveModelModal && (
           <motion.div className="modal-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={()=>setShowSaveModelModal(false)}>
             <motion.div className="modal-content" initial={{scale:0.9}} animate={{scale:1}} exit={{scale:0.9}} onClick={e=>e.stopPropagation()}>
-              <div className="modal-title">⭐ Сохранить ИИ-модель</div>
-              <p className="modal-hint">Дайте имя этой модели для использования в будущих генерациях</p>
-              <input className="modal-input" placeholder="Например: Алина, рыжая" value={saveModelName} onChange={e=>setSaveModelName(e.target.value)} />
+              <div className="modal-title">в­ђ РЎРѕС…СЂР°РЅРёС‚СЊ РР-РјРѕРґРµР»СЊ</div>
+              <p className="modal-hint">Р”Р°Р№С‚Рµ РёРјСЏ СЌС‚РѕР№ РјРѕРґРµР»Рё РґР»СЏ РёСЃРїРѕР»СЊР·РѕРІР°РЅРёСЏ РІ Р±СѓРґСѓС‰РёС… РіРµРЅРµСЂР°С†РёСЏС…</p>
+              <input className="modal-input" placeholder="РќР°РїСЂРёРјРµСЂ: РђР»РёРЅР°, СЂС‹Р¶Р°СЏ" value={saveModelName} onChange={e=>setSaveModelName(e.target.value)} />
               <div className="modal-actions">
-                <button className="modal-btn-cancel" onClick={()=>{setShowSaveModelModal(false);setSaveModelName('');}}>Отмена</button>
-                <button className="modal-btn-primary" onClick={saveGenModel} disabled={!saveModelName.trim()}>Сохранить</button>
+                <button className="modal-btn-cancel" onClick={()=>{setShowSaveModelModal(false);setSaveModelName('');}}>РћС‚РјРµРЅР°</button>
+                <button className="modal-btn-primary" onClick={saveGenModel} disabled={!saveModelName.trim()}>РЎРѕС…СЂР°РЅРёС‚СЊ</button>
               </div>
             </motion.div>
           </motion.div>
@@ -4917,25 +4941,25 @@ ${userProductInfo.trim()}
       <AnimatePresence>
         {lightboxSrc && (
           <motion.div className="lightbox-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
-            <button className="lightbox-close" onClick={() => { setLightboxSrc(null); setLightboxGallery([]); }}>✕</button>
+            <button className="lightbox-close" onClick={() => { setLightboxSrc(null); setLightboxGallery([]); }}>вњ•</button>
             {lightboxGallery.length > 1 && (
               <button className="lightbox-nav lightbox-nav--prev" onClick={e => {
                 e.stopPropagation();
                 const newIdx = (lightboxIdx - 1 + lightboxGallery.length) % lightboxGallery.length;
                 setLightboxIdx(newIdx); setLightboxSrc(lightboxGallery[newIdx]);
-              }}>‹</button>
+              }}>вЂ№</button>
             )}
-            <img src={lightboxSrc} alt="Просмотр" className="lightbox-img" onClick={e => e.stopPropagation()} />
+            <img src={lightboxSrc} alt="РџСЂРѕСЃРјРѕС‚СЂ" className="lightbox-img" onClick={e => e.stopPropagation()} />
             {lightboxGallery.length > 1 && (
               <button className="lightbox-nav lightbox-nav--next" onClick={e => {
                 e.stopPropagation();
                 const newIdx = (lightboxIdx + 1) % lightboxGallery.length;
                 setLightboxIdx(newIdx); setLightboxSrc(lightboxGallery[newIdx]);
-              }}>›</button>
+              }}>вЂє</button>
             )}
             <div className="lightbox-footer">
               {lightboxGallery.length > 1 && <span className="lightbox-counter">{lightboxIdx + 1} / {lightboxGallery.length}</span>}
-              <button className="lightbox-download" onClick={e => { e.stopPropagation(); const a = document.createElement('a'); a.href = lightboxSrc; a.download = `SellerStudio_${Date.now()}.jpg`; a.click(); }}>⬇️ Скачать</button>
+              <button className="lightbox-download" onClick={e => { e.stopPropagation(); const a = document.createElement('a'); a.href = lightboxSrc; a.download = `SellerStudio_${Date.now()}.jpg`; a.click(); }}>в¬‡пёЏ РЎРєР°С‡Р°С‚СЊ</button>
             </div>
           </motion.div>
         )}
@@ -4946,34 +4970,34 @@ ${userProductInfo.trim()}
         {editingPhotoIdx !== null && photoshootImages[editingPhotoIdx] && (
           <motion.div className="photo-editor-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => { setEditingPhotoIdx(null); setPhotoEditText(''); }}>
             <motion.div className="photo-editor-modal" initial={{scale:0.9, opacity:0}} animate={{scale:1, opacity:1}} exit={{scale:0.9, opacity:0}} onClick={e => e.stopPropagation()}>
-              <button className="photo-editor-close" onClick={() => { setEditingPhotoIdx(null); setPhotoEditText(''); }}>✕</button>
+              <button className="photo-editor-close" onClick={() => { setEditingPhotoIdx(null); setPhotoEditText(''); }}>вњ•</button>
               <div className="photo-editor-preview">
-                <img src={photoshootImages[editingPhotoIdx]} alt="Редактируемый кадр" />
-                <span className="photo-editor-badge">Кадр {editingPhotoIdx + 1}</span>
+                <img src={photoshootImages[editingPhotoIdx]} alt="Р РµРґР°РєС‚РёСЂСѓРµРјС‹Р№ РєР°РґСЂ" />
+                <span className="photo-editor-badge">РљР°РґСЂ {editingPhotoIdx + 1}</span>
               </div>
               <div className="photo-editor-controls">
-                <p className="photo-editor-hint">Опишите, что изменить в этом кадре:</p>
+                <p className="photo-editor-hint">РћРїРёС€РёС‚Рµ, С‡С‚Рѕ РёР·РјРµРЅРёС‚СЊ РІ СЌС‚РѕРј РєР°РґСЂРµ:</p>
                 <textarea
                   className="photo-editor-input"
                   placeholder={appMode === 'product'
-                    ? 'Сделай фон темнее, добавь блики, убери тени, поверни товар...'
-                    : 'Убери татуировку, добавь очки, смени цвет волос...'}
+                    ? 'РЎРґРµР»Р°Р№ С„РѕРЅ С‚РµРјРЅРµРµ, РґРѕР±Р°РІСЊ Р±Р»РёРєРё, СѓР±РµСЂРё С‚РµРЅРё, РїРѕРІРµСЂРЅРё С‚РѕРІР°СЂ...'
+                    : 'РЈР±РµСЂРё С‚Р°С‚СѓРёСЂРѕРІРєСѓ, РґРѕР±Р°РІСЊ РѕС‡РєРё, СЃРјРµРЅРё С†РІРµС‚ РІРѕР»РѕСЃ...'}
                   value={photoEditText}
                   onChange={e => setPhotoEditText(e.target.value)}
                   rows={3}
                 />
                 <div className="photo-editor-quick-tags">
                   {(appMode === 'product'
-                    ? ['Убрать тени', 'Ярче свет', 'Темнее фон', 'Добавить блики', 'Добавить текстуру', 'Другой ракурс']
-                    : ['Убрать татуировку', 'Добавить очки', 'Сменить фон', 'Убрать пирсинг', 'Другая причёска', 'Добавить улыбку']
+                    ? ['РЈР±СЂР°С‚СЊ С‚РµРЅРё', 'РЇСЂС‡Рµ СЃРІРµС‚', 'РўРµРјРЅРµРµ С„РѕРЅ', 'Р”РѕР±Р°РІРёС‚СЊ Р±Р»РёРєРё', 'Р”РѕР±Р°РІРёС‚СЊ С‚РµРєСЃС‚СѓСЂСѓ', 'Р”СЂСѓРіРѕР№ СЂР°РєСѓСЂСЃ']
+                    : ['РЈР±СЂР°С‚СЊ С‚Р°С‚СѓРёСЂРѕРІРєСѓ', 'Р”РѕР±Р°РІРёС‚СЊ РѕС‡РєРё', 'РЎРјРµРЅРёС‚СЊ С„РѕРЅ', 'РЈР±СЂР°С‚СЊ РїРёСЂСЃРёРЅРі', 'Р”СЂСѓРіР°СЏ РїСЂРёС‡С‘СЃРєР°', 'Р”РѕР±Р°РІРёС‚СЊ СѓР»С‹Р±РєСѓ']
                   ).map(tag => (
                     <button key={tag} className="photo-editor-tag" onClick={() => setPhotoEditText(prev => prev ? `${prev}, ${tag.toLowerCase()}` : tag.toLowerCase())}>{tag}</button>
                   ))}
                 </div>
                 <button className="photo-editor-submit" onClick={handlePhotoEdit} disabled={!photoEditText.trim()}>
-                  ✨ Применить изменения
+                  вњЁ РџСЂРёРјРµРЅРёС‚СЊ РёР·РјРµРЅРµРЅРёСЏ
                 </button>
-                <p className="photo-editor-hint" style={{fontSize:'0.7rem', opacity:0.5, textAlign:'center', marginTop:4}}>Модал закроется, редактирование пойдёт в фоне</p>
+                <p className="photo-editor-hint" style={{fontSize:'0.7rem', opacity:0.5, textAlign:'center', marginTop:4}}>РњРѕРґР°Р» Р·Р°РєСЂРѕРµС‚СЃСЏ, СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РїРѕР№РґС‘С‚ РІ С„РѕРЅРµ</p>
               </div>
             </motion.div>
           </motion.div>
@@ -4989,9 +5013,9 @@ ${userProductInfo.trim()}
             onSave={saveCalibratedModel}
             onStartCalibration={async () => {
               if (!user || user.isGuest || (user.isAnonymous && !user.isTelegramUser)) {
-                throw new Error('Для создания модели необходимо авторизоваться');
+                throw new Error('Р”Р»СЏ СЃРѕР·РґР°РЅРёСЏ РјРѕРґРµР»Рё РЅРµРѕР±С…РѕРґРёРјРѕ Р°РІС‚РѕСЂРёР·РѕРІР°С‚СЊСЃСЏ');
               }
-              // Калибровка модели теперь бесплатна, кредиты не списываются.
+              // РљР°Р»РёР±СЂРѕРІРєР° РјРѕРґРµР»Рё С‚РµРїРµСЂСЊ Р±РµСЃРїР»Р°С‚РЅР°, РєСЂРµРґРёС‚С‹ РЅРµ СЃРїРёСЃС‹РІР°СЋС‚СЃСЏ.
             }}
             modelPrompt={getCurrentModelPrompt()}
             modelRefImages={getCurrentModelRefs()}
@@ -5001,7 +5025,7 @@ ${userProductInfo.trim()}
         )}
       </AnimatePresence>
 
-      {/* ═══ CARD COUNT SELECTION MODAL ═══ */}
+      {/* в•ђв•ђв•ђ CARD COUNT SELECTION MODAL в•ђв•ђв•ђ */}
       <AnimatePresence>
         {showCardCountModal && (
           <motion.div
@@ -5019,8 +5043,8 @@ ${userProductInfo.trim()}
               transition={{type:'spring',stiffness:400,damping:25,mass:0.5}}
               onClick={e => e.stopPropagation()}
             >
-              <h3 className="card-count-title">🎯 Сколько карточек сделать?</h3>
-              <p className="card-count-subtitle">Каждая карточка = 1 кредит</p>
+              <h3 className="card-count-title">рџЋЇ РЎРєРѕР»СЊРєРѕ РєР°СЂС‚РѕС‡РµРє СЃРґРµР»Р°С‚СЊ?</h3>
+              <p className="card-count-subtitle">РљР°Р¶РґР°СЏ РєР°СЂС‚РѕС‡РєР° = 1 РєСЂРµРґРёС‚</p>
               <div className="card-count-grid">
                 {[1, 2, 3, 4].map(n => (
                   <button
@@ -5029,7 +5053,7 @@ ${userProductInfo.trim()}
                     onClick={() => { setCardVariantCount(n); startCardGeneration(n); }}
                   >
                     <span className="card-count-number">{n}</span>
-                    <span className="card-count-label">{n === 1 ? 'карточка' : (n < 5 ? 'карточки' : 'карточек')}</span>
+                    <span className="card-count-label">{n === 1 ? 'РєР°СЂС‚РѕС‡РєР°' : (n < 5 ? 'РєР°СЂС‚РѕС‡РєРё' : 'РєР°СЂС‚РѕС‡РµРє')}</span>
                   </button>
                 ))}
               </div>
@@ -5038,7 +5062,7 @@ ${userProductInfo.trim()}
                   type="number"
                   min="1"
                   max="20"
-                  placeholder="Своё количество"
+                  placeholder="РЎРІРѕС‘ РєРѕР»РёС‡РµСЃС‚РІРѕ"
                   className="card-count-input"
                   value={customCardCount}
                   onChange={e => setCustomCardCount(e.target.value)}
@@ -5049,7 +5073,7 @@ ${userProductInfo.trim()}
                   disabled={!customCardCount || parseInt(customCardCount) < 1}
                   onClick={() => { const n = parseInt(customCardCount); if (n > 0) startCardGeneration(n); }}
                 >
-                  Создать →
+                  РЎРѕР·РґР°С‚СЊ в†’
                 </button>
               </div>
             </motion.div>
@@ -5057,7 +5081,7 @@ ${userProductInfo.trim()}
         )}
       </AnimatePresence>
 
-      {/* ═══ CARD EXAMPLES MODAL ═══ */}
+      {/* в•ђв•ђв•ђ CARD EXAMPLES MODAL в•ђв•ђв•ђ */}
       <AnimatePresence>
         {showCardExamples && (
           <motion.div
@@ -5076,45 +5100,45 @@ ${userProductInfo.trim()}
               onClick={e => e.stopPropagation()}
             >
               <div className="card-examples-header">
-                <h3>Примеры карточек до / после</h3>
-                <button className="card-examples-close" onClick={() => setShowCardExamples(false)}>✕</button>
+                <h3>РџСЂРёРјРµСЂС‹ РєР°СЂС‚РѕС‡РµРє РґРѕ / РїРѕСЃР»Рµ</h3>
+                <button className="card-examples-close" onClick={() => setShowCardExamples(false)}>вњ•</button>
               </div>
 
               <div className="card-examples-tabs">
                 <button
                   className={`card-examples-tab ${cardDesignStyle === 'natural' ? 'active' : ''}`}
                   onClick={() => setCardDesignStyle('natural')}
-                >🌿 Естественная</button>
+                >рџЊї Р•СЃС‚РµСЃС‚РІРµРЅРЅР°СЏ</button>
                 <button
                   className={`card-examples-tab ${cardDesignStyle === 'epic' ? 'active' : ''}`}
                   onClick={() => setCardDesignStyle('epic')}
-                >🔥 Эпичная</button>
+                >рџ”Ґ Р­РїРёС‡РЅР°СЏ</button>
               </div>
 
               <div className="card-examples-grid">
                 {/* Glass example */}
                 <div className="card-example-pair">
                   <div className="card-example-item">
-                    <div className="card-example-label">До</div>
-                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-glass-before.jpg' : '/examples/cards/epic-glass-before.jpg'} alt="Стакан до" />
+                    <div className="card-example-label">Р”Рѕ</div>
+                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-glass-before.jpg' : '/examples/cards/epic-glass-before.jpg'} alt="РЎС‚Р°РєР°РЅ РґРѕ" />
                   </div>
-                  <div className="card-example-arrow">→</div>
+                  <div className="card-example-arrow">в†’</div>
                   <div className="card-example-item">
-                    <div className="card-example-label">После</div>
-                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-glass-after.png' : '/examples/cards/epic-glass-after.png'} alt="Стакан после" />
+                    <div className="card-example-label">РџРѕСЃР»Рµ</div>
+                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-glass-after.png' : '/examples/cards/epic-glass-after.png'} alt="РЎС‚Р°РєР°РЅ РїРѕСЃР»Рµ" />
                   </div>
                 </div>
 
                 {/* Pajama example */}
                 <div className="card-example-pair">
                   <div className="card-example-item">
-                    <div className="card-example-label">До</div>
-                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-pajama-before.png' : '/examples/cards/epic-pajama-before.jpg'} alt="Пижама до" />
+                    <div className="card-example-label">Р”Рѕ</div>
+                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-pajama-before.png' : '/examples/cards/epic-pajama-before.jpg'} alt="РџРёР¶Р°РјР° РґРѕ" />
                   </div>
-                  <div className="card-example-arrow">→</div>
+                  <div className="card-example-arrow">в†’</div>
                   <div className="card-example-item">
-                    <div className="card-example-label">После</div>
-                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-pajama-after.png' : '/examples/cards/epic-pajama-after.png'} alt="Пижама после" />
+                    <div className="card-example-label">РџРѕСЃР»Рµ</div>
+                    <img src={cardDesignStyle === 'natural' ? '/examples/cards/natural-pajama-after.png' : '/examples/cards/epic-pajama-after.png'} alt="РџРёР¶Р°РјР° РїРѕСЃР»Рµ" />
                   </div>
                 </div>
               </div>
@@ -5123,26 +5147,26 @@ ${userProductInfo.trim()}
         )}
       </AnimatePresence>
 
-      {/* МОДАЛКА: Добавление/Редактирование кастомного чипа */}
+      {/* РњРћР”РђР›РљРђ: Р”РѕР±Р°РІР»РµРЅРёРµ/Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РєР°СЃС‚РѕРјРЅРѕРіРѕ С‡РёРїР° */}
       <AnimatePresence>
         {(customChipModalSection || editingChip) && (
           <motion.div className="modal-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} 
             onClick={() => { setCustomChipModalSection(null); setEditingChip(null); setNewChipText(''); }}>
             <motion.div className="modal-content" initial={{scale:0.9}} animate={{scale:1}} exit={{scale:0.9}} onClick={e=>e.stopPropagation()}>
               <div className="modal-title">
-                {editingChip ? '✏️ Редактировать вариант' : (
-                  customChipModalSection === 'model' ? '➕ Свой вариант модели' :
-                  customChipModalSection === 'pose' ? '➕ Свой вариант позы' :
-                  '➕ Свой вариант фона'
+                {editingChip ? 'вњЏпёЏ Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ РІР°СЂРёР°РЅС‚' : (
+                  customChipModalSection === 'model' ? 'вћ• РЎРІРѕР№ РІР°СЂРёР°РЅС‚ РјРѕРґРµР»Рё' :
+                  customChipModalSection === 'pose' ? 'вћ• РЎРІРѕР№ РІР°СЂРёР°РЅС‚ РїРѕР·С‹' :
+                  'вћ• РЎРІРѕР№ РІР°СЂРёР°РЅС‚ С„РѕРЅР°'
                 )}
               </div>
               <input 
                 className="modal-input" 
                 autoFocus 
                 placeholder={
-                  (editingChip?.section || customChipModalSection) === 'model' ? "Например: рыжая девушка в очках..." :
-                  (editingChip?.section || customChipModalSection) === 'pose' ? "Например: модель сидит на стуле..." :
-                  "Например: кирпичная стена, неоновый свет..."
+                  (editingChip?.section || customChipModalSection) === 'model' ? "РќР°РїСЂРёРјРµСЂ: СЂС‹Р¶Р°СЏ РґРµРІСѓС€РєР° РІ РѕС‡РєР°С…..." :
+                  (editingChip?.section || customChipModalSection) === 'pose' ? "РќР°РїСЂРёРјРµСЂ: РјРѕРґРµР»СЊ СЃРёРґРёС‚ РЅР° СЃС‚СѓР»Рµ..." :
+                  "РќР°РїСЂРёРјРµСЂ: РєРёСЂРїРёС‡РЅР°СЏ СЃС‚РµРЅР°, РЅРµРѕРЅРѕРІС‹Р№ СЃРІРµС‚..."
                 } 
                 value={newChipText} 
                 onChange={e=>setNewChipText(e.target.value)} 
@@ -5162,7 +5186,7 @@ ${userProductInfo.trim()}
                 }}
               />
               <div className="modal-actions">
-                <button className="modal-btn-cancel" onClick={()=>{ setCustomChipModalSection(null); setEditingChip(null); setNewChipText(''); }}>Отмена</button>
+                <button className="modal-btn-cancel" onClick={()=>{ setCustomChipModalSection(null); setEditingChip(null); setNewChipText(''); }}>РћС‚РјРµРЅР°</button>
                 <button className="modal-btn-primary" onClick={() => {
                   if (editingChip) saveEditCustomChip();
                   else {
@@ -5170,7 +5194,7 @@ ${userProductInfo.trim()}
                     setCustomChipModalSection(null);
                   }
                 }} disabled={!newChipText.trim()}>
-                  {editingChip ? 'Сохранить' : 'Добавить'}
+                  {editingChip ? 'РЎРѕС…СЂР°РЅРёС‚СЊ' : 'Р”РѕР±Р°РІРёС‚СЊ'}
                 </button>
               </div>
             </motion.div>
