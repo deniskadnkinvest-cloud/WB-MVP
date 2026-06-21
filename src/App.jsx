@@ -3236,12 +3236,12 @@ ${userProductInfo.trim()}
             onDragLeave={e => { e.preventDefault(); e.currentTarget.classList.remove('dragging'); }}
             onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('dragging'); if (e.dataTransfer.files?.length) handleFilesChange({ target: { files: e.dataTransfer.files } }); }}>
             <input type="file" accept="image/*" multiple ref={fileInputRef} style={{display:'none'}} onChange={handleFilesChange} />
-            <div className="upload-icon">{appMode === 'product' ? 'СЂСџВ§Т‘' : 'СЂСџвЂвЂў'}</div>
+            <div className="upload-icon">{appMode === 'product' ? 'СЂСџВ§Т‘' : 'СЂСџвЂ˜вЂў'}</div>
             <p className="upload-text">
-              {appMode === 'product' ? 'Р вЂ”Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљР Вµ РЎвЂћР С•РЎвЂљР С• Р Р†Р В°РЎв‚¬Р ВµР С–Р С• РЎвЂљР С•Р Р†Р В°РЎР‚Р В° РІР‚вЂќ РЎвЂћР В»Р В°Р С”Р С•Р Р…, Р В±Р В°Р Р…Р С•РЎвЂЎР С”РЎС“, Р В°Р С”РЎРѓР ВµРЎРѓРЎРѓРЎС“Р В°РЎР‚' : 'Р вЂ”Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљР Вµ РЎвЂћР С•РЎвЂљР С• Р С•Р Т‘Р ВµР В¶Р Т‘РЎвЂ№ РІР‚вЂќ РЎР‚Р В°РЎРѓР С”Р В»Р В°Р Т‘Р С”Р С‘ Р С‘Р В»Р С‘ РЎвЂћР С•РЎвЂљР С• Р Р…Р В° Р СР С•Р Т‘Р ВµР В»Р С‘'}
+              {appMode === 'product' ? 'Р вЂ”Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљР Вµ РЎвЂћР С•РЎвЂљР С• Р Р†Р В°РЎв‚¬Р ВµР С–Р С• РЎвЂљР С•Р Р†Р В°РЎР‚Р В° РІР‚вЂќ РЎвЂћР В»Р В°Р С”Р С•Р Р…, Р В±Р В°Р Р…Р С•РЎвЂЎР С”РЎС“, Р В°Р С”РЎРѓР ВµРЎРѓРЎРѓРЎС“Р В°РЎР‚' : 'Р вЂ”Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљР Вµ РЎвЂћР С•РЎвЂљР С• Р С•Р Т‘Р ВµР В¶Р Т‘РЎвЂ№ РІР‚вЂќ РЎР‚Р В°РЎРѓР С”Р В»Р В°Р Т‘Р С”Р С‘ Р С‘Р В»Р С‘ РЎвЂћР С•РЎвЂљР С• Р Р…Р В° Р С˜Р С•Р Т‘Р ВµР В»Р С‘'}
             </p>
             <p className="upload-hint">
-              {appMode === 'product' ? 'JPG, PNG РІР‚Сћ Р СџР ВµРЎР‚Р ВµРЎвЂљР В°РЎвЂ°Р С‘РЎвЂљР Вµ РЎРѓРЎР‹Р Т‘Р В° Р С‘Р В»Р С‘ Р Р…Р В°Р В¶Р СР С‘РЎвЂљР Вµ РІР‚Сћ Р СџР С•РЎРѓРЎвЂљР В°РЎР‚Р В°Р в„–РЎвЂљР ВµРЎРѓРЎРЉ РЎРѓР Т‘Р ВµР В»Р В°РЎвЂљРЎРЉ РЎвЂћР С•РЎвЂљР С• Р С—РЎР‚Р С‘ РЎвЂ¦Р С•РЎР‚Р С•РЎв‚¬Р ВµР С РЎРѓР Р†Р ВµРЎвЂљР Вµ' : 'JPG, PNG РІР‚Сћ Р СџР ВµРЎР‚Р ВµРЎвЂљР В°РЎвЂ°Р С‘РЎвЂљР Вµ РЎРѓРЎР‹Р Т‘Р В° Р С‘Р В»Р С‘ Р Р…Р В°Р В¶Р СР С‘РЎвЂљР Вµ РІР‚Сћ Р СљР С•Р В¶Р Р…Р С• Р Р…Р ВµРЎРѓР С”Р С•Р В»РЎРЉР С”Р С•: РЎвЂћРЎС“РЎвЂљР В±Р С•Р В»Р С”Р В° + Р В±РЎР‚РЎР‹Р С”Р С‘ + РЎРѓР ВµРЎР‚РЎРЉР С–Р С‘ = Р Р†РЎРѓРЎвЂ Р Р…Р В° Р СР С•Р Т‘Р ВµР В»Р С‘'}
+              {appMode === 'product' ? 'JPG, PNG РІР‚Сћ Р СџР ВµРЎР‚Р ВµРЎвЂљР В°РЎвЂ°Р С‘РЎвЂљР Вµ РЎРѓРЎР‹Р Т‘Р В° Р С‘Р В»Р С‘ Р Р…Р В°Р В¶Р С˜Р С‘РЎвЂљР Вµ РІР‚Сћ Р СџР С•РЎРѓРЎвЂљР В°РЎР‚Р В°Р в„–РЎвЂљР ВµРЎРѓРЎвЂљР Вµ РЎРѓР Т‘Р ВµР В»Р В°РЎвЂљРЎРЉ РЎвЂћР С•РЎвЂљР С• Р С—РЎР‚Р С‘ РЎвЂ¦Р С•РЎР‚Р С•РЎв‚¬Р ВµР С˜ РЎРѓР Р†Р ВµРЎвЂљР Вµ' : 'JPG, PNG РІР‚Сћ Р СџР ВµРЎР‚Р ВµРЎвЂљР В°РЎвЂ°Р С‘РЎвЂљР Вµ РЎРѓРЎР‹Р Т‘Р В° Р С‘Р В»Р С‘ Р Р…Р В°Р В¶Р С˜Р С‘РЎвЂљР Вµ РІР‚Сћ Р СљР С•Р В¶Р Р…Р С• Р Р…Р ВµРЎРѓР С”Р С•Р В»РЎРЉР С”Р С•: РЎвЂћРЎС“РЎвЂљР В±Р С•Р В»Р С”Р В° + Р В±РЎР‚РЎС‹Р С”Р С‘ + РЎРѓР ВµРЎР‚РЎРЉР С–Р С‘ = Р Р†РЎРѓРЎвЂ˜ Р Р…Р В° Р С˜Р С•Р Т‘Р ВµР В»Р С‘'}
             </p>
           </div>
         )}
@@ -3814,17 +3814,24 @@ ${userProductInfo.trim()}
                     ) : (
                       <div style={{width:'100%', height:'80px', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:'4px', background:'rgba(255,160,0,0.08)', borderRadius:'6px'}}>
                         <span style={{fontSize:'20px'}}>РІС™В РїС‘РЏ</span>
-                        <span style={{fontSize:'10px', color:'rgba(255,180,0,0.9)', textAlign:'center', lineHeight:'1.2'}}>Р В¤Р С•РЎвЂљР С• Р Р…Р ВµР Т‘Р С•РЎРѓРЎвЂљРЎС“Р С—Р Р…Р С•</span>
-                        <button
-                          style={{marginTop:'2px', padding:'3px 8px', fontSize:'10px', background:'rgba(255,160,0,0.2)', border:'1px solid rgba(255,160,0,0.5)', borderRadius:'4px', color:'#ffb300', cursor:'pointer'}}
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            if (window.confirm(`Р Р€Р Т‘Р В°Р В»Р С‘РЎвЂљРЎРЉ "${loc.title || 'Р В»Р С•Р С”Р В°РЎвЂ Р С‘РЎР‹'}" Р С‘ Р В·Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљРЎРЉ РЎвЂћР С•РЎвЂљР С• Р В·Р В°Р Р…Р С•Р Р†Р С•?`)) {
-                              await deleteLoc(loc.id);
-                              setShowLocModal(true);
-                            }
-                          }}
-                        >СЂСџвЂњС‘ Р СџР ВµРЎР‚Р ВµР В·Р В°Р С–РЎР‚РЎС“Р В·Р С‘РЎвЂљРЎРЉ</button>
+                        <label
+                          style={{marginTop:'2px', padding:'3px 8px', fontSize:'10px', background:'rgba(255,160,0,0.2)', border:'1px solid rgba(255,160,0,0.5)', borderRadius:'4px', color:'#ffb300', cursor:'pointer', display:'inline-block'}}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          Загрузить фото
+                          <input type="file" accept="image/*" multiple style={{display:'none'}}
+                            onChange={async (e) => {
+                              const files = Array.from(e.target.files || []);
+                              if (!files.length) return;
+                              const b64 = await Promise.all(files.slice(0, 5).map(f => new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => res(null); r.readAsDataURL(f); })));
+                              const valid = b64.filter(Boolean);
+                              if (!valid.length) return;
+                              await patchLocation(user.uid, loc.id, { imageBase64: valid });
+                              setMyLocations(prev => prev.map(l => l.id === loc.id ? { ...l, imageBase64: valid } : l));
+                              setLocBase64Cache(prev => ({ ...prev, [loc.id]: valid }));
+                            }}
+                          />
+                        </label>
                       </div>
                     )}
                     <div className="loc-name">{loc.title || loc.name || 'Р вЂР ВµР В· Р Р…Р В°Р В·Р Р†Р В°Р Р…Р С‘РЎРЏ'}</div>
