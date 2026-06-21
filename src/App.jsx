@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MODEL_PRESETS, POSE_PRESETS, BACKGROUND_PRESETS, ASPECT_RATIOS, CAMERA_ANGLES, getModelDetails, PRODUCT_CATEGORIES, PRODUCT_COMPOSITIONS, PRODUCT_BACKGROUNDS, PRODUCT_EFFECTS } from './data/presets';
 import { runBatchQueue, MAX_BATCH_SIZE, BATCH_CONFIRM_THRESHOLD, BATCH_CONCURRENCY } from './utils/batchQueue';
@@ -2591,14 +2591,13 @@ ${userProductInfo.trim()}
     setEditingPhotos(prev => new Set(prev).add(idx));
 
     try {
-      // Upload source image to Firebase Storage to avoid body size limits
-      const { url: sourceUrl } = await uploadBase64Image(user?.uid || 'anonymous', currentImg, 'edits');
+      // Send base64 directly to API — no Storage upload needed (avoids quota 402)
       const resp = await authFetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user?.uid || null,
           isPhotoEdit: true,
-          sourceImageUrl: sourceUrl,
+          sourceImageBase64: currentImg,
           editInstruction: instruction,
         }),
       });
