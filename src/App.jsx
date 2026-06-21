@@ -1042,7 +1042,8 @@ function App() {
                   const sm = myModels.find(m => m.id === productSavedModelId);
                   if (sm) {
                     humanPrompt = sm.prompt || humanPrompt;
-                    modelRefImages = sm.imageUrls || [];
+                    // Prefer base64 (works when Firebase Storage quota exceeded)
+                    modelRefImages = (sm.imageBase64?.length ? sm.imageBase64 : null) || sm.imageUrls || [];
                   }
                 }
               }
@@ -1077,7 +1078,8 @@ function App() {
                 const sm = myModels.find(m => m.id === task.model.id);
                 if (sm) {
                   modelPrompt = sm.prompt || modelPrompt;
-                  modelRefImages = sm.imageUrls || [];
+                  // Prefer base64 (works when Firebase Storage quota exceeded)
+                  modelRefImages = (sm.imageBase64?.length ? sm.imageBase64 : null) || sm.imageUrls || [];
                 }
               }
               if (modelModifier.trim()) modelPrompt += `. Additionally: ${modelModifier.trim()}`;
