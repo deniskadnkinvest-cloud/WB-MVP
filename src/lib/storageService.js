@@ -1,5 +1,12 @@
-import { ref, uploadBytes, getDownloadURL, deleteObject, getBytes } from 'firebase/storage';
-import { storage } from './firebase';
+// src/lib/storageService.js
+// Замена Firebase Storage — загрузка/скачивание файлов через /api/upload
+// Чистые клиентские утилиты (compressImage, base64ToBlob) сохранены без изменений
+
+import { apiFetch, getToken } from './api';
+
+// ═══════════════════════════════════════
+//  КЛИЕНТСКИЕ УТИЛИТЫ (без изменений)
+// ═══════════════════════════════════════
 
 /**
  * Сжимает изображение до заданной максимальной ширины.
@@ -31,31 +38,6 @@ export const compressImage = (file, maxWidth = 800) =>
   });
 
 /**
- * Скачивает файл из Firebase Storage через SDK (с auth-контекстом, без CORS ограничений)
- * и возвращает его как base64 data URL.
- * Используется для миграции legacy-локаций у которых нет сохранённого imageBase64.
- * @param {string} storagePath — полный путь: 'users/{uid}/locations/...'
- * @param {string} [mimeType] — MIME-тип файла (по умолчанию 'image/jpeg')
- * @returns {Promise<string|null>} base64 data URL или null при ошибке
- */
-export const downloadStoragePathAsBase64 = async (storagePath, mimeType = 'image/jpeg') => {
-  try {
-    const storageRef = ref(storage, storagePath);
-    const bytes = await getBytes(storageRef); // Auth-aware, bypasses CORS
-    const blob = new Blob([bytes], { type: mimeType });
-    return await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch (err) {
-    console.warn(`⚠️ downloadStoragePathAsBase64 failed for '${storagePath}':`, err.message);
-    return null;
-  }
-};
-
-/**
  * Конвертирует base64 data URL в Blob.
  */
 const base64ToBlob = (base64) => {
@@ -67,24 +49,40 @@ const base64ToBlob = (base64) => {
   return new Blob([arr], { type: mime });
 };
 
+// ═══════════════════════════════════════
+//  UPLOAD / DOWNLOAD / DELETE через API
+// ═══════════════════════════════════════
+
 /**
- * Загружает файл в Firebase Storage.
+ * Загружает файл через наш API (проксирует в MinIO/S3).
  * @param {string} uid — ID пользователя
  * @param {File|Blob} file — файл для загрузки
  * @param {string} folder — папка ('models' | 'locations')
  * @returns {Promise<{url: string, path: string}>}
  */
 export const uploadImage = async (uid, file, folder = 'models') => {
-  const filename = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`;
-  const storagePath = `users/${uid}/${folder}/${filename}`;
-  const storageRef = ref(storage, storagePath);
-  await uploadBytes(storageRef, file);
-  const url = await getDownloadURL(storageRef);
-  return { url, path: storagePath };
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('uid', uid);
+  formData.append('folder', folder);
+
+  // apiFetch автоматически НЕ ставит Content-Type для FormData (браузер сам ставит boundary)
+  const res = await apiFetch('/api/upload', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Ошибка загрузки файла');
+  }
+
+  const json = await res.json();
+  return { url: json.url, path: json.path };
 };
 
 /**
- * Загружает base64 изображение в Firebase Storage.
+ * Загружает base64 изображение через наш API.
  * @param {string} uid
  * @param {string} base64 — data URL
  * @param {string} folder
@@ -107,14 +105,48 @@ export const uploadBase64Image = async (uid, base64, folder = 'models') => {
 };
 
 /**
- * Удаляет файл из Firebase Storage.
+ * Удаляет файл через наш API.
  * @param {string} storagePath — полный путь к файлу
  */
 export const deleteImage = async (storagePath) => {
   try {
-    const storageRef = ref(storage, storagePath);
-    await deleteObject(storageRef);
+    const params = new URLSearchParams({ path: storagePath });
+    const res = await apiFetch(`/api/upload?${params}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.warn('Ошибка удаления из Storage:', err.error || res.status);
+    }
   } catch (err) {
     console.warn('Ошибка удаления из Storage:', err.message);
+  }
+};
+
+/**
+ * Скачивает файл через наш API и возвращает его как base64 data URL.
+ * Используется для миграции legacy-локаций у которых нет сохранённого imageBase64.
+ * @param {string} storagePath — полный путь: 'users/{uid}/locations/...'
+ * @param {string} [mimeType] — MIME-тип файла (по умолчанию 'image/jpeg')
+ * @returns {Promise<string|null>} base64 data URL или null при ошибке
+ */
+export const downloadStoragePathAsBase64 = async (storagePath, mimeType = 'image/jpeg') => {
+  try {
+    const params = new URLSearchParams({ path: storagePath });
+    const res = await apiFetch(`/api/upload?${params}`);
+
+    if (!res.ok) {
+      console.warn(`⚠️ downloadStoragePathAsBase64 failed for '${storagePath}': HTTP ${res.status}`);
+      return null;
+    }
+
+    const blob = await res.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch (err) {
+    console.warn(`⚠️ downloadStoragePathAsBase64 failed for '${storagePath}':`, err.message);
+    return null;
   }
 };

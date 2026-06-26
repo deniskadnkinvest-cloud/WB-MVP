@@ -6,11 +6,10 @@
 // ═══════════════════════════════════════════════════════════════
 
 import crypto from 'crypto';
-import { getAuth } from 'firebase-admin/auth';
-import { ensureFirebaseAdmin } from './_firebase-admin.js';
+import jwt from 'jsonwebtoken';
 import { alertOnError } from './_admin-alerts.js';
 
-ensureFirebaseAdmin();
+const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
 
 // Цены тарифов в рублях (согласно финансовому плану)
 const PLAN_CONFIG = {
@@ -71,10 +70,12 @@ export default async function handler(req, res) {
 
   let payerEmail = email || 'customer@seller-studio-ai.ru';
   try {
-    const decoded = await getAuth().verifyIdToken(idToken);
+    // Верификация JWT (замена Firebase getAuth().verifyIdToken())
+    const decoded = jwt.verify(idToken, JWT_SECRET);
     if (decoded.uid !== uid) {
       return res.status(403).json({ ok: false, error: 'Forbidden' });
     }
+    // Если в токене есть email — используем его
     payerEmail = decoded.email || payerEmail;
   } catch (err) {
     console.error('create-payment auth error:', err.message);
@@ -88,13 +89,13 @@ export default async function handler(req, res) {
 
   try {
     const idempotencyKey = crypto.randomUUID();
-    const authHeader = 'Basic ' + Buffer.from(`${YOOKASSA_SHOP_ID}:${YOOKASSA_SECRET_KEY}`).toString('base64');
+    const ykAuthHeader = 'Basic ' + Buffer.from(`${YOOKASSA_SHOP_ID}:${YOOKASSA_SECRET_KEY}`).toString('base64');
 
     // Делаем запрос к API ЮKassa для создания платежа
     const ykRes = await fetch('https://api.yookassa.ru/v3/payments', {
       method: 'POST',
       headers: {
-        'Authorization': authHeader,
+        'Authorization': ykAuthHeader,
         'Idempotence-Key': idempotencyKey,
         'Content-Type': 'application/json',
       },

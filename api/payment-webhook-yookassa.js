@@ -1,15 +1,11 @@
 // ═══════════════════════════════════════════════════════════════
 // POST /api/payment-webhook-yookassa
 // Принимает вебхуки от ЮKassa об успешной оплате тарифа
+// Использует PostgreSQL вместо Firebase Firestore
 // ═══════════════════════════════════════════════════════════════
 
-import { ensureFirebaseAdmin } from './_firebase-admin.js';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { pool } from './_db.js';
 import { alertOnPayment, alertOnError } from './_admin-alerts.js';
-
-// Init Firebase Admin
-ensureFirebaseAdmin();
-const db = getFirestore();
 
 // Количество кредитов по тарифным планам
 const PLAN_CREDITS = {
@@ -17,17 +13,6 @@ const PLAN_CREDITS = {
   base: 100,
   pro: 1000,
 };
-
-// Атомарный инкремент глобальной статистики
-async function incrementCounter(field) {
-  try {
-    const today = new Date().toISOString().slice(0, 10);
-    await db.doc('_stats/global').set({ [field]: FieldValue.increment(1) }, { merge: true });
-    await db.doc(`_stats/daily/${today}/counts`).set({ [field]: FieldValue.increment(1) }, { merge: true });
-  } catch (e) {
-    console.warn('[stats counter] yookassa webhook:', e.message);
-  }
-}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -90,61 +75,99 @@ export default async function handler(req, res) {
     expiresAt.setMonth(expiresAt.getMonth() + 1);
   }
 
-  try {
-    const ref = db.doc(`users/${uid}/subscription/current`);
+  // Извлекаем telegramId из UID (формат: tg_{telegramId})
+  const resolvedTelegramId = telegramId || (uid.startsWith('tg_') ? uid.slice(3) : null);
+  if (!resolvedTelegramId) {
+    console.error('[Yookassa webhook] Cannot resolve telegramId from UID:', uid);
+    return res.status(200).json({ ok: true });
+  }
 
-    // ═══ IDEMPOTENCY: Skip duplicate webhooks ═══
-    const paymentId = object.id;
-    const existingSnap = await ref.get();
-    const existingPayments = existingSnap.data()?.payments || [];
-    if (existingPayments.some(p => p.yookassaPaymentId === paymentId)) {
+  const paymentId = object.id;
+  const isSubscription = planId !== 'trial';
+  const paymentMethodId = (isSubscription && object.payment_method?.saved)
+    ? object.payment_method.id
+    : null;
+
+  // Используем транзакцию PostgreSQL для атомарности
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // 1. Находим пользователя по telegram_id (или создаём если нет)
+    const { rows: userRows } = await client.query(
+      `INSERT INTO users (telegram_id, email, role)
+       VALUES ($1, $2, 'user')
+       ON CONFLICT (telegram_id) DO UPDATE SET telegram_id = EXCLUDED.telegram_id
+       RETURNING id`,
+      [resolvedTelegramId, `tg_${resolvedTelegramId}@telegram.user`]
+    );
+    const userId = userRows[0].id;
+
+    // 2. ═══ IDEMPOTENCY: Проверяем, не обработан ли уже этот платёж ═══
+    const { rows: existingPayments } = await client.query(
+      `SELECT id FROM payments WHERE yookassa_payment_id = $1`,
+      [paymentId]
+    );
+
+    if (existingPayments.length > 0) {
+      await client.query('ROLLBACK');
       console.log(`[YooKassa] Duplicate webhook ignored: ${paymentId}`);
       return res.status(200).json({ ok: true, message: 'already processed' });
     }
 
-    const isSubscription = planId !== 'trial';
-    const paymentMethodId = (isSubscription && object.payment_method?.saved)
-      ? object.payment_method.id
-      : null;
-    
-    // Записываем/обновляем подписку в Firebase Firestore
-    await ref.set({
-      plan: planId,
-      credits: credits,
-      creditsTotal: credits,
-      planActivatedAt: FieldValue.serverTimestamp(),
-      planExpiresAt: expiresAt,
-      subscriptionStatus: 'active',
-      ...(isSubscription ? {
-        autoRenew: true,
-        yookassaPaymentMethodId: paymentMethodId || FieldValue.delete(),
-      } : {
-        autoRenew: false,
-        yookassaPaymentMethodId: FieldValue.delete(),
-      }),
-      payments: FieldValue.arrayUnion({
+    // 3. Обновляем/создаём подписку
+    await client.query(
+      `INSERT INTO subscriptions (user_id, plan, credits, credits_total, status, expires_at, auto_renew, yookassa_payment_method_id)
+       VALUES ($1, $2, $3, $4, 'active', $5, $6, $7)
+       ON CONFLICT (user_id) DO UPDATE SET
+         plan = EXCLUDED.plan,
+         credits = EXCLUDED.credits,
+         credits_total = EXCLUDED.credits_total,
+         status = 'active',
+         expires_at = EXCLUDED.expires_at,
+         auto_renew = EXCLUDED.auto_renew,
+         yookassa_payment_method_id = COALESCE(EXCLUDED.yookassa_payment_method_id, subscriptions.yookassa_payment_method_id),
+         updated_at = NOW()`,
+      [
+        userId,
         planId,
-        method: 'yookassa',
-        yookassaPaymentId: object.id,
-        amount: parseFloat(object.amount.value), // сумма в рублях
-        currency: object.amount.currency,        // "RUB"
-        date: now.toISOString(),
-      }),
-    }, { merge: true });
+        credits,
+        credits,
+        expiresAt,
+        isSubscription, // auto_renew
+        paymentMethodId,
+      ]
+    );
+
+    // 4. Записываем платёж в таблицу payments
+    await client.query(
+      `INSERT INTO payments (user_id, plan_id, method, yookassa_payment_id, amount, currency, paid_at)
+       VALUES ($1, $2, 'yookassa', $3, $4, $5, $6)`,
+      [
+        userId,
+        planId,
+        paymentId,
+        parseFloat(object.amount.value),
+        object.amount.currency || 'RUB',
+        now.toISOString(),
+      ]
+    );
+
+    await client.query('COMMIT');
 
     console.log(`[Yookassa webhook] ✅ Plan activated: ${planId} for user ${uid}, credits: ${credits}`);
 
     // Отправляем уведомление администратору
     alertOnPayment(planId, uid, parseFloat(object.amount.value)).catch(() => {});
 
-    // Обновляем счетчики статистики
-    incrementCounter('paymentsTotal').catch(() => {});
-    incrementCounter(`payments_${planId}`).catch(() => {});
-
     return res.status(200).json({ ok: true });
   } catch (err) {
-    console.error('[Yookassa webhook] Firestore write error:', err);
-    alertOnError(err, `yookassa-webhook Firestore write [${planId}:${uid}]`).catch(() => {});
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[Yookassa webhook] PostgreSQL transaction error:', err);
+    alertOnError(err, `yookassa-webhook PostgreSQL write [${planId}:${uid}]`).catch(() => {});
     return res.status(500).json({ ok: false, error: err.message });
+  } finally {
+    client.release();
   }
 }

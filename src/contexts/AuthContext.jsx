@@ -1,21 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut as firebaseSignOut,
-  signInWithCustomToken,
-  signInAnonymously,
-  sendPasswordResetEmail,
-  sendSignInLinkToEmail,
-  isSignInWithEmailLink,
-  signInWithEmailLink,
-  onAuthStateChanged,
-  browserLocalPersistence,
-  setPersistence,
-  linkWithCredential,
-  EmailAuthProvider,
-} from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { getToken, setToken, removeToken, getSavedUser, setSavedUser, removeSavedUser, apiFetch } from '../lib/api';
 
 const AuthContext = createContext(null);
 
@@ -94,7 +78,7 @@ const isEmbedded = (() => {
 
 // Detect in-app browsers (Telegram, Instagram, Facebook, etc.)
 // These browsers block popups and partition sessionStorage,
-// causing Firebase "missing initial state" errors
+// causing auth errors
 // NOTE: Telegram Mini App is NOT treated as in-app browser — it has its own auth flow
 const isInAppBrowser = (() => {
   if (isTelegram) return false; // Telegram Mini App has dedicated auth
@@ -169,7 +153,7 @@ export const firebaseErrorToRussian = (error) => {
   if (msg.includes('popup')) return 'Проблема с всплывающим окном. Используйте вход по email';
   if (msg.includes('network')) return 'Проблема с сетью. Проверьте интернет';
 
-  return 'Произошла ошибка. Попробуйте ещё раз или используйте другой способ входа';
+  return msg || 'Произошла ошибка. Попробуйте ещё раз или используйте другой способ входа';
 };
 
 export function useAuth() {
@@ -203,137 +187,59 @@ export function AuthProvider({ children }) {
     // Check for private browsing
     checkPrivateBrowsing().then(setIsPrivate);
 
-    // Always set localStorage persistence (most reliable across all browsers)
-    setPersistence(auth, browserLocalPersistence).catch(() => {});
+    // ═══ RESTORE SESSION FROM localStorage ═══
+    const savedToken = getToken();
+    const savedUser = getSavedUser();
 
-    // ═══ COMPLETE MAGIC LINK SIGN-IN (if returning from email link) ═══
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-      let email = window.localStorage.getItem('emailForSignIn');
-      if (!email) {
-        // Fallback: extract email from URL query parameter
-        const urlParams = new URLSearchParams(window.location.search);
-        email = urlParams.get('email');
+    if (savedToken && savedUser) {
+      // Восстанавливаем сессию из localStorage
+      if (telegramUser) {
+        savedUser.telegramId = telegramUser.id;
+        savedUser.telegramUsername = telegramUser.username;
+        savedUser.isTelegramUser = true;
       }
-      if (!email) {
-        // User opened link on different device — ask for email
-        email = window.prompt('Введите email для подтверждения входа:');
-      }
-      if (email) {
-        signInWithEmailLink(auth, email, window.location.href)
-          .then(async (result) => {
-            window.localStorage.removeItem('emailForSignIn');
-            
-            // Extract Telegram session ID before clearing parameters from URL
-            const urlParams = new URLSearchParams(window.location.search);
-            const tgSessionId = urlParams.get('tgSessionId');
-
-            // Clean URL from email link params, keeping only original path/domain
-            window.history.replaceState(null, '', window.location.origin);
-            console.log('✉️ Magic link sign-in successful');
-
-            if (tgSessionId) {
-              try {
-                const idToken = await result.user.getIdToken();
-                await fetch('/api/complete-tg-auth', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ idToken, sessionId: tgSessionId })
-                });
-                
-                // Alert the user to switch back to Telegram
-                alert('Вход выполнен успешно! Закройте эту вкладку и вернитесь в Telegram-бот.');
-              } catch (err) {
-                console.error('Error reporting TG session success:', err);
-              }
-            }
-          })
-          .catch(err => console.error('Magic link error:', err));
-      }
-    }
-
-    // ═══ TELEGRAM MINI APP — use Firebase Auth (email + magic link + TG account, NO Google) ═══
-    // Google OAuth is blocked in Telegram WebView (disallowed_useragent),
-    // but email/password, magic link, and anonymous auth work fine.
-    if (isTelegram) {
-      console.log('📱 Telegram Mini App: auth options — Telegram account, magic link, email, guest');
-      
-      // Skip getRedirectResult — it crashes in Telegram WebView
-      // ("missing initial state" error due to storage partitioning)
-      
-      const unsub = onAuthStateChanged(auth, (u) => {
-        if (u) {
-          if (telegramUser) {
-            u.telegramId = telegramUser.id;
-            u.telegramUsername = telegramUser.username;
-            u.isTelegramUser = true;
-          }
-          setUser(u);
-        } else {
+      // Добавляем getIdToken для совместимости с кодом, который вызывает user.getIdToken()
+      savedUser.getIdToken = async () => getToken();
+      setUser(savedUser);
+      setLoading(false);
+    } else if (isTelegram && telegramUser) {
+      // Автоматический вход через Telegram при первом открытии
+      signInWithTelegramAccountInternal()
+        .then(() => setLoading(false))
+        .catch(() => {
           setUser(null);
-        }
-        setLoading(false);
-      });
-      return unsub;
+          setLoading(false);
+        });
+    } else {
+      setUser(null);
+      setLoading(false);
     }
 
+    // ═══ PANX EMBEDDED SUPPORT ═══
     if (isEmbedded) {
-      // In embedded mode: listen for PANX_AUTH postMessage
       const handleMessage = async (event) => {
         if (event.data?.type !== 'PANX_AUTH') return;
-
         const { token, user: panxUser } = event.data;
-
         if (token) {
-          try {
-            // Exchange PANX marketplace token for a real Firebase session
-            const resp = await fetch('/api/verify-panx-token', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ idToken: token }),
-            });
-
-            if (resp.ok) {
-              const { customToken } = await resp.json();
-              // Sign in with custom token → creates REAL Firebase session
-              await signInWithCustomToken(auth, customToken);
-              // onAuthStateChanged will update the user
-              return;
-            }
-          } catch (err) {
-            console.warn('Token exchange failed, falling back to guest:', err.message);
-          }
-        }
-
-        // Fallback: use user data from postMessage (no Firestore write access)
-        if (panxUser) {
-          setUser({
-            uid: panxUser.uid,
-            displayName: panxUser.displayName,
-            email: panxUser.email,
-            photoURL: panxUser.photoURL,
-            isGuest: true,
+          setToken(token);
+          const userData = {
+            uid: panxUser?.uid || 'panx-guest',
+            displayName: panxUser?.displayName || 'PANX User',
+            email: panxUser?.email,
+            photoURL: panxUser?.photoURL,
             isPanxAuth: true,
-          });
+            getIdToken: async () => token,
+          };
+          setSavedUser(userData);
+          setUser(userData);
           setLoading(false);
         }
       };
-
-      // Listen for auth state changes (will fire after signInWithCustomToken)
-      const unsub = onAuthStateChanged(auth, (u) => {
-        if (u) {
-          if (telegramUser) {
-            u.telegramId = telegramUser.id;
-            u.telegramUsername = telegramUser.username;
-            u.isTelegramUser = true;
-          }
-          setUser(u);
-          setLoading(false);
-        }
-      });
-
       window.addEventListener('message', handleMessage);
+      try {
+        window.parent.postMessage({ type: 'PANX_AUTH_REQUEST' }, '*');
+      } catch (e) { /* parent blocked */ }
 
-      // Set a fallback guest user after 5s if nothing received
       const fallbackTimer = setTimeout(() => {
         setUser((prev) => {
           if (prev) return prev;
@@ -342,65 +248,104 @@ export function AuthProvider({ children }) {
             displayName: 'PANX Guest',
             email: 'guest@panx.ai',
             isGuest: true,
+            getIdToken: async () => null,
           };
         });
         setLoading(false);
       }, 5000);
 
-      // Request auth from parent
-      try {
-        window.parent.postMessage({ type: 'PANX_AUTH_REQUEST' }, '*');
-      } catch (e) { /* parent blocked */ }
-
       return () => {
         window.removeEventListener('message', handleMessage);
         clearTimeout(fallbackTimer);
-        unsub();
       };
-    } else {
-      // Standalone mode: use Firebase Auth normally
-
-      const unsub = onAuthStateChanged(auth, (u) => {
-        if (u) {
-          if (telegramUser) {
-            u.telegramId = telegramUser.id;
-            u.telegramUsername = telegramUser.username;
-            u.isTelegramUser = true;
-          }
-          setUser(u);
-        } else {
-          setUser(null);
-        }
-        setLoading(false);
-      });
-      return unsub;
     }
   }, []);
+
+  // ═══ Internal Telegram login (no dependency on Firebase) ═══
+  const signInWithTelegramAccountInternal = async () => {
+    const initData = window.Telegram?.WebApp?.initData;
+    if (!initData) {
+      throw new Error('Telegram initData не доступна. Откройте приложение через Telegram.');
+    }
+
+    const resp = await fetch('/api/auth-telegram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData }),
+    });
+
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      throw new Error(errData.error || 'Ошибка авторизации через Telegram');
+    }
+
+    const { customToken, uid, telegramId } = await resp.json();
+
+    // Сохраняем JWT токен
+    setToken(customToken);
+
+    const tgUser = telegramUser;
+    const displayName = tgUser
+      ? [tgUser.firstName, tgUser.lastName].filter(Boolean).join(' ')
+      : 'Telegram User';
+
+    const userData = {
+      uid,
+      displayName,
+      email: tgUser?.username ? `@${tgUser.username}` : null,
+      photoURL: tgUser?.photoUrl || null,
+      isAnonymous: false,
+      isTelegramUser: true,
+      telegramId: tgUser?.id || telegramId,
+      telegramUsername: tgUser?.username,
+      getIdToken: async () => getToken(),
+    };
+
+    setSavedUser(userData);
+    setUser(userData);
+    return { user: userData };
+  };
 
   // Google Auth удалён (ФЗ № 406 — запрет иностранных OAuth на РФ-ресурсах)
   // Используйте Email OTP или Telegram Login
 
   // ═══════════════════════════════════════════
-  //  EMAIL SIGN-IN / SIGN-UP
+  //  EMAIL SIGN-IN / SIGN-UP (through OTP API)
   // ═══════════════════════════════════════════
-  const signInWithEmail = (email, password) =>
-    signInWithEmailAndPassword(auth, email, password);
+  const signInWithEmail = async (email, password) => {
+    // В новой системе email+password работает через OTP
+    // Для обратной совместимости можно вызвать sendOtpCode
+    throw new Error('Используйте вход по коду (OTP). Email+пароль больше не поддерживается.');
+  };
 
-  const signUpWithEmail = (email, password) =>
-    createUserWithEmailAndPassword(auth, email, password);
-
-  // ═══════════════════════════════════════════
-  //  PASSWORD RESET
-  // ═══════════════════════════════════════════
-  const resetPassword = (email) =>
-    sendPasswordResetEmail(auth, email);
+  const signUpWithEmail = async (email, password) => {
+    throw new Error('Используйте вход по коду (OTP). Регистрация с паролем больше не поддерживается.');
+  };
 
   // ═══════════════════════════════════════════
-  //  GUEST MODE (anonymous auth)
+  //  PASSWORD RESET (disabled — no Firebase Auth)
+  // ═══════════════════════════════════════════
+  const resetPassword = async (email) => {
+    throw new Error('Сброс пароля больше не поддерживается. Используйте вход по коду (OTP).');
+  };
+
+  // ═══════════════════════════════════════════
+  //  GUEST MODE
   // ═══════════════════════════════════════════
   const signInAsGuest = async () => {
-    const result = await signInAnonymously(auth);
-    return result;
+    const guestUid = `guest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const userData = {
+      uid: guestUid,
+      displayName: 'Гость',
+      email: null,
+      isAnonymous: true,
+      isGuest: true,
+      getIdToken: async () => null,
+    };
+    // Не сохраняем токен для гостя — он не имеет доступа к API
+    setSavedUser(userData);
+    setUser(userData);
+    return { user: userData };
   };
 
   // ═══════════════════════════════════════════
@@ -438,83 +383,50 @@ export function AuthProvider({ children }) {
       const errData = await resp.json();
       throw new Error(errData.error || 'Неверный код или ошибка сервера');
     }
-    const { customToken } = await resp.json();
-    const result = await signInWithCustomToken(auth, customToken);
-    return result;
+    const { customToken, uid } = await resp.json();
+
+    // Сохраняем JWT токен
+    setToken(customToken);
+
+    const userData = {
+      uid,
+      displayName: email,
+      email,
+      isAnonymous: false,
+      getIdToken: async () => getToken(),
+    };
+
+    if (telegramUser) {
+      userData.telegramId = telegramUser.id;
+      userData.telegramUsername = telegramUser.username;
+      userData.isTelegramUser = true;
+    }
+
+    setSavedUser(userData);
+    setUser(userData);
+    return { user: userData };
   };
 
   const sendMagicLink = async (email) => {
-    // Временный fallback для совместимости со старыми вызовами
-    const baseAppUrl = import.meta.env.VITE_APP_URL || 'https://seller-studio-ai.ru';
-    let appUrl = `${baseAppUrl}/?email=${encodeURIComponent(email)}`;
-    const actionCodeSettings = {
-      url: appUrl,
-      handleCodeInApp: true,
-    };
-    await sendSignInLinkToEmail(auth, email, actionCodeSettings);
-    window.localStorage.setItem('emailForSignIn', email);
+    // Magic links are deprecated in the new system — redirect to OTP
+    return sendOtpCode(email);
   };
 
   // ═══════════════════════════════════════════
   //  SIGN IN WITH TELEGRAM ACCOUNT
-  //  Uses Firebase Custom Token with deterministic UID: tg_{telegramId}
-  //  Решает корневую проблему: signInAnonymously создавал новый UID
-  //  при каждом входе из-за очистки storage в Telegram WebView.
+  //  Uses JWT with deterministic UID: tg_{telegramId}
   // ═══════════════════════════════════════════
   const signInWithTelegramAccount = async () => {
     if (!isTelegram && !telegramUser) {
       throw new Error('Доступно только в Telegram');
     }
-
-    // Получаем initData от Telegram SDK для верификации на сервере
-    const initData = window.Telegram?.WebApp?.initData;
-    if (!initData) {
-      throw new Error('Telegram initData не доступна. Откройте приложение через Telegram.');
-    }
-
-    // Запрашиваем Custom Token с детерминированным UID tg_{telegramId}
-    const resp = await fetch('/api/auth-telegram', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ initData }),
-    });
-
-    if (!resp.ok) {
-      const errData = await resp.json().catch(() => ({}));
-      throw new Error(errData.error || 'Ошибка авторизации через Telegram');
-    }
-
-    const { customToken } = await resp.json();
-
-    // signInWithCustomToken ВСЕГДА даёт тот же UID = tg_{telegramId}
-    const result = await signInWithCustomToken(auth, customToken);
-
-    const tgUser = telegramUser;
-    const displayName = tgUser
-      ? [tgUser.firstName, tgUser.lastName].filter(Boolean).join(' ')
-      : 'Telegram User';
-
-    setUser({
-      uid: result.user.uid,
-      displayName,
-      email: tgUser?.username ? `@${tgUser.username}` : null,
-      photoURL: tgUser?.photoUrl || null,
-      isAnonymous: false,
-      isTelegramUser: true,
-      telegramId: tgUser?.id,
-      telegramUsername: tgUser?.username,
-      getIdToken: () => result.user.getIdToken(),
-    });
-    return result;
+    return signInWithTelegramAccountInternal();
   };
 
-  // Upgrade anonymous user to email account
+  // Upgrade anonymous user to email account (disabled without Firebase)
   const upgradeGuestToEmail = async (email, password) => {
-    if (!auth.currentUser?.isAnonymous) {
-      throw new Error('Пользователь не является гостем');
-    }
-    const credential = EmailAuthProvider.credential(email, password);
-    return linkWithCredential(auth.currentUser, credential);
+    // В новой системе гость просто вводит OTP код
+    throw new Error('Используйте вход по коду (OTP) для создания аккаунта.');
   };
 
   // ═══════════════════════════════════════════
@@ -522,7 +434,9 @@ export function AuthProvider({ children }) {
   // ═══════════════════════════════════════════
   const handleSignOut = () => {
     if (isEmbedded) return;
-    return firebaseSignOut(auth);
+    removeToken();
+    removeSavedUser();
+    setUser(null);
   };
 
   const value = {

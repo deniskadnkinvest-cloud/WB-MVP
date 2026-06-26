@@ -1,0 +1,132 @@
+const handlePhotoshoot = async (count = 5) => {
+    if (!garmentUrls.length || isPhotoshooting) return;
+    setIsPhotoshooting(true);
+    
+    const angles = appMode === 'product'
+      ? PRODUCT_PHOTOSHOOT_ANGLES.slice(0, count)
+      : PHOTOSHOOT_ANGLES.slice(0, count);
+
+    // APPEND: add null placeholders for new batch at the end of existing gallery
+    const existingCount = photoshootImages.filter(Boolean).length;
+    setPhotoshootImages(prev => [...prev.filter(Boolean), ...new Array(count).fill(null)]);
+    setStatusText(`╨б╨В╨б╤Я╨▓╨В╤Ъ╨бтАШ ╨а┬а╨▓╨В╤Ъ╨а┬а╨Т┬╡╨а┬а╨атАж╨а┬а╨Т┬╡╨а╨О╨атАЪ╨а┬а╨бтАШ╨а╨О╨атАЪ╨а╨О╨бтАЬ╨а┬а╨Т┬╡╨а┬а╨б┬Ш ╨а┬а╨Т┬╡╨а╨О╨▓╨В┬░╨а╨О╨▓╨В┬Ш ${count} ╨а┬а╨бтАЭ╨а┬а╨Т┬░╨а┬а╨втАШ╨а╨О╨атАЪ╨а┬а╨бтАв╨а┬а╨атАа...`); setStatusType('');
+    try {
+      let modelPrompt = '';
+      let bgPrompt = '';
+      let modelRefImages = null;
+      let locImages = null;
+
+      if (appMode === 'product') {
+        modelPrompt = customProductPrompt.trim() || selectedProductCategory.defaultPrompt;
+        bgPrompt = customProductBg.trim() || selectedProductBgs[0].prompt;
+        if (selectedProductEffect && selectedProductEffect.id !== 'none') {
+          const effectPrompt = selectedProductEffect.id === 'custom'
+            ? customProductEffectText.trim()
+            : selectedProductEffect.prompt;
+          if (effectPrompt) bgPrompt += `. Additionally: ${effectPrompt}`;
+        }
+        // ╨а┬а╨б╤Щ╨а┬а╨бтАв╨а┬а╨втАШ╨а┬а╨Т┬╡╨а┬а╨Т┬╗╨а╨О╨а╨Й-╨а╨О╨▓╨В╨О╨а┬а╨Т┬╡╨а┬а╨Т┬╗╨а┬а╨бтАв╨а┬а╨атАа╨а┬а╨Т┬╡╨а┬а╨бтАЭ ╨а┬а╨атАа ╨а╨О╨▓╨В╤Ы╨а┬а╨бтАв╨а╨О╨▓╨В╤Щ╨а┬а╨бтАв╨а╨О╨а╤У╨а┬а╨Т┬╡╨а╨О╨а╤У╨а╨О╨а╤У╨а┬а╨бтАШ╨а┬а╨бтАШ ╨а╨О╨▓╨В╤Щ╨а┬а╨бтАв╨а┬а╨атАа╨а┬а╨Т┬░╨а╨О╨атАЪ╨а┬а╨бтАв╨а┬а╨атАа
+        if (productWithModel) {
+          let humanPrompt = customProductModelPrompt.trim() || (productModelPreset.prompt + buildDetailString(productModelDetails));
+          if (productSavedModelId) {
+            const sm = myModels.find(m => m.id === productSavedModelId);
+            if (sm) {
+              humanPrompt = sm.prompt || humanPrompt;
+              modelRefImages = (sm.imageBase64?.length ? sm.imageBase64 : null) || sm.imageUrls || [];
+            }
+          }
+          window.__humanModelPrompt = humanPrompt;
+          window.__humanModelRefImages = modelRefImages;
+        } else {
+          window.__humanModelPrompt = null;
+          window.__humanModelRefImages = null;
+        }
+        if (selectedLocId) {
+          const loc = myLocations.find(l => l.id === selectedLocId);
+          if (loc) {
+            locImages = locBase64Cache[loc.id] || loc.imageBase64 || loc.imageUrls;
+            bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos';
+            if (selectedProductEffect && selectedProductEffect.id !== 'none') {
+              const effectPromptLoc = selectedProductEffect.id === 'custom'
+                ? customProductEffectText.trim()
+                : selectedProductEffect.prompt;
+              if (effectPromptLoc) bgPrompt += `. Additionally: ${effectPromptLoc}`;
+            }
+          }
+        }
+      } else {
+        modelPrompt = customModelPrompt.trim()
+          || (customModelChips.length > 0 ? customModelChips[0].prompt : null)
+          || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
+        if (selectedSavedModelId) {
+          const sm = myModels.find(m => m.id === selectedSavedModelId);
+          if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = (sm.imageBase64?.length ? sm.imageBase64 : null) || sm.imageUrls || []; }
+        }
+        bgPrompt = customBgText.trim() || selectedBgs[0].prompt;
+        if (selectedLocId) {
+          const loc = myLocations.find(l => l.id === selectedLocId);
+          if (loc) { locImages = locBase64Cache[loc.id] || loc.imageBase64 || loc.imageUrls; bgPrompt = (loc.prompt || '') + ' Replicate the exact real location shown in the reference photos'; }
+        }
+      }
+
+      // SEQUENTIAL generation ╨а╨Ж╨атАЪ╨▓╨В╤Ь one at a time, each gets full 55s before timeout
+      // This avoids rate-limiting and ensures each frame gets the full Vercel 60s window
+      let successCount = 0;
+      for (let idx = 0; idx < angles.length; idx++) {
+        const angle = angles[idx];
+        const slotIdx = existingCount + idx;
+        setStatusText(`╨б╨В╨б╤Я╨▓╨В╤Ъ╨бтАШ ╨а┬а╨бтДв╨а┬а╨Т┬░╨а┬а╨втАШ╨а╨О╨атАЪ ${idx + 1}/${count}...`); setStatusType('');
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 55000); // 55s client-side timeout
+          const biometricSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
+          const resp = await authFetch('/api/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify({
+              userId: user?.uid || null,
+              garmentImageUrls: garmentUrls, modelPreset: modelPrompt,
+              posePreset: angle.pose, cameraAngle: angle.camera,
+              backgroundPreset: bgPrompt, aspectRatio: selectedRatios[0].id,
+              modelReferenceImages: modelRefImages, locationImages: locImages,
+              attributes: appMode === 'product' ? productModelDetails : modelDetails, isBeautyMode, biometricSeed,
+              isProductMode: appMode === 'product',
+              categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
+              withHumanModel: appMode === 'product' && productWithModel,
+              humanModelPrompt: window.__humanModelPrompt || undefined,
+              humanModelRefImages: window.__humanModelRefImages || undefined,
+            }),
+          });
+          clearTimeout(timeoutId);
+          const data = await safeParseJSON(resp);
+          if (data.success) {
+            const imgData = data.imageUrl || data.imageBase64;
+            setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = imgData; return n; });
+            setPhotoHistory(prev => ({ ...prev, [slotIdx]: [imgData] }));
+            setPhotoViewIdx(prev => ({ ...prev, [slotIdx]: 0 }));
+            successCount++;
+          } else {
+            console.warn(`╨а┬а╨бтДв╨а┬а╨Т┬░╨а┬а╨втАШ╨а╨О╨атАЪ ${idx + 1}: ${data.details || data.error}`);
+            // Remove the null placeholder for failed frame
+            setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = null; return n; });
+          }
+        } catch (frameErr) {
+          if (frameErr.name === 'AbortError') {
+            console.warn(`╨а┬а╨бтДв╨а┬а╨Т┬░╨а┬а╨втАШ╨а╨О╨атАЪ ${idx + 1}: ╨а╨О╨▓╨В╤Щ╨а┬а╨Т┬░╨а┬а╨▓тАЮтАУ╨а┬а╨б┬Ш╨а┬а╨Т┬░╨а╨О╨бтАЬ╨а╨О╨▓╨В╤Щ 55 ╨а╨О╨а╤У╨а┬а╨Т┬╡╨а┬а╨бтАЭ`);
+          } else {
+            console.warn(`╨а┬а╨бтДв╨а┬а╨Т┬░╨а┬а╨втАШ╨а╨О╨атАЪ ${idx + 1} ╨а┬а╨бтАв╨а╨О╨▓тАЪ┬м╨а┬а╨бтАШ╨а┬а╨Т┬▒╨а┬а╨бтАЭ╨а┬а╨Т┬░:`, frameErr.message);
+          }
+          // Remove null placeholder
+          setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = null; return n; });
+        }
+      }
+      // Clean up nulls from failed frames
+      setPhotoshootImages(prev => prev.filter(Boolean));
+      setStatusText(successCount > 0 ? `╨б╨В╨б╤Я╨атА╣╨▓╨В┬░ ╨а┬а╨Т┬д╨а┬а╨бтАв╨а╨О╨▓╨В╤Щ╨а┬а╨бтАв╨а╨О╨а╤У╨а┬а╨Т┬╡╨а╨О╨а╤У╨а╨О╨а╤У╨а┬а╨бтАШ╨а╨О╨а╨П: ${successCount} ╨а┬а╨бтАЭ╨а┬а╨Т┬░╨а┬а╨втАШ╨а╨О╨атАЪ╨а┬а╨бтАв╨а┬а╨атАа ╨а┬а╨бтАУ╨а┬а╨бтАв╨а╨О╨▓╨В╤Щ╨а┬а╨бтАв╨а┬а╨атАа╨а┬а╨бтАв!` : '╨а╨Ж╨б╤Ъ╨а╨Й ╨а┬а╨б╤Ъ╨а┬а╨Т┬╡ ╨а╨О╨бтАЬ╨а┬а╨втАШ╨а┬а╨Т┬░╨а┬а╨Т┬╗╨а┬а╨бтАв╨а╨О╨а╤У╨а╨О╨а╨Й ╨а╨О╨а╤У╨а┬а╨бтАв╨а┬а╨Т┬╖╨а┬а╨втАШ╨а┬а╨Т┬░╨а╨О╨▓╨В╤Щ╨а╨О╨а╨Й ╨а┬а╨атАж╨а┬а╨бтАШ ╨а┬а╨бтАв╨а┬а╨втАШ╨а┬а╨атАж╨а┬а╨бтАв╨а┬а╨бтАУ╨а┬а╨бтАв ╨а┬а╨бтАЭ╨а┬а╨Т┬░╨а┬а╨втАШ╨а╨О╨атАЪ╨а┬а╨Т┬░. ╨а┬а╨б╤Я╨а┬а╨бтАв╨а┬а╨бтАФ╨а╨О╨атАЪ╨а┬а╨бтАв╨а┬а╨Т┬▒╨а╨О╨бтАЬ╨а┬а╨▓тАЮтАУ╨а╨О╨▓╨В╤Щ╨а┬а╨Т┬╡ ╨а╨О╨а╤У╨а┬а╨атАж╨а┬а╨бтАв╨а┬а╨атАа╨а┬а╨Т┬░.');
+      setStatusType(successCount > 0 ? 'success' : 'error');
+    } catch (err) { setStatusText(`╨а┬а╨бтА║╨а╨О╨▓тАЪ┬м╨а┬а╨бтАШ╨а┬а╨Т┬▒╨а┬а╨бтАЭ╨а┬а╨Т┬░ ╨а╨О╨▓╨В╤Ы╨а┬а╨бтАв╨а╨О╨▓╨В╤Щ╨а┬а╨бтАв╨а╨О╨а╤У╨а┬а╨Т┬╡╨а╨О╨а╤У╨а╨О╨а╤У╨а┬а╨бтАШ╨а┬а╨бтАШ: ${err.message}`); setStatusType('error'); }
+    finally { setIsPhotoshooting(false); }
+  };
+
+  // ╨а╨Ж╨▓╨В╤Ю╨бтАЩ╨а╨Ж╨▓╨В╤Ю╨

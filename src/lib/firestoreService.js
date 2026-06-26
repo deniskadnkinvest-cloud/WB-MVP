@@ -1,7 +1,8 @@
-import {
-  collection, doc, addDoc, getDocs, deleteDoc, updateDoc, query, orderBy, where, limit, serverTimestamp,
-} from 'firebase/firestore';
-import { db } from './firebase';
+// src/lib/firestoreService.js
+// Замена Firestore SDK — все операции через PostgreSQL API
+// Все функции сохраняют оригинальные сигнатуры и типы возвращаемых данных
+
+import { apiFetch } from './api';
 
 // ═══════════════════════════════════════
 //  ГЕНЕРАЦИИ (generations) — Галерея
@@ -14,16 +15,14 @@ import { db } from './firebase';
  * @returns {Promise<Array>}
  */
 export const getUserGenerations = async (uid, maxResults = 50) => {
-  const colRef = collection(db, 'generations');
-  const q = query(
-    colRef,
-    where('userId', '==', uid),
-    where('success', '==', true),
-    orderBy('createdAt', 'desc'),
-    limit(maxResults)
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const params = new URLSearchParams({ type: 'generations', uid, limit: String(maxResults) });
+  const res = await apiFetch(`/api/user-data?${params}`);
+  if (!res.ok) {
+    console.error('[firestoreService] Ошибка получения генераций:', res.status);
+    return [];
+  }
+  const json = await res.json();
+  return json.data || [];
 };
 
 // ═══════════════════════════════════════
@@ -36,8 +35,16 @@ export const getUserGenerations = async (uid, maxResults = 50) => {
  * @param {{ name: string, type: string, imageUrls: string[], storagePaths?: string[], prompt?: string }} data
  */
 export const saveModel = async (uid, data) => {
-  const colRef = collection(db, 'users', uid, 'saved_models');
-  return addDoc(colRef, { ...data, createdAt: serverTimestamp() });
+  const res = await apiFetch('/api/user-data', {
+    method: 'POST',
+    body: JSON.stringify({ type: 'model', uid, ...data }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Ошибка сохранения модели');
+  }
+  const json = await res.json();
+  return json.data || { id: json.id };
 };
 
 /**
@@ -46,10 +53,14 @@ export const saveModel = async (uid, data) => {
  * @returns {Promise<Array>}
  */
 export const getModels = async (uid) => {
-  const colRef = collection(db, 'users', uid, 'saved_models');
-  const q = query(colRef, orderBy('createdAt', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const params = new URLSearchParams({ type: 'models', uid });
+  const res = await apiFetch(`/api/user-data?${params}`);
+  if (!res.ok) {
+    console.error('[firestoreService] Ошибка получения моделей:', res.status);
+    return [];
+  }
+  const json = await res.json();
+  return json.data || [];
 };
 
 /**
@@ -58,8 +69,12 @@ export const getModels = async (uid) => {
  * @param {string} modelId
  */
 export const deleteModelDoc = async (uid, modelId) => {
-  const docRef = doc(db, 'users', uid, 'saved_models', modelId);
-  return deleteDoc(docRef);
+  const params = new URLSearchParams({ type: 'model', id: modelId });
+  const res = await apiFetch(`/api/user-data?${params}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Ошибка удаления модели');
+  }
 };
 
 /**
@@ -69,8 +84,14 @@ export const deleteModelDoc = async (uid, modelId) => {
  * @param {string} prompt
  */
 export const updateModelPrompt = async (uid, modelId, prompt) => {
-  const docRef = doc(db, 'users', uid, 'saved_models', modelId);
-  return updateDoc(docRef, { prompt, updatedAt: serverTimestamp() });
+  const res = await apiFetch('/api/user-data', {
+    method: 'PATCH',
+    body: JSON.stringify({ type: 'model', id: modelId, prompt }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Ошибка обновления промпта модели');
+  }
 };
 
 // ═══════════════════════════════════════
@@ -83,8 +104,16 @@ export const updateModelPrompt = async (uid, modelId, prompt) => {
  * @param {{ title: string, imageUrls: string[], storagePaths?: string[], thumbnail: string }} data
  */
 export const saveLocation = async (uid, data) => {
-  const colRef = collection(db, 'users', uid, 'saved_locations');
-  return addDoc(colRef, { ...data, createdAt: serverTimestamp() });
+  const res = await apiFetch('/api/user-data', {
+    method: 'POST',
+    body: JSON.stringify({ type: 'location', uid, ...data }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Ошибка сохранения локации');
+  }
+  const json = await res.json();
+  return json.data || { id: json.id };
 };
 
 /**
@@ -93,10 +122,14 @@ export const saveLocation = async (uid, data) => {
  * @returns {Promise<Array>}
  */
 export const getLocations = async (uid) => {
-  const colRef = collection(db, 'users', uid, 'saved_locations');
-  const q = query(colRef, orderBy('createdAt', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const params = new URLSearchParams({ type: 'locations', uid });
+  const res = await apiFetch(`/api/user-data?${params}`);
+  if (!res.ok) {
+    console.error('[firestoreService] Ошибка получения локаций:', res.status);
+    return [];
+  }
+  const json = await res.json();
+  return json.data || [];
 };
 
 /**
@@ -105,8 +138,12 @@ export const getLocations = async (uid) => {
  * @param {string} locationId
  */
 export const deleteLocationDoc = async (uid, locationId) => {
-  const docRef = doc(db, 'users', uid, 'saved_locations', locationId);
-  return deleteDoc(docRef);
+  const params = new URLSearchParams({ type: 'location', id: locationId });
+  const res = await apiFetch(`/api/user-data?${params}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Ошибка удаления локации');
+  }
 };
 
 /**
@@ -116,8 +153,14 @@ export const deleteLocationDoc = async (uid, locationId) => {
  * @param {string} prompt
  */
 export const updateLocationPrompt = async (uid, locationId, prompt) => {
-  const docRef = doc(db, 'users', uid, 'saved_locations', locationId);
-  return updateDoc(docRef, { prompt, updatedAt: serverTimestamp() });
+  const res = await apiFetch('/api/user-data', {
+    method: 'PATCH',
+    body: JSON.stringify({ type: 'location', id: locationId, prompt }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Ошибка обновления промпта локации');
+  }
 };
 
 /**
@@ -127,6 +170,12 @@ export const updateLocationPrompt = async (uid, locationId, prompt) => {
  * @param {Object} fields — поля для обновления
  */
 export const patchLocation = async (uid, locationId, fields) => {
-  const docRef = doc(db, 'users', uid, 'saved_locations', locationId);
-  return updateDoc(docRef, fields);
+  const res = await apiFetch('/api/user-data', {
+    method: 'PATCH',
+    body: JSON.stringify({ type: 'location', id: locationId, ...fields }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Ошибка обновления локации');
+  }
 };

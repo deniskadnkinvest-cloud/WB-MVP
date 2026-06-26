@@ -1,7 +1,9 @@
-import {
-  doc, getDoc, setDoc, updateDoc, increment, serverTimestamp, arrayUnion, deleteDoc,
-} from 'firebase/firestore';
-import { db } from './firebase';
+// src/lib/subscriptionService.js
+// Замена Firestore SDK — подписки через PostgreSQL API
+// PLANS, DEFAULT_SUB и чистые функции (checkFeature, canGenerate, getPlanDetails) — без изменений
+// Вся сложная логика (миграция TG ID, pending_grants, expiration check) теперь на сервере
+
+import { apiFetch } from './api';
 
 // ═══════════════════════════════════════════
 //  PLAN DEFINITIONS
@@ -85,232 +87,96 @@ const DEFAULT_SUB = {
 //  GET SUBSCRIPTION
 // ═══════════════════════════════════════════
 
+/**
+ * Получить подписку пользователя.
+ * Вся сложная логика (проверка expiration, миграция TG ID, pending_grants)
+ * теперь выполняется на сервере в /api/subscription.
+ *
+ * @param {string} uid
+ * @param {string|null} email
+ * @param {string|null} telegramId
+ * @returns {Promise<Object>} — данные подписки (plan, credits, creditsTotal, etc.)
+ */
 export const getSubscription = async (uid, email = null, telegramId = null) => {
-  const ref = doc(db, 'users', uid, 'subscription', 'current');
-  const snap = await getDoc(ref);
-  let data = snap.exists() ? snap.data() : { ...DEFAULT_SUB };
+  try {
+    const params = new URLSearchParams({ uid });
+    if (email) params.set('email', email);
+    if (telegramId) params.set('telegramId', String(telegramId));
 
-  // Check expiration for monthly plans
-  // НЕ обнуляем admin-granted подписки — они бессрочные по умолчанию
-  if (data.planExpiresAt && !data.grantedByAdmin && !data.autoRenew) {
-    try {
-      const expiresDate = typeof data.planExpiresAt.toDate === 'function'
-        ? data.planExpiresAt.toDate()
-        : new Date(data.planExpiresAt);
-      if (!isNaN(expiresDate.getTime()) && expiresDate < new Date()) {
-        await updateDoc(ref, { plan: 'none', credits: 0, subscriptionStatus: 'expired' });
-        data = { ...data, plan: 'none', credits: 0, subscriptionStatus: 'expired' };
-      }
-    } catch (e) {
-      console.warn('[SubscriptionService] Ошибка проверки planExpiresAt:', e);
+    const res = await apiFetch(`/api/subscription?${params}`);
+
+    if (!res.ok) {
+      console.error('[SubscriptionService] Ошибка получения подписки:', res.status);
+      return { ...DEFAULT_SUB };
     }
+
+    const json = await res.json();
+    return json.data || { ...DEFAULT_SUB };
+  } catch (err) {
+    console.error('[SubscriptionService] Ошибка получения подписки:', err);
+    return { ...DEFAULT_SUB };
   }
-
-
-  // Если подписки нет (none), проверяем наличие предварительно выданного доступа по email
-  if (data.plan === 'none' && email && email.includes('@')) {
-    try {
-      const cleanEmail = email.trim().toLowerCase();
-      const pendingRef = doc(db, 'pending_grants', cleanEmail);
-      const pendingSnap = await getDoc(pendingRef);
-      
-      if (pendingSnap.exists()) {
-        const pendingData = pendingSnap.data();
-        console.log(`[SubscriptionService] Активируем предварительный доступ для ${cleanEmail}:`, pendingData);
-        
-        const planId = pendingData.plan === 'custom' ? 'trial' : pendingData.plan;
-        const credits = pendingData.credits;
-        
-        const grantPayment = {
-          planId: pendingData.plan,
-          amount: credits,
-          currency: 'RUB',
-          date: new Date().toISOString(),
-          method: 'admin_grant',
-          note: pendingData.note || 'Авто-активация по email при регистрации',
-          grantedBy: pendingData.grantedBy || 'admin',
-          grantedByName: pendingData.grantedByName || 'Admin',
-          isGranted: true,
-          providerChargeId: 'ADMIN_GRANT',
-        };
-
-        const newSub = {
-          plan: planId,
-          credits: credits,
-          creditsTotal: credits,
-          planActivatedAt: serverTimestamp(),
-          planExpiresAt: null,
-          payments: [grantPayment],
-          grantedByAdmin: true,
-          email: cleanEmail,
-        };
-
-        await setDoc(ref, newSub);
-        
-        // Удаляем временный документ
-        try {
-          await deleteDoc(pendingRef);
-        } catch (delErr) {
-          console.warn('[SubscriptionService] Не удалось удалить pending grant:', delErr);
-        }
-        
-        return newSub;
-      }
-    } catch (err) {
-      console.error('[SubscriptionService] Ошибка проверки pending_grants:', err);
-    }
-  }
-
-  // ═══════════════════════════════════════════
-  //  MIGRATION: Merge or Apply Telegram ID Subscription
-  // ═══════════════════════════════════════════
-  if (telegramId) {
-    try {
-      const tgIdStr = String(telegramId).trim();
-      if (tgIdStr && tgIdStr !== uid) {
-        const tgSubRef = doc(db, 'users', tgIdStr, 'subscription', 'current');
-        const tgSubSnap = await getDoc(tgSubRef);
-        
-        if (tgSubSnap.exists()) {
-          const tgSubData = tgSubSnap.data();
-          console.log(`[SubscriptionService] Найдена подписка на TG ID ${tgIdStr}. Переносим на UID ${uid}:`, tgSubData);
-          
-          let newSub;
-          if (data.plan === 'none') {
-            newSub = {
-              ...tgSubData,
-              telegramId: tgIdStr,           // Сохраняем TG ID для поиска в админке
-              migratedFromTgId: tgIdStr,
-              updatedAt: serverTimestamp(),
-            };
-          } else {
-            // Сливаем подписки, если у юзера уже есть план
-            newSub = {
-              ...data,
-              plan: tgSubData.plan !== 'none' ? tgSubData.plan : data.plan,
-              credits: (data.credits || 0) + (tgSubData.credits || 0),
-              creditsTotal: (data.creditsTotal || 0) + (tgSubData.creditsTotal || 0),
-              telegramId: tgIdStr,           // Сохраняем TG ID для поиска в админке
-              migratedFromTgId: tgIdStr,
-              updatedAt: serverTimestamp(),
-              grantedByAdmin: data.grantedByAdmin || tgSubData.grantedByAdmin,
-              payments: [...(data.payments || []), ...(tgSubData.payments || [])],
-            };
-            if (tgSubData.plan !== 'none') {
-              newSub.planActivatedAt = tgSubData.planActivatedAt || data.planActivatedAt;
-              newSub.planExpiresAt = tgSubData.planExpiresAt || data.planExpiresAt;
-            }
-          }
-          
-          await setDoc(ref, newSub);
-          
-          // Удаляем старую подписку с Telegram ID
-          try {
-            await deleteDoc(tgSubRef);
-            console.log(`[SubscriptionService] Старая подписка на TG ID ${tgIdStr} удалена.`);
-          } catch (delErr) {
-            console.warn('[SubscriptionService] Не удалось удалить подписку с TG ID:', delErr);
-          }
-          
-          data = newSub; // Обновляем локальные данные перед возвратом
-        }
-      }
-    } catch (err) {
-      console.error('[SubscriptionService] Ошибка миграции подписки по Telegram ID:', err);
-    }
-  }
-
-  // Если telegramId передан, но ещё не записан в Firestore — сохраняем его
-  // чтобы adminPanel мог находить Firebase UID по Telegram ID
-  if (telegramId && data.plan !== 'none' && !data.telegramId) {
-    try {
-      const ref2 = doc(db, 'users', uid, 'subscription', 'current');
-      await updateDoc(ref2, { telegramId: String(telegramId) });
-      data = { ...data, telegramId: String(telegramId) };
-    } catch (e) {
-      console.warn('[SubscriptionService] Не удалось сохранить telegramId:', e);
-    }
-  }
-
-  // Создаем плоский маппинг Telegram ID -> Firebase UID для быстрого поиска в админке
-  if (telegramId) {
-    try {
-      const tgIdStr = String(telegramId).trim();
-      const mapRef = doc(db, 'telegram_uid_map', tgIdStr);
-      await setDoc(mapRef, {
-        firebaseUid: uid,
-        updatedAt: serverTimestamp(),
-      }, { merge: true });
-    } catch (e) {
-      console.warn('[SubscriptionService] Не удалось записать маппинг в telegram_uid_map:', e);
-    }
-  }
-
-  return data;
 };
 
 // ═══════════════════════════════════════════
 //  ACTIVATE PLAN (after payment)
 // ═══════════════════════════════════════════
 
+/**
+ * Активировать план после оплаты.
+ * @param {string} uid
+ * @param {string} planId
+ * @param {Object} paymentInfo
+ * @returns {Promise<{plan: string, credits: number}>}
+ */
 export const activatePlan = async (uid, planId, paymentInfo = {}) => {
   const plan = PLANS[planId];
   if (!plan) throw new Error(`Unknown plan: ${planId}`);
 
-  const ref = doc(db, 'users', uid, 'subscription', 'current');
-  const now = new Date();
-  let expiresAt = null;
-
-  if (plan.period === 'month') {
-    expiresAt = new Date(now);
-    expiresAt.setMonth(expiresAt.getMonth() + 1);
-  }
-
-  const payment = {
-    planId,
-    amount: plan.price,
-    currency: 'RUB',
-    date: now.toISOString(),
-    ...paymentInfo,
-  };
-
-  await setDoc(ref, {
-    plan: planId,
-    credits: plan.credits,
-    creditsTotal: plan.credits,
-    planActivatedAt: serverTimestamp(),
-    planExpiresAt: expiresAt,
-    payments: arrayUnion(payment),
-  }, { merge: true });
-
-  return { plan: planId, credits: plan.credits };
-};
-
-// ═══════════════════════════════════════════
-//  USE CREDIT (deduct 1 per generation)
-// ═══════════════════════════════════════════
-
-export const consumeCredit = async (uid, amount = 1) => {
-  const sub = await getSubscription(uid);
-
-  if (sub.plan === 'none') {
-    throw new Error('NO_PLAN');
-  }
-
-  if (sub.credits < amount) {
-    throw new Error('NO_CREDITS');
-  }
-
-  const ref = doc(db, 'users', uid, 'subscription', 'current');
-  await updateDoc(ref, {
-    credits: increment(-amount),
+  const res = await apiFetch('/api/subscription', {
+    method: 'POST',
+    body: JSON.stringify({ uid, planId, paymentInfo }),
   });
 
-  return { creditsRemaining: sub.credits - amount };
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Ошибка активации плана');
+  }
+
+  const json = await res.json();
+  return json.data || { plan: planId, credits: plan.credits };
 };
 
 // ═══════════════════════════════════════════
-//  CHECK FEATURE ACCESS
+//  USE CREDIT (deduct per generation)
+// ═══════════════════════════════════════════
+
+/**
+ * Списать кредиты за генерацию.
+ * Проверка баланса и плана теперь выполняется на сервере.
+ *
+ * @param {string} uid
+ * @param {number} amount — количество кредитов (default 1)
+ * @returns {Promise<{creditsRemaining: number}>}
+ */
+export const consumeCredit = async (uid, amount = 1) => {
+  const res = await apiFetch('/api/consume-credit', {
+    method: 'POST',
+    body: JSON.stringify({ uid, amount }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    // Сервер возвращает 'NO_PLAN' или 'NO_CREDITS' — пробрасываем как Error
+    throw new Error(err.error || 'Ошибка списания кредитов');
+  }
+
+  const json = await res.json();
+  return json.data || { creditsRemaining: 0 };
+};
+
+// ═══════════════════════════════════════════
+//  CHECK FEATURE ACCESS (чистая функция — без изменений)
 // ═══════════════════════════════════════════
 
 export const checkFeature = (planId, feature) => {
@@ -319,7 +185,7 @@ export const checkFeature = (planId, feature) => {
 };
 
 // ═══════════════════════════════════════════
-//  HELPER: Can generate?
+//  HELPER: Can generate? (чистая функция — без изменений)
 // ═══════════════════════════════════════════
 
 export const canGenerate = (subscription) => {
@@ -330,7 +196,7 @@ export const canGenerate = (subscription) => {
 };
 
 // ═══════════════════════════════════════════
-//  HELPER: Get plan details for current sub
+//  HELPER: Get plan details (чистая функция — без изменений)
 // ═══════════════════════════════════════════
 
 export const getPlanDetails = (planId) => {

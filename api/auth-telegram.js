@@ -1,18 +1,17 @@
 // POST /api/auth-telegram
-// Верифицирует Telegram initData и возвращает Firebase Custom Token
+// Верифицирует Telegram initData и возвращает JWT токен
 // с детерминированным UID: tg_{telegramId}
 //
 // Это РЕШАЕТ корневую проблему: signInAnonymously() создавал НОВЫЙ UID
 // при каждом входе, потому что Telegram WebView очищает storage.
-// Custom Token с фиксированным UID гарантирует, что пользователь
-// ВСЕГДА получает тот же Firebase аккаунт.
+// JWT с фиксированным UID гарантирует, что пользователь
+// ВСЕГДА получает тот же аккаунт.
 
 import crypto from 'crypto';
-import { ensureFirebaseAdmin } from './_firebase-admin.js';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import jwt from 'jsonwebtoken';
+import { query } from './_db.js';
 
-ensureFirebaseAdmin();
+const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
 
 /**
  * Верификация Telegram initData через HMAC-SHA256
@@ -86,21 +85,42 @@ export default async function handler(req, res) {
 
     console.log(`[auth-telegram] Verified TG user ${telegramId} (${tgUser.first_name}), issuing token for UID: ${stableUid}`);
 
-    // 2. Генерируем Custom Token с детерминированным UID
-    const customToken = await getAuth().createCustomToken(stableUid);
+    // 2. UPSERT пользователя в PostgreSQL
+    //    Если пользователь уже есть — обновляем email (если передан), иначе оставляем
+    const email = tgUser.username
+      ? `${tgUser.username}@telegram.user`
+      : `tg_${telegramId}@telegram.user`;
 
-    // 3. Записываем/обновляем маппинг telegram_uid_map
-    const db = getFirestore();
-    await db.doc(`telegram_uid_map/${telegramId}`).set({
-      firebaseUid: stableUid,
-      telegramFirstName: tgUser.first_name || '',
-      telegramUsername: tgUser.username || '',
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
+    const { rows } = await query(
+      `INSERT INTO users (telegram_id, email, role)
+       VALUES ($1, $2, 'user')
+       ON CONFLICT (telegram_id) DO UPDATE
+         SET email = COALESCE(EXCLUDED.email, users.email)
+       RETURNING id, telegram_id, email, role`,
+      [telegramId, email]
+    );
 
-    // 4. Миграция: проверяем наличие подписок на СТАРЫХ UID
-    //    (от предыдущих signInAnonymously сессий или legacy записей)
-    await migrateOldSubscriptions(db, telegramId, stableUid);
+    const user = rows[0];
+    console.log(`[auth-telegram] User upserted: id=${user.id}, telegram_id=${user.telegram_id}`);
+
+    // 3. Обеспечиваем наличие записи подписки (если ещё нет)
+    await query(
+      `INSERT INTO subscriptions (user_id, plan, credits, credits_total, status)
+       VALUES ($1, 'none', 0, 0, 'inactive')
+       ON CONFLICT (user_id) DO NOTHING`,
+      [user.id]
+    );
+
+    // 4. Генерируем JWT токен (замена Firebase Custom Token)
+    const customToken = jwt.sign(
+      {
+        uid: stableUid,
+        telegramId,
+        dbUserId: user.id,
+      },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
 
     return res.status(200).json({
       ok: true,
@@ -111,94 +131,5 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error('[auth-telegram] Error:', err.message);
     return res.status(500).json({ ok: false, error: err.message });
-  }
-}
-
-/**
- * Мигрирует подписки со старых UID на новый стабильный UID.
- * Проверяет три источника:
- * 1. telegram_uid_map — может содержать СТАРЫЙ Firebase UID (от signInAnonymously)
- * 2. users/{telegramId}/subscription/current — legacy записи от админки
- * 3. Ищет по полю telegramId в subscription документах (collectionGroup fallback)
- */
-async function migrateOldSubscriptions(db, telegramId, stableUid) {
-  const targetRef = db.doc(`users/${stableUid}/subscription/current`);
-  const targetSnap = await targetRef.get();
-
-  // Если у стабильного UID уже есть активная подписка — не трогаем
-  if (targetSnap.exists && targetSnap.data()?.plan !== 'none') {
-    return;
-  }
-
-  // Источник 1: Legacy путь users/{telegramId}/subscription/current
-  try {
-    const legacyRef = db.doc(`users/${telegramId}/subscription/current`);
-    const legacySnap = await legacyRef.get();
-    if (legacySnap.exists && legacySnap.data()?.plan !== 'none') {
-      const data = legacySnap.data();
-      console.log(`[auth-telegram] Migrating legacy sub from users/${telegramId} → users/${stableUid}`);
-      await targetRef.set({
-        ...data,
-        telegramId,
-        migratedFrom: `users/${telegramId}`,
-        migratedAt: FieldValue.serverTimestamp(),
-      });
-      await legacyRef.delete().catch(() => {});
-      return; // Успешная миграция, выходим
-    }
-  } catch (err) {
-    console.warn('[auth-telegram] Legacy migration check failed:', err.message);
-  }
-
-  // Источник 2: Старые anonymous UID из telegram_uid_map
-  try {
-    const mapSnap = await db.doc(`telegram_uid_map/${telegramId}`).get();
-    if (mapSnap.exists) {
-      const oldUid = mapSnap.data()?.firebaseUid;
-      // Если старый UID отличается от нового стабильного — мигрируем
-      if (oldUid && oldUid !== stableUid) {
-        const oldRef = db.doc(`users/${oldUid}/subscription/current`);
-        const oldSnap = await oldRef.get();
-        if (oldSnap.exists && oldSnap.data()?.plan !== 'none') {
-          const data = oldSnap.data();
-          console.log(`[auth-telegram] Migrating sub from old UID ${oldUid} → ${stableUid}`);
-          await targetRef.set({
-            ...data,
-            telegramId,
-            migratedFrom: `users/${oldUid}`,
-            migratedAt: FieldValue.serverTimestamp(),
-          });
-          await oldRef.delete().catch(() => {});
-          return;
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('[auth-telegram] Old UID migration check failed:', err.message);
-  }
-
-  // Источник 3: collectionGroup fallback (ищем по полю telegramId)
-  try {
-    const subsQuery = await db.collectionGroup('subscription')
-      .where('telegramId', '==', telegramId)
-      .limit(1)
-      .get();
-    if (!subsQuery.empty) {
-      const foundDoc = subsQuery.docs[0];
-      const oldUid = foundDoc.ref.parent.parent.id;
-      if (oldUid !== stableUid && foundDoc.data()?.plan !== 'none') {
-        const data = foundDoc.data();
-        console.log(`[auth-telegram] Migrating sub from collectionGroup ${oldUid} → ${stableUid}`);
-        await targetRef.set({
-          ...data,
-          telegramId,
-          migratedFrom: `users/${oldUid}`,
-          migratedAt: FieldValue.serverTimestamp(),
-        });
-        await foundDoc.ref.delete().catch(() => {});
-      }
-    }
-  } catch (err) {
-    console.warn('[auth-telegram] collectionGroup migration fallback failed:', err.message);
   }
 }
