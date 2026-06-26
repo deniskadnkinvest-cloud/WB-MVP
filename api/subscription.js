@@ -31,16 +31,28 @@ export default async function handler(req, res) {
     return res.status(401).json({ ok: false, error: 'Unauthorized' });
   }
 
-  const uid = decoded.uid; // tg_{telegramId}
+  const uid = decoded.uid;
+  const email = decoded.email || null;
 
   try {
     // ═══ GET — Получить текущую подписку ═══
     if (req.method === 'GET') {
-      // Найти пользователя
-      const userResult = await query(
+      // Найти пользователя: сначала по telegram_id (uid), потом по email (fallback)
+      let userResult = await query(
         `SELECT id, telegram_id FROM users WHERE telegram_id = $1`,
         [uid]
       );
+      
+      // Fallback: поиск по email (для email OTP авторизации)
+      if (userResult.rows.length === 0 && email) {
+        userResult = await query(
+          `SELECT id, telegram_id FROM users WHERE email = $1`,
+          [email]
+        );
+        if (userResult.rows.length > 0) {
+          console.log(`[subscription] Found user by email fallback: ${email} → id=${userResult.rows[0].id}`);
+        }
+      }
 
       if (userResult.rows.length === 0) {
         // Пользователь не найден — вернуть дефолтную подписку

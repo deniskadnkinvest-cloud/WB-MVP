@@ -2,6 +2,7 @@ import { ensureFirebaseAdmin } from './_firebase-admin.js';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import jwt from 'jsonwebtoken';
+import { query } from './_db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
 
@@ -92,28 +93,67 @@ export default async function handler(req, res) {
       }
     }
 
-    // 4. Generate JWT token (matching auth-telegram.js pattern)
+    // 4. Resolve stable UID for JWT
+    //    Priority: find existing PostgreSQL user by email → use their telegram_id as uid
+    //    This ensures email login finds the same subscription as Telegram login
+    let stableUid = firebaseUser.uid; // fallback: Firebase UID
+    try {
+      const existingUser = await query(
+        `SELECT telegram_id FROM users WHERE email = $1 LIMIT 1`,
+        [email]
+      );
+      if (existingUser.rows.length > 0 && existingUser.rows[0].telegram_id) {
+        // User already exists in DB (probably created via Telegram) — use their telegram_id
+        stableUid = existingUser.rows[0].telegram_id;
+        console.log(`🔗 Linked email ${email} to existing user: uid=${stableUid}`);
+      } else {
+        // No existing user — UPSERT with Firebase UID as telegram_id
+        const { rows } = await query(
+          `INSERT INTO users (telegram_id, email, role)
+           VALUES ($1, $2, 'user')
+           ON CONFLICT (telegram_id) DO UPDATE
+             SET email = COALESCE(EXCLUDED.email, users.email)
+           RETURNING id, telegram_id`,
+          [stableUid, email]
+        );
+        // Ensure subscription record exists
+        if (rows[0]) {
+          await query(
+            `INSERT INTO subscriptions (user_id, plan_name, credits, credits_total, status)
+             VALUES ($1, 'none', 0, 0, 'inactive')
+             ON CONFLICT (user_id) DO NOTHING`,
+            [rows[0].id]
+          );
+        }
+        console.log(`📝 Created/updated PostgreSQL user for ${email}: uid=${stableUid}`);
+      }
+    } catch (dbErr) {
+      // Non-fatal: if DB fails, we still issue a token with Firebase UID
+      console.warn(`[verify-otp] PostgreSQL user upsert failed (non-fatal): ${dbErr.message}`);
+    }
+
+    // 5. Generate JWT token (matching auth-telegram.js pattern)
     const customToken = jwt.sign(
       {
-        uid: firebaseUser.uid,
-        email: firebaseUser.email,
+        uid: stableUid,
+        email,
       },
       JWT_SECRET,
       { expiresIn: '30d' }
     );
 
-    // 5. Cleanup OTP code doc (security best practice: code is strictly single-use)
+    // 6. Cleanup OTP code doc (security best practice: code is strictly single-use)
     await otpDocRef.delete().catch((err) => {
       console.warn('Failed to delete verified OTP doc (non-fatal):', err.message);
     });
 
-    console.log(`🎉 OTP Authentication success for ${email}! Token generated.`);
+    console.log(`🎉 OTP Authentication success for ${email}! Token generated with uid=${stableUid}`);
 
     return res.status(200).json({
       success: true,
       customToken,
-      uid: firebaseUser.uid,
-      email: firebaseUser.email
+      uid: stableUid,
+      email,
     });
   } catch (error) {
     console.error('verify-otp error:', error.message);
