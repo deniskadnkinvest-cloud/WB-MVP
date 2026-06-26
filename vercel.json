@@ -21,9 +21,7 @@
     "api/verify-otp.js": {
       "maxDuration": 10
     },
-    "api/create-tg-session.js": {
-      "maxDuration": 10
-    },
+
     "api/admin.js": {
       "maxDuration": 60
     },
@@ -59,7 +57,7 @@
     { "source": "/api/cancel-subscription", "destination": "/api/cancel-subscription" },
     { "source": "/api/send-otp", "destination": "/api/send-otp" },
     { "source": "/api/verify-otp", "destination": "/api/verify-otp" },
-    { "source": "/api/create-tg-session", "destination": "/api/create-tg-session" },
+
     { "source": "/api/auth-telegram", "destination": "/api/auth-telegram" },
     { "source": "/api/user-data", "destination": "/api/user-data" },
     { "source": "/api/subscription", "destination": "/api/subscription" },
