@@ -6,10 +6,6 @@
     "api/generate-image.js": {
       "maxDuration": 60
     },
-
-    "api/payment-webhook.js": {
-      "maxDuration": 30
-    },
     "api/payment-webhook-yookassa.js": {
       "maxDuration": 10
     },
@@ -28,18 +24,23 @@
     "api/create-tg-session.js": {
       "maxDuration": 10
     },
-    "api/complete-tg-auth.js": {
-      "maxDuration": 10
-    },
     "api/admin.js": {
       "maxDuration": 60
     },
     "api/auth-telegram.js": {
       "maxDuration": 15
     },
-
-    "api/inngest.js": {
-      "maxDuration": 60
+    "api/user-data.js": {
+      "maxDuration": 10
+    },
+    "api/subscription.js": {
+      "maxDuration": 10
+    },
+    "api/consume-credit.js": {
+      "maxDuration": 10
+    },
+    "api/upload.js": {
+      "maxDuration": 30
     }
   },
   "headers": [
@@ -53,20 +54,18 @@
   ],
   "rewrites": [
     { "source": "/api/generate-image", "destination": "/api/generate-image" },
-
-    { "source": "/api/payment-webhook", "destination": "/api/payment-webhook" },
     { "source": "/api/payment-webhook-yookassa", "destination": "/api/payment-webhook-yookassa" },
     { "source": "/api/create-payment", "destination": "/api/create-payment" },
     { "source": "/api/cancel-subscription", "destination": "/api/cancel-subscription" },
     { "source": "/api/send-otp", "destination": "/api/send-otp" },
     { "source": "/api/verify-otp", "destination": "/api/verify-otp" },
     { "source": "/api/create-tg-session", "destination": "/api/create-tg-session" },
-    { "source": "/api/complete-tg-auth", "destination": "/api/complete-tg-auth" },
-
-    { "source": "/api/inngest", "destination": "/api/inngest" },
     { "source": "/api/auth-telegram", "destination": "/api/auth-telegram" },
+    { "source": "/api/user-data", "destination": "/api/user-data" },
+    { "source": "/api/subscription", "destination": "/api/subscription" },
+    { "source": "/api/consume-credit", "destination": "/api/consume-credit" },
+    { "source": "/api/upload", "destination": "/api/upload" },
     { "source": "/api/admin/:path*", "destination": "/api/admin.js" },
-    { "source": "/__/auth/:path*", "destination": "https://lord-f842d.firebaseapp.com/__/auth/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
