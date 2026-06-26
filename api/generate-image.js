@@ -1850,18 +1850,27 @@ export default async function handler(req, res) {
 
   const startTime = Date.now();
 
-  // ═══ AUTH: Firebase Token Verification ═══
-  // Сервер НЕ доверяет userId из body — вместо этого криптографически
-  // проверяет ID Token из заголовка Authorization: Bearer <token>
+  // ═══ AUTH: JWT + Firebase Token Verification ═══
+  // Сначала пробуем JWT (новая система), потом Firebase (legacy)
   let verifiedUid = null;
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.split('Bearer ')[1];
+    // Попытка 1: JWT (наш новый токен — быстрый, без сети)
     try {
-      const decoded = await getAuth().verifyIdToken(authHeader.split('Bearer ')[1]);
+      const jwt = await import('jsonwebtoken');
+      const jwtSecret = process.env.JWT_SECRET || 'vton-secret-2026';
+      const decoded = jwt.default.verify(token, jwtSecret);
       verifiedUid = decoded.uid;
-    } catch (authErr) {
-      console.warn('[Auth] Invalid ID token:', authErr.message);
-      return res.status(401).json({ success: false, error: 'Unauthorized: invalid token' });
+    } catch {
+      // Попытка 2: Firebase ID Token (legacy, для обратной совместимости)
+      try {
+        const decoded = await getAuth().verifyIdToken(token);
+        verifiedUid = decoded.uid;
+      } catch (authErr) {
+        console.warn('[Auth] Invalid token (both JWT and Firebase):', authErr.message);
+        return res.status(401).json({ success: false, error: 'Unauthorized: invalid token' });
+      }
     }
   } else {
     return res.status(401).json({ success: false, error: 'Unauthorized: no token provided' });
