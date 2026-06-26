@@ -1,13 +1,56 @@
 // POST /api/admin/user-control
 // Admin operations for looking up users, opening plans, and adding credits.
+// DUAL-WRITE: Firestore (legacy) + PostgreSQL (ФЗ-152 compliant, source of truth)
 
 import { ensureFirebaseAdmin } from '../_firebase-admin.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { checkAdminAuth } from './verify.js';
+import { query as pgQuery } from '../_db.js';
 
 ensureFirebaseAdmin();
 const db = getFirestore();
+
+// ═══ PostgreSQL SYNC HELPERS ═══
+
+/**
+ * Найти или создать пользователя в PostgreSQL.
+ * @param {string} telegramId — чистый числовой Telegram ID
+ * @param {string|null} email
+ * @returns {{ id: number, telegram_id: string }}
+ */
+async function findOrCreatePgUser(telegramId, email) {
+  const pgEmail = email || (telegramId ? `tg_${telegramId}@telegram.user` : 'unknown@user');
+  const { rows } = await pgQuery(
+    `INSERT INTO users (telegram_id, email, role)
+     VALUES ($1, $2, 'user')
+     ON CONFLICT (telegram_id) DO UPDATE
+       SET email = COALESCE(NULLIF($2, ''), users.email)
+     RETURNING id, telegram_id`,
+    [telegramId, pgEmail]
+  );
+  return rows[0];
+}
+
+/**
+ * Синхронизировать подписку в PostgreSQL после операции в Firestore.
+ */
+async function syncSubscriptionToPostgres({ telegramId, email, plan, credits, creditsTotal, expiresAt, status, grantedByAdmin }) {
+  try {
+    const user = await findOrCreatePgUser(telegramId, email);
+    await pgQuery(
+      `INSERT INTO subscriptions (user_id, plan_name, credits, credits_total, expires_at, status, granted_by_admin)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (user_id) DO UPDATE SET
+         plan_name = $2, credits = $3, credits_total = $4,
+         expires_at = $5, status = $6, granted_by_admin = $7`,
+      [user.id, plan, credits, creditsTotal || credits, expiresAt, status || 'active', grantedByAdmin || false]
+    );
+    console.log(`[admin/user-control] ✅ Synced to PostgreSQL: user_id=${user.id}, plan=${plan}, credits=${credits}`);
+  } catch (err) {
+    console.error(`[admin/user-control] ⚠️ PostgreSQL sync failed (non-fatal): ${err.message}`);
+  }
+}
 
 const PLAN_CREDITS = {
   trial: 25,
@@ -302,6 +345,21 @@ export default async function handler(req, res) {
         ...(telegramIdToSave ? { telegramId: telegramIdToSave } : {}),
       }, { merge: true });
 
+      // Sync to PostgreSQL
+      const currentSubSnap = await ref.get();
+      const currentSub = currentSubSnap.exists ? currentSubSnap.data() : {};
+      const cleanTgId = resolved.telegramId || (resolved.uid.startsWith('tg_') ? resolved.uid.slice(3) : resolved.uid);
+      await syncSubscriptionToPostgres({
+        telegramId: cleanTgId,
+        email: resolved.email,
+        plan: currentSub.plan || preservedPlan,
+        credits: currentSub.credits || amount,
+        creditsTotal: currentSub.creditsTotal || amount,
+        expiresAt: currentSub.planExpiresAt ? new Date(currentSub.planExpiresAt.seconds * 1000) : null,
+        status: 'active',
+        grantedByAdmin: true,
+      });
+
       const result = await lookupUser(identifier);
       await writeAudit(action, auth.user, { identifier, amount, note }, { uid: resolved.uid });
       return res.status(200).json({ ok: true, action, ...result });
@@ -348,6 +406,19 @@ export default async function handler(req, res) {
         ...(telegramIdToSave ? { telegramId: telegramIdToSave } : {}),
       }, { merge: true });
 
+      // Sync to PostgreSQL
+      const cleanTgIdPlan = resolved.telegramId || (resolved.uid.startsWith('tg_') ? resolved.uid.slice(3) : resolved.uid);
+      await syncSubscriptionToPostgres({
+        telegramId: cleanTgIdPlan,
+        email: resolved.email,
+        plan: effectivePlan,
+        credits: amount,
+        creditsTotal: amount,
+        expiresAt: buildExpiresAt(effectivePlan),
+        status: 'active',
+        grantedByAdmin: true,
+      });
+
       const result = await lookupUser(identifier);
       await writeAudit(action, auth.user, { identifier, plan, amount, note }, { uid: resolved.uid });
       return res.status(200).json({ ok: true, action, ...result });
@@ -361,6 +432,19 @@ export default async function handler(req, res) {
         status: 'canceled',
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
+
+      // Sync to PostgreSQL
+      const cleanTgIdDisable = resolved.telegramId || (resolved.uid.startsWith('tg_') ? resolved.uid.slice(3) : resolved.uid);
+      await syncSubscriptionToPostgres({
+        telegramId: cleanTgIdDisable,
+        email: resolved.email,
+        plan: 'none',
+        credits: 0,
+        creditsTotal: 0,
+        expiresAt: null,
+        status: 'canceled',
+        grantedByAdmin: false,
+      });
 
       const result = await lookupUser(identifier);
       await writeAudit(action, auth.user, { identifier, note }, { uid: resolved.uid });

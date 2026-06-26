@@ -1,6 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 // GET/POST /api/subscription
-// Управление подписками пользователей (замена Firestore)
+// Управление подписками пользователей
+// ИСТОЧНИК ИСТИНЫ: PostgreSQL (российский хостинг, ФЗ-152)
 // ═══════════════════════════════════════════════════════════════
 
 import jwt from 'jsonwebtoken';
@@ -17,6 +18,44 @@ function verifyToken(req) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Найти пользователя в PostgreSQL.
+ * Пробуем несколько стратегий:
+ *   1. telegram_id = uid (прямое совпадение, напр. "tg_123456" или "123456")
+ *   2. telegram_id = uid без "tg_" префикса (если uid = "tg_123456" → ищем "123456")
+ *   3. email = decoded.email (для email OTP авторизации)
+ * Возвращает { id, telegram_id } или null
+ */
+async function findUser(uid, email) {
+  // Стратегия 1: прямой поиск по telegram_id
+  let result = await query(
+    `SELECT id, telegram_id FROM users WHERE telegram_id = $1 LIMIT 1`,
+    [uid]
+  );
+  if (result.rows.length > 0) return result.rows[0];
+
+  // Стратегия 2: uid с "tg_" префиксом → ищем без префикса
+  if (uid && uid.startsWith('tg_')) {
+    const rawId = uid.slice(3);
+    result = await query(
+      `SELECT id, telegram_id FROM users WHERE telegram_id = $1 LIMIT 1`,
+      [rawId]
+    );
+    if (result.rows.length > 0) return result.rows[0];
+  }
+
+  // Стратегия 3: поиск по email
+  if (email) {
+    result = await query(
+      `SELECT id, telegram_id FROM users WHERE email = $1 LIMIT 1`,
+      [email]
+    );
+    if (result.rows.length > 0) return result.rows[0];
+  }
+
+  return null;
 }
 
 export default async function handler(req, res) {
@@ -37,25 +76,9 @@ export default async function handler(req, res) {
   try {
     // ═══ GET — Получить текущую подписку ═══
     if (req.method === 'GET') {
-      // Найти пользователя: сначала по telegram_id (uid), потом по email (fallback)
-      let userResult = await query(
-        `SELECT id, telegram_id FROM users WHERE telegram_id = $1`,
-        [uid]
-      );
-      
-      // Fallback: поиск по email (для email OTP авторизации)
-      if (userResult.rows.length === 0 && email) {
-        userResult = await query(
-          `SELECT id, telegram_id FROM users WHERE email = $1`,
-          [email]
-        );
-        if (userResult.rows.length > 0) {
-          console.log(`[subscription] Found user by email fallback: ${email} → id=${userResult.rows[0].id}`);
-        }
-      }
+      const user = await findUser(uid, email);
 
-      if (userResult.rows.length === 0) {
-        // Пользователь не найден — вернуть дефолтную подписку
+      if (!user) {
         return res.json({
           ok: true,
           data: {
@@ -71,7 +94,7 @@ export default async function handler(req, res) {
         });
       }
 
-      const userId = userResult.rows[0].id;
+      const userId = user.id;
 
       // Получить подписку
       const subResult = await query(
@@ -150,21 +173,17 @@ export default async function handler(req, res) {
         return res.status(400).json({ ok: false, error: `Unknown plan: ${planId}` });
       }
 
-      const userResult = await query(
-        `SELECT id FROM users WHERE telegram_id = $1`,
-        [uid]
-      );
+      const user = await findUser(uid, email);
 
-      if (userResult.rows.length === 0) {
+      if (!user) {
         return res.status(404).json({ ok: false, error: 'User not found' });
       }
 
-      const userId = userResult.rows[0].id;
-      const now = new Date();
+      const userId = user.id;
       let expiresAt = null;
 
       if (planId !== 'trial') {
-        expiresAt = new Date(now);
+        expiresAt = new Date();
         expiresAt.setMonth(expiresAt.getMonth() + 1);
       }
 

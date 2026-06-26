@@ -1,12 +1,43 @@
 // ═══════════════════════════════════════════════════════════════
 // POST /api/consume-credit
-// Списание кредитов (замена Firebase FieldValue.increment)
+// Списание кредитов за генерацию
+// ИСТОЧНИК ИСТИНЫ: PostgreSQL (российский хостинг, ФЗ-152)
 // ═══════════════════════════════════════════════════════════════
 
 import jwt from 'jsonwebtoken';
 import { query } from './_db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
+
+/**
+ * Найти пользователя в PostgreSQL (аналогично subscription.js).
+ */
+async function findUser(uid, email) {
+  let result = await query(
+    `SELECT id, telegram_id FROM users WHERE telegram_id = $1 LIMIT 1`,
+    [uid]
+  );
+  if (result.rows.length > 0) return result.rows[0];
+
+  if (uid && uid.startsWith('tg_')) {
+    const rawId = uid.slice(3);
+    result = await query(
+      `SELECT id, telegram_id FROM users WHERE telegram_id = $1 LIMIT 1`,
+      [rawId]
+    );
+    if (result.rows.length > 0) return result.rows[0];
+  }
+
+  if (email) {
+    result = await query(
+      `SELECT id, telegram_id FROM users WHERE email = $1 LIMIT 1`,
+      [email]
+    );
+    if (result.rows.length > 0) return result.rows[0];
+  }
+
+  return null;
+}
 
 export default async function handler(req, res) {
   // CORS
@@ -28,29 +59,33 @@ export default async function handler(req, res) {
   }
 
   const uid = decoded.uid;
+  const email = decoded.email || null;
   const { amount = 1 } = req.body || {};
 
   try {
+    const user = await findUser(uid, email);
+    if (!user) {
+      return res.status(403).json({ ok: false, error: 'NO_PLAN' });
+    }
+
+    const userId = user.id;
+
     // Атомарное списание кредитов с проверкой наличия
-    // RETURNING гарантирует, что мы получим актуальное значение после UPDATE
     const result = await query(
       `UPDATE subscriptions
        SET credits = credits - $1
-       WHERE user_id = (SELECT id FROM users WHERE telegram_id = $2)
+       WHERE user_id = $2
          AND credits >= $1
          AND plan_name != 'none'
        RETURNING credits`,
-      [amount, uid]
+      [amount, userId]
     );
 
     if (result.rows.length === 0) {
       // Проверяем причину ошибки
       const subCheck = await query(
-        `SELECT s.plan_name, s.credits
-         FROM subscriptions s
-         JOIN users u ON s.user_id = u.id
-         WHERE u.telegram_id = $1`,
-        [uid]
+        `SELECT plan_name, credits FROM subscriptions WHERE user_id = $1`,
+        [userId]
       );
 
       if (subCheck.rows.length === 0 || subCheck.rows[0].plan_name === 'none') {
@@ -64,7 +99,7 @@ export default async function handler(req, res) {
 
     return res.json({
       ok: true,
-      creditsRemaining: result.rows[0].credits,
+      data: { creditsRemaining: result.rows[0].credits },
     });
   } catch (err) {
     console.error('[consume-credit] Error:', err);
