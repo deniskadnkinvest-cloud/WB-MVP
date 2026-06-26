@@ -1,6 +1,9 @@
 import { ensureFirebaseAdmin } from './_firebase-admin.js';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
 
 // Initialize Firebase Admin
 ensureFirebaseAdmin();
@@ -89,8 +92,15 @@ export default async function handler(req, res) {
       }
     }
 
-    // 4. Generate custom auth token for Firebase client sign-in
-    const customToken = await authAdmin.createCustomToken(firebaseUser.uid);
+    // 4. Generate JWT token (matching auth-telegram.js pattern)
+    const customToken = jwt.sign(
+      {
+        uid: firebaseUser.uid,
+        email: firebaseUser.email,
+      },
+      JWT_SECRET,
+      { expiresIn: '30d' }
+    );
 
     // 5. Cleanup OTP code doc (security best practice: code is strictly single-use)
     await otpDocRef.delete().catch((err) => {
