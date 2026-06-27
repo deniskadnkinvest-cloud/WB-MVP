@@ -29,7 +29,25 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
+
+// Обработчик ошибок JSON-парсинга — Telegram initData содержит спецсимволы
+// без этого express.json() падает с SyntaxError и возвращает HTML "Bad Request"
+app.use((req, res, next) => {
+  express.json({ limit: '50mb' })(req, res, (err) => {
+    if (err) {
+      // JSON не распарсился — пробуем как text/plain и парсим вручную
+      express.text({ limit: '50mb' })(req, res, (err2) => {
+        if (!err2 && typeof req.body === 'string') {
+          try { req.body = JSON.parse(req.body); } catch { /* оставляем как строку */ }
+        }
+        next();
+      });
+    } else {
+      next();
+    }
+  });
+});
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Inngest Dev Server Bridge
 app.use('/api/inngest', serve({ client: inngest, functions }));
