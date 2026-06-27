@@ -10,7 +10,7 @@ services:
     env_file:
       - .env
     networks:
-      - traefik-public
+      - traefik_traefik
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.vton-mvp.rule=Host(`seller-studio-ai.ru`)"
@@ -19,5 +19,5 @@ services:
       - "traefik.http.services.vton-mvp.loadbalancer.server.port=3001"
 
 networks:
-  traefik-public:
+  traefik_traefik:
     external: true
