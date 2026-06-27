@@ -68,9 +68,11 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
 
   try {
+    console.log('[auth-telegram] body type:', typeof req.body, '| keys:', Object.keys(req.body || {}));
     const { initData } = req.body || {};
 
     if (!initData) {
+      console.log('[auth-telegram] no initData, raw body:', JSON.stringify(req.body).slice(0, 200));
       return res.status(400).json({ ok: false, error: 'initData required' });
     }
 
