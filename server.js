@@ -30,22 +30,26 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(cors());
 
-// Обработчик ошибок JSON-парсинга — Telegram initData содержит спецсимволы
-// без этого express.json() падает с SyntaxError и возвращает HTML "Bad Request"
+// Универсальный парсер тела запроса.
+// express.raw() читает тело как Buffer для любого Content-Type,
+// затем вручную парсим JSON. Это необходимо потому что Telegram initData
+// содержит URL-encoded символы (%3D, %26 и т.д.), которые ломают
+// стандартный body-parser с ошибкой "Bad escaped character in JSON".
+app.use(express.raw({ type: '*/*', limit: '50mb' }));
 app.use((req, res, next) => {
-  express.json({ limit: '50mb' })(req, res, (err) => {
-    if (err) {
-      // JSON не распарсился — пробуем как text/plain и парсим вручную
-      express.text({ limit: '50mb' })(req, res, (err2) => {
-        if (!err2 && typeof req.body === 'string') {
-          try { req.body = JSON.parse(req.body); } catch { /* оставляем как строку */ }
-        }
-        next();
-      });
-    } else {
-      next();
+  if (Buffer.isBuffer(req.body)) {
+    const raw = req.body.toString('utf8');
+    try {
+      req.body = JSON.parse(raw);
+    } catch {
+      try {
+        req.body = JSON.parse(decodeURIComponent(raw));
+      } catch {
+        req.body = raw;
+      }
     }
-  });
+  }
+  next();
 });
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
