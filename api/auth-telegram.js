@@ -41,15 +41,21 @@ function verifyAndParseInitData(initData, botToken) {
 
     if (expectedHash !== hash) return null;
 
-    // Проверяем свежесть (не старше 24 часов)
+    // Проверяем свежесть (не старше 7 дней — Telegram Mini App кэширует initData)
     const authDate = parseInt(params.get('auth_date') || '0', 10);
     const now = Math.floor(Date.now() / 1000);
-    if (now - authDate > 86400) return null;
+    const ageSeconds = now - authDate;
+    console.log(`[auth-telegram] initData age: ${ageSeconds}s (${Math.round(ageSeconds/3600)}h)`);
+    if (ageSeconds > 604800) { // 7 дней
+      console.log('[auth-telegram] initData expired');
+      return null;
+    }
 
     const userStr = params.get('user');
     if (!userStr) return null;
     return JSON.parse(userStr);
-  } catch {
+  } catch (e) {
+    console.log('[auth-telegram] parse error:', e.message);
     return null;
   }
 }
