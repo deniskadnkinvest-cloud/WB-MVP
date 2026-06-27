@@ -12,7 +12,7 @@ WORKDIR /app
 
 # Копируем зависимости
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Копируем исходники бэкенда
 COPY server.js .
