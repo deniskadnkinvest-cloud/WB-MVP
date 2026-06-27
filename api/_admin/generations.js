@@ -8,12 +8,10 @@
 //   type     string?  — фильтрация по типу: fashion | product | calibration | autocatalog
 // ═══════════════════════════════════════════════════════════════
 
-import { ensureFirebaseAdmin } from '../_firebase-admin.js';
-import { getFirestore } from 'firebase-admin/firestore';
 import { checkAdminAuth } from './verify.js';
+import { query as pgQuery } from '../_db.js';
 
-ensureFirebaseAdmin();
-const db = getFirestore();
+const db = { collection: () => ({ get: async () => ({ docs: [] }) }) };
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

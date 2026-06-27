@@ -1,13 +1,8 @@
-import { ensureFirebaseAdmin } from './_firebase-admin.js';
-import { getAuth } from 'firebase-admin/auth';
-import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import jwt from 'jsonwebtoken';
 import { query } from './_db.js';
+import crypto from 'crypto';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
-
-// Initialize Firebase Admin
-ensureFirebaseAdmin();
 
 export default async function handler(req, res) {
   // CORS headers
@@ -33,81 +28,49 @@ export default async function handler(req, res) {
     email = email.trim().toLowerCase();
     code = code.trim();
 
-    const db = getFirestore();
-    const otpDocRef = db.collection('otp_codes').doc(email);
-    const otpDoc = await otpDocRef.get();
+    const otpRes = await query(`SELECT * FROM otps WHERE email = $1`, [email]);
 
-    if (!otpDoc.exists) {
+    if (otpRes.rows.length === 0) {
       return res.status(400).json({ error: 'Код подтверждения не найден. Запросите код заново.' });
     }
 
-    const otpData = otpDoc.data();
-    const expiresAt = otpData.expiresAt.toDate(); // Convert Firestore timestamp to Date object
+    const otpData = otpRes.rows[0];
+    const expiresAt = new Date(otpData.expires_at);
     const attempts = otpData.attempts || 0;
 
     if (attempts >= 5) {
-      await otpDocRef.delete().catch(() => {});
+      await query(`DELETE FROM otps WHERE email = $1`, [email]);
       return res.status(429).json({ error: 'Слишком много неверных попыток. Запросите новый код.' });
     }
 
     // 1. Check expiration
     if (expiresAt < new Date()) {
-      // Cleanup expired code
-      await otpDocRef.delete().catch(() => {});
+      await query(`DELETE FROM otps WHERE email = $1`, [email]);
       return res.status(400).json({ error: 'Срок действия кода истек. Запросите код заново.' });
     }
 
     // 2. Verify code
     if (otpData.code !== code) {
-      await otpDocRef.set({
-        attempts: FieldValue.increment(1),
-        lastAttemptAt: new Date(),
-      }, { merge: true });
+      await query(`UPDATE otps SET attempts = attempts + 1 WHERE email = $1`, [email]);
       return res.status(400).json({ error: 'Неверный код подтверждения.' });
     }
 
-    // 3. User Resolution (Get or Create Firebase User)
-    const authAdmin = getAuth();
-    let firebaseUser;
-    
-    try {
-      firebaseUser = await authAdmin.getUserByEmail(email);
-      console.log(`👤 User found in Firebase Auth: ${email} (${firebaseUser.uid})`);
-    } catch (authError) {
-      if (authError.code === 'auth/user-not-found') {
-        // Create new user automatically since they verified their email
-        try {
-          firebaseUser = await authAdmin.createUser({
-            email,
-            emailVerified: true,
-            displayName: email.split('@')[0], // Default display name from email username
-          });
-          console.log(`🆕 New user automatically created: ${email} (${firebaseUser.uid})`);
-        } catch (createError) {
-          console.error('Failed to create new user:', createError);
-          return res.status(500).json({ error: 'Не удалось создать аккаунт.', details: createError.message });
-        }
-      } else {
-        console.error('Firebase getUserByEmail error:', authError);
-        return res.status(500).json({ error: 'Ошибка авторизации.', details: authError.message });
-      }
-    }
-
-    // 4. Resolve stable UID for JWT
-    //    Priority: find existing PostgreSQL user by email → use their telegram_id as uid
-    //    This ensures email login finds the same subscription as Telegram login
-    let stableUid = firebaseUser.uid; // fallback: Firebase UID
+    // 3. User Resolution (Get or Create Postgres User)
+    // Priority: find existing PostgreSQL user by email -> use their telegram_id
+    let stableUid;
     try {
       const existingUser = await query(
         `SELECT telegram_id FROM users WHERE email = $1 LIMIT 1`,
         [email]
       );
       if (existingUser.rows.length > 0 && existingUser.rows[0].telegram_id) {
-        // User already exists in DB (probably created via Telegram) — use their telegram_id
+        // User already exists in DB
         stableUid = existingUser.rows[0].telegram_id;
         console.log(`🔗 Linked email ${email} to existing user: uid=${stableUid}`);
       } else {
-        // No existing user — UPSERT with Firebase UID as telegram_id
+        // Generate a new stable UUID for email-only users
+        stableUid = crypto.randomUUID();
+        
         const { rows } = await query(
           `INSERT INTO users (telegram_id, email, role)
            VALUES ($1, $2, 'user')
@@ -125,14 +88,14 @@ export default async function handler(req, res) {
             [rows[0].id]
           );
         }
-        console.log(`📝 Created/updated PostgreSQL user for ${email}: uid=${stableUid}`);
+        console.log(`📝 Created PostgreSQL user for ${email}: uid=${stableUid}`);
       }
     } catch (dbErr) {
-      // Non-fatal: if DB fails, we still issue a token with Firebase UID
-      console.warn(`[verify-otp] PostgreSQL user upsert failed (non-fatal): ${dbErr.message}`);
+      console.error(`[verify-otp] PostgreSQL user upsert failed: ${dbErr.message}`);
+      return res.status(500).json({ error: 'Database error during user resolution' });
     }
 
-    // 5. Generate JWT token (matching auth-telegram.js pattern)
+    // 4. Generate JWT token
     const customToken = jwt.sign(
       {
         uid: stableUid,
@@ -142,9 +105,9 @@ export default async function handler(req, res) {
       { expiresIn: '30d' }
     );
 
-    // 6. Cleanup OTP code doc (security best practice: code is strictly single-use)
-    await otpDocRef.delete().catch((err) => {
-      console.warn('Failed to delete verified OTP doc (non-fatal):', err.message);
+    // 5. Cleanup OTP code doc
+    await query(`DELETE FROM otps WHERE email = $1`, [email]).catch((err) => {
+      console.warn('Failed to delete verified OTP:', err.message);
     });
 
     console.log(`🎉 OTP Authentication success for ${email}! Token generated with uid=${stableUid}`);

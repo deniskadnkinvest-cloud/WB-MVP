@@ -118,10 +118,10 @@ export default async function handler(req, res) {
 
     // 3. Обновляем/создаём подписку
     await client.query(
-      `INSERT INTO subscriptions (user_id, plan, credits, credits_total, status, expires_at, auto_renew, yookassa_payment_method_id)
+      `INSERT INTO subscriptions (user_id, plan_name, credits, credits_total, status, expires_at, auto_renew, yookassa_payment_method_id)
        VALUES ($1, $2, $3, $4, 'active', $5, $6, $7)
        ON CONFLICT (user_id) DO UPDATE SET
-         plan = EXCLUDED.plan,
+         plan_name = EXCLUDED.plan_name,
          credits = EXCLUDED.credits,
          credits_total = EXCLUDED.credits_total,
          status = 'active',

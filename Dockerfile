@@ -1,0 +1,30 @@
+# Build Stage: Фронтенд (Vite)
+FROM node:20-alpine AS build
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+# Production Stage: Бэкенд (Express) + статика
+FROM node:20-alpine
+WORKDIR /app
+
+# Копируем зависимости
+COPY package*.json ./
+RUN npm ci --omit=dev
+
+# Копируем исходники бэкенда
+COPY server.js .
+COPY server-autocatalog.js .
+COPY api ./api
+
+# Копируем собранный фронтенд
+COPY --from=build /app/dist ./dist
+
+# Устанавливаем переменные окружения
+ENV NODE_ENV=production
+ENV PORT=3001
+
+EXPOSE 3001
+CMD ["node", "server.js"]

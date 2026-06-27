@@ -1,20 +1,8 @@
-import { ensureFirebaseAdmin } from './_firebase-admin.js';
-import { getFirestore } from 'firebase-admin/firestore';
+import { query } from './_db.js';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 
-// Initialize Firebase Admin
-ensureFirebaseAdmin();
-
 const DEFAULT_RESEND_FROM_EMAIL = 'Seller Studio <noreply@seller-studio-ai.ru>';
-
-const buildOtpDoc = (email, code, expiresAt) => ({
-  code,
-  expiresAt,
-  email,
-  attempts: 0,
-  createdAt: new Date()
-});
 
 const classifySendError = (sendError = '') => {
   if (sendError.includes('domain is not verified')) {
@@ -103,9 +91,14 @@ export default async function handler(req, res) {
     const code = crypto.randomInt(100000, 999999).toString();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes lifetime
 
-    // 2. Prepare Firestore write. The code is saved only after a delivery channel succeeds.
-    const db = getFirestore();
-    const saveOtpCode = () => db.collection('otp_codes').doc(email).set(buildOtpDoc(email, code, expiresAt));
+    // 2. Prepare Postgres write. The code is saved only after a delivery channel succeeds.
+    const saveOtpCode = async () => {
+      await query(`
+        INSERT INTO otps (email, code, expires_at)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (email) DO UPDATE SET code = $2, expires_at = $3, created_at = NOW()
+      `, [email, code, expiresAt]);
+    };
 
     if (isLocal) {
       console.log(`✉️ [LOCAL] OTP Code generated for ${email} (expires at ${expiresAt.toISOString()})`);

@@ -105,7 +105,7 @@ export default async function handler(req, res) {
 
     // 3. Обеспечиваем наличие записи подписки (если ещё нет)
     await query(
-      `INSERT INTO subscriptions (user_id, plan, credits, credits_total, status)
+      `INSERT INTO subscriptions (user_id, plan_name, credits, credits_total, status)
        VALUES ($1, 'none', 0, 0, 'inactive')
        ON CONFLICT (user_id) DO NOTHING`,
       [user.id]

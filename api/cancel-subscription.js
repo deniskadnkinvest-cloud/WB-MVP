@@ -1,13 +1,19 @@
-// POST /api/cancel-subscription
-// Отключает автопродление подписки пользователя в Firestore.
-
-import { ensureFirebaseAdmin } from './_firebase-admin.js';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
+import { query } from './_db.js';
 import { alertOnError } from './_admin-alerts.js';
+import jwt from 'jsonwebtoken';
 
-ensureFirebaseAdmin();
-const db = getFirestore();
+const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
+
+function verifyToken(req) {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) return null;
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch {
+    return null;
+  }
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -26,29 +32,30 @@ export default async function handler(req, res) {
   }
 
   try {
-    const authHeader = req.headers.authorization || '';
-    const idToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
-
-    if (!idToken) {
-      return res.status(401).json({ ok: false, error: 'Authorization token is required' });
-    }
-
-    const decoded = await getAuth().verifyIdToken(idToken);
-    if (decoded.uid !== uid) {
+    const decoded = verifyToken(req);
+    if (!decoded || decoded.uid !== uid) {
       return res.status(403).json({ ok: false, error: 'Forbidden' });
     }
 
-    const ref = db.doc(`users/${uid}/subscription/current`);
-    const doc = await ref.get();
-
-    if (!doc.exists) {
-      return res.status(404).json({ ok: false, error: 'Subscription not found' });
+    // Resolve user
+    const userRes = await query(`SELECT id FROM users WHERE telegram_id = $1 LIMIT 1`, [uid]);
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ ok: false, error: 'User not found' });
     }
 
-    await ref.update({
-      autoRenew: false,
-      yookassaPaymentMethodId: FieldValue.delete(),
-    });
+    const userId = userRes.rows[0].id;
+
+    // Update subscription
+    const updateRes = await query(`
+      UPDATE subscriptions 
+      SET auto_renew = false, yookassa_payment_method_id = NULL 
+      WHERE user_id = $1 
+      RETURNING id
+    `, [userId]);
+
+    if (updateRes.rows.length === 0) {
+      return res.status(404).json({ ok: false, error: 'Subscription not found' });
+    }
 
     console.log(`[Subscription] Auto-renew disabled for user ${uid}`);
     return res.status(200).json({ ok: true });

@@ -1,8 +1,4 @@
-import { ensureFirebaseAdmin } from './_firebase-admin.js';
-import { getFirestore } from 'firebase-admin/firestore';
-
-// Initialize Firebase Admin
-ensureFirebaseAdmin();
+import { query } from './_db.js';
 
 export default async function handler(req, res) {
   // CORS headers
@@ -26,12 +22,14 @@ export default async function handler(req, res) {
     }
 
     const now = new Date();
-    const db = getFirestore();
-    await db.collection('temp_auth_sessions').doc(sessionId).set({
-      status: 'pending',
-      createdAt: now,
-      expiresAt: new Date(now.getTime() + 10 * 60 * 1000),
-    });
+    const expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
+
+    await query(
+      `INSERT INTO temp_auth_sessions (id, status, created_at, expires_at)
+       VALUES ($1, 'pending', $2, $3)
+       ON CONFLICT (id) DO UPDATE SET status = 'pending', expires_at = $3`,
+      [sessionId, now, expiresAt]
+    );
 
     return res.status(200).json({ success: true });
   } catch (error) {

@@ -1,66 +1,49 @@
-
 import { alertOnError } from './_admin-alerts.js';
-import { ensureFirebaseAdmin } from './_firebase-admin.js';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { getAuth } from 'firebase-admin/auth';
+import { query } from './_db.js';
 
-ensureFirebaseAdmin();
-const _db = getFirestore();
-
-// Атомарно инкрементирует глобальный счётчик в Firestore
+// Атомарно инкрементирует глобальный счётчик в PostgreSQL
 async function incrementGlobalCounter(field) {
   try {
-    const today = new Date().toISOString().slice(0, 10); // "2026-06-04"
-    await _db.doc('_stats/global').set({
-      [field]: FieldValue.increment(1),
-    }, { merge: true });
-    await _db.doc(`_stats/daily/${today}/counts`).set({
-      [field]: FieldValue.increment(1),
-    }, { merge: true });
+    const today = new Date().toISOString().slice(0, 10);
+    // Global stats
+    await query(`
+      INSERT INTO stats_kv (key, value) VALUES ($1, 1)
+      ON CONFLICT (key) DO UPDATE SET value = stats_kv.value + 1
+    `, [field]);
+    // Daily stats
+    await query(`
+      INSERT INTO daily_stats (date, key, value) VALUES ($1, $2, 1)
+      ON CONFLICT (date, key) DO UPDATE SET value = daily_stats.value + 1
+    `, [today, field]);
   } catch (e) {
-    // Не ломаем основной флоу — тихо пишем в лог
     console.warn('[stats counter] Failed:', e.message);
   }
 }
 
-// Записывает подробный лог генерации в Firestore
+// Записывает подробный лог генерации в PostgreSQL
 async function saveGenerationLog({ userId, success, imageUrl, error, reqBody, durationMs }) {
   try {
     const generationId = `gen_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const now = new Date().toISOString();
+    const type = reqBody?.isUgcMode ? 'ugc' : reqBody?.isModelCard ? 'model' : reqBody?.isQuickCard ? 'quick' : reqBody?.isProductMode ? 'product' : reqBody?.isCalibration ? 'calibration' : reqBody?.isCardDesign ? 'product' : 'fashion';
+    const garmentUrls = reqBody?.garmentImageUrls || [];
+    const attributes = reqBody?.attributes || null;
     
-    const docData = {
-      id: generationId,
-      userId: userId || 'anonymous',
-      success,
-      createdAt: now,
-      durationMs,
-      type: reqBody?.isUgcMode ? 'ugc' : reqBody?.isModelCard ? 'model' : reqBody?.isQuickCard ? 'quick' : reqBody?.isProductMode ? 'product' : reqBody?.isCalibration ? 'calibration' : reqBody?.isCardDesign ? 'product' : 'fashion',
-      aspectRatio: reqBody?.aspectRatio || '3:4',
-      garmentUrls: reqBody?.garmentImageUrls || [],
-      modelPreset: reqBody?.modelPreset || '',
-      posePreset: reqBody?.posePreset || '',
-      backgroundPreset: reqBody?.backgroundPreset || '',
-      // Расширенные метаданные для панели деталей в «Мои работы»
-      cameraAngle: reqBody?.cameraAngle || '',
-      categoryId: reqBody?.categoryId || '',
-      withHumanModel: reqBody?.withHumanModel || false,
-      isCardDesign: reqBody?.isCardDesign || false,
-      cardStyle: reqBody?.quickCardStyle || reqBody?.cardStyle || '',
-      isBeautyMode: reqBody?.isBeautyMode || false,
-      isPhotoEdit: reqBody?.isPhotoEdit || false,
-      editInstruction: reqBody?.editInstruction || '',
-      customPoseText: reqBody?.customPoseText || '',
-      attributes: reqBody?.attributes || null,
-      // Quick mode metadata
-      userProductInfo: reqBody?.userProductInfo || '',
-      quickPromptName: reqBody?.quickPromptName || '',
-    };
-    
-    if (imageUrl) docData.imageUrl = imageUrl;
-    if (error) docData.error = error;
-    
-    await _db.collection('generations').doc(generationId).set(docData);
+    await query(`
+      INSERT INTO generations (
+        id, user_id, success, duration_ms, type, aspect_ratio, garment_urls, model_preset, pose_preset, background_preset,
+        camera_angle, category_id, with_human_model, is_card_design, card_style, is_beauty_mode, is_photo_edit, edit_instruction,
+        custom_pose_text, attributes, user_product_info, quick_prompt_name, image_url, error
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
+      )
+    `, [
+      generationId, userId || 'anonymous', success, durationMs || 0, type, reqBody?.aspectRatio || '3:4',
+      JSON.stringify(garmentUrls), reqBody?.modelPreset || '', reqBody?.posePreset || '', reqBody?.backgroundPreset || '',
+      reqBody?.cameraAngle || '', reqBody?.categoryId || '', reqBody?.withHumanModel || false, reqBody?.isCardDesign || false,
+      reqBody?.quickCardStyle || reqBody?.cardStyle || '', reqBody?.isBeautyMode || false, reqBody?.isPhotoEdit || false,
+      reqBody?.editInstruction || '', reqBody?.customPoseText || '', attributes ? JSON.stringify(attributes) : null, reqBody?.userProductInfo || '',
+      reqBody?.quickPromptName || '', imageUrl || null, error || null
+    ]);
     console.log(`📊 [stats] Logged generation ${generationId} for user ${userId || 'anonymous'} (${success ? 'success' : 'failed'})`);
   } catch (e) {
     console.warn('[stats log] Failed to write generation log:', e.message);

@@ -6,17 +6,23 @@ import { inngest } from './api/_inngest/client.js';
 import { functions } from './api/_inngest/functions.js';
 
 import generateImageHandler from './api/generate-image.js';
-import verifyPanxTokenHandler from './api/_verify-panx-token.js';
 import createPaymentHandler from './api/create-payment.js';
 import paymentWebhookYookassaHandler from './api/payment-webhook-yookassa.js';
-import paymentWebhookHandler from './api/payment-webhook.js';
 import cancelSubscriptionHandler from './api/cancel-subscription.js';
+import subscriptionHandler from './api/subscription.js';
+import consumeCreditHandler from './api/consume-credit.js';
 import adminHandler from './api/admin.js';
 import sendOtpHandler from './api/send-otp.js';
 import verifyOtpHandler from './api/verify-otp.js';
-import createTgSessionHandler from './api/create-tg-session.js';
-import completeTgAuthHandler from './api/complete-tg-auth.js';
+import createTgSessionHandler from './api/_create-tg-session.js';
+import completeTgAuthHandler from './api/_complete-tg-auth.js';
 
+
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
@@ -25,12 +31,11 @@ app.use(express.json({ limit: '50mb' }));
 // Inngest Dev Server Bridge
 app.use('/api/inngest', serve({ client: inngest, functions }));
 
+// Раздача статики (React-фронтенд)
+app.use(express.static(path.join(__dirname, 'dist')));
+
 app.post('/api/generate-image', async (req, res) => {
   return generateImageHandler(req, res);
-});
-
-app.post('/api/verify-panx-token', async (req, res) => {
-  return verifyPanxTokenHandler(req, res);
 });
 
 app.post('/api/create-payment', async (req, res) => {
@@ -41,12 +46,21 @@ app.post('/api/cancel-subscription', async (req, res) => {
   return cancelSubscriptionHandler(req, res);
 });
 
-app.post('/api/payment-webhook-yookassa', async (req, res) => {
-  return paymentWebhookYookassaHandler(req, res);
+// ═══ ПОДПИСКИ (PostgreSQL — источник истины) ═══
+app.get('/api/subscription', async (req, res) => {
+  return subscriptionHandler(req, res);
 });
 
-app.post('/api/payment-webhook', async (req, res) => {
-  return paymentWebhookHandler(req, res);
+app.post('/api/subscription', async (req, res) => {
+  return subscriptionHandler(req, res);
+});
+
+app.post('/api/consume-credit', async (req, res) => {
+  return consumeCreditHandler(req, res);
+});
+
+app.post('/api/payment-webhook-yookassa', async (req, res) => {
+  return paymentWebhookYookassaHandler(req, res);
 });
 
 app.post('/api/send-otp', async (req, res) => {
@@ -69,7 +83,13 @@ app.all(/^\/api\/admin(.*)/, async (req, res) => {
   return adminHandler(req, res);
 });
 
-const PORT = 3001;
+// React SPA fallback
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api')) return next();
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🔥 PAN.X VTON Backend (KIE.ai) → http://localhost:${PORT}`);
   console.log(`   Inngest Endpoint: http://localhost:${PORT}/api/inngest`);

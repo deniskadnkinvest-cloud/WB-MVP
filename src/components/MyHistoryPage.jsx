@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { auth } from '../lib/firebase';
+import { useAuth } from '../contexts/AuthContext';
 import {
   MODEL_PRESETS, POSE_PRESETS, BACKGROUND_PRESETS,
   CAMERA_ANGLES, ASPECT_RATIOS, PRODUCT_CATEGORIES,
@@ -81,6 +81,7 @@ async function downloadImage(url, filename) {
 }
 
 export default function MyHistoryPage({ onClose, onReuseSettings }) {
+  const { user } = useAuth();
   const [generations, setGenerations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -93,7 +94,6 @@ export default function MyHistoryPage({ onClose, onReuseSettings }) {
     setLoading(true);
     setError(null);
     try {
-      const user = auth.currentUser;
       if (!user) throw new Error('Не авторизован');
       const token = await user.getIdToken();
       const url = typeFilter && typeFilter !== 'all'
@@ -110,7 +110,7 @@ export default function MyHistoryPage({ onClose, onReuseSettings }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     loadHistory(filter === 'all' ? null : filter);

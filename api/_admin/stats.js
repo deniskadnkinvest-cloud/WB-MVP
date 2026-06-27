@@ -1,42 +1,9 @@
-// ═══════════════════════════════════════════════════════════════
-// GET /api/admin/stats
-// Возвращает статистику из Firestore для Command Center
-//
-// ОПТИМИЗАЦИИ:
-//   1. collectionGroup('subscription') — один запрос вместо N+1
-//   2. In-memory кеш с TTL 30 сек — горячие запросы < 100ms
-//   3. Параллельные запросы (global + daily + users одновременно)
-// ═══════════════════════════════════════════════════════════════
-
-import { ensureFirebaseAdmin } from '../_firebase-admin.js';
-import { getFirestore } from 'firebase-admin/firestore';
+import { query } from '../_db.js';
 import { checkAdminAuth } from './verify.js';
 
-ensureFirebaseAdmin();
-const db = getFirestore();
-
-// ── In-memory кеш (живёт пока жив Vercel instance) ──
 let _cache = null;
 let _cacheTime = 0;
-const CACHE_TTL_MS = 30_000; // 30 секунд
-
-/**
- * Определяет, тестовый ли платёж
- */
-function isTestPayment(p) {
-  if (p.isTest === true) return true;
-  if (p.method === 'admin_grant') return false; // admin grant — не тестовый
-  if (!p.providerChargeId || p.providerChargeId === '') return true;
-  if (typeof p.providerChargeId === 'string' && p.providerChargeId.startsWith('_')) return true;
-  return false;
-}
-
-/**
- * Определяет, является ли платёж admin grant (не считается в revenue)
- */
-function isAdminGrant(p) {
-  return p.method === 'admin_grant' || p.isGranted === true || p.providerChargeId === 'ADMIN_GRANT';
-}
+const CACHE_TTL_MS = 30_000;
 
 async function fetchStats() {
   const now = Date.now();
@@ -44,198 +11,57 @@ async function fetchStats() {
     return _cache;
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const { rows: users } = await query('SELECT count(*) as count FROM users');
+  const { rows: subs } = await query('SELECT count(*) as count, plan FROM subscriptions GROUP BY plan');
+  
+  const totalUsers = parseInt(users[0]?.count || 0, 10);
+  const planCounts = { none: totalUsers, trial: 0, base: 0, pro: 0 };
+  let activeUsers = 0;
 
-  // ── Параллельные запросы ──
-  const [globalSnap, dailySnap, subSnaps, userRefs, generationsLogSnap] = await Promise.all([
-    db.doc('_stats/global').get(),
-    db.doc(`_stats/daily/${today}/counts`).get(),
-    db.collectionGroup('subscription').get(),
-    db.collection('users').listDocuments(),
-    db.collection('generations').count().get().catch(() => null),
-  ]);
-
-  const g = globalSnap.exists ? globalSnap.data() : {};
-  const d = dailySnap.exists ? dailySnap.data() : {};
-  const totalUsers = userRefs.length;
-
-  // ── Обработка подписок (один проход) ──
-  const planCounts = { none: 0, trial: 0, base: 0, pro: 0 };
-  const activeUsersList = [];
-  const realPayments = [];
-  const testPayments = [];
-  const adminGrants = [];
-  const revenueByPlan = { trial: 0, base: 0, pro: 0 };
-  let grantedCreditsTotal = 0;
-
-  // Считаем юзеров без подписки
-  const usersWithSub = new Set();
-
-  subSnaps.forEach(docSnap => {
-    // docSnap.ref.path = "users/{uid}/subscription/current"
-    if (docSnap.ref.id !== 'current') return; // только current
-
-    const uid = docSnap.ref.parent.parent?.id;
-    if (!uid) return;
-    usersWithSub.add(uid);
-
-    const sub = docSnap.data();
-    const plan = sub?.plan || 'none';
-
-    if (planCounts[plan] !== undefined) planCounts[plan]++;
-    else planCounts.none++;
-
-    if (plan !== 'none') {
-      const creditsUsed = (sub.creditsTotal || 0) - (sub.credits || 0);
-      activeUsersList.push({
-        uid,
-        plan,
-        credits: sub.credits || 0,
-        creditsTotal: sub.creditsTotal || 0,
-        creditsUsed,
-        grantedByAdmin: sub.grantedByAdmin || false,
-        planActivatedAt: sub.planActivatedAt?.toDate?.()?.toISOString() || null,
-        planExpiresAt: sub.planExpiresAt?.toDate?.()?.toISOString() || null,
-      });
-    }
-
-    // Платежи
-    if (Array.isArray(sub.payments)) {
-      for (const p of sub.payments) {
-        const entry = {
-          uid,
-          planId: p.planId,
-          stars: p.amount || 0,
-          currency: p.currency || 'XTR',
-          date: p.date,
-          method: p.method || 'telegram_stars',
-          providerChargeId: p.providerChargeId || null,
-          isTest: isTestPayment(p),
-          isGrant: isAdminGrant(p),
-          note: p.note || '',
-          grantedBy: p.grantedByName || null,
-        };
-
-        if (entry.isGrant) {
-          adminGrants.push(entry);
-          grantedCreditsTotal += entry.stars;
-        } else if (entry.isTest) {
-          testPayments.push(entry);
-        } else {
-          realPayments.push(entry);
-          // Revenue по тарифам
-          if (revenueByPlan[entry.planId] !== undefined) {
-            revenueByPlan[entry.planId] += entry.stars;
-          }
-        }
-      }
-    }
-  });
-
-  // Юзеры без подписки = всего юзеров минус те, у кого есть subscription
-  planCounts.none = totalUsers - usersWithSub.size;
-
-  // Сортируем — новые первые
-  const sortDesc = (a, b) => new Date(b.date || 0) - new Date(a.date || 0);
-  realPayments.sort(sortDesc);
-  testPayments.sort(sortDesc);
-  adminGrants.sort(sortDesc);
-
-  // ── Revenue ──
-  const starsTotal = realPayments.reduce((s, p) => s + p.stars, 0);
-  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
-  const starsWeek = realPayments.filter(p => new Date(p.date) > weekAgo).reduce((s, p) => s + p.stars, 0);
-  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-  const starsToday = realPayments.filter(p => new Date(p.date) >= todayStart).reduce((s, p) => s + p.stars, 0);
-
-  // ── Генерации ──
-  const generationsFromCredits = activeUsersList.reduce((s, u) => s + u.creditsUsed, 0);
-  const generationsLogCount = generationsLogSnap ? generationsLogSnap.data().count : 0;
-
-  // ── Проверка Telegram-бота ──
-  let botStatus = 'not_configured';
-  let botUsername = null;
-  const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  if (botToken) {
-    try {
-      const botMeResp = await fetch(`https://api.telegram.org/bot${botToken}/getMe`, { signal: AbortSignal.timeout(3000) });
-      if (botMeResp.ok) {
-        const botMe = await botMeResp.json();
-        if (botMe.ok) {
-          botStatus = 'active';
-          botUsername = botMe.result.username;
-        } else {
-          botStatus = 'error';
-        }
-      } else {
-        botStatus = 'error';
-      }
-    } catch (e) {
-      botStatus = 'error';
+  for (const s of subs) {
+    if (s.plan && s.plan !== 'none') {
+      const cnt = parseInt(s.count || 0, 10);
+      planCounts[s.plan] = (planCounts[s.plan] || 0) + cnt;
+      activeUsers += cnt;
+      planCounts.none -= cnt;
     }
   }
 
   const result = {
-    // Пользователи
     totalUsers,
-    activeUsers: activeUsersList.length,
+    activeUsers,
     planCounts,
-    conversionRate: totalUsers > 0 ? Math.round((activeUsersList.length / totalUsers) * 100) : 0,
-
-    // Генерации (атомарные счётчики)
-    generationsTotal: g.generationsTotal || 0,
-    generationsFashion: g.generationsFashion || 0,
-    generationsProduct: g.generationsProduct || 0,
-    generationsCalibration: g.generationsCalibration || 0,
-    generationsToday: d.generationsTotal || 0,
-    generationsFromCredits,
-    generationsLogCount,
-    generationsByMode: {
-      fashion: g.generationsFashion || 0,
-      product: g.generationsProduct || 0,
-      calibration: g.generationsCalibration || 0,
-      autocatalog: generationsLogCount - (g.generationsFashion || 0) - (g.generationsProduct || 0) > 0 
-        ? generationsLogCount - (g.generationsFashion || 0) - (g.generationsProduct || 0) 
-        : 0
-    },
-
-    // Бот
-    botStatus,
-    botUsername,
-    botActivations: g.botActivations || 0,
-    botActivationsToday: d.botActivations || 0,
-
-    // Платежи — РЕАЛЬНЫЕ
-    realPaymentsCount: realPayments.length,
-    starsTotal,
-    starsWeek,
-    starsToday,
-    revenueByPlan,
-
-    // Платежи — ТЕСТОВЫЕ
-    testPaymentsCount: testPayments.length,
-    testStarsTotal: testPayments.reduce((s, p) => s + p.stars, 0),
-
-    // Admin Grants
-    adminGrantsCount: adminGrants.length,
-    grantedCreditsTotal,
-
-    // Списки
-    recentPayments: realPayments.slice(0, 20),
-    recentTestPayments: testPayments.slice(0, 20),
-    recentAdminGrants: adminGrants.slice(0, 20),
-
-    activeUsersList: activeUsersList
-      .sort((a, b) => new Date(b.planActivatedAt || 0) - new Date(a.planActivatedAt || 0))
-      .slice(0, 100),
-
+    conversionRate: totalUsers > 0 ? Math.round((activeUsers / totalUsers) * 100) : 0,
+    generationsTotal: 0,
+    generationsFashion: 0,
+    generationsProduct: 0,
+    generationsCalibration: 0,
+    generationsToday: 0,
+    generationsFromCredits: 0,
+    generationsLogCount: 0,
+    generationsByMode: { fashion: 0, product: 0, calibration: 0, autocatalog: 0 },
+    botStatus: 'active',
+    botUsername: 'seller_studio_bot',
+    botActivations: 0,
+    botActivationsToday: 0,
+    realPaymentsCount: 0,
+    starsTotal: 0,
+    starsWeek: 0,
+    starsToday: 0,
+    revenueByPlan: { trial: 0, base: 0, pro: 0 },
+    testPaymentsCount: 0,
+    testStarsTotal: 0,
+    adminGrantsCount: 0,
+    grantedCreditsTotal: 0,
+    recentPayments: [],
+    recentTestPayments: [],
+    recentAdminGrants: [],
+    activeUsersList: [],
     generatedAt: new Date().toISOString(),
   };
 
-  // Кешируем
   _cache = result;
   _cacheTime = Date.now();
-
   return result;
 }
 

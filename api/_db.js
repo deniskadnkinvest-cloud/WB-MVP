@@ -15,7 +15,7 @@ const { Pool } = pg;
 const pool = new Pool({
   connectionString:
     process.env.DATABASE_URL ||
-    'postgresql://vton_user:VtonStrongPass2026!@186.246.29.31:5432/vton_mvp',
+    'postgresql://vton_user:VtonStrongPass2026!@10.8.0.1:5432/vton_mvp',
   ssl: false,
   max: 5,
   idleTimeoutMillis: 30_000,  // Закрываем idle-соединение через 30 сек

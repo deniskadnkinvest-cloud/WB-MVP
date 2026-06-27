@@ -1,0 +1,23 @@
+services:
+  vton-mvp:
+    build: .
+    container_name: vton-mvp
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DATABASE_URL=postgresql://vton_user:VtonStrongPass2026!@10.8.0.1:5432/vton_mvp
+    env_file:
+      - .env
+    networks:
+      - traefik-public
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vton-mvp.rule=Host(`seller-studio-ai.ru`)"
+      - "traefik.http.routers.vton-mvp.entrypoints=websecure"
+      - "traefik.http.routers.vton-mvp.tls.certresolver=letsencrypt"
+      - "traefik.http.services.vton-mvp.loadbalancer.server.port=3001"
+
+networks:
+  traefik-public:
+    external: true
