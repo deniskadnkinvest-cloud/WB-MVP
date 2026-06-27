@@ -17,9 +17,11 @@ const pool = new Pool({
     process.env.DATABASE_URL ||
     'postgresql://vton_user:VtonStrongPass2026!@10.8.0.1:5432/vton_mvp',
   ssl: false,
-  max: 5,
+  max: 10,
   idleTimeoutMillis: 30_000,  // Закрываем idle-соединение через 30 сек
-  connectionTimeoutMillis: 5_000, // Таймаут подключения 5 сек
+  connectionTimeoutMillis: 10_000, // Увеличил таймаут до 10 сек
+  keepAlive: true, // Включаем TCP Keep-Alive
+  keepAliveInitialDelayMillis: 10000, // Пингуем каждые 10 сек
 });
 
 // Логируем ошибки пула (чтобы не умирал молча)
