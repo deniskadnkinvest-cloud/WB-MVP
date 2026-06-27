@@ -16,6 +16,9 @@ import sendOtpHandler from './api/send-otp.js';
 import verifyOtpHandler from './api/verify-otp.js';
 import createTgSessionHandler from './api/_create-tg-session.js';
 import completeTgAuthHandler from './api/_complete-tg-auth.js';
+import authTelegramHandler from './api/auth-telegram.js';
+import uploadHandler from './api/upload.js';
+import userDataHandler from './api/user-data.js';
 
 
 import path from 'path';
@@ -78,6 +81,35 @@ app.post('/api/create-tg-session', async (req, res) => {
 app.post('/api/complete-tg-auth', async (req, res) => {
   return completeTgAuthHandler(req, res);
 });
+
+app.post('/api/auth-telegram', async (req, res) => {
+  return authTelegramHandler(req, res);
+});
+
+app.post('/api/upload', async (req, res) => {
+  return uploadHandler(req, res);
+});
+
+app.delete('/api/upload', async (req, res) => {
+  return uploadHandler(req, res);
+});
+
+app.get('/api/upload', async (req, res) => {
+  return uploadHandler(req, res);
+});
+
+app.get('/api/user-data', async (req, res) => {
+  return userDataHandler(req, res);
+});
+
+app.post('/api/user-data', async (req, res) => {
+  return userDataHandler(req, res);
+});
+
+app.delete('/api/user-data', async (req, res) => {
+  return userDataHandler(req, res);
+});
+
 // Dynamic Admin API Routing using unified router matching all paths starting with /api/admin
 app.all(/^\/api\/admin(.*)/, async (req, res) => {
   return adminHandler(req, res);
