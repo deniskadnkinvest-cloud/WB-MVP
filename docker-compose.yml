@@ -13,10 +13,18 @@ services:
       - traefik_traefik
     labels:
       - "traefik.enable=true"
+      # HTTPS роутер (основной)
       - "traefik.http.routers.vton-mvp.rule=Host(`seller-studio-ai.ru`)"
       - "traefik.http.routers.vton-mvp.entrypoints=websecure"
+      - "traefik.http.routers.vton-mvp.tls=true"
       - "traefik.http.routers.vton-mvp.tls.certresolver=letsencrypt"
       - "traefik.http.services.vton-mvp.loadbalancer.server.port=3001"
+      # HTTP роутер (редирект на HTTPS)
+      - "traefik.http.routers.vton-mvp-http.rule=Host(`seller-studio-ai.ru`)"
+      - "traefik.http.routers.vton-mvp-http.entrypoints=web"
+      - "traefik.http.routers.vton-mvp-http.middlewares=https-redirect"
+      - "traefik.http.middlewares.https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.https-redirect.redirectscheme.permanent=true"
 
 networks:
   traefik_traefik:
