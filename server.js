@@ -30,6 +30,18 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(cors());
 
+// Global Request Logger
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/')) {
+    const start = Date.now();
+    console.log(`[REQ] ${req.method} ${req.url}`);
+    res.on('finish', () => {
+      console.log(`[RES] ${req.method} ${req.url} - ${res.statusCode} (${Date.now() - start}ms)`);
+    });
+  }
+  next();
+});
+
 // Универсальный парсер тела запроса.
 // express.raw() читает тело как Buffer для любого Content-Type,
 // затем вручную парсим JSON. Это необходимо потому что Telegram initData
@@ -58,6 +70,15 @@ app.use('/api/inngest', serve({ client: inngest, functions }));
 
 // Раздача статики (React-фронтенд)
 app.use(express.static(path.join(__dirname, 'dist')));
+
+app.get('/api/auth-ping', (req, res) => {
+  res.json({ ok: true });
+});
+
+import { getPoolStats } from './api/_db.js';
+app.get('/api/pool-stats', (req, res) => {
+  res.json(getPoolStats());
+});
 
 app.post('/api/generate-image', async (req, res) => {
   return generateImageHandler(req, res);
@@ -140,7 +161,22 @@ app.all(/^\/api\/admin(.*)/, async (req, res) => {
 // React SPA fallback
 app.use((req, res, next) => {
   if (req.path.startsWith('/api')) return next();
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
+// Глобальный перехватчик ошибок
+app.use((err, req, res, next) => {
+  console.error(`[Global Error] ${req.method} ${req.url}:`, err.message);
+  
+  const msg = String(err.message || '').toLowerCase();
+  if (msg.includes('connection') || msg.includes('timeout') || msg.includes('terminat')) {
+    return res.status(503).json({ error: 'Сервис временно недоступен. Повторите попытку.' });
+  }
+  
+  res.status(500).json({ error: 'Внутренняя ошибка сервера.' });
 });
 
 const PORT = process.env.PORT || 3001;
