@@ -14,7 +14,7 @@ import PricingModal from './components/PricingModal';
 import SubscriptionBadge from './components/SubscriptionBadge';
 import MyHistoryPage from './components/MyHistoryPage';
 import { useAuth } from './contexts/AuthContext';
-import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt, patchLocation } from './lib/firestoreService';
+import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt, patchLocation } from './lib/userDataService';
 import { uploadBase64Image, compressImage, uploadImage, deleteImage, downloadStoragePathAsBase64 } from './lib/storageService';
 import { getSubscription, checkFeature, canGenerate, activatePlan } from './lib/subscriptionService';
 // CardLayerStudio removed — replaced by text-based card editing
