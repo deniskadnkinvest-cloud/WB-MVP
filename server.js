@@ -108,6 +108,9 @@ app.post('/api/consume-credit', async (req, res) => {
 app.post('/api/payment-webhook-yookassa', async (req, res) => {
   return paymentWebhookYookassaHandler(req, res);
 });
+app.post('/api/payment-webhook', async (req, res) => {
+  return paymentWebhookYookassaHandler(req, res);
+});
 
 app.post('/api/send-otp', async (req, res) => {
   return sendOtpHandler(req, res);
