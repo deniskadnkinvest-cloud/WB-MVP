@@ -4,6 +4,11 @@ import crypto from 'crypto';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
 
+function uidForToken(dbTelegramId) {
+  const value = String(dbTelegramId || '');
+  return /^\d+$/.test(value) ? `tg_${value}` : value;
+}
+
 export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -65,7 +70,7 @@ export default async function handler(req, res) {
       );
       if (existingUser.rows.length > 0 && existingUser.rows[0].telegram_id) {
         // User already exists in DB
-        stableUid = existingUser.rows[0].telegram_id;
+        stableUid = uidForToken(existingUser.rows[0].telegram_id);
         console.log(`🔗 Linked email ${email} to existing user: uid=${stableUid}`);
       } else {
         // Generate a new stable UUID for email-only users

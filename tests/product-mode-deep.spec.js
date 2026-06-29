@@ -243,9 +243,9 @@ test.describe('📦 Product Mode — Deep Chaos QA Level 3', () => {
     
     await page.screenshot({ path: `${SCREENSHOT_DIR}/12_after_chaos.png`, fullPage: true });
     
-    // Фильтруем шумные ошибки (Firebase auth в тестовом окружении)
+    // Фильтруем шумные ошибки тестового окружения
     const realErrors = consoleErrors.filter(e => 
-      !e.includes('Firebase') && !e.includes('auth') && !e.includes('favicon') && !e.includes('net::ERR')
+      !e.includes('auth') && !e.includes('favicon') && !e.includes('net::ERR')
     );
     
     console.log(`Всего ошибок консоли: ${consoleErrors.length}, реальных: ${realErrors.length}`);

@@ -1,5 +1,5 @@
-// src/lib/firestoreService.js
-// Замена Firestore SDK — все операции через PostgreSQL API
+// src/lib/userDataService.js
+// User data operations through the PostgreSQL API.
 // Все функции сохраняют оригинальные сигнатуры и типы возвращаемых данных
 
 import { apiFetch } from './api';
@@ -18,7 +18,7 @@ export const getUserGenerations = async (uid, maxResults = 50) => {
   const params = new URLSearchParams({ type: 'generations', uid, limit: String(maxResults) });
   const res = await apiFetch(`/api/user-data?${params}`);
   if (!res.ok) {
-    console.error('[firestoreService] Ошибка получения генераций:', res.status);
+    console.error('[userDataService] Ошибка получения генераций:', res.status);
     return [];
   }
   const json = await res.json();
@@ -56,7 +56,7 @@ export const getModels = async (uid) => {
   const params = new URLSearchParams({ type: 'models', uid });
   const res = await apiFetch(`/api/user-data?${params}`);
   if (!res.ok) {
-    console.error('[firestoreService] Ошибка получения моделей:', res.status);
+    console.error('[userDataService] Ошибка получения моделей:', res.status);
     return [];
   }
   const json = await res.json();
@@ -125,7 +125,7 @@ export const getLocations = async (uid) => {
   const params = new URLSearchParams({ type: 'locations', uid });
   const res = await apiFetch(`/api/user-data?${params}`);
   if (!res.ok) {
-    console.error('[firestoreService] Ошибка получения локаций:', res.status);
+    console.error('[userDataService] Ошибка получения локаций:', res.status);
     return [];
   }
   const json = await res.json();

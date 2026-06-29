@@ -1,9 +1,9 @@
-// ═══════════════════════════════════════════════════════════════
+﻿// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 // POST /api/create-payment
-// Создаёт платеж в ЮKassa для покупки тарифа
+// РЎРѕР·РґР°С‘С‚ РїР»Р°С‚РµР¶ РІ Р®Kassa РґР»СЏ РїРѕРєСѓРїРєРё С‚Р°СЂРёС„Р°
 // Body: { planId: 'trial' | 'base' | 'pro', uid: string, email?: string }
 // Returns: { ok: true, invoiceLink: string } (confirmation_url)
-// ═══════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
@@ -11,31 +11,31 @@ import { alertOnError } from './_admin-alerts.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
 
-// Цены тарифов в рублях (согласно финансовому плану)
+// Р¦РµРЅС‹ С‚Р°СЂРёС„РѕРІ РІ СЂСѓР±Р»СЏС… (СЃРѕРіР»Р°СЃРЅРѕ С„РёРЅР°РЅСЃРѕРІРѕРјСѓ РїР»Р°РЅСѓ)
 const PLAN_CONFIG = {
   trial: {
-    title: '🎯 Селлер-Студия: Тариф «Старт» — 25 кадров',
-    description: 'Полный доступ к генерации на 25 кадров.',
+    title: 'рџЋЇ РЎРµР»Р»РµСЂ-РЎС‚СѓРґРёСЏ: РўР°СЂРёС„ В«РЎС‚Р°СЂС‚В» вЂ” 25 РєР°РґСЂРѕРІ',
+    description: 'РџРѕР»РЅС‹Р№ РґРѕСЃС‚СѓРї Рє РіРµРЅРµСЂР°С†РёРё РЅР° 25 РєР°РґСЂРѕРІ.',
     payload: 'plan_trial',
     priceRub: 500,
   },
   base: {
-    title: '⚡ Селлер-Студия: Тариф «Про» — 100 кадров/мес',
-    description: '100 кадров в месяц, свои локации, сохранение моделей.',
+    title: 'вљЎ РЎРµР»Р»РµСЂ-РЎС‚СѓРґРёСЏ: РўР°СЂРёС„ В«РџСЂРѕВ» вЂ” 100 РєР°РґСЂРѕРІ/РјРµСЃ',
+    description: '100 РєР°РґСЂРѕРІ РІ РјРµСЃСЏС†, СЃРІРѕРё Р»РѕРєР°С†РёРё, СЃРѕС…СЂР°РЅРµРЅРёРµ РјРѕРґРµР»РµР№.',
     payload: 'plan_base',
     priceRub: 5000,
   },
   pro: {
-    title: '🚀 Селлер-Студия: Тариф «Бизнес» — Безлимит/мес',
-    description: 'Безлимит генераций (до 1000 кадров/мес), полный доступ.',
+    title: 'рџљЂ РЎРµР»Р»РµСЂ-РЎС‚СѓРґРёСЏ: РўР°СЂРёС„ В«Р‘РёР·РЅРµСЃВ» вЂ” Р‘РµР·Р»РёРјРёС‚/РјРµСЃ',
+    description: 'Р‘РµР·Р»РёРјРёС‚ РіРµРЅРµСЂР°С†РёР№ (РґРѕ 1000 РєР°РґСЂРѕРІ/РјРµСЃ), РїРѕР»РЅС‹Р№ РґРѕСЃС‚СѓРї.',
     payload: 'plan_pro',
     priceRub: 14990,
   },
 };
 
 export default async function handler(req, res) {
-  // Читаем env-переменные внутри handler (не на уровне модуля),
-  // чтобы гарантировать загрузку после dotenv.config() в server.js
+  // Р§РёС‚Р°РµРј env-РїРµСЂРµРјРµРЅРЅС‹Рµ РІРЅСѓС‚СЂРё handler (РЅРµ РЅР° СѓСЂРѕРІРЅРµ РјРѕРґСѓР»СЏ),
+  // С‡С‚РѕР±С‹ РіР°СЂР°РЅС‚РёСЂРѕРІР°С‚СЊ Р·Р°РіСЂСѓР·РєСѓ РїРѕСЃР»Рµ dotenv.config() РІ server.js
   const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID;
   const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY;
   const VITE_APP_URL = process.env.VITE_APP_URL || 'https://seller-studio-ai.ru';
@@ -70,12 +70,12 @@ export default async function handler(req, res) {
 
   let payerEmail = email || 'customer@seller-studio-ai.ru';
   try {
-    // Верификация JWT (замена Firebase getAuth().verifyIdToken())
+    // Р’РµСЂРёС„РёРєР°С†РёСЏ JWT (Р·Р°РјРµРЅР° internal JWT)
     const decoded = jwt.verify(idToken, JWT_SECRET);
     if (decoded.uid !== uid) {
       return res.status(403).json({ ok: false, error: 'Forbidden' });
     }
-    // Если в токене есть email — используем его
+    // Р•СЃР»Рё РІ С‚РѕРєРµРЅРµ РµСЃС‚СЊ email вЂ” РёСЃРїРѕР»СЊР·СѓРµРј РµРіРѕ
     payerEmail = decoded.email || payerEmail;
   } catch (err) {
     console.error('create-payment auth error:', err.message);
@@ -91,7 +91,7 @@ export default async function handler(req, res) {
     const idempotencyKey = crypto.randomUUID();
     const ykAuthHeader = 'Basic ' + Buffer.from(`${YOOKASSA_SHOP_ID}:${YOOKASSA_SECRET_KEY}`).toString('base64');
 
-    // Делаем запрос к API ЮKassa для создания платежа
+    // Р”РµР»Р°РµРј Р·Р°РїСЂРѕСЃ Рє API Р®Kassa РґР»СЏ СЃРѕР·РґР°РЅРёСЏ РїР»Р°С‚РµР¶Р°
     const ykRes = await fetch('https://api.yookassa.ru/v3/payments', {
       method: 'POST',
       headers: {
@@ -104,8 +104,8 @@ export default async function handler(req, res) {
           value: plan.priceRub.toFixed(2),
           currency: 'RUB',
         },
-        capture: true, // Автоматическое списание денег после успешной авторизации карты
-        save_payment_method: planId !== 'trial', // Сохраняем карту только для месячных тарифов Про и Бизнес
+        capture: true, // РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРѕРµ СЃРїРёСЃР°РЅРёРµ РґРµРЅРµРі РїРѕСЃР»Рµ СѓСЃРїРµС€РЅРѕР№ Р°РІС‚РѕСЂРёР·Р°С†РёРё РєР°СЂС‚С‹
+        save_payment_method: planId !== 'trial', // РЎРѕС…СЂР°РЅСЏРµРј РєР°СЂС‚Сѓ С‚РѕР»СЊРєРѕ РґР»СЏ РјРµСЃСЏС‡РЅС‹С… С‚Р°СЂРёС„РѕРІ РџСЂРѕ Рё Р‘РёР·РЅРµСЃ
         confirmation: {
           type: 'redirect',
           return_url: `${VITE_APP_URL}/?payment=success&plan=${planId}`,
@@ -114,8 +114,8 @@ export default async function handler(req, res) {
         metadata: {
           uid: uid,
           planId: planId,
-          // Если UID начинается с tg_ — это Telegram-пользователь, передаём telegramId
-          // чтобы вебхук мог записать подписку на правильный стабильный UID
+          // Р•СЃР»Рё UID РЅР°С‡РёРЅР°РµС‚СЃСЏ СЃ tg_ вЂ” СЌС‚Рѕ Telegram-РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ, РїРµСЂРµРґР°С‘Рј telegramId
+          // С‡С‚РѕР±С‹ РІРµР±С…СѓРє РјРѕРі Р·Р°РїРёСЃР°С‚СЊ РїРѕРґРїРёСЃРєСѓ РЅР° РїСЂР°РІРёР»СЊРЅС‹Р№ СЃС‚Р°Р±РёР»СЊРЅС‹Р№ UID
           ...(uid.startsWith('tg_') ? { telegramId: uid.slice(3) } : {}),
         },
         receipt: {
@@ -130,7 +130,7 @@ export default async function handler(req, res) {
                 value: plan.priceRub.toFixed(2),
                 currency: 'RUB',
               },
-              vat_code: '1', // 1 = Без НДС (для ИП на УСН / патенте)
+              vat_code: '1', // 1 = Р‘РµР· РќР”РЎ (РґР»СЏ РРџ РЅР° РЈРЎРќ / РїР°С‚РµРЅС‚Рµ)
               payment_mode: 'full_payment',
               payment_subject: 'service',
             }
@@ -153,7 +153,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // Возвращаем confirmation_url под ключом invoiceLink для совместимости с фронтом
+    // Р’РѕР·РІСЂР°С‰Р°РµРј confirmation_url РїРѕРґ РєР»СЋС‡РѕРј invoiceLink РґР»СЏ СЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚Рё СЃ С„СЂРѕРЅС‚РѕРј
     return res.status(200).json({
       ok: true,
       invoiceLink: ykData.confirmation.confirmation_url,

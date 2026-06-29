@@ -423,6 +423,46 @@ export function AuthProvider({ children }) {
     return signInWithTelegramAccountInternal();
   };
 
+  // ═══════════════════════════════════════════
+  //  SIGN IN WITH TELEGRAM WIDGET (WEB)
+  // ═══════════════════════════════════════════
+  const signInWithTelegramWidget = async (widgetUser) => {
+    const { customToken, uid, telegramId, user: tgUser } = await retryTransient(async () => {
+      const resp = await fetchWithTimeout('/api/auth-telegram-widget', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify(widgetUser),
+      }, 15000);
+
+      if (!resp.ok) {
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error(errData.error || 'Ошибка авторизации через Telegram Widget');
+      }
+      return await resp.json();
+    });
+
+    setToken(customToken);
+
+    const displayName = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || 'Telegram User';
+
+    const userData = {
+      uid,
+      displayName,
+      email: tgUser.username ? `@${tgUser.username}` : null,
+      photoURL: tgUser.photo_url || null,
+      isAnonymous: false,
+      isTelegramUser: true,
+      telegramId: telegramId,
+      telegramUsername: tgUser.username,
+      getIdToken: async () => getToken(),
+    };
+
+    setSavedUser(userData);
+    setUser(userData);
+    return { user: userData };
+  };
+
   // Upgrade anonymous user to email account (disabled without Firebase)
   const upgradeGuestToEmail = async (email, password) => {
     // В новой системе гость просто вводит OTP код
@@ -457,6 +497,7 @@ export function AuthProvider({ children }) {
     verifyOtpCode,
     signInAsGuest,
     signInWithTelegramAccount,
+    signInWithTelegramWidget,
     upgradeGuestToEmail,
     signOut: handleSignOut,
   };

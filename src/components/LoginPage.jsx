@@ -3,6 +3,29 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth, firebaseErrorToRussian } from '../contexts/AuthContext';
 import './LoginPage.css';
 
+const TelegramWidget = ({ botName, onAuth }) => {
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    if (containerRef.current && containerRef.current.children.length === 0) {
+      window.onTelegramAuthWidget = (user) => {
+        onAuth(user);
+      };
+      const script = document.createElement('script');
+      script.src = 'https://telegram.org/js/telegram-widget.js?22';
+      script.setAttribute('data-telegram-login', botName);
+      script.setAttribute('data-size', 'large');
+      script.setAttribute('data-radius', '12');
+      script.setAttribute('data-onauth', 'onTelegramAuthWidget(user)');
+      script.setAttribute('data-request-access', 'write');
+      script.async = true;
+      containerRef.current.appendChild(script);
+    }
+  }, [botName, onAuth]);
+
+  return <div ref={containerRef} style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}></div>;
+};
+
 export default function LoginPage() {
   const {
     sendOtpCode,
@@ -12,13 +35,14 @@ export default function LoginPage() {
     resetPassword,
     signInAsGuest,
     signInWithTelegramAccount,
+    signInWithTelegramWidget,
     isInAppBrowser,
     isTelegram,
     telegramUser,
     isPrivate,
   } = useAuth();
 
-  const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'reset' | 'otp_request' | 'otp_verify'
+  const [mode, setMode] = useState('otp_request'); // 'login' | 'signup' | 'reset' | 'otp_request' | 'otp_verify'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -181,7 +205,17 @@ export default function LoginPage() {
   const handleTelegramLogin = async () => {
     setError(''); setLoading(true);
     try { await signInWithTelegramAccount(); }
-    catch (err) { setError(firebaseErrorToRussian(err)); }
+    catch (err) { setError(authErrorToRussian(err)); }
+    finally { setLoading(false); }
+  };
+
+  const handleTelegramWidgetAuth = async (user) => {
+    setError(''); setLoading(true);
+    try { 
+      await signInWithTelegramWidget(user); 
+      setSuccess('Успешный вход!');
+    }
+    catch (err) { setError(authErrorToRussian(err)); }
     finally { setLoading(false); }
   };
 
@@ -438,7 +472,14 @@ export default function LoginPage() {
         ) : (
           <>
 
-            <div className="login-divider"><span>{mode === 'otp_request' ? 'код на email' : mode === 'reset' ? 'сброс пароля' : 'вход по email'}</span></div>
+            {mode === 'otp_request' && (
+              <>
+                <div className="login-divider"><span>войти через telegram</span></div>
+                <TelegramWidget botName="seller_sstudio_bot" onAuth={handleTelegramWidgetAuth} />
+              </>
+            )}
+
+            <div className="login-divider"><span>{mode === 'otp_request' ? 'или по коду на email' : mode === 'reset' ? 'сброс пароля' : 'вход по email'}</span></div>
 
             <form onSubmit={handleEmail} className="email-form">
               <input type="email" className="login-input" placeholder="Email"

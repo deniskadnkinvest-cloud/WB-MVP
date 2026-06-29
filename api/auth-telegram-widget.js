@@ -1,12 +1,3 @@
-// POST /api/auth-telegram
-// Верифицирует Telegram initData и возвращает JWT токен
-// с детерминированным UID: tg_{telegramId}
-//
-// Это РЕШАЕТ корневую проблему: signInAnonymously() создавал НОВЫЙ UID
-// при каждом входе, потому что Telegram WebView очищает storage.
-// JWT с фиксированным UID гарантирует, что пользователь
-// ВСЕГДА получает тот же аккаунт.
-
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { isRetryableConnectionError, query } from './_db.js';
@@ -14,48 +5,48 @@ import { isRetryableConnectionError, query } from './_db.js';
 const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
 
 /**
- * Верификация Telegram initData через HMAC-SHA256
- * https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
+ * Верификация данных от Telegram Login Widget
+ * https://core.telegram.org/widgets/login#checking-authorization
  */
-function verifyAndParseInitData(initData, botToken) {
+function verifyWidgetData(data, botToken) {
   try {
-    const params = new URLSearchParams(initData);
-    const hash = params.get('hash');
+    const hash = data.hash;
     if (!hash) return null;
 
-    params.delete('hash');
-    const dataCheckString = [...params.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${k}=${v}`)
-      .join('\n');
+    // Собираем строку для проверки: сортируем ключи по алфавиту, исключая hash
+    const dataCheckArr = [];
+    for (const key of Object.keys(data).sort()) {
+      if (key !== 'hash' && data[key] !== undefined && data[key] !== null) {
+        dataCheckArr.push(`${key}=${data[key]}`);
+      }
+    }
+    const dataCheckString = dataCheckArr.join('\n');
 
-    const secretKey = crypto
-      .createHmac('sha256', 'WebAppData')
-      .update(botToken)
-      .digest();
+    // Для виджета секретный ключ — это SHA256 от токена бота
+    const secretKey = crypto.createHash('sha256').update(botToken).digest();
 
     const expectedHash = crypto
       .createHmac('sha256', secretKey)
       .update(dataCheckString)
       .digest('hex');
 
-    if (expectedHash !== hash) return null;
-
-    // Проверяем свежесть (не старше 7 дней — Telegram Mini App кэширует initData)
-    const authDate = parseInt(params.get('auth_date') || '0', 10);
-    const now = Math.floor(Date.now() / 1000);
-    const ageSeconds = now - authDate;
-    console.log(`[auth-telegram] initData age: ${ageSeconds}s (${Math.round(ageSeconds/3600)}h)`);
-    if (ageSeconds > 604800) { // 7 дней
-      console.log('[auth-telegram] initData expired');
+    if (expectedHash !== hash) {
+      console.log('[auth-telegram-widget] Invalid hash');
       return null;
     }
 
-    const userStr = params.get('user');
-    if (!userStr) return null;
-    return JSON.parse(userStr);
+    // Проверяем свежесть (не старше 1 дня)
+    const authDate = parseInt(data.auth_date || '0', 10);
+    const now = Math.floor(Date.now() / 1000);
+    const ageSeconds = now - authDate;
+    if (ageSeconds > 86400) {
+      console.log('[auth-telegram-widget] auth_date expired');
+      return null;
+    }
+
+    return data;
   } catch (e) {
-    console.log('[auth-telegram] parse error:', e.message);
+    console.log('[auth-telegram-widget] verify error:', e.message);
     return null;
   }
 }
@@ -68,30 +59,28 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
 
   try {
-    console.log('[auth-telegram] body type:', typeof req.body, '| keys:', Object.keys(req.body || {}));
-    const { initData } = req.body || {};
+    const tgUserRaw = req.body || {};
 
-    if (!initData) {
-      console.log('[auth-telegram] no initData, raw body:', JSON.stringify(req.body).slice(0, 200));
-      return res.status(400).json({ ok: false, error: 'initData required' });
+    if (!tgUserRaw.id || !tgUserRaw.hash) {
+      return res.status(400).json({ ok: false, error: 'Invalid widget data' });
     }
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
     if (!botToken) {
-      console.error('[auth-telegram] TELEGRAM_BOT_TOKEN not configured');
+      console.error('[auth-telegram-widget] TELEGRAM_BOT_TOKEN not configured');
       return res.status(500).json({ ok: false, error: 'Server misconfigured' });
     }
 
-    // 1. Верифицируем подпись Telegram initData
-    const tgUser = verifyAndParseInitData(initData, botToken);
-    if (!tgUser || !tgUser.id) {
-      return res.status(401).json({ ok: false, error: 'Invalid or expired initData' });
+    // 1. Верифицируем подпись виджета
+    const tgUser = verifyWidgetData(tgUserRaw, botToken);
+    if (!tgUser) {
+      return res.status(401).json({ ok: false, error: 'Invalid or expired Telegram data' });
     }
 
     const telegramId = String(tgUser.id);
     const stableUid = `tg_${telegramId}`;
 
-    console.log(`[auth-telegram] Verified TG user ${telegramId} (${tgUser.first_name}), issuing token for UID: ${stableUid}`);
+    console.log(`[auth-telegram-widget] Verified TG user ${telegramId} (${tgUser.first_name}), issuing token for UID: ${stableUid}`);
 
     // 2. UPSERT пользователя в PostgreSQL
     const email = tgUser.username
@@ -113,7 +102,6 @@ export default async function handler(req, res) {
     );
 
     const user = rows[0];
-    console.log(`[auth-telegram] User upserted: id=${user.id}, telegram_id=${user.telegram_id}`);
 
     // 3. Обеспечиваем наличие записи подписки (если ещё нет)
     await query(
@@ -124,7 +112,7 @@ export default async function handler(req, res) {
       { attempts: 3, retryUnsafe: true }
     );
 
-    // 4. Генерируем JWT токен (замена Auth Custom Token)
+    // 4. Генерируем JWT токен
     const customToken = jwt.sign(
       {
         uid: stableUid,
@@ -140,9 +128,16 @@ export default async function handler(req, res) {
       customToken,
       uid: stableUid,
       telegramId,
+      user: {
+        id: tgUser.id,
+        first_name: tgUser.first_name,
+        last_name: tgUser.last_name,
+        username: tgUser.username,
+        photo_url: tgUser.photo_url
+      }
     });
   } catch (err) {
-    console.error('[auth-telegram] Error:', err.message);
+    console.error('[auth-telegram-widget] Error:', err.message);
     if (isRetryableConnectionError(err)) {
       res.setHeader('Retry-After', '3');
       return res.status(503).json({

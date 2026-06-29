@@ -1,24 +1,22 @@
-# docs/TODO.md — Список задач VTON MVP
+# VTON MVP TODO
 
 ## Critical
-- [ ] Заполнить реальные `VITE_FIREBASE_*` значения в локальной и production среде.
-- [ ] Добавить атомарное серверное резервирование кредитов перед генерацией и возврат при failed generation.
-- [ ] Добавить production rate limiting на `/api/send-otp`, `/api/verify-otp`, `/api/generate-image`.
-- [ ] Усилить YooKassa webhook: подпись/IP allowlist, защита от повторной обработки `payment.id`.
+
+- Add an atomic credit reservation flow before generation and automatic refund on failed generation.
+- Add production rate limiting for `/api/send-otp`, `/api/verify-otp`, `/api/auth-telegram` and `/api/generate-image`.
+- Add a health monitor for PostgreSQL, MinIO and the app container.
+- Add restore drills: monthly test restore of PostgreSQL dump and MinIO archive to a clean staging server.
 
 ## High
-- [ ] Декомпозировать `src/App.jsx` на feature modules: upload, generation, product mode, photoshoot, billing.
-- [ ] Декомпозировать `api/generate-image.js` на prompt builders, KIE client, auth/subscription guard, response helpers.
-- [ ] Перевести обычный card designer на тот же editable DOM/Canvas-подход, что и quick mode, чтобы полностью убрать растровые карточки с запечённым текстом.
-- [ ] Оптимизировать скорость загрузки моделей удаления фона `@imgly/background-removal` (кэширование WASM-ресурсов).
-- [ ] Покрыть тестами интеграцию с Firebase в `test-autocatalog.js`.
+
+- Decompose `src/App.jsx` into feature modules: upload, generation, product mode, photoshoot and billing.
+- Decompose `api/generate-image.js` into prompt builders, AI clients, auth/subscription guard and response helpers.
+- Add admin-visible backup status and last successful backup timestamp.
+- Add authenticated smoke/e2e checks for saved models, saved locations, tariff assignment and credit consumption.
 
 ## Medium
-- [ ] Добавить Error Boundary для основного приложения и админки.
-- [ ] Убрать лишние production `console.log`/PII-логи.
-- [ ] Добавить smoke/e2e для `/offer`, login fallback, pricing modal, credit guards.
-- [ ] Добавить authenticated smoke/e2e для Quick Mode Smart Canvas с валидными `VITE_FIREBASE_*` и тестовым пользователем/кредитами.
 
-## Later
-- [ ] Добавить поддержку примерки нескольких вещей одновременно (слои).
-- [ ] Улучшить observability: Sentry/Axiom, алерты по ошибкам генерации и оплат.
+- Add Error Boundary for the main app and admin panel.
+- Reduce production `console.log` noise and avoid logging PII.
+- Add smoke/e2e for `/offer`, login, pricing modal and credit guards.
+- Optimize model upload speed and background-removal asset caching.

@@ -134,7 +134,7 @@ app.get('/api/auto-catalog/status/:batchId', async (req, res) => {
   res.json({
     batchId: req.params.batchId,
     status: 'processing',
-    message: 'TODO: подключить Firestore для real-time статуса'
+    message: 'TODO: подключить PostgreSQL/SSE для real-time статуса'
   });
 });
 

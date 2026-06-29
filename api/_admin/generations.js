@@ -1,12 +1,12 @@
-// ═══════════════════════════════════════════════════════════════
+﻿// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 // GET /api/admin/generations
-// Возвращает список последних генераций из Firestore для Command Center
+// Р’РѕР·РІСЂР°С‰Р°РµС‚ СЃРїРёСЃРѕРє РїРѕСЃР»РµРґРЅРёС… РіРµРЅРµСЂР°С†РёР№ РёР· PostgreSQL РґР»СЏ Command Center
 //
 // Query parameters:
-//   limit    number?  — количество записей (default 100)
-//   userId   string?  — фильтрация по конкретному юзеру
-//   type     string?  — фильтрация по типу: fashion | product | calibration | autocatalog
-// ═══════════════════════════════════════════════════════════════
+//   limit    number?  вЂ” РєРѕР»РёС‡РµСЃС‚РІРѕ Р·Р°РїРёСЃРµР№ (default 100)
+//   userId   string?  вЂ” С„РёР»СЊС‚СЂР°С†РёСЏ РїРѕ РєРѕРЅРєСЂРµС‚РЅРѕРјСѓ СЋР·РµСЂСѓ
+//   type     string?  вЂ” С„РёР»СЊС‚СЂР°С†РёСЏ РїРѕ С‚РёРїСѓ: fashion | product | calibration | autocatalog
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 
 import { checkAdminAuth } from './verify.js';
 import { query as pgQuery } from '../_db.js';
@@ -21,7 +21,7 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).end();
 
   const adminAuth = checkAdminAuth(req);
-  if (!adminAuth.ok) return res.status(403).json({ ok: false, error: 'Нет доступа' });
+  if (!adminAuth.ok) return res.status(403).json({ ok: false, error: 'РќРµС‚ РґРѕСЃС‚СѓРїР°' });
 
   try {
     const limit = parseInt(req.query.limit || '100', 10);
@@ -46,7 +46,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ ok: true, generations });
   } catch (err) {
-    console.error('[admin/generations] Ошибка:', err);
+    console.error('[admin/generations] РћС€РёР±РєР°:', err);
     return res.status(500).json({ ok: false, error: err.message });
   }
 }

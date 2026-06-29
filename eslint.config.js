@@ -38,7 +38,7 @@ export default [
       'node_modules/**',
       'dist/**',
       '.vercel/**',
-      'api/_*.js',   // _firebase-admin.js, _admin-alerts.js и т.д.
+      'api/_*.js',   // internal helper files
     ]
   }
 ];

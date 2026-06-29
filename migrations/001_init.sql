@@ -66,9 +66,10 @@ CREATE INDEX IF NOT EXISTS idx_generations_user ON generations(user_id);
 -- ═══ OTP (email одноразовые коды) ═══
 CREATE TABLE IF NOT EXISTS otps (
   id SERIAL PRIMARY KEY,
-  email VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL UNIQUE,
   code VARCHAR(10) NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
+  attempts INTEGER DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_otps_email ON otps(email);

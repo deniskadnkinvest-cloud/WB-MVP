@@ -1,29 +1,46 @@
-# VTON MVP (Virtual Try-On)
+# VTON MVP
 
-Приложение для виртуальной примерки одежды (Virtual Try-On) на React 19 + Express с интеграцией Google GenAI и фоновыми задачами Inngest.
+Seller Studio is a Telegram Mini App and web app for AI-assisted marketplace product photography.
 
-## Стек технологий
-- **Фронтенд**: React 19 + Vite
-- **Бэкенд**: Express.js
-- **ИИ-функции**: Google GenAI SDK (`@google/genai`), `@imgly/background-removal` (удаление фона локально в браузере)
-- **Фоновые задачи**: Inngest (`inngest`)
-- **База данных**: Firebase (Firestore & Admin SDK)
+## Stack
 
-## Установка и запуск
+- Frontend: React + Vite.
+- Backend: Express.js in Docker.
+- Auth: Telegram Mini App initData and email OTP converted to internal JWT.
+- Database: PostgreSQL on our database VPS.
+- Storage: MinIO/S3-compatible storage on our storage VPS.
+- Background jobs: Inngest functions.
+- AI: KIE.ai and Google GenAI.
 
-1. Установите зависимости:
+## Setup
+
+1. Install dependencies:
+
    ```bash
    npm install
    ```
-2. Создайте файлы `.env` и `.env.local` на основе шаблона `.env.example`.
-3. Запустите dev-сервер (одновременный запуск React и Express бэкенда):
+
+2. Create `.env` from `.env.local.example` and fill required secrets.
+
+3. Run local development:
+
    ```bash
    npm run dev
    ```
-4. Запустите клиент Inngest для отладки фоновых задач локально:
+
+4. Before deploy:
+
    ```bash
-   npm run catalog:inngest
+   npm run lint
+   npm run build
    ```
 
-## Контакты и Репозиторий
-- **GitHub**: [VTON MVP Repo](https://github.com/deniskadnkinvest-cloud/WB-MVP)
+## Production Checks
+
+After each deploy, verify:
+
+- `GET /api/auth-ping`
+- authenticated `GET /api/subscription`
+- authenticated `GET /api/user-data?type=models`
+- upload/download/delete through `/api/upload`
+- backup freshness on the database/storage VPS

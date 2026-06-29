@@ -1,8 +1,8 @@
-import React, { Component, StrictMode } from 'react'
+﻿import React, { Component, StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 
-// Роутинг: если URL содержит ?mode=admin или #/admin — рендерим админку
+// Р РѕСѓС‚РёРЅРі: РµСЃР»Рё URL СЃРѕРґРµСЂР¶РёС‚ ?mode=admin РёР»Рё #/admin вЂ” СЂРµРЅРґРµСЂРёРј Р°РґРјРёРЅРєСѓ
 const isAdmin = new URLSearchParams(window.location.search).get('mode') === 'admin'
   || window.location.hash === '#/admin'
   || window.location.hash.startsWith('#/admin/');
@@ -31,14 +31,14 @@ class GlobalErrorBoundary extends Component {
           fontFamily: 'monospace', textAlign: 'left', overflow: 'auto'
         }}>
           <div style={{ maxWidth: 800, width: '100%' }}>
-            <h1 style={{ color: '#ff4d4f', fontSize: 24, marginBottom: 16 }}>Критическая ошибка (React)</h1>
-            <p style={{ marginBottom: 16 }}>Сделайте скриншот этой ошибки и отправьте разработчику:</p>
+            <h1 style={{ color: '#ff4d4f', fontSize: 24, marginBottom: 16 }}>РљСЂРёС‚РёС‡РµСЃРєР°СЏ РѕС€РёР±РєР° (React)</h1>
+            <p style={{ marginBottom: 16 }}>РЎРґРµР»Р°Р№С‚Рµ СЃРєСЂРёРЅС€РѕС‚ СЌС‚РѕР№ РѕС€РёР±РєРё Рё РѕС‚РїСЂР°РІСЊС‚Рµ СЂР°Р·СЂР°Р±РѕС‚С‡РёРєСѓ:</p>
             <div style={{ background: '#1f2937', padding: 16, borderRadius: 8, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: 13 }}>
               <strong style={{color: '#ff7875'}}>{this.state.error && this.state.error.toString()}</strong>
               <br/><br/>
               {this.state.errorInfo && this.state.errorInfo.componentStack}
             </div>
-            <button onClick={() => window.location.reload()} style={{ marginTop: 24, padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Перезагрузить</button>
+            <button onClick={() => window.location.reload()} style={{ marginTop: 24, padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}>РџРµСЂРµР·Р°РіСЂСѓР·РёС‚СЊ</button>
           </div>
         </div>
       );
@@ -53,7 +53,7 @@ const renderApp = (children) => {
 
 const renderBootstrapError = (error) => {
   console.error('App bootstrap failed:', error);
-  const isFirebaseConfigError = /invalid-api-key|api-key|Firebase/i.test(error?.message || '');
+  const isAuthConfigError = /invalid-api-key|api-key|Auth/i.test(error?.message || '');
   renderApp(
     <div style={{
       minHeight: '100vh',
@@ -66,27 +66,66 @@ const renderBootstrapError = (error) => {
       textAlign: 'center',
     }}>
       <div>
-        <h1 style={{ margin: '0 0 12px', fontSize: 28 }}>Селлер-Студия</h1>
+        <h1 style={{ margin: '0 0 12px', fontSize: 28 }}>РЎРµР»Р»РµСЂ-РЎС‚СѓРґРёСЏ</h1>
         <p style={{ margin: 0, opacity: 0.75 }}>
-          {isFirebaseConfigError
-            ? 'Ошибка конфигурации авторизации. Проверьте Firebase web-переменные окружения.'
-            : 'Не удалось загрузить приложение. Обновите страницу.'}
+          {isAuthConfigError
+            ? 'РћС€РёР±РєР° РєРѕРЅС„РёРіСѓСЂР°С†РёРё Р°РІС‚РѕСЂРёР·Р°С†РёРё. РџСЂРѕРІРµСЂСЊС‚Рµ Auth web-РїРµСЂРµРјРµРЅРЅС‹Рµ РѕРєСЂСѓР¶РµРЅРёСЏ.'
+            : 'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РїСЂРёР»РѕР¶РµРЅРёРµ. РћР±РЅРѕРІРёС‚Рµ СЃС‚СЂР°РЅРёС†Сѓ.'}
         </p>
       </div>
     </div>
   );
 };
 
-const loadTelegramSdk = () => new Promise((resolve) => {
-  if (window.Telegram?.WebApp) {
+const hasTelegramLaunchParams = () => {
+  try {
+    const candidates = [];
+    const search = window.location.search || '';
+    const hash = window.location.hash || '';
+
+    if (search) candidates.push(search.startsWith('?') ? search.slice(1) : search);
+    if (hash) {
+      const cleanHash = hash.startsWith('#') ? hash.slice(1) : hash;
+      candidates.push(cleanHash);
+      const hashQueryIndex = cleanHash.indexOf('?');
+      if (hashQueryIndex >= 0) candidates.push(cleanHash.slice(hashQueryIndex + 1));
+    }
+
+    return candidates.some((candidate) => {
+      const params = new URLSearchParams(candidate);
+      return Boolean(params.get('tgWebAppData') || (params.get('hash') && params.get('user')));
+    });
+  } catch {
+    return false;
+  }
+};
+
+const isLikelyTelegramClient = () => {
+  try {
+    return /Telegram|TelegramBot|TDesktop/i.test(navigator.userAgent || '') || hasTelegramLaunchParams();
+  } catch {
+    return hasTelegramLaunchParams();
+  }
+};
+
+const loadTelegramSdk = (timeoutMs = 1200) => new Promise((resolve) => {
+  let settled = false;
+  const done = () => {
+    if (settled) return;
+    settled = true;
     resolve();
+  };
+
+  if (window.Telegram?.WebApp) {
+    done();
     return;
   }
 
   const existing = document.querySelector('script[data-telegram-sdk="true"]');
   if (existing) {
-    existing.addEventListener('load', resolve, { once: true });
-    existing.addEventListener('error', resolve, { once: true });
+    existing.addEventListener('load', done, { once: true });
+    existing.addEventListener('error', done, { once: true });
+    setTimeout(done, timeoutMs);
     return;
   }
 
@@ -94,10 +133,10 @@ const loadTelegramSdk = () => new Promise((resolve) => {
   script.src = 'https://telegram.org/js/telegram-web-app.js';
   script.async = true;
   script.dataset.telegramSdk = 'true';
-  script.onload = resolve;
-  script.onerror = resolve;
+  script.onload = done;
+  script.onerror = done;
   document.head.appendChild(script);
-  setTimeout(resolve, 2500);
+  setTimeout(done, timeoutMs);
 });
 
 async function bootstrap() {
@@ -107,7 +146,11 @@ async function bootstrap() {
     return;
   }
 
-  await loadTelegramSdk();
+  const shouldWaitForTelegramSdk = isLikelyTelegramClient() && !hasTelegramLaunchParams();
+  const telegramSdkReady = loadTelegramSdk(shouldWaitForTelegramSdk ? 1200 : 0);
+  if (shouldWaitForTelegramSdk) {
+    await telegramSdkReady;
+  }
 
   if (isAdmin) {
     const { default: AdminApp } = await import('./admin/AdminApp');

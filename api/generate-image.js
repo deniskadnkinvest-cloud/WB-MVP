@@ -1,5 +1,8 @@
 import { alertOnError } from './_admin-alerts.js';
 import { query } from './_db.js';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
 
 // Атомарно инкрементирует глобальный счётчик в PostgreSQL
 async function incrementGlobalCounter(field) {
@@ -99,7 +102,7 @@ TASK: "Mannequin-to-Life" texture transfer and recasting operation.
 <cognitive_override_protocol>
 You will receive an image labeled [GARMENT REFERENCE].
 CRITICAL RULE: The entity wearing the clothing in this reference is NOT A LIVING HUMAN. It is a lifeless, featureless "Plastic Calibration Mannequin".
-You MUST NEVER copy the anatomy, facial structure, skin tone, or body shape of this plastic dummy.
+You MUST NEVER copy the anatomy, facial structure, skin tone, tattoos, body markings, or body shape of this plastic dummy.
 </cognitive_override_protocol>
 
 <phase_1_texture_extraction>
@@ -132,6 +135,295 @@ const KIE_API_KEY = process.env.KIE_API_KEY;
 const TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const GET_TASK_URL = 'https://api.kie.ai/api/v1/jobs/recordInfo?taskId=';
 const FILE_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-base64-upload';
+const MAX_CONCURRENT_KIE_TASKS = Math.max(1, Number.parseInt(process.env.MAX_CONCURRENT_KIE_TASKS || '5', 10) || 5);
+const IDEMPOTENCY_TTL_MS = 30 * 60 * 1000;
+const IDEMPOTENCY_MAX_ENTRIES = 200;
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+class KieConcurrencyLimiter {
+  constructor(maxConcurrent) {
+    this.maxConcurrent = maxConcurrent;
+    this.active = 0;
+    this.queue = [];
+  }
+
+  acquire(label) {
+    const requestedAt = Date.now();
+    console.log(`[Task Queued] ${label} active=${this.active}/${this.maxConcurrent} waiting=${this.queue.length}`);
+
+    if (this.active < this.maxConcurrent) {
+      this.active += 1;
+      return Promise.resolve({ waitedMs: 0 });
+    }
+
+    return new Promise(resolve => {
+      this.queue.push(() => {
+        this.active += 1;
+        resolve({ waitedMs: Date.now() - requestedAt });
+      });
+    });
+  }
+
+  release() {
+    this.active = Math.max(0, this.active - 1);
+    const next = this.queue.shift();
+    if (next) next();
+  }
+}
+
+const kieLimiter = new KieConcurrencyLimiter(MAX_CONCURRENT_KIE_TASKS);
+const idempotencyCache = new Map();
+
+async function withKieConcurrency(label, fn) {
+  const slot = await kieLimiter.acquire(label);
+  console.log(`[Task Started] ${label} active=${kieLimiter.active}/${kieLimiter.maxConcurrent} waitedMs=${slot.waitedMs}`);
+  try {
+    return await fn();
+  } finally {
+    console.log(`[Task Completed] ${label} active=${kieLimiter.active}/${kieLimiter.maxConcurrent}`);
+    kieLimiter.release();
+  }
+}
+
+function normalizeIdempotencyKey(rawKey) {
+  if (typeof rawKey !== 'string') return null;
+  const key = rawKey.trim();
+  if (key.length < 8 || key.length > 200) return null;
+  if (!/^[A-Za-z0-9._:-]+$/.test(key)) return null;
+  return key;
+}
+
+function pruneIdempotencyCache() {
+  const now = Date.now();
+  for (const [key, entry] of idempotencyCache.entries()) {
+    if (now - entry.createdAt > IDEMPOTENCY_TTL_MS) {
+      idempotencyCache.delete(key);
+    }
+  }
+
+  while (idempotencyCache.size > IDEMPOTENCY_MAX_ENTRIES) {
+    const oldestKey = idempotencyCache.keys().next().value;
+    if (!oldestKey) break;
+    idempotencyCache.delete(oldestKey);
+  }
+}
+
+function createIdempotencyEntry(cacheKey) {
+  let resolve;
+  const promise = new Promise(done => {
+    resolve = done;
+  });
+  const entry = {
+    cacheKey,
+    createdAt: Date.now(),
+    promise,
+    resolve,
+  };
+  idempotencyCache.set(cacheKey, entry);
+  pruneIdempotencyCache();
+  return entry;
+}
+
+function getGenerationCreditCost(body = {}) {
+  const action = body?.action;
+  if (['deduct-credit', 'refund-credit', 'detect-elements', 'identify-element', 'generate-card-text'].includes(action)) {
+    return 0;
+  }
+
+  if (['create-persona', 'generate-missing-angle', 'edit-card'].includes(action)) return 1;
+  if (body?.isQuickCard || body?.isModelCard) return body?.isPhotoOnly ? 1 : 2;
+  if (body?.isUgcMode || body?.isCardDesign || body?.isProductMode || body?.isCalibration || body?.isPhotoEdit || body?.previewMode) {
+    return 1;
+  }
+  if (body?.garmentImageBase64 || body?.garmentImagesBase64?.length || body?.garmentImageUrls?.length) return 1;
+  return 0;
+}
+
+async function findBillingUser({ uid, email, dbUserId }) {
+  if (dbUserId) {
+    const byId = await query(
+      `SELECT id, telegram_id, email FROM users WHERE id = $1 LIMIT 1`,
+      [dbUserId]
+    );
+    if (byId.rows.length > 0) return byId.rows[0];
+  }
+
+  let result = await query(
+    `SELECT id, telegram_id, email FROM users WHERE telegram_id = $1 LIMIT 1`,
+    [uid]
+  );
+  if (result.rows.length > 0) return result.rows[0];
+
+  if (uid?.startsWith('tg_')) {
+    result = await query(
+      `SELECT id, telegram_id, email FROM users WHERE telegram_id = $1 LIMIT 1`,
+      [uid.slice(3)]
+    );
+    if (result.rows.length > 0) return result.rows[0];
+  }
+
+  if (email) {
+    result = await query(
+      `SELECT id, telegram_id, email FROM users WHERE email = $1 LIMIT 1`,
+      [email]
+    );
+    if (result.rows.length > 0) return result.rows[0];
+  }
+
+  return null;
+}
+
+function billingError(message, code, extra = {}) {
+  const err = new Error(message);
+  err.code = code;
+  Object.assign(err, extra);
+  return err;
+}
+
+async function reserveGenerationCredits(authContext, amount, requestId) {
+  const user = await findBillingUser(authContext);
+  if (!user) {
+    throw billingError('Для генерации нужен активный тариф.', 'NO_PLAN', { creditsRemaining: 0 });
+  }
+
+  const result = await query(
+    `UPDATE subscriptions
+     SET credits = credits - $1,
+         updated_at = NOW()
+     WHERE user_id = $2
+       AND credits >= $1
+       AND plan_name != 'none'
+       AND status = 'active'
+     RETURNING credits`,
+    [amount, user.id],
+    { retryUnsafe: true }
+  );
+
+  if (result.rows.length === 0) {
+    const subCheck = await query(
+      `SELECT plan_name, credits, status FROM subscriptions WHERE user_id = $1 LIMIT 1`,
+      [user.id]
+    );
+    const sub = subCheck.rows[0];
+    if (!sub || sub.plan_name === 'none' || sub.status !== 'active') {
+      throw billingError('Для генерации нужен активный тариф.', 'NO_PLAN', { creditsRemaining: sub?.credits || 0 });
+    }
+    throw billingError(`Недостаточно кредитов: нужно ${amount}, доступно ${sub.credits || 0}.`, 'INSUFFICIENT_CREDITS', { creditsRemaining: sub.credits || 0 });
+  }
+
+  const creditsRemaining = result.rows[0].credits || 0;
+  console.log(`[Credit Reserved] user=${authContext.uid} dbUser=${user.id} amount=${amount} remaining=${creditsRemaining} request=${requestId}`);
+
+  return {
+    userId: user.id,
+    uid: authContext.uid,
+    amount,
+    requestId,
+    creditsRemaining,
+    refunded: false,
+    completed: false,
+  };
+}
+
+async function refundCreditReservation(reservation, reason) {
+  if (!reservation || reservation.refunded || reservation.completed) return null;
+  reservation.refunded = true;
+  const result = await query(
+    `UPDATE subscriptions
+     SET credits = credits + $1,
+         updated_at = NOW()
+     WHERE user_id = $2
+     RETURNING credits`,
+    [reservation.amount, reservation.userId],
+    { retryUnsafe: true }
+  );
+  const creditsRemaining = result.rows[0]?.credits ?? reservation.creditsRemaining + reservation.amount;
+  reservation.creditsRemaining = creditsRemaining;
+  console.log(`[Credit Refunded] user=${reservation.uid} dbUser=${reservation.userId} amount=${reservation.amount} remaining=${creditsRemaining} request=${reservation.requestId} reason=${reason}`);
+  return { creditsRemaining };
+}
+
+async function safeRefundCreditReservation(reservation, reason) {
+  try {
+    return await refundCreditReservation(reservation, reason);
+  } catch (err) {
+    console.error(`[Credit Refund Failed] request=${reservation?.requestId || 'unknown'} reason=${reason}:`, err.message);
+    return null;
+  }
+}
+
+async function getCreditsRemainingForReservation(reservation) {
+  if (!reservation) return null;
+  const result = await query(
+    `SELECT credits FROM subscriptions WHERE user_id = $1 LIMIT 1`,
+    [reservation.userId]
+  );
+  const creditsRemaining = result.rows[0]?.credits ?? reservation.creditsRemaining ?? null;
+  reservation.creditsRemaining = creditsRemaining;
+  return creditsRemaining;
+}
+
+function installGenerationFinalizer({ req, res, getReservation, idempotencyEntry }) {
+  let statusCode = 200;
+  let finalized = false;
+  let clientDisconnected = false;
+  const originalStatus = res.status.bind(res);
+  const originalJson = res.json.bind(res);
+
+  req.on('aborted', () => {
+    clientDisconnected = true;
+    console.warn('[Client Aborted] generate-image request was aborted by client');
+  });
+  res.on('close', () => {
+    if (!res.writableEnded) {
+      clientDisconnected = true;
+      console.warn('[Client Aborted] generate-image response closed before completion');
+    }
+  });
+
+  res.status = (code) => {
+    statusCode = code;
+    return originalStatus(code);
+  };
+
+  res.json = (body) => {
+    const finalize = async () => {
+      let finalBody = body;
+      const reservation = getReservation();
+      const isJsonObject = finalBody && typeof finalBody === 'object' && !Buffer.isBuffer(finalBody);
+
+      if (reservation && isJsonObject) {
+        if (clientDisconnected && finalBody.success === true) {
+          const refund = await safeRefundCreditReservation(reservation, 'client disconnected before response');
+          finalBody = {
+            success: false,
+            error: 'Генерация завершилась после отключения клиента. Кредит возвращён.',
+            creditsRemaining: refund?.creditsRemaining,
+          };
+        } else if (finalBody.success === false) {
+          const refund = await safeRefundCreditReservation(reservation, finalBody.error || finalBody.details || 'generation failed');
+          if (refund?.creditsRemaining !== undefined) {
+            finalBody = { ...finalBody, creditsRemaining: refund.creditsRemaining };
+          }
+        } else if (finalBody.success === true) {
+          reservation.completed = true;
+          console.log(`[Credit Committed] user=${reservation.uid} amount=${reservation.amount} remaining=${reservation.creditsRemaining} request=${reservation.requestId}`);
+        }
+      }
+
+      if (idempotencyEntry && !finalized) {
+        finalized = true;
+        idempotencyEntry.resolve({ statusCode, body: finalBody });
+      }
+
+      if (res.destroyed || res.writableEnded) return finalBody;
+      return originalJson(finalBody);
+    };
+
+    return finalize();
+  };
+}
 
 // Upload a base64 image to KIE.ai File Upload API and return the download URL
 async function uploadBase64ToKie(base64DataUrl, apiKey, index = 0) {
@@ -167,6 +459,7 @@ async function uploadBase64ToKie(base64DataUrl, apiKey, index = 0) {
 }
 
 async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana-2", aspectRatio = "auto", resolution = "1K") {
+  return withKieConcurrency(`${modelName}:${aspectRatio}:${resolution}`, async () => {
   const rawKey = process.env.KIE_API_KEY;
   if (!rawKey) throw new Error("API key missing. Set KIE_API_KEY in .env");
   // Strip BOM, zero-width chars, and whitespace that PowerShell/editors inject
@@ -229,8 +522,9 @@ async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana
   const taskId = data.data.taskId;
   console.log(`⏳ KIE.ai Task created. Model: ${modelName}. TaskID: ${taskId}. Polling...`);
 
-  for (let i = 0; i < 100; i++) { // Max 5 mins (100 * 3s)
-    await new Promise(resolve => setTimeout(resolve, i === 0 ? 2000 : 3000)); // First poll faster
+  for (let i = 0; i < 100; i++) {
+    const pollDelayMs = Math.min(12000, i === 0 ? 2000 : 3000 + Math.floor(i / 8) * 1000);
+    await sleep(pollDelayMs);
     
     const pollController = new AbortController();
     const pollTimeout = setTimeout(() => pollController.abort(), 15000);
@@ -265,11 +559,12 @@ async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana
     } else if (pollData?.data?.state === 'failed' || pollData?.data?.failCode) {
        throw new Error(`Task failed: ${pollData.data.failMsg || pollData.data.failCode || 'Unknown error'}`);
     } else {
-       console.log(`   ...Task ${taskId} state: ${pollData?.data?.state || 'unknown'} (poll ${i+1}/60)`);
+       console.log(`   ...Task ${taskId} state: ${pollData?.data?.state || 'unknown'} (poll ${i+1}/100, nextDelayMs=${pollDelayMs})`);
     }
   }
   
-  throw new Error("Task timed out after 5 minutes.");
+  throw new Error("Task timed out while polling KIE.ai.");
+  });
 }
 
 const extractBase64 = (dataUrl) => {
@@ -1836,24 +2131,19 @@ export default async function handler(req, res) {
   // ═══ AUTH: JWT + Firebase Token Verification ═══
   // Сначала пробуем JWT (новая система), потом Firebase (legacy)
   let verifiedUid = null;
+  let decodedAuth = null;
   const authHeader = req.headers.authorization;
   if (authHeader?.startsWith('Bearer ')) {
     const token = authHeader.split('Bearer ')[1];
-    // Попытка 1: JWT (наш новый токен — быстрый, без сети)
     try {
-      const jwt = await import('jsonwebtoken');
-      const jwtSecret = process.env.JWT_SECRET || 'vton-secret-2026';
-      const decoded = jwt.default.verify(token, jwtSecret);
-      verifiedUid = decoded.uid;
-    } catch {
-      // Попытка 2: Firebase ID Token (legacy, для обратной совместимости)
-      try {
-        const decoded = await getAuth().verifyIdToken(token);
-        verifiedUid = decoded.uid;
-      } catch (authErr) {
-        console.warn('[Auth] Invalid token (both JWT and Firebase):', authErr.message);
-        return res.status(401).json({ success: false, error: 'Unauthorized: invalid token' });
+      decodedAuth = jwt.verify(token, JWT_SECRET);
+      verifiedUid = decodedAuth.uid;
+      if (!verifiedUid) {
+        return res.status(401).json({ success: false, error: 'Unauthorized: token has no uid' });
       }
+    } catch (authErr) {
+      console.warn('[Auth] Invalid JWT token:', authErr.message);
+      return res.status(401).json({ success: false, error: 'Unauthorized: invalid token' });
     }
   } else {
     return res.status(401).json({ success: false, error: 'Unauthorized: no token provided' });
@@ -1861,24 +2151,44 @@ export default async function handler(req, res) {
 
   try {
     if (req.body?.action === 'deduct-credit') {
-      const { amount = 1 } = req.body;
-      if (!verifiedUid) return res.status(401).json({ success: false, error: 'Unauthorized' });
-      const subRef = _db.doc(`users/${verifiedUid}/subscription/current`);
-      await subRef.update({ credits: FieldValue.increment(-amount) });
-      const subDoc = await subRef.get();
-      return res.status(200).json({ success: true, newCredits: subDoc.data()?.credits || 0 });
+      return res.status(410).json({ success: false, error: 'deduct-credit deprecated: generation requests reserve credits automatically.' });
     }
 
     // ═══ REFUND CREDITS (для возврата кредитов при неудачных генерациях) ═══
     if (req.body?.action === 'refund-credit') {
-      const { amount = 0 } = req.body;
-      if (!verifiedUid) return res.status(401).json({ success: false, error: 'Unauthorized' });
-      if (amount <= 0) return res.status(200).json({ success: true, refunded: 0 });
-      const subRef = _db.doc(`users/${verifiedUid}/subscription/current`);
-      await subRef.update({ credits: FieldValue.increment(amount) });
-      const subDoc = await subRef.get();
-      console.log(`💰 [refund] Returned ${amount} credit(s) to ${verifiedUid}`);
-      return res.status(200).json({ success: true, refunded: amount, newCredits: subDoc.data()?.credits || 0 });
+      return res.status(410).json({ success: false, error: 'refund-credit deprecated: failed generation requests are refunded automatically.' });
+    }
+
+    let creditReservation = null;
+    const creditCost = getGenerationCreditCost(req.body);
+    const idempotencyKey = normalizeIdempotencyKey(req.body?.idempotencyKey);
+    const idempotencyCacheKey = creditCost > 0 && idempotencyKey ? `${verifiedUid}:${idempotencyKey}` : null;
+    let idempotencyEntry = null;
+
+    if (idempotencyCacheKey) {
+      pruneIdempotencyCache();
+      const existingEntry = idempotencyCache.get(idempotencyCacheKey);
+      if (existingEntry) {
+        console.log(`[Idempotency] Reusing response for user=${verifiedUid} key=${idempotencyKey}`);
+        const cached = await existingEntry.promise;
+        return res.status(cached.statusCode).json(cached.body);
+      }
+      idempotencyEntry = createIdempotencyEntry(idempotencyCacheKey);
+    }
+
+    if (creditCost > 0) {
+      installGenerationFinalizer({
+        req,
+        res,
+        getReservation: () => creditReservation,
+        idempotencyEntry,
+      });
+
+      creditReservation = await reserveGenerationCredits({
+        uid: verifiedUid,
+        email: decodedAuth?.email || null,
+        dbUserId: decodedAuth?.dbUserId || null,
+      }, creditCost, idempotencyKey || `req_${startTime}`);
     }
 
     // ═══ DETECT ALL ELEMENTS (Gemini Vision — bounding boxes) ═══
@@ -2084,13 +2394,7 @@ OUTPUT: One single 4K image. Casting card with 5 frames. Masterpiece cinematic p
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download comp card');
 
-        // Списываем 1 кредит за генерацию comp card
-        const subRef = _db.doc(`users/${verifiedUid}/subscription/current`);
-        if (!req.body?.skipCreditDeduction) {
-          await subRef.update({ credits: FieldValue.increment(-1) });
-        }
-        const subSnap = await subRef.get();
-        const creditsRemaining = subSnap.data()?.credits || 0;
+        const creditsRemaining = await getCreditsRemainingForReservation(creditReservation);
 
         incrementGlobalCounter('generationsPersona').catch(() => {});
         saveGenerationLog({ userId: verifiedUid, success: true, imageUrl: resultUrl, reqBody: { action: 'create-persona', photoCount: photoKeys.length }, durationMs: Date.now() - startTime }).catch(() => {});
@@ -2150,13 +2454,7 @@ OUTPUT: One single high-quality photo. No text. No collage. No explanations.`;
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download generated angle');
 
-        // Списываем 1 кредит
-        const subRef = _db.doc(`users/${verifiedUid}/subscription/current`);
-        if (!req.body?.skipCreditDeduction) {
-          await subRef.update({ credits: FieldValue.increment(-1) });
-        }
-        const subSnap = await subRef.get();
-        const creditsRemaining = subSnap.data()?.credits || 0;
+        const creditsRemaining = await getCreditsRemainingForReservation(creditReservation);
 
         incrementGlobalCounter('generationsAngle').catch(() => {});
 
@@ -2184,13 +2482,7 @@ OUTPUT: One single high-quality photo. No text. No collage. No explanations.`;
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download edited card');
 
-        // Списываем 1 кредит
-        const subRef = _db.doc(`users/${verifiedUid}/subscription/current`);
-        if (!req.body?.skipCreditDeduction) {
-          await subRef.update({ credits: FieldValue.increment(-1) });
-        }
-        const subSnap = await subRef.get();
-        const creditsRemaining = subSnap.data()?.credits || 0;
+        const creditsRemaining = await getCreditsRemainingForReservation(creditReservation);
 
         incrementGlobalCounter('generationsCardEdit').catch(() => {});
 
@@ -2368,8 +2660,9 @@ Return ONLY the edited photograph.`;
         console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Photo edit complete. Downloading result...`);
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error("Failed to download edited image");
+        const creditsRemaining = await getCreditsRemainingForReservation(creditReservation);
         
-        return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl });
+        return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining });
       } catch (editError) {
         console.error(`❌ Photo edit error:`, editError.message);
         return res.status(200).json({ success: false, error: `Ошибка редактирования: ${editError.message}` });
@@ -2436,7 +2729,8 @@ Return ONLY the edited photograph.`;
       console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Калибровка успешна. Downloading result...`);
       const dl = await downloadToBase64(resultUrl);
       if (!dl) throw new Error("Failed to download generated image");
-      return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl });
+      const creditsRemaining = await getCreditsRemainingForReservation(creditReservation);
+      return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining });
     }
 
     // ═══ MODEL CARD — карточка маркетплейса с моделью через GPT Image 2 ═══
@@ -2476,13 +2770,7 @@ Return ONLY the edited photograph.`;
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download model card from KIE.ai');
 
-        // Списываем 2 кредита
-        const subRef = _db.doc(`users/${verifiedUid}/subscription/current`);
-        if (!req.body?.skipCreditDeduction) {
-          await subRef.update({ credits: FieldValue.increment(isPhotoOnly ? -1 : -2) });
-        }
-        const subSnap = await subRef.get();
-        const creditsRemaining = subSnap.data()?.credits || 0;
+        const creditsRemaining = await getCreditsRemainingForReservation(creditReservation);
 
         incrementGlobalCounter('generationsModelCard').catch(() => {});
         saveGenerationLog({ userId: verifiedUid, success: true, imageUrl: resultUrl, reqBody: req.body, durationMs: Date.now() - startTime }).catch(() => {});
@@ -2526,13 +2814,7 @@ Return ONLY the edited photograph.`;
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download UGC from KIE.ai');
 
-        // Списываем 1 кредит
-        const subRef = _db.doc(`users/${verifiedUid}/subscription/current`);
-        if (!req.body?.skipCreditDeduction) {
-          await subRef.update({ credits: FieldValue.increment(-1) });
-        }
-        const subSnap = await subRef.get();
-        const creditsRemaining = subSnap.data()?.credits || 0;
+        const creditsRemaining = await getCreditsRemainingForReservation(creditReservation);
 
         incrementGlobalCounter('generationsUgc').catch(() => {});
         saveGenerationLog({ userId: verifiedUid, success: true, imageUrl: resultUrl, reqBody: req.body, durationMs: Date.now() - startTime }).catch(() => {});
@@ -2584,13 +2866,7 @@ Return ONLY the edited photograph.`;
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download quick card from KIE.ai');
 
-        // Списываем 2 кредита
-        const subRef = _db.doc(`users/${verifiedUid}/subscription/current`);
-        if (!req.body?.skipCreditDeduction) {
-          await subRef.update({ credits: FieldValue.increment(isPhotoOnly ? -1 : -2) });
-        }
-        const subSnap = await subRef.get();
-        const creditsRemaining = subSnap.data()?.credits || 0;
+        const creditsRemaining = await getCreditsRemainingForReservation(creditReservation);
 
         incrementGlobalCounter('generationsQuickCard').catch(() => {});
         saveGenerationLog({ userId: verifiedUid, success: true, imageUrl: resultUrl, reqBody: req.body, durationMs: Date.now() - startTime }).catch(() => {});
@@ -2651,8 +2927,9 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
 
         incrementGlobalCounter('generationsCard').catch(() => {});
         saveGenerationLog({ userId: verifiedUid, success: true, imageUrl: resultUrl, reqBody: req.body, durationMs: Date.now() - startTime }).catch(() => {});
+        const creditsRemaining = await getCreditsRemainingForReservation(creditReservation);
 
-        return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl });
+        return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining });
       } catch (cardErr) {
         console.error(`❌ Card Design error:`, cardErr.message);
         alertOnError(cardErr, `generate-image [card_design]`).catch(() => {});
@@ -2723,11 +3000,7 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
       const dl = await downloadToBase64(resultUrl);
       if (!dl) throw new Error("Failed to download product image from KIE.ai");
 
-      // ═══ СПИСАНИЕ КРЕДИТА (Product Mode) ═══
-      const subRefProd = _db.doc(`users/${verifiedUid}/subscription/current`);
-      await subRefProd.update({ credits: FieldValue.increment(-1) });
-      const subSnapProd = await subRefProd.get();
-      const creditsRemainingProd = subSnapProd.data()?.credits ?? 0;
+      const creditsRemainingProd = await getCreditsRemainingForReservation(creditReservation);
 
       incrementGlobalCounter('generationsProduct').catch(() => {});
       saveGenerationLog({ userId: verifiedUid, success: true, imageUrl: resultUrl, reqBody: req.body, durationMs: Date.now() - startTime }).catch(() => {});
@@ -2888,11 +3161,7 @@ ${skinPrompt}
     const dl = await downloadToBase64(resultUrl);
     if (!dl) throw new Error("Failed to download final generated image from KIE.ai");
 
-    // ═══ СПИСАНИЕ КРЕДИТА (Fashion / VTON Mode) ═══
-    const subRefFashion = _db.doc(`users/${verifiedUid}/subscription/current`);
-    await subRefFashion.update({ credits: FieldValue.increment(-1) });
-    const subSnapFashion = await subRefFashion.get();
-    const creditsRemainingFashion = subSnapFashion.data()?.credits ?? 0;
+    const creditsRemainingFashion = await getCreditsRemainingForReservation(creditReservation);
 
     // ═══ STATS: атомарно инкрементируем счётчик генераций ═══
     const mode = req.body?.isCalibration ? 'generationsCalibration' : 'generationsFashion';
@@ -2928,6 +3197,14 @@ ${skinPrompt}
     
     // Detect quota/rate-limit errors and return friendly messages
     const msg = error.message || '';
+    if (error.code === 'NO_PLAN' || error.code === 'INSUFFICIENT_CREDITS') {
+      return res.status(402).json({
+        success: false,
+        error: error.message,
+        isBillingError: true,
+        creditsRemaining: error.creditsRemaining ?? 0
+      });
+    }
     if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota') || msg.includes('rate')) {
       return res.status(200).json({ 
         success: false, 

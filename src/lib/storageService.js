@@ -1,5 +1,5 @@
 // src/lib/storageService.js
-// Замена Firebase Storage — загрузка/скачивание файлов через /api/upload
+// Замена Auth Storage — загрузка/скачивание файлов через /api/upload
 // Чистые клиентские утилиты (compressImage, base64ToBlob) сохранены без изменений
 
 import { apiFetch, getToken } from './api';
@@ -49,6 +49,14 @@ const base64ToBlob = (base64) => {
   return new Blob([arr], { type: mime });
 };
 
+const blobToBase64 = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+
 // ═══════════════════════════════════════
 //  UPLOAD / DOWNLOAD / DELETE через API
 // ═══════════════════════════════════════
@@ -61,15 +69,11 @@ const base64ToBlob = (base64) => {
  * @returns {Promise<{url: string, path: string}>}
  */
 export const uploadImage = async (uid, file, folder = 'models') => {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('uid', uid);
-  formData.append('folder', folder);
+  const base64 = await blobToBase64(file);
 
-  // apiFetch автоматически НЕ ставит Content-Type для FormData (браузер сам ставит boundary)
   const res = await apiFetch('/api/upload', {
     method: 'POST',
-    body: formData,
+    body: JSON.stringify({ uid, folder, base64 }),
   });
 
   if (!res.ok) {
@@ -138,13 +142,8 @@ export const downloadStoragePathAsBase64 = async (storagePath, mimeType = 'image
       return null;
     }
 
-    const blob = await res.blob();
-    return await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
+    const json = await res.json().catch(() => ({}));
+    return json.base64 || null;
   } catch (err) {
     console.warn(`⚠️ downloadStoragePathAsBase64 failed for '${storagePath}':`, err.message);
     return null;

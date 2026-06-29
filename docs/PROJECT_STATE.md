@@ -1,30 +1,46 @@
-# docs/PROJECT_STATE.md — Текущее состояние VTON MVP
+# VTON MVP Project State
 
-## Что сделано
-- Настроен холст примерки и клиентская загрузка/удаление фона у фотографий пользователей.
-- Написана интеграция с Google GenAI для процессинга изображений.
-- Развернут Inngest для очередей задач (каталогизация, процессинг).
-- Подключен Firebase Admin SDK на сервере.
-- Подключена YooKassa-оплата тарифов: `trial` 500 ₽ разово, `base` 5 000 ₽/мес, `pro` 14 990 ₽/мес.
-- Опубликована публичная оферта на `/offer`; маршрут изолирован от Auth/Firebase и проходит smoke-тест.
-- Генерация и создание платежей требуют Firebase Bearer token на сервере.
-- OTP-вход усилен: проверка Telegram initData, лимит неверных попыток, debug-код только в DEV.
-- Frontend route splitting уменьшил initial route payload: `/offer`, admin и app/Auth грузятся отдельно.
+Updated: 2026-06-28
 
-## Что в разработке
-- Тонкая настройка промптов генерации одежды для повышения качества примерки.
-- Автоматический парсинг карточек Wildberries для наполнения каталога товаров (в `server-autocatalog.js`).
-- Полировка production auth/env: локальные `VITE_FIREBASE_*` сейчас пустые, поэтому `/` показывает понятный fallback до заполнения Firebase web config.
+## Runtime Architecture
 
-## Известные проблемы
-- Inngest требует запущенного локально dev-сервера Inngest для локального тестирования (`npm run catalog:inngest`).
-- Нет атомарного серверного резервирования кредитов с возвратом при failed generation.
-- Нет production rate limiting на OTP/generation endpoints.
-- Нужна верификация YooKassa webhook на уровне подписи/IP allowlist и идемпотентности.
+- Frontend: React + Vite, served by the Node/Express container.
+- Backend: Node.js/Express API in Docker on the app VPS.
+- Auth: Telegram Mini App initData and email OTP issue internal JWT tokens.
+- Database: PostgreSQL on the database VPS.
+- File storage: MinIO/S3-compatible bucket on the database/storage VPS.
+- Payments: YooKassa endpoints in `api/create-payment.js` and `api/payment-webhook-yookassa.js`.
+- AI generation: KIE.ai and Google GenAI keys from server environment variables.
 
-## 2026-06-12 — Quick Mode Smart Canvas
-- Режим `В два клика` переведён с blind 2-credit pipeline на честный `1 + export`: 1 кредит за чистое студийное фото, 1 кредит только при экспорте карточки.
-- Добавлен `Magic Input`: одна опциональная строка фактов о товаре. Если пользователь не ввёл данные, карточка использует плейсхолдеры, а не выдуманные цену/характеристики.
-- Карточка в quick mode больше не генерируется как растровая AI-картинка с запечённым текстом. UI собирает редактируемые DOM-слои и экспортирует PNG через Canvas.
-- Старый `isCardDesign` prompt дополнительно ограничен: не придумывать цены, скидки, рейтинги, точные материалы/размеры/бренды.
-- Проверки: `npm run lint` ✅, `npm run build` ✅. Local preview ограничен пустым Firebase web config (`auth/invalid-api-key`), поэтому интерактивный smoke до app UI локально не пройден.
+## Data Ownership
+
+All user-facing product data is stored on our servers:
+
+- users and Telegram IDs: PostgreSQL `users`
+- subscriptions, plans and credits: PostgreSQL `subscriptions`
+- generation history: PostgreSQL `generations`
+- saved models and locations: PostgreSQL `user_models` and `user_locations`
+- uploaded images and generated assets: MinIO bucket configured by `S3_*`
+
+## Production Servers
+
+- App VPS: `72.56.20.222`, container `vton-mvp`.
+- Database/storage VPS: `186.246.29.31`, PostgreSQL container `db-komunalka`, MinIO container `vton_minio`.
+- Production domain: `https://seller-studio-ai.ru`.
+
+## Backups
+
+Daily backups are configured on the database/storage VPS:
+
+- PostgreSQL custom dumps.
+- MinIO data archives.
+- Daily local retention under `/root/vton-backups/daily`.
+- Mirrored copies on the app VPS under `/root/vton-backups-db-mirror`.
+
+Before any risky migration, create a manual backup and verify it with `pg_restore -l` plus an archive listing.
+
+## Current Launch Risks
+
+- Legacy image files from the old storage provider could not be recovered while billing was blocked. Their metadata is preserved in PostgreSQL, but missing binary assets must be re-uploaded or regenerated.
+- Keep `S3_*`, `DATABASE_URL`, `JWT_SECRET`, Telegram, AI and YooKassa secrets only in server `.env` files.
+- Do not deploy without `npm run lint`, `npm run build`, and a production smoke test for auth, subscription, user-data and upload/download/delete.

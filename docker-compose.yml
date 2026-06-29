@@ -6,7 +6,6 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3001
-      - DATABASE_URL=postgresql://vton_user:VtonStrongPass2026!@10.8.0.1:5432/vton_mvp
     env_file:
       - .env
     networks:

@@ -15,12 +15,37 @@ export default async function handler(req, res) {
     const limit = Math.min(parseInt(req.query.limit || '500', 10) || 500, 2000);
 
     const { rows } = await query(`
-      SELECT 
-        u.uid as "primaryKey", u.uid, u.email, u.display_name as "displayName", u.telegram_id as "telegramId",
+      SELECT
+        u.id as "primaryKey",
+        CASE
+          WHEN u.telegram_id ~ '^\\d+$' THEN 'tg_' || u.telegram_id
+          ELSE u.telegram_id
+        END as uid,
+        u.email,
+        COALESCE(u.email, u.telegram_id) as "displayName",
+        u.telegram_id as "telegramId",
         u.created_at as "createdAt",
-        s.plan, s.credits, s.credits_total as "creditsTotal", s.plan_activated_at as "planActivatedAt", s.plan_expires_at as "planExpiresAt", s.status
+        s.plan_name as plan,
+        s.credits,
+        s.credits_total as "creditsTotal",
+        s.created_at as "planActivatedAt",
+        s.expires_at as "planExpiresAt",
+        s.status,
+        s.granted_by_admin as "grantedByAdmin",
+        COALESCE(g.total, 0) as "generationCount",
+        COALESCE(g.success, 0) as "successCount",
+        COALESCE(g.failed, 0) as "failedCount"
       FROM users u
-      LEFT JOIN subscriptions s ON u.uid = s.uid
+      LEFT JOIN subscriptions s ON s.user_id = u.id
+      LEFT JOIN (
+        SELECT
+          user_id,
+          COUNT(*)::int as total,
+          COUNT(*) FILTER (WHERE status = 'success' OR status IS NULL)::int as success,
+          COUNT(*) FILTER (WHERE status = 'error')::int as failed
+        FROM generations
+        GROUP BY user_id
+      ) g ON g.user_id = u.id
       ORDER BY u.created_at DESC
       LIMIT $1
     `, [limit]);
@@ -29,11 +54,11 @@ export default async function handler(req, res) {
       ...r,
       channel: r.telegramId ? 'telegram' : r.email ? 'email' : 'unknown',
       isReal: true,
-      generationCount: 0,
-      successCount: 0,
-      failedCount: 0,
+      generationCount: r.generationCount || 0,
+      successCount: r.successCount || 0,
+      failedCount: r.failedCount || 0,
       creditsUsed: Math.max(0, (r.creditsTotal || 0) - (r.credits || 0)),
-      ids: [r.uid, r.telegramId].filter(Boolean),
+      ids: [r.uid, r.telegramId, r.email].filter(Boolean),
       generationTypes: {},
       linkedSubscriptionDocs: []
     }));

@@ -337,7 +337,7 @@ function App() {
   const [quickCardText, setQuickCardText] = useState(null);
   // [QUICK_MODE_V2] — Card generation + text-based editing
   const [quickMode, setQuickMode] = useState(() => {
-    return localStorage.getItem('vton_quickMode') || 'card';
+    return localStorage.getItem('vton_quickMode') || 'photo';
   }); // 'photo' | 'card'
   const [quickCardImage, setQuickCardImage] = useState(() => {
     return localStorage.getItem('vton_quickCardImage') || null;
@@ -855,6 +855,12 @@ function App() {
     });
   };
 
+  const GENERATION_REQUEST_TIMEOUT_MS = 180000;
+  const createIdempotencyKey = (prefix = 'gen') => {
+    const randomPart = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
+    return `${prefix}:${Date.now()}:${randomPart}`;
+  };
+
   const handleGenerate = async (skipConfirm = false) => {
     if (!garmentUrls.length) return;
 
@@ -957,23 +963,7 @@ function App() {
           });
         }
 
-        // 1. Бронируем/списываем кредиты пакетно перед запуском
-        setProcessingMsg('⚡ Бронируем кредиты...');
-        const deductResp = await authFetch('/api/generate-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'deduct-credit',
-            amount: totalShots
-          })
-        });
-        const deductData = await safeParseJSON(deductResp);
-        if (!deductData.success) {
-          throw new Error(deductData.error || 'Не удалось списать кредиты');
-        }
-        refreshCreditsFromResponse(deductData);
-
-        // 2. Очередь выполнения задач с конкурентностью = 3
+        setProcessingMsg('🚀 Запускаем генерации...');
         let completedCount = 0;
         let failedCount = 0;
         const results = [];
@@ -1043,7 +1033,7 @@ function App() {
                 withHumanModel: productWithModel,
                 humanModelPrompt: humanPrompt || undefined,
                 humanModelRefImages: modelRefImages || undefined,
-                skipCreditDeduction: true
+                idempotencyKey: createIdempotencyKey('batch')
               };
             } else {
               // appMode === 'fashion' (VTON)
@@ -1086,16 +1076,24 @@ function App() {
                 isBeautyMode,
                 biometricSeed: task.seed,
                 isProductMode: false,
-                skipCreditDeduction: true
+                idempotencyKey: createIdempotencyKey('batch')
               };
             }
 
-            const resp = await authFetch('/api/generate-image', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body)
-            });
-            const data = await safeParseJSON(resp);
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), GENERATION_REQUEST_TIMEOUT_MS);
+            let data;
+            try {
+              const resp = await authFetch('/api/generate-image', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
+                body: JSON.stringify(body)
+              });
+              data = await safeParseJSON(resp);
+            } finally {
+              clearTimeout(timeoutId);
+            }
             results.push({ ...data, task });
 
             if (data.success) {
@@ -1123,40 +1121,11 @@ function App() {
           }
         };
 
-        // Запуск очереди с concurrency = 3
-        let taskIndex = 0;
-        const worker = async () => {
-          while (taskIndex < tasks.length) {
-            const currentIdx = taskIndex++;
-            await runTask(currentIdx);
-          }
-        };
-
-        const workers = [];
-        for (let i = 0; i < Math.min(3, tasks.length); i++) {
-          workers.push(worker());
-        }
-        await Promise.all(workers);
+        await Promise.allSettled(tasks.map((_, taskIndex) => runTask(taskIndex)));
 
         clearInterval(iv);
-
-        // ═══ REFUND кредитов за неудачные генерации ═══
-        if (failedCount > 0) {
-          try {
-            const refundResp = await authFetch('/api/generate-image', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: 'refund-credit', amount: failedCount })
-            });
-            const refundData = await safeParseJSON(refundResp);
-            if (refundData.success) {
-              refreshCreditsFromResponse(refundData);
-              console.log(`💰 Refunded ${failedCount} credit(s) for failed generations`);
-            }
-          } catch (refundErr) {
-            console.warn('Failed to refund credits:', refundErr.message);
-          }
-        }
+        const lastWithCredits = [...results].reverse().find(r => r?.creditsRemaining != null);
+        if (lastWithCredits) refreshCreditsFromResponse(lastWithCredits);
 
         const successItems = results.filter(r => r.success);
         if (successItems.length > 0) {
@@ -1486,6 +1455,7 @@ function App() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: user?.uid || null,
+          idempotencyKey: createIdempotencyKey('model-preview'),
           garmentImageUrls: garmentUrlsForPreview,
           previewMode: garmentUrlsForPreview.length === 0,
           modelPreset: prompt + '. Generate a fashion model portrait wearing simple casual clothing.',
@@ -1648,6 +1618,7 @@ function App() {
           attributes: appMode === 'product' ? productModelDetails : modelDetails, isBeautyMode, biometricSeed,
           isProductMode: appMode === 'product',
           categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
+          idempotencyKey: createIdempotencyKey('regenerate'),
         }),
       });
       clearInterval(iv);
@@ -1715,22 +1686,32 @@ function App() {
     try {
       // Run N parallel card generation requests
       const isBase64 = generatedImage && generatedImage.startsWith('data:');
-      const promises = Array.from({ length: count }, () =>
-        authFetch('/api/generate-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: user.uid,
-            isCardDesign: true,
-            cardStyle: cardDesignStyle,
-            ...(isBase64
-              ? { sourceImageBase64: generatedImage }
-              : { sourceImageUrl: generatedImage }),
-          }),
-        }).then(r => safeParseJSON(r))
-      );
+      const promises = Array.from({ length: count }, async () => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), GENERATION_REQUEST_TIMEOUT_MS);
+        try {
+          const resp = await authFetch('/api/generate-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: controller.signal,
+            body: JSON.stringify({
+              userId: user.uid,
+              isCardDesign: true,
+              cardStyle: cardDesignStyle,
+              idempotencyKey: createIdempotencyKey('card-design'),
+              ...(isBase64
+                ? { sourceImageBase64: generatedImage }
+                : { sourceImageUrl: generatedImage }),
+            }),
+          });
+          return safeParseJSON(resp);
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      });
       
-      const results = await Promise.all(promises);
+      const settled = await Promise.allSettled(promises);
+      const results = settled.map(r => r.status === 'fulfilled' ? r.value : { success: false, error: r.reason?.message || 'Ошибка генерации' });
       clearInterval(iv);
       
       const successCards = results.filter(d => d.success).map(d => d.imageUrl);
@@ -1762,15 +1743,15 @@ function App() {
       setStatusText('Сначала загрузите фото товара'); setStatusType('error');
       return;
     }
-    const creditsNeeded = 5;
+    const creditsNeeded = 4;
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < creditsNeeded && !subscription?.local) {
       setShowPricing(true);
-      setStatusText(`⚡ Для генерации галереи нужно 5 кредитов`); setStatusType('error');
+      setStatusText(`⚡ Для генерации галереи нужно ${creditsNeeded} кредита`); setStatusType('error');
       return;
     }
     if (subscription?.local && creditsAvailable < creditsNeeded) {
-      setStatusText(`⚡ Для генерации галереи нужно 5 кредитов`); setStatusType('error');
+      setStatusText(`⚡ Для генерации галереи нужно ${creditsNeeded} кредита`); setStatusType('error');
       return;
     }
     
@@ -1778,29 +1759,6 @@ function App() {
     setIsProcessing(true);
     setStatusType('processing');
     setStatusText('📋 Начинаем сборку галереи (4 слайда)...');
-
-    // Списываем 5 кредитов
-    try {
-      const deductResp = await authFetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'deduct-credit',
-          amount: 5,
-        }),
-      });
-      const deductData = await safeParseJSON(deductResp);
-      if (!deductData.success) {
-        throw new Error(deductData.error || 'Не удалось списать кредиты');
-      }
-      refreshCreditsFromResponse(deductData);
-    } catch (deductErr) {
-      setStatusText(`⚠️ Ошибка списания кредитов: ${deductErr.message}`);
-      setStatusType('error');
-      setIsGalleryGenerating(false);
-      setIsProcessing(false);
-      return;
-    }
 
     const gallerySlides = [
       quickCardImage || generatedImage || garmentUrls[0] // Слайд 1: текущая обложка
@@ -1826,7 +1784,7 @@ function App() {
           backgroundPreset: 'minimalist clean solid color studio background',
           aspectRatio: '3:4',
           garmentImageUrls: garmentUrls,
-          skipCreditDeduction: true,
+          idempotencyKey: createIdempotencyKey('gallery-detail'),
         }),
       });
       const dataDetail = await safeParseJSON(respDetail);
@@ -1871,7 +1829,7 @@ ${userProductInfo.trim()}
           quickCardStyle: 'natural',
           userProductInfo: infoText,
           garmentImageUrls: garmentUrls,
-          skipCreditDeduction: true,
+          idempotencyKey: createIdempotencyKey('gallery-size'),
         }),
       });
       const dataSize = await safeParseJSON(respSize);
@@ -1892,7 +1850,7 @@ ${userProductInfo.trim()}
           backgroundPreset: 'cozy beautiful sunlit city street, soft warm city bokeh background, cinematic lighting',
           aspectRatio: '3:4',
           garmentImageUrls: garmentUrls,
-          skipCreditDeduction: true,
+          idempotencyKey: createIdempotencyKey('gallery-life'),
         };
       } else {
         const categoryId = selectedProductCategory?.id || 'default';
@@ -1918,7 +1876,7 @@ ${userProductInfo.trim()}
           aspectRatio: '3:4',
           garmentImageUrls: garmentUrls,
           withHumanModel: false,
-          skipCreditDeduction: true,
+          idempotencyKey: createIdempotencyKey('gallery-life'),
         };
       }
 
@@ -1933,6 +1891,7 @@ ${userProductInfo.trim()}
       gallerySlides.push(imgLife);
 
       setQuickResults(prev => ({ ...prev, gallery: gallerySlides }));
+      refreshCreditsFromResponse(dataLife);
       setStatusText('✅ Галерея из 4-х слайдов успешно собрана!');
       setStatusType('success');
     } catch (err) {
@@ -1951,15 +1910,15 @@ ${userProductInfo.trim()}
       setStatusText('Сначала загрузите фото товара'); setStatusType('error');
       return;
     }
-    const creditsNeeded = 2;
+    const creditsNeeded = 4;
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < creditsNeeded && !subscription?.local) {
       setShowPricing(true);
-      setStatusText(`⚡ Для запуска A/B теста нужно 2 кредита`); setStatusType('error');
+      setStatusText(`⚡ Для запуска A/B теста нужно ${creditsNeeded} кредита`); setStatusType('error');
       return;
     }
     if (subscription?.local && creditsAvailable < creditsNeeded) {
-      setStatusText(`⚡ Для запуска A/B теста нужно 2 кредита`); setStatusType('error');
+      setStatusText(`⚡ Для запуска A/B теста нужно ${creditsNeeded} кредита`); setStatusType('error');
       return;
     }
 
@@ -1967,29 +1926,6 @@ ${userProductInfo.trim()}
     setIsProcessing(true);
     setStatusType('processing');
     setStatusText('⚖️ Запускаем A/B Тестирование (2 обложки)...');
-
-    // Списываем 2 кредита
-    try {
-      const deductResp = await authFetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'deduct-credit',
-          amount: 2,
-        }),
-      });
-      const deductData = await safeParseJSON(deductResp);
-      if (!deductData.success) {
-        throw new Error(deductData.error || 'Не удалось списать кредиты');
-      }
-      refreshCreditsFromResponse(deductData);
-    } catch (deductErr) {
-      setStatusText(`⚠️ Ошибка списания кредитов: ${deductErr.message}`);
-      setStatusType('error');
-      setIsAbGenerating(false);
-      setIsProcessing(false);
-      return;
-    }
 
     try {
       // Вариант A (Natural)
@@ -2005,7 +1941,7 @@ ${userProductInfo.trim()}
           userProductInfo: userProductInfo.trim() || '',
           garmentImageUrls: garmentUrls,
           biometricSeed: seedA,
-          skipCreditDeduction: true, // Пропускаем списание кредитов на бэкенде
+          idempotencyKey: createIdempotencyKey('ab-a'),
         }),
       });
       const dataA = await safeParseJSON(respA);
@@ -2025,7 +1961,7 @@ ${userProductInfo.trim()}
           userProductInfo: userProductInfo.trim() || '',
           garmentImageUrls: garmentUrls,
           biometricSeed: seedB,
-          skipCreditDeduction: true, // Пропускаем списание кредитов на бэкенде
+          idempotencyKey: createIdempotencyKey('ab-b'),
         }),
       });
       const dataB = await safeParseJSON(respB);
@@ -2033,6 +1969,7 @@ ${userProductInfo.trim()}
       const imgB = dataB.imageBase64 || dataB.imageUrl;
 
       setQuickResults(prev => ({ ...prev, abTest: [imgA, imgB] }));
+      refreshCreditsFromResponse(dataB);
       setStatusText('✅ Альтернативные обложки для A/B Теста готовы!');
       setStatusType('success');
     } catch (err) {
@@ -2077,6 +2014,7 @@ ${userProductInfo.trim()}
       setQuickResults(prev => ({...prev, [quickMode]: { image: generatedImage }}));
     }
     const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), GENERATION_REQUEST_TIMEOUT_MS);
     abortControllerRef.current = controller;
 
     setIsProcessing(true);
@@ -2113,6 +2051,7 @@ ${userProductInfo.trim()}
             isModelCard: true,
             isPhotoOnly: true,
             garmentImageUrls: garmentUrls,
+            idempotencyKey: createIdempotencyKey('quick-model'),
           }),
         });
         clearInterval(statusIv);
@@ -2141,6 +2080,7 @@ ${userProductInfo.trim()}
             userId: user.uid,
             isUgcMode: true,
             garmentImageUrls: garmentUrls,
+            idempotencyKey: createIdempotencyKey('quick-ugc'),
           }),
         });
         clearInterval(statusIv);
@@ -2170,6 +2110,7 @@ ${userProductInfo.trim()}
             quickCardStyle: quickCardStyle,
             userProductInfo: userProductInfo.trim() || '',
             garmentImageUrls: garmentUrls,
+            idempotencyKey: createIdempotencyKey('quick-card'),
           }),
         });
         clearInterval(statusIv);
@@ -2210,6 +2151,7 @@ ${userProductInfo.trim()}
             humanModelPrompt: modelPrompt,
             attributes: quickWithModel ? productModelDetails : undefined,
             isBeautyMode: false,
+            idempotencyKey: createIdempotencyKey('quick-photo'),
           }),
         });
         clearInterval(statusIv);
@@ -2242,6 +2184,7 @@ ${userProductInfo.trim()}
         setStatusType('error');
       }
     } finally {
+      clearTimeout(timeoutId);
       setIsProcessing(false);
       abortControllerRef.current = null;
     }
@@ -2268,6 +2211,7 @@ ${userProductInfo.trim()}
           action: 'edit-card',
           sourceImageBase64: quickCardImage,
           editInstruction: cardEditText.trim(),
+          idempotencyKey: createIdempotencyKey('card-edit'),
         }),
       });
       const data = await safeParseJSON(resp);
@@ -2433,16 +2377,14 @@ ${userProductInfo.trim()}
         }
       }
 
-      // SEQUENTIAL generation — one at a time, each gets full 55s before timeout
-      // This avoids rate-limiting and ensures each frame gets the full Vercel 60s window
+      // PARALLEL generation
       let successCount = 0;
-      for (let idx = 0; idx < angles.length; idx++) {
-        const angle = angles[idx];
+      setStatusText(`📸 Генерируем кадры (параллельно)...`); setStatusType('');
+      const promises = angles.map(async (angle, idx) => {
         const slotIdx = existingCount + idx;
-        setStatusText(`📸 Генерируем кадр ${idx + 1}/${count}...`); setStatusType('');
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 55000); // 55s client-side timeout
+          const timeoutId = setTimeout(() => controller.abort(), GENERATION_REQUEST_TIMEOUT_MS);
           const biometricSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
           const resp = await authFetch('/api/generate-image', {
             method: 'POST',
@@ -2460,6 +2402,7 @@ ${userProductInfo.trim()}
               withHumanModel: appMode === 'product' && productWithModel,
               humanModelPrompt: window.__humanModelPrompt || undefined,
               humanModelRefImages: window.__humanModelRefImages || undefined,
+              idempotencyKey: createIdempotencyKey('photoshoot'),
             }),
           });
           clearTimeout(timeoutId);
@@ -2469,22 +2412,27 @@ ${userProductInfo.trim()}
             setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = imgData; return n; });
             setPhotoHistory(prev => ({ ...prev, [slotIdx]: [imgData] }));
             setPhotoViewIdx(prev => ({ ...prev, [slotIdx]: 0 }));
-            successCount++;
+            return { success: true, creditsRemaining: data.creditsRemaining };
           } else {
             console.warn(`Кадр ${idx + 1}: ${data.details || data.error}`);
-            // Remove the null placeholder for failed frame
             setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = null; return n; });
+            return { success: false, error: data.details || data.error };
           }
         } catch (frameErr) {
           if (frameErr.name === 'AbortError') {
-            console.warn(`Кадр ${idx + 1}: Превышен таймаут 55 сек`);
+            console.warn(`Кадр ${idx + 1}: Превышен таймаут 180 сек`);
           } else {
             console.warn(`Кадр ${idx + 1} ошибка:`, frameErr.message);
           }
-          // Remove null placeholder
           setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = null; return n; });
+          return { success: false, error: frameErr.message };
         }
-      }
+      });
+
+      const results = await Promise.allSettled(promises);
+      successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+      const lastWithCredits = [...results].reverse().find(r => r.status === 'fulfilled' && r.value?.creditsRemaining != null);
+      if (lastWithCredits) refreshCreditsFromResponse(lastWithCredits.value);
       // Clean up nulls from failed frames
       setPhotoshootImages(prev => prev.filter(Boolean));
       setStatusText(successCount > 0 ? `🎉 Фотосессия: ${successCount} кадров готово!` : 'Упс! Не удалось сгенерировать кадры. Попробуйте снова.');
@@ -2521,6 +2469,7 @@ ${userProductInfo.trim()}
           isPhotoEdit: true,
           sourceImageUrl: sourceUrl,
           editInstruction: instruction,
+          idempotencyKey: createIdempotencyKey('photo-edit'),
         }),
       });
       const data = await safeParseJSON(resp);
@@ -2540,6 +2489,7 @@ ${userProductInfo.trim()}
           const versions = (photoHistory[idx] || [currentVersions[0]]);
           return { ...prev, [idx]: versions.length };
         });
+        refreshCreditsFromResponse(data);
       } else {
         setStatusText(`Ошибка редактирования кадра ${idx + 1}: ${data.details || data.error}`); setStatusType('error');
       }

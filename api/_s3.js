@@ -1,8 +1,3 @@
-// ─────────────────────────────────────────────────────────
-// _s3.js — Клиент MinIO / S3 для хранения файлов
-// Используется вместо Firebase Storage
-// ─────────────────────────────────────────────────────────
-
 import {
   S3Client,
   PutObjectCommand,
@@ -10,19 +5,19 @@ import {
   GetObjectCommand,
 } from '@aws-sdk/client-s3';
 
-/**
- * Конфигурация S3/MinIO — всё через env, с фолбэками для локальной разработки.
- */
-const S3_ENDPOINT = process.env.S3_ENDPOINT || 'http://186.246.29.31:9000';
-const S3_ACCESS_KEY = process.env.S3_ACCESS_KEY || 'minioadmin';
-const S3_SECRET_KEY = process.env.S3_SECRET_KEY || 'minioAdminPassword2026';
-const S3_BUCKET = process.env.S3_BUCKET || 'vton-uploads';
+function requiredEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} is required for file storage`);
+  }
+  return value;
+}
 
-/**
- * S3-клиент (совместим с MinIO).
- * forcePathStyle: true — обязателен для MinIO (path-style вместо virtual-hosted-style).
- * region: 'us-east-1' — дефолт для MinIO, значения не имеет, но SDK требует.
- */
+const S3_ENDPOINT = requiredEnv('S3_ENDPOINT');
+const S3_ACCESS_KEY = requiredEnv('S3_ACCESS_KEY');
+const S3_SECRET_KEY = requiredEnv('S3_SECRET_KEY');
+const S3_BUCKET = requiredEnv('S3_BUCKET');
+
 const s3 = new S3Client({
   endpoint: S3_ENDPOINT,
   region: 'us-east-1',
@@ -33,17 +28,6 @@ const s3 = new S3Client({
   forcePathStyle: true,
 });
 
-/**
- * Загружает файл в S3/MinIO и возвращает публичный URL.
- *
- * @param {string} key — путь/ключ в бакете (напр. 'users/tg_123/photo.jpg')
- * @param {Buffer} buffer — содержимое файла
- * @param {string} contentType — MIME-тип (напр. 'image/jpeg')
- * @returns {Promise<string>} — публичный URL загруженного файла
- *
- * @example
- *   const url = await uploadFile('generations/abc123.png', pngBuffer, 'image/png');
- */
 async function uploadFile(key, buffer, contentType) {
   await s3.send(
     new PutObjectCommand({
@@ -56,11 +40,6 @@ async function uploadFile(key, buffer, contentType) {
   return getPublicUrl(key);
 }
 
-/**
- * Удаляет файл из S3/MinIO.
- *
- * @param {string} key — путь/ключ в бакете
- */
 async function deleteFile(key) {
   await s3.send(
     new DeleteObjectCommand({
@@ -70,15 +49,7 @@ async function deleteFile(key) {
   );
 }
 
-/**
- * Конструирует публичный URL для файла в MinIO.
- * Формат: {endpoint}/{bucket}/{key}
- *
- * @param {string} key — путь/ключ в бакете
- * @returns {string} — публичный URL
- */
 function getPublicUrl(key) {
-  // Убираем trailing slash из endpoint если есть
   const base = S3_ENDPOINT.replace(/\/$/, '');
   return `${base}/${S3_BUCKET}/${key}`;
 }
@@ -89,7 +60,6 @@ export {
   uploadFile,
   deleteFile,
   getPublicUrl,
-  // Реэкспортируем команды для прямого использования при необходимости
   PutObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,

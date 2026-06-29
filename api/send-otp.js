@@ -71,7 +71,9 @@ export default async function handler(req, res) {
 
   try {
     let { email, tgInitData } = req.body;
-    const isLocal = !process.env.VERCEL || process.env.VERCEL_ENV === 'development';
+    const isLocal =
+      process.env.NODE_ENV !== 'production' &&
+      (!process.env.VERCEL || process.env.VERCEL_ENV === 'development');
 
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
@@ -94,9 +96,13 @@ export default async function handler(req, res) {
     // 2. Prepare Postgres write. The code is saved only after a delivery channel succeeds.
     const saveOtpCode = async () => {
       await query(`
-        INSERT INTO otps (email, code, expires_at)
-        VALUES ($1, $2, $3)
-        ON CONFLICT (email) DO UPDATE SET code = $2, expires_at = $3, created_at = NOW()
+        INSERT INTO otps (email, code, expires_at, attempts)
+        VALUES ($1, $2, $3, 0)
+        ON CONFLICT (email) DO UPDATE SET
+          code = EXCLUDED.code,
+          expires_at = EXCLUDED.expires_at,
+          attempts = 0,
+          created_at = NOW()
       `, [email, code, expiresAt]);
     };
 
@@ -196,11 +202,29 @@ export default async function handler(req, res) {
     }
 
     // C. TELEGRAM FALLBACK
-    // User chat is trusted only after Telegram Mini App initData verification.
+    // User chat is trusted after Telegram Mini App initData verification, or when
+    // the requested email is already linked to a known Telegram user in Postgres.
     // Admin fallback is limited to local/dev environments to avoid leaking OTPs in production.
     const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
     const telegramAdminChatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
-    const targetChatId = verifiedTelegramUser?.id || (isLocal ? telegramAdminChatId : null);
+    let linkedTelegramId = null;
+
+    if (!emailSent && !verifiedTelegramUser && telegramBotToken) {
+      try {
+        const linkedUser = await query(
+          `SELECT telegram_id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+          [email]
+        );
+        const candidateTelegramId = String(linkedUser.rows[0]?.telegram_id || '');
+        if (/^\d+$/.test(candidateTelegramId)) {
+          linkedTelegramId = candidateTelegramId;
+        }
+      } catch (lookupErr) {
+        console.warn('[send-otp] Linked Telegram lookup failed:', lookupErr.message);
+      }
+    }
+
+    const targetChatId = verifiedTelegramUser?.id || linkedTelegramId || (isLocal ? telegramAdminChatId : null);
     
     let sentToTelegram = false;
     if (!emailSent && telegramBotToken && targetChatId) {
@@ -255,9 +279,9 @@ export default async function handler(req, res) {
         await saveOtpCode();
         return res.status(200).json({
           success: true,
-          message: verifiedTelegramUser?.id ? 'OTP sent to Telegram' : 'OTP sent to local support fallback',
-          telegramFallback: Boolean(verifiedTelegramUser?.id),
-          supportFallback: !verifiedTelegramUser?.id,
+          message: verifiedTelegramUser?.id || linkedTelegramId ? 'OTP sent to Telegram' : 'OTP sent to local support fallback',
+          telegramFallback: Boolean(verifiedTelegramUser?.id || linkedTelegramId),
+          supportFallback: !verifiedTelegramUser?.id && !linkedTelegramId,
         });
       }
 

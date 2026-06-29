@@ -167,6 +167,18 @@ export default async function handler(req, res) {
 
 // ═══ Row → Frontend-compatible object mappers ═══
 
+import { getPublicUrl } from './_s3.js';
+
+function rewriteS3Url(url) {
+  if (!url) return url;
+  if (url.startsWith('data:')) return url;
+  const match = url.match(/(users\/[^?]+)/);
+  if (match) {
+    return getPublicUrl(match[1]);
+  }
+  return url;
+}
+
 function rowToGeneration(row) {
   const meta = row.metadata || {};
   return {
@@ -174,40 +186,44 @@ function rowToGeneration(row) {
     userId: row.user_id,
     success: row.status === 'completed',
     createdAt: row.created_at?.toISOString(),
-    imageUrl: row.result_image_url,
+    imageUrl: rewriteS3Url(row.result_image_url),
     ...meta,
   };
 }
 
 function rowToModel(row) {
   const meta = row.metadata || {};
+  const { imageUrls: metaImageUrls, ...otherMeta } = meta;
+  const imageUrls = (metaImageUrls && metaImageUrls.length > 0) ? metaImageUrls.map(rewriteS3Url) : [rewriteS3Url(row.image_url)];
   return {
     id: row.id,
     type: row.type,
-    imageUrls: meta.imageUrls || [row.image_url],
     storagePaths: meta.storagePaths || [],
     name: meta.name || '',
     prompt: meta.prompt || '',
     modelType: meta.modelType || row.type,
-    fullbodyUrl: meta.fullbodyUrl,
-    compCardUrl: meta.compCardUrl,
-    sourcePhotoUrls: meta.sourcePhotoUrls,
+    fullbodyUrl: rewriteS3Url(meta.fullbodyUrl),
+    compCardUrl: rewriteS3Url(meta.compCardUrl),
+    sourcePhotoUrls: (meta.sourcePhotoUrls || []).map(rewriteS3Url),
     createdAt: row.created_at?.toISOString(),
-    ...meta,
+    ...otherMeta,
+    imageUrls,
   };
 }
 
 function rowToLocation(row) {
   const meta = row.metadata || {};
+  const { imageUrls: metaImageUrls, ...otherMeta } = meta;
+  const imageUrls = (metaImageUrls && metaImageUrls.length > 0) ? metaImageUrls.map(rewriteS3Url) : [rewriteS3Url(row.image_url)];
   return {
     id: row.id,
     title: row.name,
-    imageUrls: meta.imageUrls || [row.image_url],
     storagePaths: meta.storagePaths || [],
-    thumbnail: meta.thumbnail || row.image_url,
+    thumbnail: rewriteS3Url(meta.thumbnail) || rewriteS3Url(row.image_url),
     imageBase64: meta.imageBase64,
     prompt: meta.prompt || '',
     createdAt: row.created_at?.toISOString(),
-    ...meta,
+    ...otherMeta,
+    imageUrls,
   };
 }
