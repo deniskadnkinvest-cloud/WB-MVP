@@ -1,4 +1,4 @@
-import { query } from './_db.js';
+﻿import { query } from './_db.js';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 
@@ -8,13 +8,13 @@ const classifySendError = (sendError = '') => {
   if (sendError.includes('domain is not verified')) {
     return {
       code: 'resend_domain_not_verified',
-      error: 'Email-отправка временно не настроена. Мы уже проверяем домен отправителя.',
+      error: 'Email-РѕС‚РїСЂР°РІРєР° РІСЂРµРјРµРЅРЅРѕ РЅРµ РЅР°СЃС‚СЂРѕРµРЅР°. РњС‹ СѓР¶Рµ РїСЂРѕРІРµСЂСЏРµРј РґРѕРјРµРЅ РѕС‚РїСЂР°РІРёС‚РµР»СЏ.',
     };
   }
 
   return {
     code: 'otp_email_send_failed',
-    error: 'Не удалось отправить код на email. Попробуйте ещё раз или войдите с паролем.',
+    error: 'РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ РєРѕРґ РЅР° email. РџРѕРїСЂРѕР±СѓР№С‚Рµ РµС‰С‘ СЂР°Р· РёР»Рё РІРѕР№РґРёС‚Рµ СЃ РїР°СЂРѕР»РµРј.',
   };
 };
 
@@ -107,9 +107,9 @@ export default async function handler(req, res) {
     };
 
     if (isLocal) {
-      console.log(`✉️ [LOCAL] OTP Code generated for ${email} (expires at ${expiresAt.toISOString()})`);
+      console.log(`вњ‰пёЏ [LOCAL] OTP Code generated for ${email} (expires at ${expiresAt.toISOString()})`);
     } else {
-      console.log(`✉️ OTP Code generated for ${email} (expires at ${expiresAt.toISOString()})`);
+      console.log(`вњ‰пёЏ OTP Code generated for ${email} (expires at ${expiresAt.toISOString()})`);
     }
 
     // 3. Send email via Resend API or SMTP (or fallback to console log for local dev)
@@ -129,15 +129,15 @@ export default async function handler(req, res) {
           body: JSON.stringify({
             from: fromEmail,
             to: [email],
-            subject: 'Код подтверждения Seller Studio',
+            subject: 'РљРѕРґ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ Seller Studio',
             html: `
               <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; background-color: #0c1020; color: #ffffff;">
-                <h2 style="color: #d4af37; text-align: center;">Селлер-Студия</h2>
-                <p style="font-size: 16px; text-align: center;">Ваш одноразовый код для входа в виртуальную примерочную:</p>
+                <h2 style="color: #d4af37; text-align: center;">РЎРµР»Р»РµСЂ-РЎС‚СѓРґРёСЏ</h2>
+                <p style="font-size: 16px; text-align: center;">Р’Р°С€ РѕРґРЅРѕСЂР°Р·РѕРІС‹Р№ РєРѕРґ РґР»СЏ РІС…РѕРґР° РІ РІРёСЂС‚СѓР°Р»СЊРЅСѓСЋ РїСЂРёРјРµСЂРѕС‡РЅСѓСЋ:</p>
                 <div style="background-color: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; font-size: 32px; font-weight: bold; letter-spacing: 5px; text-align: center; color: #ffffff; border: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
                   ${code}
                 </div>
-                <p style="font-size: 12px; color: #888; text-align: center;">Код действителен в течение 5 минут. Не сообщайте его никому.</p>
+                <p style="font-size: 12px; color: #888; text-align: center;">РљРѕРґ РґРµР№СЃС‚РІРёС‚РµР»РµРЅ РІ С‚РµС‡РµРЅРёРµ 5 РјРёРЅСѓС‚. РќРµ СЃРѕРѕР±С‰Р°Р№С‚Рµ РµРіРѕ РЅРёРєРѕРјСѓ.</p>
               </div>
             `
           })
@@ -145,7 +145,7 @@ export default async function handler(req, res) {
 
         if (response.ok) {
           emailSent = true;
-          console.log(`✅ Email sent via Resend API to ${email} from ${fromEmail}`);
+          console.log(`вњ… Email sent via Resend API to ${email} from ${fromEmail}`);
         } else {
           const errText = await response.text();
           let errData;
@@ -155,11 +155,11 @@ export default async function handler(req, res) {
             errData = { message: errText };
           }
           sendError = `Resend API error: ${JSON.stringify(errData)}`;
-          console.error(`❌ Resend API sending failed from ${fromEmail}:`, errData);
+          console.error(`вќЊ Resend API sending failed from ${fromEmail}:`, errData);
         }
       } catch (err) {
         sendError = err.message;
-        console.error('❌ Resend API request failed:', err);
+        console.error('вќЊ Resend API request failed:', err);
       }
     }
 
@@ -179,25 +179,25 @@ export default async function handler(req, res) {
         const mailOptions = {
           from: process.env.SMTP_FROM || `"Seller Studio" <${process.env.SMTP_USER}>`,
           to: email,
-          subject: 'Код подтверждения Seller Studio',
+          subject: 'РљРѕРґ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ Seller Studio',
           html: `
             <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; background-color: #0c1020; color: #ffffff;">
-              <h2 style="color: #d4af37; text-align: center;">Селлер-Студия</h2>
-              <p style="font-size: 16px; text-align: center;">Ваш одноразовый код для входа в виртуальную примерочную:</p>
+              <h2 style="color: #d4af37; text-align: center;">РЎРµР»Р»РµСЂ-РЎС‚СѓРґРёСЏ</h2>
+              <p style="font-size: 16px; text-align: center;">Р’Р°С€ РѕРґРЅРѕСЂР°Р·РѕРІС‹Р№ РєРѕРґ РґР»СЏ РІС…РѕРґР° РІ РІРёСЂС‚СѓР°Р»СЊРЅСѓСЋ РїСЂРёРјРµСЂРѕС‡РЅСѓСЋ:</p>
               <div style="background-color: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; font-size: 32px; font-weight: bold; letter-spacing: 5px; text-align: center; color: #ffffff; border: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
                 ${code}
               </div>
-              <p style="font-size: 12px; color: #888; text-align: center;">Код действителен в течение 5 минут. Не сообщайте его никому.</p>
+              <p style="font-size: 12px; color: #888; text-align: center;">РљРѕРґ РґРµР№СЃС‚РІРёС‚РµР»РµРЅ РІ С‚РµС‡РµРЅРёРµ 5 РјРёРЅСѓС‚. РќРµ СЃРѕРѕР±С‰Р°Р№С‚Рµ РµРіРѕ РЅРёРєРѕРјСѓ.</p>
             </div>
           `
         };
 
         await transporter.sendMail(mailOptions);
         emailSent = true;
-        console.log(`✅ Email sent via SMTP to ${email}`);
+        console.log(`вњ… Email sent via SMTP to ${email}`);
       } catch (err) {
         sendError = err.message;
-        console.error('❌ SMTP sending failed:', err);
+        console.error('вќЊ SMTP sending failed:', err);
       }
     }
 
@@ -230,10 +230,10 @@ export default async function handler(req, res) {
     if (!emailSent && telegramBotToken && targetChatId) {
       try {
         const text = [
-          `🔑 <b>[OTP Вход] Код подтверждения</b>`,
-          `Для почты: <code>${email}</code>`,
-          `Код: <b><code>${code}</code></b>`,
-          `<i>Код действителен 5 минут. Введите его в приложении.</i>`
+          `рџ”‘ <b>[OTP Р’С…РѕРґ] РљРѕРґ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ</b>`,
+          `Р”Р»СЏ РїРѕС‡С‚С‹: <code>${email}</code>`,
+          `РљРѕРґ: <b><code>${code}</code></b>`,
+          `<i>РљРѕРґ РґРµР№СЃС‚РІРёС‚РµР»РµРЅ 5 РјРёРЅСѓС‚. Р’РІРµРґРёС‚Рµ РµРіРѕ РІ РїСЂРёР»РѕР¶РµРЅРёРё.</i>`
         ].join('\n');
         
         const tgUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
@@ -249,22 +249,22 @@ export default async function handler(req, res) {
         
         if (tgResponse.ok) {
           sentToTelegram = true;
-          console.log(`✅ OTP Code sent to Telegram Chat (${targetChatId}) for ${email}`);
+          console.log(`вњ… OTP Code sent to Telegram Chat (${targetChatId}) for ${email}`);
         } else {
           const tgErrorText = await tgResponse.text();
           sendError = `Telegram API Error for chat ${targetChatId}: ${tgErrorText}`;
-          console.error(`❌ Failed to send OTP to Telegram Chat (${targetChatId}):`, tgErrorText);
+          console.error(`вќЊ Failed to send OTP to Telegram Chat (${targetChatId}):`, tgErrorText);
         }
       } catch (tgErr) {
         sendError = `Telegram fetch error: ${tgErr.message}`;
-        console.error(`❌ Telegram send error:`, tgErr.message);
+        console.error(`вќЊ Telegram send error:`, tgErr.message);
       }
     }
 
     // D. LOCAL DEBUG FALLBACK
     // If no provider configured and we are running locally, success is returned and code is logged
     if (!emailSent && isLocal) {
-      console.log(`⚠️ [LOCAL DEV FALLBACK] No email providers set. OTP Code for ${email} is: ${code}`);
+      console.log(`вљ пёЏ [LOCAL DEV FALLBACK] No email providers set. OTP Code for ${email} is: ${code}`);
       await saveOtpCode();
       return res.status(200).json({
         success: true,

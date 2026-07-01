@@ -1,4 +1,4 @@
-// Shared PostgreSQL pool used by API modules.
+﻿// Shared PostgreSQL pool used by API modules.
 // Keep this module small: it is loaded by auth, billing, admin, and generation routes.
 
 import pg from 'pg';
@@ -8,13 +8,13 @@ const { Pool } = pg;
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://vton_user:VtonStrongPass2026!@10.8.0.1:5432/vton_mvp',
   ssl: false,
-  max: 30, // Слегка увеличим максимум
-  idleTimeoutMillis: 5000, // Убиваем коннекты через 5 секунд простоя, чтобы не использовать протухшие
+  max: 30, // РЎР»РµРіРєР° СѓРІРµР»РёС‡РёРј РјР°РєСЃРёРјСѓРј
+  idleTimeoutMillis: 5000, // РЈР±РёРІР°РµРј РєРѕРЅРЅРµРєС‚С‹ С‡РµСЂРµР· 5 СЃРµРєСѓРЅРґ РїСЂРѕСЃС‚РѕСЏ, С‡С‚РѕР±С‹ РЅРµ РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ РїСЂРѕС‚СѓС…С€РёРµ
   connectionTimeoutMillis: 15000,
   query_timeout: 10000,
   statement_timeout: 10000,
   keepAlive: true,
-  keepAliveInitialDelayMillis: 5000, // Пингуем TCP каждые 5 секунд, чтобы WireGuard не убивал стейт
+  keepAliveInitialDelayMillis: 5000, // РџРёРЅРіСѓРµРј TCP РєР°Р¶РґС‹Рµ 5 СЃРµРєСѓРЅРґ, С‡С‚РѕР±С‹ WireGuard РЅРµ СѓР±РёРІР°Р» СЃС‚РµР№С‚
 });
 
 pool.on('error', (err) => {
@@ -74,7 +74,7 @@ async function query(text, params, options = {}) {
   }
 
   if (isRetryableConnectionError(lastError)) {
-    lastError.message = 'Сервис временно недоступен. Повторите попытку.';
+    lastError.message = 'РЎРµСЂРІРёСЃ РІСЂРµРјРµРЅРЅРѕ РЅРµРґРѕСЃС‚СѓРїРµРЅ. РџРѕРІС‚РѕСЂРёС‚Рµ РїРѕРїС‹С‚РєСѓ.';
   }
 
   throw lastError;

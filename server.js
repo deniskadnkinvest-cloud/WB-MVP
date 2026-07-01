@@ -183,10 +183,14 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🔥 PAN.X VTON Backend (KIE.ai) → http://localhost:${PORT}`);
   console.log(`   Inngest Endpoint: http://localhost:${PORT}/api/inngest`);
   console.log(`   Admin Panel APIs: http://localhost:${PORT}/api/admin/*`);
   console.log('   Подключена ЮKassa: /api/create-payment & /api/payment-webhook-yookassa');
   console.log('   Ожидаю запросы от фронтенда...\n');
 });
+
+// KIE.ai может обрабатывать задачи до 4-5 минут — ставим таймаут 10 минут
+server.setTimeout(10 * 60 * 1000); // 10 минут
+

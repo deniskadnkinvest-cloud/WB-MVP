@@ -13,21 +13,22 @@ description: Полная инструкция по инфраструктуре
 
 ## 1. Серверная топология
 
+> **⚠️ ВНИМАНИЕ:** Сервер `nl-app-komunalka` (72.56.20.222) **ВЫВЕДЕН ИЗ ЭКСПЛУАТАЦИИ**.  
+> Всё работает на одном сервере `rf-db-komunalka` (186.246.29.31).
+
 | Сервер | Хостинг | Локация | IP | Спеки | Роль |
 |--------|---------|---------|-----|-------|------|
-| `nl-app-komunalka` | Timeweb Cloud | 🇳🇱 Нидерланды | `72.56.20.222` | 2 CPU, 4 GB RAM, 50 GB NVMe | App VPS (Express + React SPA) |
-| `rf-db-komunalka` | Timeweb Cloud | 🇷🇺 Россия | `186.246.29.31` | 1 CPU, 2 GB RAM, 30 GB NVMe | Database + Storage VPS |
+| `rf-db-komunalka` | Timeweb Cloud | 🇷🇺 Россия | `186.246.29.31` | **4 CPU, 8 GB RAM, 80 GB NVMe** | **ALL-IN-ONE: App + DB + Storage** |
 
 ### Сетевая схема
 
 ```
 Браузер / Telegram Mini App
-  → HTTPS → seller-studio-ai.ru (72.56.20.222)
+  → HTTPS → seller-studio-ai.ru (186.246.29.31)
       → Traefik (SSL/LB, Let's Encrypt)
           → Docker-контейнер vton-mvp (port 3001)
-              → WireGuard VPN (wg0, 10.8.0.1)
-                  → PostgreSQL :5432 (rf-db-komunalka)
-                  → MinIO :9000 (rf-db-komunalka)
+              → PostgreSQL :5432 (localhost / same server)
+              → MinIO :9000 (localhost / same server)
 
 Внешние API:
 ├── KIE.ai (api.kie.ai) — AI генерация изображений
@@ -36,13 +37,14 @@ description: Полная инструкция по инфраструктуре
 └── Resend / SMTP — email OTP
 ```
 
-### WireGuard VPN
+### Подключение к серверу
 
-- Настроен на **хосте** nl-app-komunalka (не в контейнере)
-- Контейнер обращается к `10.8.0.1` (WireGuard IP DB-сервера)
-- Endpoint: `186.246.29.31:51820`
-- Persistent keepalive: 25 сек
-- SSL отключён для БД (трафик защищён VPN-туннелем)
+```bash
+ssh root@186.246.29.31
+```
+
+> ℹ️ WireGuard VPN больше не нужен — БД на том же сервере.  
+> DATABASE_URL указывает на `localhost` или `127.0.0.1:5432`.
 
 ---
 
@@ -75,8 +77,8 @@ description: Полная инструкция по инфраструктуре
 npm run lint
 # 0 errors = OK, warnings допустимы
 
-# 2. SSH на App VPS
-ssh root@72.56.20.222
+# 2. SSH на сервер
+ssh root@186.246.29.31
 
 # 3. Перейти в директорию проекта
 cd /path/to/vton-mvp
@@ -110,10 +112,10 @@ docker restart vton-mvp
 ### Подключение (`api/_db.js`)
 
 ```javascript
-// Через WireGuard VPN — SSL НЕ нужен
+// Локально на том же сервере — SSL НЕ нужен
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // Fallback: postgresql://vton_user:***@10.8.0.1:5432/vton_mvp
+  // Fallback: postgresql://vton_user:***@localhost:5432/vton_mvp
   ssl: false,
   max: 30,
   idleTimeoutMillis: 5000,
@@ -262,8 +264,8 @@ npm-debug.log*, scratch, test-results, coverage
 ## 11. Переменные окружения (.env)
 
 ```bash
-# БД
-DATABASE_URL=postgresql://vton_user:***@10.8.0.1:5432/vton_mvp
+# БД (localhost — всё на одном сервере rf-db-komunalka)
+DATABASE_URL=postgresql://vton_user:***@localhost:5432/vton_mvp
 
 # Хранилище MinIO
 S3_ENDPOINT=http://host:9000

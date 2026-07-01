@@ -1,8 +1,8 @@
-// ═══════════════════════════════════════════════════════════════
+﻿// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 // API endpoint: /api/user-data
 // CRUD operations for user models, locations, and generations
 // Replaces direct Firestore calls from frontend
-// ═══════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 
 import jwt from 'jsonwebtoken';
 import { query } from './_db.js';
@@ -35,7 +35,7 @@ export default async function handler(req, res) {
   const uid = decoded.uid;
 
   try {
-    // ═══ GET — Fetch data ═══
+    // в•ђв•ђв•ђ GET вЂ” Fetch data в•ђв•ђв•ђ
     if (req.method === 'GET') {
       const { type, limit: limitStr } = req.query;
       const maxResults = parseInt(limitStr) || 50;
@@ -70,7 +70,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: 'Unknown type' });
     }
 
-    // ═══ POST — Create data ═══
+    // в•ђв•ђв•ђ POST вЂ” Create data в•ђв•ђв•ђ
     if (req.method === 'POST') {
       const { type, ...data } = req.body || {};
 
@@ -89,7 +89,7 @@ export default async function handler(req, res) {
           `INSERT INTO locations (user_id, name, image_url, metadata)
            VALUES ((SELECT id FROM users WHERE telegram_id = $1), $2, $3, $4)
            RETURNING *`,
-          [uid, data.title || 'Без названия', data.imageUrls?.[0] || data.thumbnail || '', JSON.stringify(data)]
+          [uid, data.title || 'Р‘РµР· РЅР°Р·РІР°РЅРёСЏ', data.imageUrls?.[0] || data.thumbnail || '', JSON.stringify(data)]
         );
         return res.json({ ok: true, data: rowToLocation(result.rows[0]) });
       }
@@ -97,12 +97,12 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: 'Unknown type' });
     }
 
-    // ═══ PATCH — Update data ═══
+    // в•ђв•ђв•ђ PATCH вЂ” Update data в•ђв•ђв•ђ
     if (req.method === 'PATCH') {
       const { type, id, ...fields } = req.body || {};
 
       if (type === 'model' && id) {
-        // Обновляем metadata с мержем существующих полей
+        // РћР±РЅРѕРІР»СЏРµРј metadata СЃ РјРµСЂР¶РµРј СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёС… РїРѕР»РµР№
         const existing = await query(`SELECT metadata FROM models WHERE id = $1`, [id]);
         const oldMeta = existing.rows[0]?.metadata || {};
         const newMeta = { ...oldMeta, ...fields };
@@ -135,7 +135,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: 'Unknown type or missing id' });
     }
 
-    // ═══ DELETE — Delete data ═══
+    // в•ђв•ђв•ђ DELETE вЂ” Delete data в•ђв•ђв•ђ
     if (req.method === 'DELETE') {
       const { type, id } = req.query;
 
@@ -165,7 +165,7 @@ export default async function handler(req, res) {
   }
 }
 
-// ═══ Row → Frontend-compatible object mappers ═══
+// в•ђв•ђв•ђ Row в†’ Frontend-compatible object mappers в•ђв•ђв•ђ
 
 import { getPublicUrl } from './_s3.js';
 

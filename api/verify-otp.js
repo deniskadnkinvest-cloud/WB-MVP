@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+﻿import jwt from 'jsonwebtoken';
 import { query } from './_db.js';
 import crypto from 'crypto';
 
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
     const otpRes = await query(`SELECT * FROM otps WHERE email = $1`, [email]);
 
     if (otpRes.rows.length === 0) {
-      return res.status(400).json({ error: 'Код подтверждения не найден. Запросите код заново.' });
+      return res.status(400).json({ error: 'РљРѕРґ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ РЅРµ РЅР°Р№РґРµРЅ. Р—Р°РїСЂРѕСЃРёС‚Рµ РєРѕРґ Р·Р°РЅРѕРІРѕ.' });
     }
 
     const otpData = otpRes.rows[0];
@@ -45,19 +45,19 @@ export default async function handler(req, res) {
 
     if (attempts >= 5) {
       await query(`DELETE FROM otps WHERE email = $1`, [email]);
-      return res.status(429).json({ error: 'Слишком много неверных попыток. Запросите новый код.' });
+      return res.status(429).json({ error: 'РЎР»РёС€РєРѕРј РјРЅРѕРіРѕ РЅРµРІРµСЂРЅС‹С… РїРѕРїС‹С‚РѕРє. Р—Р°РїСЂРѕСЃРёС‚Рµ РЅРѕРІС‹Р№ РєРѕРґ.' });
     }
 
     // 1. Check expiration
     if (expiresAt < new Date()) {
       await query(`DELETE FROM otps WHERE email = $1`, [email]);
-      return res.status(400).json({ error: 'Срок действия кода истек. Запросите код заново.' });
+      return res.status(400).json({ error: 'РЎСЂРѕРє РґРµР№СЃС‚РІРёСЏ РєРѕРґР° РёСЃС‚РµРє. Р—Р°РїСЂРѕСЃРёС‚Рµ РєРѕРґ Р·Р°РЅРѕРІРѕ.' });
     }
 
     // 2. Verify code
     if (otpData.code !== code) {
       await query(`UPDATE otps SET attempts = attempts + 1 WHERE email = $1`, [email]);
-      return res.status(400).json({ error: 'Неверный код подтверждения.' });
+      return res.status(400).json({ error: 'РќРµРІРµСЂРЅС‹Р№ РєРѕРґ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ.' });
     }
 
     // 3. User Resolution (Get or Create Postgres User)
@@ -71,7 +71,7 @@ export default async function handler(req, res) {
       if (existingUser.rows.length > 0 && existingUser.rows[0].telegram_id) {
         // User already exists in DB
         stableUid = uidForToken(existingUser.rows[0].telegram_id);
-        console.log(`🔗 Linked email ${email} to existing user: uid=${stableUid}`);
+        console.log(`рџ”— Linked email ${email} to existing user: uid=${stableUid}`);
       } else {
         // Generate a new stable UUID for email-only users
         stableUid = crypto.randomUUID();
@@ -93,7 +93,7 @@ export default async function handler(req, res) {
             [rows[0].id]
           );
         }
-        console.log(`📝 Created PostgreSQL user for ${email}: uid=${stableUid}`);
+        console.log(`рџ“ќ Created PostgreSQL user for ${email}: uid=${stableUid}`);
       }
     } catch (dbErr) {
       console.error(`[verify-otp] PostgreSQL user upsert failed: ${dbErr.message}`);
@@ -115,7 +115,7 @@ export default async function handler(req, res) {
       console.warn('Failed to delete verified OTP:', err.message);
     });
 
-    console.log(`🎉 OTP Authentication success for ${email}! Token generated with uid=${stableUid}`);
+    console.log(`рџЋ‰ OTP Authentication success for ${email}! Token generated with uid=${stableUid}`);
 
     return res.status(200).json({
       success: true,

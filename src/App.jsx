@@ -338,9 +338,7 @@ function App() {
   const [quickWithModel, setQuickWithModel] = useState(false);
   const [quickCardText, setQuickCardText] = useState(null);
   // [QUICK_MODE_V2] — Card generation + text-based editing
-  const [quickMode, setQuickMode] = useState(() => {
-    return localStorage.getItem('vton_quickMode') || 'photo';
-  }); // 'photo' | 'card'
+  const [quickMode, setQuickMode] = useState('photo'); // 'photo' | 'card'
   const [quickCardImage, setQuickCardImage] = useState(() => {
     return localStorage.getItem('vton_quickCardImage') || null;
   }); // Generated card image
@@ -378,7 +376,6 @@ function App() {
   }, [appMode]);
 
   useEffect(() => {
-    localStorage.setItem('vton_quickMode', quickMode);
   }, [quickMode]);
 
   useEffect(() => {
@@ -2669,7 +2666,7 @@ ${userProductInfo.trim()}
             </button>
             <button
               className={`mode-btn ${appMode === 'quick' ? 'active' : ''}`}
-              onClick={() => { setAppMode('quick'); setGeneratedImage(null); }}
+              onClick={() => { setAppMode('quick'); setGeneratedImage(null); setQuickMode('photo'); }}
             >
               ⚡ В два клика
             </button>

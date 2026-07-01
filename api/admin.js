@@ -1,6 +1,6 @@
-// ═══════════════════════════════════════════════════════════════
-// Единый маршрутизатор для всех эндпоинтов /api/admin/*
-// ═══════════════════════════════════════════════════════════════
+﻿// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+// Р•РґРёРЅС‹Р№ РјР°СЂС€СЂСѓС‚РёР·Р°С‚РѕСЂ РґР»СЏ РІСЃРµС… СЌРЅРґРїРѕРёРЅС‚РѕРІ /api/admin/*
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 
 import verifyHandler from './_admin/verify.js';
 import statsHandler from './_admin/stats.js';
@@ -9,10 +9,10 @@ import userControlHandler from './_admin/user-control.js';
 import userHistoryHandler from './_admin/user-history.js';
 
 export default async function handler(req, res) {
-  // Разбираем URL-путь (например, "/api/admin/verify?key=..." -> "/api/admin/verify")
+  // Р Р°Р·Р±РёСЂР°РµРј URL-РїСѓС‚СЊ (РЅР°РїСЂРёРјРµСЂ, "/api/admin/verify?key=..." -> "/api/admin/verify")
   const urlPath = req.url.split('?')[0];
   
-  // Вычленяем действие (action): /api/admin/verify -> "verify"
+  // Р’С‹С‡Р»РµРЅСЏРµРј РґРµР№СЃС‚РІРёРµ (action): /api/admin/verify -> "verify"
   const action = urlPath.replace(/^\/api\/admin\/?/, '').split('/')[0];
 
   console.log(`[admin-router] Routing request for action: "${action}" (Method: ${req.method})`);
@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     case 'user-history':
       return userHistoryHandler(req, res);
     default:
-      // Fallback на верификацию, если это корневой POST-запрос
+      // Fallback РЅР° РІРµСЂРёС„РёРєР°С†РёСЋ, РµСЃР»Рё СЌС‚Рѕ РєРѕСЂРЅРµРІРѕР№ POST-Р·Р°РїСЂРѕСЃ
       if (action === '' && req.method === 'POST') {
         return verifyHandler(req, res);
       }

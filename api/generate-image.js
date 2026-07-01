@@ -1,4 +1,4 @@
-import { alertOnError } from './_admin-alerts.js';
+﻿import { alertOnError } from './_admin-alerts.js';
 import { query as _dbQuery } from './_db.js';
 import jwt from 'jsonwebtoken';
 
@@ -12,7 +12,7 @@ const query = (...args) => {
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
 
-// Атомарно инкрементирует глобальный счётчик в PostgreSQL
+// РђС‚РѕРјР°СЂРЅРѕ РёРЅРєСЂРµРјРµРЅС‚РёСЂСѓРµС‚ РіР»РѕР±Р°Р»СЊРЅС‹Р№ СЃС‡С‘С‚С‡РёРє РІ PostgreSQL
 async function incrementGlobalCounter(field) {
   try {
     const today = new Date().toISOString().slice(0, 10);
@@ -31,7 +31,7 @@ async function incrementGlobalCounter(field) {
   }
 }
 
-// Записывает подробный лог генерации в PostgreSQL
+// Р—Р°РїРёСЃС‹РІР°РµС‚ РїРѕРґСЂРѕР±РЅС‹Р№ Р»РѕРі РіРµРЅРµСЂР°С†РёРё РІ PostgreSQL
 async function saveGenerationLog({ userId, success, imageUrl, error, reqBody, durationMs }) {
   try {
     const generationId = `gen_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -55,16 +55,16 @@ async function saveGenerationLog({ userId, success, imageUrl, error, reqBody, du
       reqBody?.editInstruction || '', reqBody?.customPoseText || '', attributes ? JSON.stringify(attributes) : null, reqBody?.userProductInfo || '',
       reqBody?.quickPromptName || '', imageUrl || null, error || null
     ]);
-    console.log(`📊 [stats] Logged generation ${generationId} for user ${userId || 'anonymous'} (${success ? 'success' : 'failed'})`);
+    console.log(`рџ“Љ [stats] Logged generation ${generationId} for user ${userId || 'anonymous'} (${success ? 'success' : 'failed'})`);
   } catch (e) {
     console.warn('[stats log] Failed to write generation log:', e.message);
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// SKIN ULTRA-REALISM SYSTEM PROMPT (применяется ГЛОБАЛЬНО)
-// ═══════════════════════════════════════════════════════════════════
-const SKIN_REALISM_PROMPT = `SKIN & FACE REALISM DIRECTIVE (MANDATORY — HIGHEST PRIORITY):
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+// SKIN ULTRA-REALISM SYSTEM PROMPT (РїСЂРёРјРµРЅСЏРµС‚СЃСЏ Р“Р›РћР‘РђР›Р¬РќРћ)
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+const SKIN_REALISM_PROMPT = `SKIN & FACE REALISM DIRECTIVE (MANDATORY вЂ” HIGHEST PRIORITY):
 RAW UNRETOUCHED PHOTOGRAPHY MODE. ZERO skin smoothing. ZERO beauty filters. ZERO frequency separation. ZERO airbrushing.
 The skin MUST show real biological texture as captured by a 100mm macro lens at f/2.8:
 - Visible individual pores at pixel level, natural sebum micro-shine on T-zone
@@ -72,9 +72,9 @@ The skin MUST show real biological texture as captured by a 100mm macro lens at 
 - Natural uneven skin tone, slight redness around nose/cheeks, subtle under-eye circles
 - Micro-wrinkles around eyes when smiling, nasolabial folds appropriate to apparent age
 - Fine vellus hair ("peach fuzz") visible on cheeks and jawline in side lighting
-ANTI-RETOUCHING ENFORCEMENT: If the output skin looks like a magazine cover, porcelain, wax, or has "glow" — it is WRONG. Re-render with MORE texture.
+ANTI-RETOUCHING ENFORCEMENT: If the output skin looks like a magazine cover, porcelain, wax, or has "glow" вЂ” it is WRONG. Re-render with MORE texture.
 Eyes: natural moisture film with environment reflections, tiny visible capillaries in sclera, natural iris color variation.
-The final image must look like an UNEDITED photo from a Canon R5 with 85mm f/1.4 lens — raw, authentic, alive.`;
+The final image must look like an UNEDITED photo from a Canon R5 with 85mm f/1.4 lens вЂ” raw, authentic, alive.`;
 
 const buildMasterPrompt = ({ modelPreset, posePreset, cameraAngle, backgroundPreset, aspectRatio, hasMultipleGarments, hasModelRef, isCalibration }) => {
   const modelInstruction = hasModelRef
@@ -96,12 +96,12 @@ CONSTRAINTS: ${adaptiveBlock} No text, no watermarks. DO NOT over-exaggerate fla
   }
 
   const multiGarmentNote = hasMultipleGarments
-    ? 'MULTIPLE Wardrobe Assets are provided — extract and drape ALL of them onto the New Actor simultaneously.'
+    ? 'MULTIPLE Wardrobe Assets are provided вЂ” extract and drape ALL of them onto the New Actor simultaneously.'
     : '';
 
-  // ═══════════════════════════════════════════════════════════════════
-  // "COGNITIVE OVERRIDE" PROMPT — XML-tagged mannequin illusion
-  // ═══════════════════════════════════════════════════════════════════
+  // в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+  // "COGNITIVE OVERRIDE" PROMPT вЂ” XML-tagged mannequin illusion
+  // в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
   return `<system_directive>
 ROLE: Elite CGI Compositor, Wardrobe Specialist, and Fashion Casting Director.
 TASK: "Mannequin-to-Life" texture transfer and recasting operation.
@@ -292,7 +292,7 @@ function billingError(message, code, extra = {}) {
 async function reserveGenerationCredits(authContext, amount, requestId) {
   const user = await findBillingUser(authContext);
   if (!user) {
-    throw billingError('Для генерации нужен активный тариф.', 'NO_PLAN', { creditsRemaining: 0 });
+    throw billingError('Р”Р»СЏ РіРµРЅРµСЂР°С†РёРё РЅСѓР¶РµРЅ Р°РєС‚РёРІРЅС‹Р№ С‚Р°СЂРёС„.', 'NO_PLAN', { creditsRemaining: 0 });
   }
 
   const result = await query(
@@ -315,9 +315,9 @@ async function reserveGenerationCredits(authContext, amount, requestId) {
     );
     const sub = subCheck.rows[0];
     if (!sub || sub.plan_name === 'none' || sub.status !== 'active') {
-      throw billingError('Для генерации нужен активный тариф.', 'NO_PLAN', { creditsRemaining: sub?.credits || 0 });
+      throw billingError('Р”Р»СЏ РіРµРЅРµСЂР°С†РёРё РЅСѓР¶РµРЅ Р°РєС‚РёРІРЅС‹Р№ С‚Р°СЂРёС„.', 'NO_PLAN', { creditsRemaining: sub?.credits || 0 });
     }
-    throw billingError(`Недостаточно кредитов: нужно ${amount}, доступно ${sub.credits || 0}.`, 'INSUFFICIENT_CREDITS', { creditsRemaining: sub.credits || 0 });
+    throw billingError(`РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РєСЂРµРґРёС‚РѕРІ: РЅСѓР¶РЅРѕ ${amount}, РґРѕСЃС‚СѓРїРЅРѕ ${sub.credits || 0}.`, 'INSUFFICIENT_CREDITS', { creditsRemaining: sub.credits || 0 });
   }
 
   const creditsRemaining = result.rows[0].credits || 0;
@@ -406,7 +406,7 @@ function installGenerationFinalizer({ req, res, getReservation, idempotencyEntry
           const refund = await safeRefundCreditReservation(reservation, 'client disconnected before response');
           finalBody = {
             success: false,
-            error: 'Генерация завершилась после отключения клиента. Кредит возвращён.',
+            error: 'Р“РµРЅРµСЂР°С†РёСЏ Р·Р°РІРµСЂС€РёР»Р°СЃСЊ РїРѕСЃР»Рµ РѕС‚РєР»СЋС‡РµРЅРёСЏ РєР»РёРµРЅС‚Р°. РљСЂРµРґРёС‚ РІРѕР·РІСЂР°С‰С‘РЅ.',
             creditsRemaining: refund?.creditsRemaining,
           };
         } else if (finalBody.success === false) {
@@ -453,13 +453,13 @@ async function uploadBase64ToKie(base64DataUrl, apiKey, index = 0) {
     });
     const data = await resp.json();
     if (data.code === 200 && data.data && data.data.downloadUrl) {
-      console.log(`   ✅ Image ${index} uploaded to KIE: ${data.data.downloadUrl.substring(0, 80)}...`);
+      console.log(`   вњ… Image ${index} uploaded to KIE: ${data.data.downloadUrl.substring(0, 80)}...`);
       return data.data.downloadUrl;
     }
-    console.warn(`   ⚠️ Image ${index} upload failed: ${data.msg || JSON.stringify(data)}`);
+    console.warn(`   вљ пёЏ Image ${index} upload failed: ${data.msg || JSON.stringify(data)}`);
     return null;
   } catch (err) {
-    console.warn(`   ⚠️ Image ${index} upload error: ${err.message}`);
+    console.warn(`   вљ пёЏ Image ${index} upload error: ${err.message}`);
     return null;
   } finally {
     clearTimeout(timeoutId);
@@ -475,12 +475,12 @@ async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana
   // Upload base64 images to KIE File Upload API first (KIE.ai requires URLs, not inline base64)
   let uploadedImageUrls = [];
   if (imageInputs.length > 0) {
-    console.log(`   📤 Uploading ${imageInputs.length} image(s) to KIE File Upload API...`);
+    console.log(`   рџ“¤ Uploading ${imageInputs.length} image(s) to KIE File Upload API...`);
     for (let idx = 0; idx < imageInputs.length; idx++) {
       const url = await uploadBase64ToKie(imageInputs[idx], apiKey, idx);
       if (url) uploadedImageUrls.push(url);
     }
-    console.log(`   📤 Uploaded ${uploadedImageUrls.length}/${imageInputs.length} images`);
+    console.log(`   рџ“¤ Uploaded ${uploadedImageUrls.length}/${imageInputs.length} images`);
   }
 
   const reqBody = {
@@ -528,7 +528,7 @@ async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana
   }
   
   const taskId = data.data.taskId;
-  console.log(`⏳ KIE.ai Task created. Model: ${modelName}. TaskID: ${taskId}. Polling...`);
+  console.log(`вЏі KIE.ai Task created. Model: ${modelName}. TaskID: ${taskId}. Polling...`);
 
   for (let i = 0; i < 100; i++) {
     const pollDelayMs = Math.min(12000, i === 0 ? 2000 : 3000 + Math.floor(i / 8) * 1000);
@@ -543,7 +543,7 @@ async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana
          signal: pollController.signal
       });
     } catch (err) {
-      console.warn(`   ⚠️ KIE poll network error: ${err.message}`);
+      console.warn(`   вљ пёЏ KIE poll network error: ${err.message}`);
       continue;
     } finally {
       clearTimeout(pollTimeout);
@@ -598,83 +598,83 @@ const downloadToBase64 = async (url) => {
     const contentType = resp.headers.get('content-type') || 'image/jpeg';
     return { mimeType: contentType, base64str: b64 };
   } catch (err) {
-    console.warn(`⚠️ Failed to download image from ${url.substring(0, 50)}...:`, err.message);
+    console.warn(`вљ пёЏ Failed to download image from ${url.substring(0, 50)}...:`, err.message);
     return null;
   }
 };
 
-// ═══════════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 // BODY TYPE METRIC INJECTOR
 // Converts vague artistic body descriptions into hard clinical metrics
 // that Gemini can't "smooth away" into average proportions.
-// ═══════════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 
-// ═══════════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 
-// ═══════════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 // GENDER-ISOLATED ATTRIBUTE DICTIONARIES
-// ═══════════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 const DICT_FEMALE = {
-  'Худощавое': '<BODY_OVERRIDE>TARGET: SLENDER PETITE FEMALE. Very thin feminine frame, delicate narrow shoulders, slender limbs, visible collarbones. Deform clothing to drape over a noticeably thin female body.</BODY_OVERRIDE>',
-  'Спортивное': '<BODY_OVERRIDE>TARGET: FIT FEMALE / YOGA BODY. Toned feminine figure, subtle healthy muscle definition on arms and core. Maintain soft feminine curves and female breast contour. Adjust clothing for an active female fit.</BODY_OVERRIDE>',
-  'Среднее': '<BODY_OVERRIDE>TARGET: AVERAGE NORMAL FEMALE. Standard healthy feminine proportions, natural female curves, soft body lines.</BODY_OVERRIDE>',
-  'Полное': '<BODY_OVERRIDE>TARGET: OBESE PLUS-SIZE FEMALE. Very heavy-set, visibly fat body, thick heavy neck, prominent double chin, chubby cheeks, round chubby face, wide thick waist, large round belly, heavy arms, thick thighs. Expand all clothing extremely to fit a very heavy plus-size woman (US clothing size 3XL, BMI 35+). Do NOT make her waist slim or face thin. She must look explicitly fat.</BODY_OVERRIDE>',
-  'Мускулистое': '<BODY_OVERRIDE>TARGET: STRONG FEMALE ATHLETE / CROSSFIT BUILD. Strictly retain FEMININE body structure. Defined abdominal muscles, strong toned female arms. ABSOLUTELY NO masculine chest, NO thick male neck. Deform clothing to fit a very muscular BIOLOGICAL WOMAN.</BODY_OVERRIDE>',
-  'Брюнетка': '<HAIR_COLOR>Deep rich dark brunette brown female hair</HAIR_COLOR>',
-  'Шатенка': '<HAIR_COLOR>Warm chestnut brown female hair</HAIR_COLOR>',
-  'Блондинка': '<HAIR_COLOR>Bright golden blonde female hair</HAIR_COLOR>',
-  'Рыжая': '<HAIR_COLOR>Vibrant copper ginger red female hair</HAIR_COLOR>',
-  'Чёрные': '<HAIR_COLOR>Jet black female hair, pure dark</HAIR_COLOR>',
-  'Седые': '<HAIR_COLOR>Elegant silver-gray white mature female hair</HAIR_COLOR>',
-  'Короткие': '<HAIR_LENGTH>Chic short feminine haircut, pixie cut or short bob framing a female face.</HAIR_LENGTH>',
-  'Средние': '<HAIR_LENGTH>Medium-length elegant female hair, reaching the collarbones.</HAIR_LENGTH>',
-  'Длинные': '<HAIR_LENGTH>Long, beautiful flowing feminine hair cascading well past the chest.</HAIR_LENGTH>',
-  'Бритая': '<HAIR_LENGTH>TARGET: COMPLETELY BALD FEMALE / SHAVED HEAD. Bare scalp on a biological woman. CRITICAL: Maintain highly elegant, delicate FEMININE facial bone structure and flawless makeup. Do NOT make her look masculine.</HAIR_LENGTH>',
-  'Нейтральная': '<EXPRESSION>Calm, relaxed feminine face, soft neutral gaze, relaxed lips.</EXPRESSION>',
-  'Лёгкая улыбка': '<EXPRESSION>Gentle, warm, inviting feminine smile, soft friendly eyes.</EXPRESSION>',
-  'Серьёзная': '<EXPRESSION>Intense high-fashion editorial female look, striking feminine features, slight pout, no smile.</EXPRESSION>',
-  'Уверенная': '<EXPRESSION>Powerful, confident woman, chin slightly raised, commanding gaze.</EXPRESSION>',
-  'Дерзкая': '<EXPRESSION>Fierce femme-fatale attitude, seductive or playful smirk, bold confident female energy.</EXPRESSION>',
-  'Уши': '<PIERCING>MANDATORY RENDER: Shiny metallic earrings clearly visible in the woman\'s earlobes.</PIERCING>',
-  'Нос': '<PIERCING>MANDATORY RENDER: Delicate female nose ring/stud piercing clearly visible on her nostril.</PIERCING>',
-  'Уши + Нос': '<PIERCING>MANDATORY RENDER: Feminine earrings AND a delicate nostril nose ring clearly visible.</PIERCING>',
-  'Минимализм': '<TATTOO>MANDATORY RENDER: Elegant minimalist fine-line black ink tattoos visible on exposed female skin.</TATTOO>',
-  'Рукав': '<TATTOO>MANDATORY RENDER: Detailed artistic tattoo sleeve fully covering one of the woman\'s arms.</TATTOO>',
-  'Шея': '<TATTOO>MANDATORY RENDER: Prominent artistic dark ink tattoo strictly located on the woman\'s neck/throat area. Do NOT thicken the neck!</TATTOO>',
+  'РҐСѓРґРѕС‰Р°РІРѕРµ': '<BODY_OVERRIDE>TARGET: SLENDER PETITE FEMALE. Very thin feminine frame, delicate narrow shoulders, slender limbs, visible collarbones. Deform clothing to drape over a noticeably thin female body.</BODY_OVERRIDE>',
+  'РЎРїРѕСЂС‚РёРІРЅРѕРµ': '<BODY_OVERRIDE>TARGET: FIT FEMALE / YOGA BODY. Toned feminine figure, subtle healthy muscle definition on arms and core. Maintain soft feminine curves and female breast contour. Adjust clothing for an active female fit.</BODY_OVERRIDE>',
+  'РЎСЂРµРґРЅРµРµ': '<BODY_OVERRIDE>TARGET: AVERAGE NORMAL FEMALE. Standard healthy feminine proportions, natural female curves, soft body lines.</BODY_OVERRIDE>',
+  'РџРѕР»РЅРѕРµ': '<BODY_OVERRIDE>TARGET: OBESE PLUS-SIZE FEMALE. Very heavy-set, visibly fat body, thick heavy neck, prominent double chin, chubby cheeks, round chubby face, wide thick waist, large round belly, heavy arms, thick thighs. Expand all clothing extremely to fit a very heavy plus-size woman (US clothing size 3XL, BMI 35+). Do NOT make her waist slim or face thin. She must look explicitly fat.</BODY_OVERRIDE>',
+  'РњСѓСЃРєСѓР»РёСЃС‚РѕРµ': '<BODY_OVERRIDE>TARGET: STRONG FEMALE ATHLETE / CROSSFIT BUILD. Strictly retain FEMININE body structure. Defined abdominal muscles, strong toned female arms. ABSOLUTELY NO masculine chest, NO thick male neck. Deform clothing to fit a very muscular BIOLOGICAL WOMAN.</BODY_OVERRIDE>',
+  'Р‘СЂСЋРЅРµС‚РєР°': '<HAIR_COLOR>Deep rich dark brunette brown female hair</HAIR_COLOR>',
+  'РЁР°С‚РµРЅРєР°': '<HAIR_COLOR>Warm chestnut brown female hair</HAIR_COLOR>',
+  'Р‘Р»РѕРЅРґРёРЅРєР°': '<HAIR_COLOR>Bright golden blonde female hair</HAIR_COLOR>',
+  'Р С‹Р¶Р°СЏ': '<HAIR_COLOR>Vibrant copper ginger red female hair</HAIR_COLOR>',
+  'Р§С‘СЂРЅС‹Рµ': '<HAIR_COLOR>Jet black female hair, pure dark</HAIR_COLOR>',
+  'РЎРµРґС‹Рµ': '<HAIR_COLOR>Elegant silver-gray white mature female hair</HAIR_COLOR>',
+  'РљРѕСЂРѕС‚РєРёРµ': '<HAIR_LENGTH>Chic short feminine haircut, pixie cut or short bob framing a female face.</HAIR_LENGTH>',
+  'РЎСЂРµРґРЅРёРµ': '<HAIR_LENGTH>Medium-length elegant female hair, reaching the collarbones.</HAIR_LENGTH>',
+  'Р”Р»РёРЅРЅС‹Рµ': '<HAIR_LENGTH>Long, beautiful flowing feminine hair cascading well past the chest.</HAIR_LENGTH>',
+  'Р‘СЂРёС‚Р°СЏ': '<HAIR_LENGTH>TARGET: COMPLETELY BALD FEMALE / SHAVED HEAD. Bare scalp on a biological woman. CRITICAL: Maintain highly elegant, delicate FEMININE facial bone structure and flawless makeup. Do NOT make her look masculine.</HAIR_LENGTH>',
+  'РќРµР№С‚СЂР°Р»СЊРЅР°СЏ': '<EXPRESSION>Calm, relaxed feminine face, soft neutral gaze, relaxed lips.</EXPRESSION>',
+  'Р›С‘РіРєР°СЏ СѓР»С‹Р±РєР°': '<EXPRESSION>Gentle, warm, inviting feminine smile, soft friendly eyes.</EXPRESSION>',
+  'РЎРµСЂСЊС‘Р·РЅР°СЏ': '<EXPRESSION>Intense high-fashion editorial female look, striking feminine features, slight pout, no smile.</EXPRESSION>',
+  'РЈРІРµСЂРµРЅРЅР°СЏ': '<EXPRESSION>Powerful, confident woman, chin slightly raised, commanding gaze.</EXPRESSION>',
+  'Р”РµСЂР·РєР°СЏ': '<EXPRESSION>Fierce femme-fatale attitude, seductive or playful smirk, bold confident female energy.</EXPRESSION>',
+  'РЈС€Рё': '<PIERCING>MANDATORY RENDER: Shiny metallic earrings clearly visible in the woman\'s earlobes.</PIERCING>',
+  'РќРѕСЃ': '<PIERCING>MANDATORY RENDER: Delicate female nose ring/stud piercing clearly visible on her nostril.</PIERCING>',
+  'РЈС€Рё + РќРѕСЃ': '<PIERCING>MANDATORY RENDER: Feminine earrings AND a delicate nostril nose ring clearly visible.</PIERCING>',
+  'РњРёРЅРёРјР°Р»РёР·Рј': '<TATTOO>MANDATORY RENDER: Elegant minimalist fine-line black ink tattoos visible on exposed female skin.</TATTOO>',
+  'Р СѓРєР°РІ': '<TATTOO>MANDATORY RENDER: Detailed artistic tattoo sleeve fully covering one of the woman\'s arms.</TATTOO>',
+  'РЁРµСЏ': '<TATTOO>MANDATORY RENDER: Prominent artistic dark ink tattoo strictly located on the woman\'s neck/throat area. Do NOT thicken the neck!</TATTOO>',
 };
 
 const DICT_MALE = {
-  'Худощавое': '<BODY_OVERRIDE>TARGET: LEAN/SLIM MALE. Lanky boyish build, narrow shoulders, thin masculine arms, low body fat. Force clothing to drape loosely on a thin male frame.</BODY_OVERRIDE>',
-  'Спортивное': '<BODY_OVERRIDE>TARGET: FIT ATHLETIC MALE. Gym-goer / swimmer physique, defined masculine chest and arms, flat core, broad shoulders. Reshape clothing to highlight athletic male contours.</BODY_OVERRIDE>',
-  'Среднее': '<BODY_OVERRIDE>TARGET: AVERAGE MALE. Standard everyday male body, regular build, healthy proportions.</BODY_OVERRIDE>',
-  'Полное': '<BODY_OVERRIDE>TARGET: OBESE HEAVY-SET MALE. Visibly overweight fat man, thick heavy neck, prominent double chin, round chubby face, large portly belly, broad heavy waist, thick arms. Expand all clothing extremely to fit a very heavy male figure (US clothing size 3XL, BMI 35+). He must look explicitly fat.</BODY_OVERRIDE>',
-  'Мускулистое': '<BODY_OVERRIDE>TARGET: HYPER-MUSCULAR MALE BODYBUILDER. Massive masculine build. Hyper-defined biceps, broad powerful shoulders (V-taper), thick masculine neck, heavy chest muscles. Stretch clothing extremely tightly across massive male muscles.</BODY_OVERRIDE>',
-  'Брюнет': '<HAIR_COLOR>Deep rich dark brunette brown male hair</HAIR_COLOR>',
-  'Шатен': '<HAIR_COLOR>Warm chestnut brown male hair</HAIR_COLOR>',
-  'Блондин': '<HAIR_COLOR>Bright golden blonde male hair</HAIR_COLOR>',
-  'Рыжий': '<HAIR_COLOR>Vibrant copper ginger red male hair</HAIR_COLOR>',
-  'Чёрные': '<HAIR_COLOR>Jet black male hair, pure dark</HAIR_COLOR>',
-  'Седые': '<HAIR_COLOR>Silver fox, sophisticated silver-gray white mature male hair</HAIR_COLOR>',
-  'Короткие': '<HAIR_LENGTH>Classic short male haircut, neat fade or styled crop.</HAIR_LENGTH>',
-  'Средние': '<HAIR_LENGTH>Medium-length male hair, stylish modern flow or surfer look.</HAIR_LENGTH>',
-  'Длинные': '<HAIR_LENGTH>Long masculine hair, reaching shoulders, Viking or rockstar aesthetic.</HAIR_LENGTH>',
-  'Бритый': '<HAIR_LENGTH>TARGET: COMPLETELY BALD MALE. Clean shaved masculine scalp, strong skull shape, sharp male jawline.</HAIR_LENGTH>',
-  'Нейтральная': '<EXPRESSION>Calm, stoic masculine face, relaxed strong jaw, steady gaze.</EXPRESSION>',
-  'Лёгкая улыбка': '<EXPRESSION>Approachable, friendly male smile, warm eyes.</EXPRESSION>',
-  'Серьёзный': '<EXPRESSION>Intense, sharp masculine gaze, serious focused editorial look, furrowed brow.</EXPRESSION>',
-  'Уверенный': '<EXPRESSION>Strong alpha presence, self-assured male expression, solid eye contact.</EXPRESSION>',
-  'Дерзкий': '<EXPRESSION>Rebellious, edgy masculine attitude, defiant smirk, squinted challenging eyes.</EXPRESSION>',
-  'Уши': '<PIERCING>MANDATORY RENDER: Shiny metallic stud/hoop earrings clearly visible in the man\'s earlobes.</PIERCING>',
-  'Нос': '<PIERCING>MANDATORY RENDER: Masculine nose ring/stud piercing clearly visible on his nostril.</PIERCING>',
-  'Уши + Нос': '<PIERCING>MANDATORY RENDER: Male earrings AND a nostril nose ring clearly visible.</PIERCING>',
-  'Минимализм': '<TATTOO>MANDATORY RENDER: Sharp minimalist fine-line black ink tattoos visible on exposed male skin.</TATTOO>',
-  'Рукав': '<TATTOO>MANDATORY RENDER: Dense, dark ink FULL TATTOO SLEEVE completely covering ONE ENTIRE ARM.</TATTOO>',
-  'Шея': '<TATTOO>MANDATORY RENDER: Prominent artistic dark ink tattoo strictly located on the man\'s neck/throat area.</TATTOO>',
+  'РҐСѓРґРѕС‰Р°РІРѕРµ': '<BODY_OVERRIDE>TARGET: LEAN/SLIM MALE. Lanky boyish build, narrow shoulders, thin masculine arms, low body fat. Force clothing to drape loosely on a thin male frame.</BODY_OVERRIDE>',
+  'РЎРїРѕСЂС‚РёРІРЅРѕРµ': '<BODY_OVERRIDE>TARGET: FIT ATHLETIC MALE. Gym-goer / swimmer physique, defined masculine chest and arms, flat core, broad shoulders. Reshape clothing to highlight athletic male contours.</BODY_OVERRIDE>',
+  'РЎСЂРµРґРЅРµРµ': '<BODY_OVERRIDE>TARGET: AVERAGE MALE. Standard everyday male body, regular build, healthy proportions.</BODY_OVERRIDE>',
+  'РџРѕР»РЅРѕРµ': '<BODY_OVERRIDE>TARGET: OBESE HEAVY-SET MALE. Visibly overweight fat man, thick heavy neck, prominent double chin, round chubby face, large portly belly, broad heavy waist, thick arms. Expand all clothing extremely to fit a very heavy male figure (US clothing size 3XL, BMI 35+). He must look explicitly fat.</BODY_OVERRIDE>',
+  'РњСѓСЃРєСѓР»РёСЃС‚РѕРµ': '<BODY_OVERRIDE>TARGET: HYPER-MUSCULAR MALE BODYBUILDER. Massive masculine build. Hyper-defined biceps, broad powerful shoulders (V-taper), thick masculine neck, heavy chest muscles. Stretch clothing extremely tightly across massive male muscles.</BODY_OVERRIDE>',
+  'Р‘СЂСЋРЅРµС‚': '<HAIR_COLOR>Deep rich dark brunette brown male hair</HAIR_COLOR>',
+  'РЁР°С‚РµРЅ': '<HAIR_COLOR>Warm chestnut brown male hair</HAIR_COLOR>',
+  'Р‘Р»РѕРЅРґРёРЅ': '<HAIR_COLOR>Bright golden blonde male hair</HAIR_COLOR>',
+  'Р С‹Р¶РёР№': '<HAIR_COLOR>Vibrant copper ginger red male hair</HAIR_COLOR>',
+  'Р§С‘СЂРЅС‹Рµ': '<HAIR_COLOR>Jet black male hair, pure dark</HAIR_COLOR>',
+  'РЎРµРґС‹Рµ': '<HAIR_COLOR>Silver fox, sophisticated silver-gray white mature male hair</HAIR_COLOR>',
+  'РљРѕСЂРѕС‚РєРёРµ': '<HAIR_LENGTH>Classic short male haircut, neat fade or styled crop.</HAIR_LENGTH>',
+  'РЎСЂРµРґРЅРёРµ': '<HAIR_LENGTH>Medium-length male hair, stylish modern flow or surfer look.</HAIR_LENGTH>',
+  'Р”Р»РёРЅРЅС‹Рµ': '<HAIR_LENGTH>Long masculine hair, reaching shoulders, Viking or rockstar aesthetic.</HAIR_LENGTH>',
+  'Р‘СЂРёС‚С‹Р№': '<HAIR_LENGTH>TARGET: COMPLETELY BALD MALE. Clean shaved masculine scalp, strong skull shape, sharp male jawline.</HAIR_LENGTH>',
+  'РќРµР№С‚СЂР°Р»СЊРЅР°СЏ': '<EXPRESSION>Calm, stoic masculine face, relaxed strong jaw, steady gaze.</EXPRESSION>',
+  'Р›С‘РіРєР°СЏ СѓР»С‹Р±РєР°': '<EXPRESSION>Approachable, friendly male smile, warm eyes.</EXPRESSION>',
+  'РЎРµСЂСЊС‘Р·РЅС‹Р№': '<EXPRESSION>Intense, sharp masculine gaze, serious focused editorial look, furrowed brow.</EXPRESSION>',
+  'РЈРІРµСЂРµРЅРЅС‹Р№': '<EXPRESSION>Strong alpha presence, self-assured male expression, solid eye contact.</EXPRESSION>',
+  'Р”РµСЂР·РєРёР№': '<EXPRESSION>Rebellious, edgy masculine attitude, defiant smirk, squinted challenging eyes.</EXPRESSION>',
+  'РЈС€Рё': '<PIERCING>MANDATORY RENDER: Shiny metallic stud/hoop earrings clearly visible in the man\'s earlobes.</PIERCING>',
+  'РќРѕСЃ': '<PIERCING>MANDATORY RENDER: Masculine nose ring/stud piercing clearly visible on his nostril.</PIERCING>',
+  'РЈС€Рё + РќРѕСЃ': '<PIERCING>MANDATORY RENDER: Male earrings AND a nostril nose ring clearly visible.</PIERCING>',
+  'РњРёРЅРёРјР°Р»РёР·Рј': '<TATTOO>MANDATORY RENDER: Sharp minimalist fine-line black ink tattoos visible on exposed male skin.</TATTOO>',
+  'Р СѓРєР°РІ': '<TATTOO>MANDATORY RENDER: Dense, dark ink FULL TATTOO SLEEVE completely covering ONE ENTIRE ARM.</TATTOO>',
+  'РЁРµСЏ': '<TATTOO>MANDATORY RENDER: Prominent artistic dark ink tattoo strictly located on the man\'s neck/throat area.</TATTOO>',
 };
 
-// ═══════════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 // POSE LIBRARIES (50 female + 50 male)
-// ═══════════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 const FEMALE_POSES = [
   "Classic frontal stance, arms relaxed down with slight space between arms and torso to show garment shape.",
   "Weight shifted to one leg, natural soft hip curve, hands resting naturally at sides.",
@@ -781,9 +781,9 @@ const MALE_POSES = [
   "Legs wide, hands resting on upper thighs, slightly leaning forward, fierce masculine dominance.",
 ];
 
-// ═══════════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 // BIOMETRIC NOISE + POSE SELECTOR
-// ═══════════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 const MICRO_FEATURES = [
   "slightly asymmetrical jawline", "tiny beauty mark on cheek", "straight sharp nose bridge",
   "soft rounded jaw", "subtle dimples", "slightly wider-set eyes", "faint natural freckles across nose",
@@ -802,7 +802,7 @@ function getBiometricNoise(seed) {
 function detectGender(modelPreset) {
   if (!modelPreset) return 'female';
   const lower = modelPreset.toLowerCase();
-  if (/\b(male|мужск|славянин|азиат\b|европеец|африканец|латиноамериканец)\b/i.test(lower)) return 'male';
+  if (/\b(male|РјСѓР¶СЃРє|СЃР»Р°РІСЏРЅРёРЅ|Р°Р·РёР°С‚\b|РµРІСЂРѕРїРµРµС†|Р°С„СЂРёРєР°РЅРµС†|Р»Р°С‚РёРЅРѕР°РјРµСЂРёРєР°РЅРµС†)\b/i.test(lower)) return 'male';
   return 'female';
 }
 
@@ -815,33 +815,33 @@ function selectPoseFromSeed(seed, gender) {
 function buildGenderLock(gender) {
   return gender === 'male'
     ? '<GENDER_LOCK>BIOLOGICAL MALE. You MUST strictly enforce male anatomy, masculine bone structure, masculine hands with wider knuckles, and male features. The model is a MAN.</GENDER_LOCK>'
-    : '<GENDER_LOCK>BIOLOGICAL FEMALE. You MUST strictly enforce 100% biological female anatomy: female breast contour, narrow waist, highly feminine facial features, DELICATE FEMININE HANDS (slender fingers, narrow wrists, soft skin, NO masculine knuckles or veins), and elegant feminine posture. Under NO circumstances should ANY body part — especially hands and arms — look masculine, even if she is muscular or bald. Every visible limb must read as unmistakably female.</GENDER_LOCK>';
+    : '<GENDER_LOCK>BIOLOGICAL FEMALE. You MUST strictly enforce 100% biological female anatomy: female breast contour, narrow waist, highly feminine facial features, DELICATE FEMININE HANDS (slender fingers, narrow wrists, soft skin, NO masculine knuckles or veins), and elegant feminine posture. Under NO circumstances should ANY body part вЂ” especially hands and arms вЂ” look masculine, even if she is muscular or bald. Every visible limb must read as unmistakably female.</GENDER_LOCK>';
 }
 
-// ═══════════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 // SKIN RENDER MODES
-// ═══════════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 const SKIN_BEAUTY_PROMPT = `<RENDER_PIPELINE>
 MODE: HIGH-END BEAUTY FASHION EDITORIAL.
 DIRECTIVE: Apply high-end commercial fashion retouching. Flawless, perfectly smooth, airbrushed skin. Glowing complexion, perfectly even skin tone, soft flattering studio lighting. Idealized model features.
 </RENDER_PIPELINE>`;
 
-// ═══════════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 // ATTRIBUTE DIRECTIVE BUILDER (gender-aware)
-// ═══════════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 function buildAttributeDirectives(attributes, gender) {
   if (!attributes || typeof attributes !== 'object') return '';
   const dict = gender === 'male' ? DICT_MALE : DICT_FEMALE;
   const directives = [];
   Object.entries(attributes).forEach(([key, val]) => {
     if (!val) return;
-    if (val === 'Нет' || (Array.isArray(val) && val.length === 1 && val[0] === 'Нет')) {
+    if (val === 'РќРµС‚' || (Array.isArray(val) && val.length === 1 && val[0] === 'РќРµС‚')) {
       if (key === 'tattoo') directives.push('<TATTOO_CONSTRAINT>ABSOLUTELY NO TATTOOS. Completely pure, clean, unblemished skin. Zero ink anywhere.</TATTOO_CONSTRAINT>');
       if (key === 'piercing') directives.push('<PIERCING_CONSTRAINT>ABSOLUTELY NO PIERCINGS. Clean unadorned face and ears, zero metal.</PIERCING_CONSTRAINT>');
       return;
     }
     if (Array.isArray(val)) {
-      val.filter(x => x !== 'Нет').forEach(item => { if (dict[item]) directives.push(dict[item]); });
+      val.filter(x => x !== 'РќРµС‚').forEach(item => { if (dict[item]) directives.push(dict[item]); });
     } else {
       if (dict[val]) directives.push(dict[val]);
     }
@@ -852,27 +852,27 @@ function buildAttributeDirectives(attributes, gender) {
 function enhanceBodyMetrics(preset, editCmd) {
   let enhanced = preset || '';
   if (editCmd && editCmd.trim()) {
-    enhanced += `\n🔴 PRIORITY EDIT OVERRIDE: "${editCmd.trim()}". Apply this transformation flawlessly.`;
+    enhanced += `\nрџ”ґ PRIORITY EDIT OVERRIDE: "${editCmd.trim()}". Apply this transformation flawlessly.`;
   }
   return enhanced;
 }
-// ═══════════════════════════════════════════════════════════════════
-// GARMENT SANITIZER — destroys facial data with solid black box
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+// GARMENT SANITIZER вЂ” destroys facial data with solid black box
 // Gaussian blur leaves low-frequency data (skull shape, jawline shadows)
 // that Gemini can reconstruct. Solid black box = total pixel destruction.
-// ═══════════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 async function sanitizeGarmentImage(imageBase64, index) {
-  // Sanitization skipped — nano-banana-2 handles garment reference via text prompt.
+  // Sanitization skipped вЂ” nano-banana-2 handles garment reference via text prompt.
   // Direct image editing requires separate model which is deprecated.
-  console.log(`   ℹ️ Garment ${index + 1}: sanitization skipped (using direct reference)`);
+  console.log(`   в„№пёЏ Garment ${index + 1}: sanitization skipped (using direct reference)`);
   return imageBase64;
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// PRODUCT MODE — XML-тегированная система промптов для предметной съемки
-// Аналог Fashion Mode cognitive_override, но с ОБРАТНОЙ логикой:
-// "Исходный товар = Sacred Blueprint, заморозь его пиксели 1:1"
-// ═══════════════════════════════════════════════════════════════════
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+// PRODUCT MODE вЂ” XML-С‚РµРіРёСЂРѕРІР°РЅРЅР°СЏ СЃРёСЃС‚РµРјР° РїСЂРѕРјРїС‚РѕРІ РґР»СЏ РїСЂРµРґРјРµС‚РЅРѕР№ СЃСЉРµРјРєРё
+// РђРЅР°Р»РѕРі Fashion Mode cognitive_override, РЅРѕ СЃ РћР‘Р РђРўРќРћР™ Р»РѕРіРёРєРѕР№:
+// "РСЃС…РѕРґРЅС‹Р№ С‚РѕРІР°СЂ = Sacred Blueprint, Р·Р°РјРѕСЂРѕР·СЊ РµРіРѕ РїРёРєСЃРµР»Рё 1:1"
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 
 const CATEGORY_CONFIGS = {
   cosmetics: {
@@ -917,7 +917,7 @@ const CATEGORY_CONFIGS = {
 </lighting_protocol>`
   },
 
-  // ── Full CGI configs from Deep Think Parts 1-3 ──
+  // в”Ђв”Ђ Full CGI configs from Deep Think Parts 1-3 в”Ђв”Ђ
   supplements: {
     materials: `<material_rendering_directive>
 - PLASTICS & SURFACES: Render medical-grade plastics with distinct PBR properties: high-gloss reflections for PET, light-absorbing soft-touch for matte HDPE bottles.
@@ -1019,7 +1019,7 @@ const CATEGORY_CONFIGS = {
 </lighting_protocol>`
   },
 
-  // Фолбэк для неизвестных категорий
+  // Р¤РѕР»Р±СЌРє РґР»СЏ РЅРµРёР·РІРµСЃС‚РЅС‹С… РєР°С‚РµРіРѕСЂРёР№
   default: {
     materials: `<material_rendering_directive>
 - SURFACES: Physically accurate PBR materials based on the original image.
@@ -1033,8 +1033,8 @@ const CATEGORY_CONFIGS = {
 };
 
 /**
- * Собирает полный XML-промпт для предметной фотосъемки товаров
- * Аналог buildMasterPrompt() для Fashion Mode, но с обратной логикой
+ * РЎРѕР±РёСЂР°РµС‚ РїРѕР»РЅС‹Р№ XML-РїСЂРѕРјРїС‚ РґР»СЏ РїСЂРµРґРјРµС‚РЅРѕР№ С„РѕС‚РѕСЃСЉРµРјРєРё С‚РѕРІР°СЂРѕРІ
+ * РђРЅР°Р»РѕРі buildMasterPrompt() РґР»СЏ Fashion Mode, РЅРѕ СЃ РѕР±СЂР°С‚РЅРѕР№ Р»РѕРіРёРєРѕР№
  */
 function buildProductPrompt({
   categoryId,
@@ -1054,30 +1054,30 @@ function buildProductPrompt({
   const gender = detectGender(humanModelPrompt);
   const attrDirectives = attributes ? buildAttributeDirectives(attributes, gender) : '';
 
-  // ═══════════════════════════════════════════════════════════════════
-  // COMPOSITION-SPECIFIC DIRECTIVES — жёсткие блоки для каждого типа кадра
-  // ═══════════════════════════════════════════════════════════════════
+  // в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+  // COMPOSITION-SPECIFIC DIRECTIVES вЂ” Р¶С‘СЃС‚РєРёРµ Р±Р»РѕРєРё РґР»СЏ РєР°Р¶РґРѕРіРѕ С‚РёРїР° РєР°РґСЂР°
+  // в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
   const COMPOSITION_DIRECTIVES = {
     in_hand: `<composition_directive type="IN_HAND">
 MANDATORY HAND-HELD PRODUCT SHOT. THIS OVERRIDES ALL OTHER COMPOSITION INSTRUCTIONS.
 - A realistic human HAND must be the PRIMARY visual element alongside the product. The hand physically GRIPS and HOLDS the product.
 - FRAMING: Close-up shot. Only the hand, wrist, and product are in frame. Do NOT show full body, do NOT show legs, do NOT show a person standing.
-- The product MUST be held UP in the hand — NOT placed on any surface, pedestal, podium, platform, table, or stand.
+- The product MUST be held UP in the hand вЂ” NOT placed on any surface, pedestal, podium, platform, table, or stand.
 - NO PODIUMS. NO PEDESTALS. NO MARBLE PLATFORMS. The product is AIRBORNE, held by the human hand.
 - Show accurate scale: the product size must be proportional to the human hand.
 - Background: soft blurred bokeh (shallow depth of field, f/1.8). The background is abstract and out of focus.
 - The hand enters the frame naturally from the bottom or side of the composition.
 - Hand must have natural skin texture, visible knuckles, realistic finger positioning, and honest material physics.
-- If the product is a pillow, bag, bottle, or any non-wearable item — the hand HOLDS it up, does NOT wear it, drape it, or place it on the body.
+- If the product is a pillow, bag, bottle, or any non-wearable item вЂ” the hand HOLDS it up, does NOT wear it, drape it, or place it on the body.
 </composition_directive>`,
 
     macro: `<composition_directive type="MACRO">
 MANDATORY: Extreme close-up macro photography.
-- Fill 80-90% of the frame with the product — show intricate surface details, textures, labels, and micro-features.
-- Ultra-shallow depth of field (f/2.0 or wider) — razor-sharp focus on the product surface, everything else melts into creamy bokeh.
+- Fill 80-90% of the frame with the product вЂ” show intricate surface details, textures, labels, and micro-features.
+- Ultra-shallow depth of field (f/2.0 or wider) вЂ” razor-sharp focus on the product surface, everything else melts into creamy bokeh.
 - Show material micro-texture: fabric weave, plastic grain, metal brushing, glass refraction.
 - Camera distance: extremely close, as if using a dedicated macro lens.
-- No full product silhouette — this is about DETAIL, not overview.
+- No full product silhouette вЂ” this is about DETAIL, not overview.
 </composition_directive>`,
 
     flat_lay: `<composition_directive type="FLAT_LAY">
@@ -1092,15 +1092,15 @@ MANDATORY: Strict top-down overhead flat lay composition.
     angled: `<composition_directive type="ANGLED_3/4">
 MANDATORY: Dynamic 3/4 angle perspective shot.
 - Camera positioned at approximately 30-45 degrees from the product's front face.
-- This angle reveals the product's three-dimensional volume — showing both the front label AND the side profile.
+- This angle reveals the product's three-dimensional volume вЂ” showing both the front label AND the side profile.
 - Elegant volumetric lighting with dramatic depth of field.
 - The product appears sculptural and premium from this dynamic viewing angle.
 </composition_directive>`,
 
     still_life: `<composition_directive type="STILL_LIFE">
-MANDATORY: Classic front-facing product portrait (натюрморт).
+MANDATORY: Classic front-facing product portrait (РЅР°С‚СЋСЂРјРѕСЂС‚).
 - Centered composition, eye-level camera aligned with the product's center of mass.
-- The product faces the camera directly — full label visibility, symmetrical framing.
+- The product faces the camera directly вЂ” full label visibility, symmetrical framing.
 - Professional studio lighting with clean backdrop.
 - Standard e-commerce product hero shot.
 </composition_directive>`
@@ -1108,7 +1108,7 @@ MANDATORY: Classic front-facing product portrait (натюрморт).
 
   const compositionDirective = COMPOSITION_DIRECTIVES[compositionId] || COMPOSITION_DIRECTIVES.still_life;
 
-  // Блок модели-человека: когда продавец хочет показать товар вместе с живой моделью
+  // Р‘Р»РѕРє РјРѕРґРµР»Рё-С‡РµР»РѕРІРµРєР°: РєРѕРіРґР° РїСЂРѕРґР°РІРµС† С…РѕС‡РµС‚ РїРѕРєР°Р·Р°С‚СЊ С‚РѕРІР°СЂ РІРјРµСЃС‚Рµ СЃ Р¶РёРІРѕР№ РјРѕРґРµР»СЊСЋ
   const humanModelBlock = withHumanModel && humanModelPrompt ? `
 <human_model_integration>
 CRITICAL DUAL-SUBJECT PROTOCOL:
@@ -1117,15 +1117,15 @@ This shot contains TWO subjects: the PRODUCT and a LIVING HUMAN MODEL.
 HUMAN MODEL PROFILE: "${humanModelPrompt}"
 - Generate a photorealistic living human model matching the profile above.
 - The model must naturally interact with the product: holding it, demonstrating it, using it, or presenting it.
-- The PRODUCT remains the HERO — the model is the SUPPORTING ACTOR. The product must be clearly visible, unobstructed, and prominently featured.
+- The PRODUCT remains the HERO вЂ” the model is the SUPPORTING ACTOR. The product must be clearly visible, unobstructed, and prominently featured.
 - Do NOT let the model's hands, arms, or body obscure the product label, brand, or key visual features.
 
-<ANATOMICAL_INTEGRITY — ABSOLUTE RULE>
+<ANATOMICAL_INTEGRITY вЂ” ABSOLUTE RULE>
 The human model has EXACTLY TWO hands and EXACTLY TWO arms.
-ALL visible hands in the image MUST be anatomically connected to the model's body — attached at the wrist, forearm, and shoulder.
+ALL visible hands in the image MUST be anatomically connected to the model's body вЂ” attached at the wrist, forearm, and shoulder.
 Do NOT generate any disembodied, floating, detached, or extra hands/arms.
 NO phantom limbs. NO third hand. Every hand visible in the frame belongs to the single human model.
-If the product needs to be held — the model holds it with ONE or BOTH of her own two hands.
+If the product needs to be held вЂ” the model holds it with ONE or BOTH of her own two hands.
 </ANATOMICAL_INTEGRITY>
 
 ${attrDirectives ? `<APPLIED_CHARACTERISTICS>
@@ -1145,13 +1145,13 @@ INTERACTION STYLE:
 </human_model_integration>
 ` : '';
 
-  // Для «Товар в руке» — очищаем фон от подиумов/платформ, которые конфликтуют с композицией
+  // Р”Р»СЏ В«РўРѕРІР°СЂ РІ СЂСѓРєРµВ» вЂ” РѕС‡РёС‰Р°РµРј С„РѕРЅ РѕС‚ РїРѕРґРёСѓРјРѕРІ/РїР»Р°С‚С„РѕСЂРј, РєРѕС‚РѕСЂС‹Рµ РєРѕРЅС„Р»РёРєС‚СѓСЋС‚ СЃ РєРѕРјРїРѕР·РёС†РёРµР№
   const sanitizedBg = compositionId === 'in_hand'
     ? bgPrompt.replace(/,?\s*(elegant\s+)?marble\s+podium\s+platform/gi, '').replace(/,?\s*pedestal/gi, '').replace(/,?\s*platform/gi, '').replace(/,?\s*podium/gi, '').trim()
     : bgPrompt;
 
   const integrationText = withHumanModel
-    ? 'The human model holds and interacts with the product naturally. The product is supported by the model\'s own hands — NOT placed on any surface. All hands visible belong to one single human body.'
+    ? 'The human model holds and interacts with the product naturally. The product is supported by the model\'s own hands вЂ” NOT placed on any surface. All hands visible belong to one single human body.'
     : compositionId === 'in_hand'
       ? 'The product is held in a human hand. No surface contact. No ground plane. The hand is the only support.'
       : 'Ground the product naturally onto the surface with accurate contact shadows, ambient occlusion, and bounced environmental light. Do NOT let the product float.';
@@ -1170,8 +1170,8 @@ CRITICAL PROTOCOL: The input image is the ABSOLUTE TRUTH ("Sacred Blueprint").
 
 ${withHumanModel ? `<image_roles>
 IMAGE ROLE ASSIGNMENT:
-- The FIRST input image(s) are PRODUCT REFERENCE photos ("Sacred Blueprint") — preserve their appearance 1:1.
-- Any SUBSEQUENT input image(s) are HUMAN MODEL APPEARANCE REFERENCE — use ONLY for the model's face, hair, body type. Do NOT extract hands, limbs, or body parts from these reference images into the scene separately.
+- The FIRST input image(s) are PRODUCT REFERENCE photos ("Sacred Blueprint") вЂ” preserve their appearance 1:1.
+- Any SUBSEQUENT input image(s) are HUMAN MODEL APPEARANCE REFERENCE вЂ” use ONLY for the model's face, hair, body type. Do NOT extract hands, limbs, or body parts from these reference images into the scene separately.
 </image_roles>` : ''}
 
 <zero_invention_products>
@@ -1255,14 +1255,14 @@ Every design choice must support the product's real category, visible qualities,
 
 CARD FORMAT:
 Create a vertical marketplace product card, 3:4 aspect ratio, optimized for mobile viewing.
-The product must be the hero and occupy approximately 60–72% of the composition.
+The product must be the hero and occupy approximately 60вЂ“72% of the composition.
 The design must remain readable as a small marketplace thumbnail.
 
 Use a clean composition with strong hierarchy:
 
 1. Hero product image
 2. Main Russian headline
-3. 3–5 short benefit chips
+3. 3вЂ“5 short benefit chips
 4. Optional tiny supporting caption if useful
 5. Subtle visual accents that explain the product without clutter
 
@@ -1357,8 +1357,8 @@ Use typography as a luxury design element: large elegant headline, airy spacing,
 
 RUSSIAN COPYWRITING RULES:
 Generate short Russian text that sells through clarity and taste, not through shouting.
-The headline must be 2–6 words.
-Each benefit chip must be 1–4 words.
+The headline must be 2вЂ“6 words.
+Each benefit chip must be 1вЂ“4 words.
 Total visible text should be minimal and premium.
 
 The copy must instantly explain:
@@ -1369,34 +1369,34 @@ The copy must instantly explain:
 * why the buyer should click.
 
 Use benefit language like:
-"Для дома"
-"На каждый день"
-"Стильный акцент"
-"Продуманные детали"
-"Удобно использовать"
-"Легко сочетать"
-"Премиальный вид"
-"Компактный формат"
-"Мягкая фактура"
-"Чистый силуэт"
-"Аккуратное хранение"
-"Для подарка"
-"Без лишнего шума"
-"Всё под рукой"
-"Нежный уход"
-"Комфортная посадка"
-"Лёгкий уход"
-"Приятно держать"
-"Для кухни"
-"Для поездок"
-"Для интерьера"
-"Смотрится дорого"
+"Р”Р»СЏ РґРѕРјР°"
+"РќР° РєР°Р¶РґС‹Р№ РґРµРЅСЊ"
+"РЎС‚РёР»СЊРЅС‹Р№ Р°РєС†РµРЅС‚"
+"РџСЂРѕРґСѓРјР°РЅРЅС‹Рµ РґРµС‚Р°Р»Рё"
+"РЈРґРѕР±РЅРѕ РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ"
+"Р›РµРіРєРѕ СЃРѕС‡РµС‚Р°С‚СЊ"
+"РџСЂРµРјРёР°Р»СЊРЅС‹Р№ РІРёРґ"
+"РљРѕРјРїР°РєС‚РЅС‹Р№ С„РѕСЂРјР°С‚"
+"РњСЏРіРєР°СЏ С„Р°РєС‚СѓСЂР°"
+"Р§РёСЃС‚С‹Р№ СЃРёР»СѓСЌС‚"
+"РђРєРєСѓСЂР°С‚РЅРѕРµ С…СЂР°РЅРµРЅРёРµ"
+"Р”Р»СЏ РїРѕРґР°СЂРєР°"
+"Р‘РµР· Р»РёС€РЅРµРіРѕ С€СѓРјР°"
+"Р’СЃС‘ РїРѕРґ СЂСѓРєРѕР№"
+"РќРµР¶РЅС‹Р№ СѓС…РѕРґ"
+"РљРѕРјС„РѕСЂС‚РЅР°СЏ РїРѕСЃР°РґРєР°"
+"Р›С‘РіРєРёР№ СѓС…РѕРґ"
+"РџСЂРёСЏС‚РЅРѕ РґРµСЂР¶Р°С‚СЊ"
+"Р”Р»СЏ РєСѓС…РЅРё"
+"Р”Р»СЏ РїРѕРµР·РґРѕРє"
+"Р”Р»СЏ РёРЅС‚РµСЂСЊРµСЂР°"
+"РЎРјРѕС‚СЂРёС‚СЃСЏ РґРѕСЂРѕРіРѕ"
 
 Adapt the text to the actual product.
 Do not use generic text if a more specific safe benefit is visible.
 
 STRICTLY AVOID THESE RUSSIAN WORDS AND CLAIMS UNLESS EXPLICITLY PROVIDED:
-"скидка", "акция", "распродажа", "только сегодня", "финальная цена", "лучшая цена", "мега цена", "хит продаж", "топ продаж", "№1", "лучший", "гарантия", "вернём деньги", "сертифицировано", "лечит", "100% эффект", "водонепроницаемый", "гипоаллергенный", "оригинал", "премиум качество", fake ratings, fake reviews, fake marketplace badges.
+"СЃРєРёРґРєР°", "Р°РєС†РёСЏ", "СЂР°СЃРїСЂРѕРґР°Р¶Р°", "С‚РѕР»СЊРєРѕ СЃРµРіРѕРґРЅСЏ", "С„РёРЅР°Р»СЊРЅР°СЏ С†РµРЅР°", "Р»СѓС‡С€Р°СЏ С†РµРЅР°", "РјРµРіР° С†РµРЅР°", "С…РёС‚ РїСЂРѕРґР°Р¶", "С‚РѕРї РїСЂРѕРґР°Р¶", "в„–1", "Р»СѓС‡С€РёР№", "РіР°СЂР°РЅС‚РёСЏ", "РІРµСЂРЅС‘Рј РґРµРЅСЊРіРё", "СЃРµСЂС‚РёС„РёС†РёСЂРѕРІР°РЅРѕ", "Р»РµС‡РёС‚", "100% СЌС„С„РµРєС‚", "РІРѕРґРѕРЅРµРїСЂРѕРЅРёС†Р°РµРјС‹Р№", "РіРёРїРѕР°Р»Р»РµСЂРіРµРЅРЅС‹Р№", "РѕСЂРёРіРёРЅР°Р»", "РїСЂРµРјРёСѓРј РєР°С‡РµСЃС‚РІРѕ", fake ratings, fake reviews, fake marketplace badges.
 
 LAYOUT:
 Create a balanced premium composition:
@@ -1413,7 +1413,7 @@ Create a balanced premium composition:
 
 Benefit chips:
 
-* use 3–5 chips only;
+* use 3вЂ“5 chips only;
 * keep them short;
 * make them visually consistent;
 * use refined icons only if they match the product and improve clarity;
@@ -1492,7 +1492,7 @@ Your task is to transform the provided product image into an extremely eye-catch
 The result must look like a powerful premium product poster, not a boring catalog photo.
 It must instantly dominate the marketplace feed, create a "wow" effect, and make the buyer stop scrolling.
 
-The style must be bold, dramatic, cinematic, slightly grotesque, highly commercial, and visually magnetic — but still tasteful, clean, readable, and trustworthy.
+The style must be bold, dramatic, cinematic, slightly grotesque, highly commercial, and visually magnetic вЂ” but still tasteful, clean, readable, and trustworthy.
 
 IMPORTANT LANGUAGE RULE:
 All visible text on the card must be in Russian only.
@@ -1537,7 +1537,7 @@ Do not invent technical specifications, medical effects, certifications, waterpr
 VISUAL DIRECTION:
 Create a vertical 3:4 marketplace product card optimized for mobile feed.
 The product must be large, central, sharp, and dominant.
-The product should occupy approximately 60–75% of the composition.
+The product should occupy approximately 60вЂ“75% of the composition.
 The design must be readable even as a small thumbnail.
 
 Use a dramatic cinematic background that matches the product's nature.
@@ -1600,7 +1600,7 @@ Use a strong heroic layout:
 1. Product in the center as the main hero.
 2. Explosive or energetic background behind the product.
 3. Main headline near the top or bottom in a strong readable zone.
-4. 3–4 short benefit chips around the product.
+4. 3вЂ“4 short benefit chips around the product.
 5. Optional price block only if price is provided.
 6. Optional badge only if it does not make false claims.
 
@@ -1632,113 +1632,113 @@ Write short, powerful Russian text.
 The copy must sound commercial, sharp, and premium.
 
 Main headline:
-- 2–5 words;
+- 2вЂ“5 words;
 - strong and memorable;
 - adapted to the product;
 - emotional but not fake.
 
 Examples of headline style:
-"Сила в деталях"
-"Максимум эффекта"
-"Создано выделяться"
-"В центре внимания"
-"Мощный акцент"
-"Яркий характер"
-"Стиль без компромиссов"
-"Эффект с первого взгляда"
-"Заметно сразу"
-"Выглядит дорого"
-"Для сильного образа"
-"Твой главный акцент"
-"Когда нужен эффект"
-"Притягивает взгляд"
-"Сразу в фокусе"
+"РЎРёР»Р° РІ РґРµС‚Р°Р»СЏС…"
+"РњР°РєСЃРёРјСѓРј СЌС„С„РµРєС‚Р°"
+"РЎРѕР·РґР°РЅРѕ РІС‹РґРµР»СЏС‚СЊСЃСЏ"
+"Р’ С†РµРЅС‚СЂРµ РІРЅРёРјР°РЅРёСЏ"
+"РњРѕС‰РЅС‹Р№ Р°РєС†РµРЅС‚"
+"РЇСЂРєРёР№ С…Р°СЂР°РєС‚РµСЂ"
+"РЎС‚РёР»СЊ Р±РµР· РєРѕРјРїСЂРѕРјРёСЃСЃРѕРІ"
+"Р­С„С„РµРєС‚ СЃ РїРµСЂРІРѕРіРѕ РІР·РіР»СЏРґР°"
+"Р—Р°РјРµС‚РЅРѕ СЃСЂР°Р·Сѓ"
+"Р’С‹РіР»СЏРґРёС‚ РґРѕСЂРѕРіРѕ"
+"Р”Р»СЏ СЃРёР»СЊРЅРѕРіРѕ РѕР±СЂР°Р·Р°"
+"РўРІРѕР№ РіР»Р°РІРЅС‹Р№ Р°РєС†РµРЅС‚"
+"РљРѕРіРґР° РЅСѓР¶РµРЅ СЌС„С„РµРєС‚"
+"РџСЂРёС‚СЏРіРёРІР°РµС‚ РІР·РіР»СЏРґ"
+"РЎСЂР°Р·Сѓ РІ С„РѕРєСѓСЃРµ"
 
 Benefit chips:
-Use 3–4 short Russian benefit chips, each 1–3 words.
+Use 3вЂ“4 short Russian benefit chips, each 1вЂ“3 words.
 They must be visually supported by the product or safe and general.
 
 Examples:
-"Яркий дизайн"
-"Премиальный вид"
-"Сильный акцент"
-"На каждый день"
-"Для подарка"
-"Удобный формат"
-"Приятно держать"
-"Легко использовать"
-"Стильно смотрится"
-"Выделяет образ"
-"Чистый силуэт"
-"Глубокий цвет"
-"Эффектная подача"
-"Смотрится дорого"
-"Для дома"
-"Для поездок"
-"Для ухода"
-"Для настроения"
+"РЇСЂРєРёР№ РґРёР·Р°Р№РЅ"
+"РџСЂРµРјРёР°Р»СЊРЅС‹Р№ РІРёРґ"
+"РЎРёР»СЊРЅС‹Р№ Р°РєС†РµРЅС‚"
+"РќР° РєР°Р¶РґС‹Р№ РґРµРЅСЊ"
+"Р”Р»СЏ РїРѕРґР°СЂРєР°"
+"РЈРґРѕР±РЅС‹Р№ С„РѕСЂРјР°С‚"
+"РџСЂРёСЏС‚РЅРѕ РґРµСЂР¶Р°С‚СЊ"
+"Р›РµРіРєРѕ РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ"
+"РЎС‚РёР»СЊРЅРѕ СЃРјРѕС‚СЂРёС‚СЃСЏ"
+"Р’С‹РґРµР»СЏРµС‚ РѕР±СЂР°Р·"
+"Р§РёСЃС‚С‹Р№ СЃРёР»СѓСЌС‚"
+"Р“Р»СѓР±РѕРєРёР№ С†РІРµС‚"
+"Р­С„С„РµРєС‚РЅР°СЏ РїРѕРґР°С‡Р°"
+"РЎРјРѕС‚СЂРёС‚СЃСЏ РґРѕСЂРѕРіРѕ"
+"Р”Р»СЏ РґРѕРјР°"
+"Р”Р»СЏ РїРѕРµР·РґРѕРє"
+"Р”Р»СЏ СѓС…РѕРґР°"
+"Р”Р»СЏ РЅР°СЃС‚СЂРѕРµРЅРёСЏ"
 
 If the product category is clear, generate more specific Russian text.
 If the product is perfume, use words like:
-"Глубокий аромат"
-"Стойкий шлейф" only if provided or clearly allowed
-"Мужской характер"
-"Сила стихий"
-"В центре внимания"
-"Эффектный флакон"
-"Для вечера"
-"Для подарка"
+"Р“Р»СѓР±РѕРєРёР№ Р°СЂРѕРјР°С‚"
+"РЎС‚РѕР№РєРёР№ С€Р»РµР№С„" only if provided or clearly allowed
+"РњСѓР¶СЃРєРѕР№ С…Р°СЂР°РєС‚РµСЂ"
+"РЎРёР»Р° СЃС‚РёС…РёР№"
+"Р’ С†РµРЅС‚СЂРµ РІРЅРёРјР°РЅРёСЏ"
+"Р­С„С„РµРєС‚РЅС‹Р№ С„Р»Р°РєРѕРЅ"
+"Р”Р»СЏ РІРµС‡РµСЂР°"
+"Р”Р»СЏ РїРѕРґР°СЂРєР°"
 
 If the product is cosmetics:
-"Нежный уход"
-"Сияющий вид"
-"Каждый день"
-"Чистая кожа" only if safe
-"Красивый ритуал"
+"РќРµР¶РЅС‹Р№ СѓС…РѕРґ"
+"РЎРёСЏСЋС‰РёР№ РІРёРґ"
+"РљР°Р¶РґС‹Р№ РґРµРЅСЊ"
+"Р§РёСЃС‚Р°СЏ РєРѕР¶Р°" only if safe
+"РљСЂР°СЃРёРІС‹Р№ СЂРёС‚СѓР°Р»"
 
 If the product is electronics:
-"Быстрый доступ"
-"Чёткий звук"
-"Мощный заряд"
-"Умный формат"
-"Всегда рядом"
+"Р‘С‹СЃС‚СЂС‹Р№ РґРѕСЃС‚СѓРї"
+"Р§С‘С‚РєРёР№ Р·РІСѓРє"
+"РњРѕС‰РЅС‹Р№ Р·Р°СЂСЏРґ"
+"РЈРјРЅС‹Р№ С„РѕСЂРјР°С‚"
+"Р’СЃРµРіРґР° СЂСЏРґРѕРј"
 
 If the product is clothing:
-"Сильный образ"
-"Комфортная посадка"
-"Легко сочетать"
-"На каждый день"
-"Стильный силуэт"
+"РЎРёР»СЊРЅС‹Р№ РѕР±СЂР°Р·"
+"РљРѕРјС„РѕСЂС‚РЅР°СЏ РїРѕСЃР°РґРєР°"
+"Р›РµРіРєРѕ СЃРѕС‡РµС‚Р°С‚СЊ"
+"РќР° РєР°Р¶РґС‹Р№ РґРµРЅСЊ"
+"РЎС‚РёР»СЊРЅС‹Р№ СЃРёР»СѓСЌС‚"
 
 If the product is home decor:
-"Уютный акцент"
-"Для интерьера"
-"Смотрится дорого"
-"Тёплая атмосфера"
-"Красивый дом"
+"РЈСЋС‚РЅС‹Р№ Р°РєС†РµРЅС‚"
+"Р”Р»СЏ РёРЅС‚РµСЂСЊРµСЂР°"
+"РЎРјРѕС‚СЂРёС‚СЃСЏ РґРѕСЂРѕРіРѕ"
+"РўС‘РїР»Р°СЏ Р°С‚РјРѕСЃС„РµСЂР°"
+"РљСЂР°СЃРёРІС‹Р№ РґРѕРј"
 
 BADGE RULE:
 You may create one small dramatic badge only if it is safe and not misleading.
 
 Safe badge examples:
-"Яркий выбор"
-"Вау-эффект"
-"Для подарка"
-"Новый акцент"
-"Стильный формат"
-"В центре внимания"
+"РЇСЂРєРёР№ РІС‹Р±РѕСЂ"
+"Р’Р°Сѓ-СЌС„С„РµРєС‚"
+"Р”Р»СЏ РїРѕРґР°СЂРєР°"
+"РќРѕРІС‹Р№ Р°РєС†РµРЅС‚"
+"РЎС‚РёР»СЊРЅС‹Р№ С„РѕСЂРјР°С‚"
+"Р’ С†РµРЅС‚СЂРµ РІРЅРёРјР°РЅРёСЏ"
 
 Avoid fake badges unless provided:
-"Хит продаж"
-"Топ продаж"
-"№1"
-"Лучший товар"
-"Выбор покупателей"
-"Гарантия"
-"Оригинал"
-"Скидка"
-"Акция"
-"Распродажа"
+"РҐРёС‚ РїСЂРѕРґР°Р¶"
+"РўРѕРї РїСЂРѕРґР°Р¶"
+"в„–1"
+"Р›СѓС‡С€РёР№ С‚РѕРІР°СЂ"
+"Р’С‹Р±РѕСЂ РїРѕРєСѓРїР°С‚РµР»РµР№"
+"Р“Р°СЂР°РЅС‚РёСЏ"
+"РћСЂРёРіРёРЅР°Р»"
+"РЎРєРёРґРєР°"
+"РђРєС†РёСЏ"
+"Р Р°СЃРїСЂРѕРґР°Р¶Р°"
 
 If the user explicitly asks for an aggressive bestseller-like design, visually create the feeling of a bestseller, but do not use false claims unless they are provided.
 
@@ -1746,7 +1746,7 @@ TEXT HIERARCHY:
 Use:
 - one large bold headline;
 - one smaller descriptive line if necessary;
-- 3–4 benefit chips;
+- 3вЂ“4 benefit chips;
 - optional price block if price is provided.
 
 The text must be readable, bold, and clean.
@@ -1850,9 +1850,9 @@ Enhance lighting and presentation, but do not change what the product is.
 
 PRICE BLOCK:
 If a price is provided, display it large and clear in Russian marketplace style.
-Use "₽" symbol.
+Use "в‚Ѕ" symbol.
 Example:
-"4 990 ₽"
+"4 990 в‚Ѕ"
 
 If no price is provided, do not invent a price.
 
@@ -1870,14 +1870,14 @@ Use:
 - short Russian phrases.
 
 Possible Russian text:
-"Сила характера"
-"Глубокий аромат"
-"Эффектный флакон"
-"Для вечера"
-"В центре внимания"
-"Мощный шлейф" only if provided or allowed
-"Для подарка"
-"Стильный акцент"
+"РЎРёР»Р° С…Р°СЂР°РєС‚РµСЂР°"
+"Р“Р»СѓР±РѕРєРёР№ Р°СЂРѕРјР°С‚"
+"Р­С„С„РµРєС‚РЅС‹Р№ С„Р»Р°РєРѕРЅ"
+"Р”Р»СЏ РІРµС‡РµСЂР°"
+"Р’ С†РµРЅС‚СЂРµ РІРЅРёРјР°РЅРёСЏ"
+"РњРѕС‰РЅС‹Р№ С€Р»РµР№С„" only if provided or allowed
+"Р”Р»СЏ РїРѕРґР°СЂРєР°"
+"РЎС‚РёР»СЊРЅС‹Р№ Р°РєС†РµРЅС‚"
 
 FOR THE EXAMPLE STYLE:
 If the product resembles a perfume bottle with dark packaging and gold details, create a more powerful version of a fire-and-ice cinematic card:
@@ -1934,7 +1934,7 @@ No mockup frame.
 No website interface.
 Only the final polished product card image.`;
 
-// ═══ UGC PROMPT — реалистичные фото «от покупателей» для отзывов ═══
+// в•ђв•ђв•ђ UGC PROMPT вЂ” СЂРµР°Р»РёСЃС‚РёС‡РЅС‹Рµ С„РѕС‚Рѕ В«РѕС‚ РїРѕРєСѓРїР°С‚РµР»РµР№В» РґР»СЏ РѕС‚Р·С‹РІРѕРІ в•ђв•ђв•ђ
 const QUICK_UGC_PROMPT = `You are an expert at creating hyper-realistic smartphone photographs that look exactly like real customer review photos on Russian marketplaces (Wildberries, Ozon, AliExpress).
 
 Your task: Take the provided product image, carefully analyze what the product is, and create a NEW photograph that looks like it was taken by a real customer on their smartphone after receiving the product.
@@ -1951,7 +1951,7 @@ The photo MUST look like it was shot on a smartphone (iPhone 13-15 quality):
 - Slight depth of field (smartphone bokeh, not professional)
 - Natural ambient lighting from a window or ceiling lamp (warm 3500-4500K)
 - Mild digital noise (ISO 400-800 equivalent)
-- Slightly imperfect composition — product NOT perfectly centered, camera at a slight casual angle (2-5 degrees tilt)
+- Slightly imperfect composition вЂ” product NOT perfectly centered, camera at a slight casual angle (2-5 degrees tilt)
 - Natural white balance with slight warmth
 - No studio softboxes, no professional lighting setups
 - Resolution and sharpness consistent with smartphone camera
@@ -1965,7 +1965,7 @@ Pick ONE scene that makes the most sense for this product type:
 4. ON THE FLOOR: Flat lay on wooden parquet or laminate. Maybe a rug edge visible. Shot from above.
 5. ON A WINDOWSILL: Product on a windowsill with natural daylight coming through. Maybe a plant pot nearby.
 6. UNBOXING: Product partially out of a brown delivery box or plastic packaging. The excitement of receiving a package.
-7. IN USE: If it's clothing — worn casually (mirror selfie vibe). If it's kitchenware — on a kitchen counter. If it's electronics — plugged in, being used.
+7. IN USE: If it's clothing вЂ” worn casually (mirror selfie vibe). If it's kitchenware вЂ” on a kitchen counter. If it's electronics вЂ” plugged in, being used.
 8. COMPARISON: Product next to a familiar object (hand, pen, phone) to show real scale.
 
 ANTI-DETECTION RULES (critical for believability):
@@ -1975,7 +1975,7 @@ ANTI-DETECTION RULES (critical for believability):
 - NEVER add text, watermarks, or any overlay
 - NEVER show the product floating or in an unnatural position
 - The background MUST be a real, lived-in domestic environment
-- Include small realistic details: visible furniture edges, carpet textures, a cable, a crumb, a pet toy — micro-imperfections that make it believable
+- Include small realistic details: visible furniture edges, carpet textures, a cable, a crumb, a pet toy вЂ” micro-imperfections that make it believable
 - Shadows must be natural and soft (from ambient light, not directional strobes)
 
 PRODUCT INTEGRITY:
@@ -1994,25 +1994,25 @@ One realistic smartphone photograph of the product in a natural domestic setting
 No text. No watermarks. No studio look. No explanations.
 Just the photograph.`;
 
-// ═══ MODEL PHOTO PROMPT — красивое фото товара с моделью (без инфографики) ═══
+// в•ђв•ђв•ђ MODEL PHOTO PROMPT вЂ” РєСЂР°СЃРёРІРѕРµ С„РѕС‚Рѕ С‚РѕРІР°СЂР° СЃ РјРѕРґРµР»СЊСЋ (Р±РµР· РёРЅС„РѕРіСЂР°С„РёРєРё) в•ђв•ђв•ђ
 const MODEL_PHOTO_PROMPT = `You are an elite product photographer and creative director.
 
 Your task: Create a stunning, high-quality PHOTOGRAPH of a HUMAN MODEL naturally interacting with the product shown in the reference image(s).
 
-STEP 1 — PRODUCT ANALYSIS:
+STEP 1 вЂ” PRODUCT ANALYSIS:
 Analyze the product image(s). Determine:
 - What category? (clothing, electronics, cosmetics, furniture, food, sport, bags, jewelry, etc.)
 - How should a person naturally wear, hold, use, or demonstrate this product?
 
-STEP 2 — MODEL SELECTION:
+STEP 2 вЂ” MODEL SELECTION:
 Auto-select the perfect model for this product:
 - Gender matching the product's target audience
 - Age 22-35, attractive but natural
 - Warm, confident expression
 - Clothing that complements (not overshadows) the product
 
-STEP 3 — SCENE & PHOTOGRAPHY:
-- Choose the ideal setting: studio, lifestyle indoor, outdoor — whatever best showcases this product with a person
+STEP 3 вЂ” SCENE & PHOTOGRAPHY:
+- Choose the ideal setting: studio, lifestyle indoor, outdoor вЂ” whatever best showcases this product with a person
 - Professional commercial photography lighting
 - The PRODUCT must be clearly visible and be the hero
 - Model complements the product naturally
@@ -2021,35 +2021,35 @@ STEP 3 — SCENE & PHOTOGRAPHY:
 
 STRICT RULES:
 - NO text, NO typography, NO infographic elements, NO badges, NO benefit chips
-- NO marketplace card layout — this is a PHOTO, not a card
-- NO distorted product — preserve exact shape, color, details
-- NO uncanny valley — model must look natural and photorealistic
+- NO marketplace card layout вЂ” this is a PHOTO, not a card
+- NO distorted product вЂ” preserve exact shape, color, details
+- NO uncanny valley вЂ” model must look natural and photorealistic
 - Product should be recognizable as the exact item from the reference
 
 OUTPUT: One finished vertical product photo with a human model. No explanations. No text overlays.`;
 
-// ═══ MODEL CARD PROMPTS — карточки маркетплейса с человеком-моделью ═══
+// в•ђв•ђв•ђ MODEL CARD PROMPTS вЂ” РєР°СЂС‚РѕС‡РєРё РјР°СЂРєРµС‚РїР»РµР№СЃР° СЃ С‡РµР»РѕРІРµРєРѕРј-РјРѕРґРµР»СЊСЋ в•ђв•ђв•ђ
 const MODEL_CARD_PROMPT_NATURAL = `You are an elite marketplace creative director, product photographer, and Russian copywriter.
 
 Your task: Create a premium, clean, minimalist marketplace product card for Russian marketplaces (Wildberries, Ozon) that features a HUMAN MODEL holding, wearing, demonstrating, or using the product.
 
 CRITICAL: HUMAN MODEL INTEGRATION
 First, analyze what the product is, then determine HOW a human should interact with it:
-- Clothing/accessories → model WEARING the item, natural standing or walking pose
-- Furniture → model SITTING on/LEANING against the product, casual lifestyle pose
-- Kitchen/home items → model USING the item in a kitchen/home setting
-- Electronics → model HOLDING the device, demonstrating the product in use
-- Beauty/cosmetics → model APPLYING or holding the product near face
-- Fitness/sport → model in active or athletic pose with the product
-- Other → model holding/presenting the product naturally
+- Clothing/accessories в†’ model WEARING the item, natural standing or walking pose
+- Furniture в†’ model SITTING on/LEANING against the product, casual lifestyle pose
+- Kitchen/home items в†’ model USING the item in a kitchen/home setting
+- Electronics в†’ model HOLDING the device, demonstrating the product in use
+- Beauty/cosmetics в†’ model APPLYING or holding the product near face
+- Fitness/sport в†’ model in active or athletic pose with the product
+- Other в†’ model holding/presenting the product naturally
 
 MODEL REQUIREMENTS:
 - Attractive but natural-looking person (no uncanny valley)
 - Age 25-35, well-groomed, clean appearance
-- Natural expression — slight smile or neutral
+- Natural expression вЂ” slight smile or neutral
 - Professional but approachable look
 - Clothing should complement the product (neutral tones for most products)
-- Model should NOT overpower the product — product is the hero
+- Model should NOT overpower the product вЂ” product is the hero
 
 DESIGN STYLE (NATURAL/MINIMAL):
 - Clean, minimal background (solid color, soft gradient, or simple texture)
@@ -2060,7 +2060,7 @@ DESIGN STYLE (NATURAL/MINIMAL):
 - Modern sans-serif Russian typography
 - 1 headline in Russian (product name or key benefit)
 - 1 subheadline (short descriptive line)
-- 3–4 benefit chips with icons at the bottom
+- 3вЂ“4 benefit chips with icons at the bottom
 - Clean, readable, no clutter
 
 RUSSIAN TEXT RULES:
@@ -2083,31 +2083,31 @@ Your task: Create an EPIC, cinematic, scroll-stopping marketplace product card f
 
 CRITICAL: HUMAN MODEL + DRAMATIC INTERACTION
 First, analyze what the product is, then create a DRAMATIC scene:
-- Clothing/accessories → model in a powerful pose, wind in hair, dramatic lighting, fashion editorial vibe
-- Furniture → model in cinematic luxury interior, dramatic shadows, lifestyle aspiration
-- Kitchen/home items → model in a styled, atmospheric kitchen scene with dramatic light
-- Electronics → model in a futuristic or tech-noir setting, dramatic reflections
-- Beauty/cosmetics → model in close-up beauty shot, dramatic lighting, editorial quality
-- Fitness/sport → model in powerful athletic pose, energy, motion blur, epic atmosphere
-- Other → model in a dramatic, cinematic scene that elevates the product
+- Clothing/accessories в†’ model in a powerful pose, wind in hair, dramatic lighting, fashion editorial vibe
+- Furniture в†’ model in cinematic luxury interior, dramatic shadows, lifestyle aspiration
+- Kitchen/home items в†’ model in a styled, atmospheric kitchen scene with dramatic light
+- Electronics в†’ model in a futuristic or tech-noir setting, dramatic reflections
+- Beauty/cosmetics в†’ model in close-up beauty shot, dramatic lighting, editorial quality
+- Fitness/sport в†’ model in powerful athletic pose, energy, motion blur, epic atmosphere
+- Other в†’ model in a dramatic, cinematic scene that elevates the product
 
 MODEL REQUIREMENTS:
 - Strikingly attractive person with presence
 - Confident, powerful expression
 - Dramatic pose that creates energy
-- Professional styling that matches the product’s mood
+- Professional styling that matches the productвЂ™s mood
 - Model and product should feel like one cinematic moment
 
 DESIGN STYLE (EPIC/CINEMATIC):
 - Dramatic, cinematic atmosphere (fire, smoke, neon, lightning, golden light, deep shadows)
 - Bold, vibrant color world (deep blacks, electric blues, golden ambers, rich contrasts)
-- Dramatic lighting — rim lights, volumetric rays, lens flares
+- Dramatic lighting вЂ” rim lights, volumetric rays, lens flares
 - Powerful composition with strong leading lines
 - Product is clearly visible and featured prominently
 - Bold, impactful Russian typography
 - 1 dramatic headline in Russian
 - 1 subtitle or tagline
-- 3–4 benefit chips
+- 3вЂ“4 benefit chips
 - SCROLL-STOPPING visual impact
 
 RUSSIAN TEXT RULES:
@@ -2136,8 +2136,8 @@ export default async function handler(req, res) {
 
   const startTime = Date.now();
 
-  // ═══ AUTH: JWT + Firebase Token Verification ═══
-  // Сначала пробуем JWT (новая система), потом Firebase (legacy)
+  // в•ђв•ђв•ђ AUTH: JWT + Firebase Token Verification в•ђв•ђв•ђ
+  // РЎРЅР°С‡Р°Р»Р° РїСЂРѕР±СѓРµРј JWT (РЅРѕРІР°СЏ СЃРёСЃС‚РµРјР°), РїРѕС‚РѕРј Firebase (legacy)
   let verifiedUid = null;
   let decodedAuth = null;
   const authHeader = req.headers.authorization;
@@ -2162,7 +2162,7 @@ export default async function handler(req, res) {
       return res.status(410).json({ success: false, error: 'deduct-credit deprecated: generation requests reserve credits automatically.' });
     }
 
-    // ═══ REFUND CREDITS (для возврата кредитов при неудачных генерациях) ═══
+    // в•ђв•ђв•ђ REFUND CREDITS (РґР»СЏ РІРѕР·РІСЂР°С‚Р° РєСЂРµРґРёС‚РѕРІ РїСЂРё РЅРµСѓРґР°С‡РЅС‹С… РіРµРЅРµСЂР°С†РёСЏС…) в•ђв•ђв•ђ
     if (req.body?.action === 'refund-credit') {
       return res.status(410).json({ success: false, error: 'refund-credit deprecated: failed generation requests are refunded automatically.' });
     }
@@ -2199,7 +2199,7 @@ export default async function handler(req, res) {
       }, creditCost, idempotencyKey || `req_${startTime}`);
     }
 
-    // ═══ DETECT ALL ELEMENTS (Gemini Vision — bounding boxes) ═══
+    // в•ђв•ђв•ђ DETECT ALL ELEMENTS (Gemini Vision вЂ” bounding boxes) в•ђв•ђв•ђ
     if (req.body?.action === 'detect-elements') {
       const { imageBase64 } = req.body;
       if (!imageBase64) return res.status(400).json({ success: false, error: 'imageBase64 required' });
@@ -2220,25 +2220,25 @@ export default async function handler(req, res) {
             role: 'user',
             parts: [
               { inlineData: { mimeType: mt, data: b64 } },
-              { text: `Ты видишь карточку товара маркетплейса. Найди ВСЕ визуальные элементы на картинке.
+              { text: `РўС‹ РІРёРґРёС€СЊ РєР°СЂС‚РѕС‡РєСѓ С‚РѕРІР°СЂР° РјР°СЂРєРµС‚РїР»РµР№СЃР°. РќР°Р№РґРё Р’РЎР• РІРёР·СѓР°Р»СЊРЅС‹Рµ СЌР»РµРјРµРЅС‚С‹ РЅР° РєР°СЂС‚РёРЅРєРµ.
 
-Для каждого элемента определи:
-- name: короткое название на русском (2-4 слова) 
-- bbox: координаты прямоугольника [x%, y%, width%, height%] от размеров картинки (0-100)
+Р”Р»СЏ РєР°Р¶РґРѕРіРѕ СЌР»РµРјРµРЅС‚Р° РѕРїСЂРµРґРµР»Рё:
+- name: РєРѕСЂРѕС‚РєРѕРµ РЅР°Р·РІР°РЅРёРµ РЅР° СЂСѓСЃСЃРєРѕРј (2-4 СЃР»РѕРІР°) 
+- bbox: РєРѕРѕСЂРґРёРЅР°С‚С‹ РїСЂСЏРјРѕСѓРіРѕР»СЊРЅРёРєР° [x%, y%, width%, height%] РѕС‚ СЂР°Р·РјРµСЂРѕРІ РєР°СЂС‚РёРЅРєРё (0-100)
 
-Типы элементов которые нужно искать:
-- Заголовок (текст)
-- Подзаголовок (текст)
-- Бейдж/пилл (кнопка с характеристикой)
-- Фото товара
-- Декоративные элементы (чемодан, плед и т.п.)
-- Фон
-- Цена (если есть)
-- Иконки
+РўРёРїС‹ СЌР»РµРјРµРЅС‚РѕРІ РєРѕС‚РѕСЂС‹Рµ РЅСѓР¶РЅРѕ РёСЃРєР°С‚СЊ:
+- Р—Р°РіРѕР»РѕРІРѕРє (С‚РµРєСЃС‚)
+- РџРѕРґР·Р°РіРѕР»РѕРІРѕРє (С‚РµРєСЃС‚)
+- Р‘РµР№РґР¶/РїРёР»Р» (РєРЅРѕРїРєР° СЃ С…Р°СЂР°РєС‚РµСЂРёСЃС‚РёРєРѕР№)
+- Р¤РѕС‚Рѕ С‚РѕРІР°СЂР°
+- Р”РµРєРѕСЂР°С‚РёРІРЅС‹Рµ СЌР»РµРјРµРЅС‚С‹ (С‡РµРјРѕРґР°РЅ, РїР»РµРґ Рё С‚.Рї.)
+- Р¤РѕРЅ
+- Р¦РµРЅР° (РµСЃР»Рё РµСЃС‚СЊ)
+- РРєРѕРЅРєРё
 
-Верни ТОЛЬКО JSON массив без пояснений:
+Р’РµСЂРЅРё РўРћР›Р¬РљРћ JSON РјР°СЃСЃРёРІ Р±РµР· РїРѕСЏСЃРЅРµРЅРёР№:
 [{"name":"...","bbox":[x,y,w,h]},...]
-Ответ должен быть только JSON, никакого другого текста.` }
+РћС‚РІРµС‚ РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ С‚РѕР»СЊРєРѕ JSON, РЅРёРєР°РєРѕРіРѕ РґСЂСѓРіРѕРіРѕ С‚РµРєСЃС‚Р°.` }
             ]
           }],
           config: {
@@ -2261,14 +2261,14 @@ export default async function handler(req, res) {
       }
     }
 
-    // ═══ IDENTIFY ELEMENT (Gemini Vision) ═══════════════════════
+    // в•ђв•ђв•ђ IDENTIFY ELEMENT (Gemini Vision) в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
     if (req.body?.action === 'identify-element') {
       const { imageBase64 } = req.body;
       if (!imageBase64) return res.status(400).json({ success: false, error: 'imageBase64 required' });
 
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        return res.status(200).json({ success: true, hint: 'Нажмите на действие для редактирования' });
+        return res.status(200).json({ success: true, hint: 'РќР°Р¶РјРёС‚Рµ РЅР° РґРµР№СЃС‚РІРёРµ РґР»СЏ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ' });
       }
 
       try {
@@ -2282,44 +2282,44 @@ export default async function handler(req, res) {
             role: 'user',
             parts: [
               { inlineData: { mimeType: mt, data: b64 } },
-              { text: `Ты видишь фрагмент карточки товара маркетплейса.
-Определи что это за элемент. Ответь ОДНОЙ фразой на русском языке (максимум 15 слов).
-Примеры:
-- "Заголовок с названием товара"
-- "Бейдж-характеристика товара, можно изменить текст"
-- "Фоновый декор, можно изменить цвет или убрать"
-- "Цена товара"
-- "Фото товара"
-- "CTA-кнопка"
-Ответь ТОЛЬКО описанием, без кавычек.` }
+              { text: `РўС‹ РІРёРґРёС€СЊ С„СЂР°РіРјРµРЅС‚ РєР°СЂС‚РѕС‡РєРё С‚РѕРІР°СЂР° РјР°СЂРєРµС‚РїР»РµР№СЃР°.
+РћРїСЂРµРґРµР»Рё С‡С‚Рѕ СЌС‚Рѕ Р·Р° СЌР»РµРјРµРЅС‚. РћС‚РІРµС‚СЊ РћР”РќРћР™ С„СЂР°Р·РѕР№ РЅР° СЂСѓСЃСЃРєРѕРј СЏР·С‹РєРµ (РјР°РєСЃРёРјСѓРј 15 СЃР»РѕРІ).
+РџСЂРёРјРµСЂС‹:
+- "Р—Р°РіРѕР»РѕРІРѕРє СЃ РЅР°Р·РІР°РЅРёРµРј С‚РѕРІР°СЂР°"
+- "Р‘РµР№РґР¶-С…Р°СЂР°РєС‚РµСЂРёСЃС‚РёРєР° С‚РѕРІР°СЂР°, РјРѕР¶РЅРѕ РёР·РјРµРЅРёС‚СЊ С‚РµРєСЃС‚"
+- "Р¤РѕРЅРѕРІС‹Р№ РґРµРєРѕСЂ, РјРѕР¶РЅРѕ РёР·РјРµРЅРёС‚СЊ С†РІРµС‚ РёР»Рё СѓР±СЂР°С‚СЊ"
+- "Р¦РµРЅР° С‚РѕРІР°СЂР°"
+- "Р¤РѕС‚Рѕ С‚РѕРІР°СЂР°"
+- "CTA-РєРЅРѕРїРєР°"
+РћС‚РІРµС‚СЊ РўРћР›Р¬РљРћ РѕРїРёСЃР°РЅРёРµРј, Р±РµР· РєР°РІС‹С‡РµРє.` }
             ]
           }],
           config: { temperature: 0.1, maxOutputTokens: 60 },
         });
 
-        const hint = resp.text?.trim() || 'Нажмите на действие для редактирования';
+        const hint = resp.text?.trim() || 'РќР°Р¶РјРёС‚Рµ РЅР° РґРµР№СЃС‚РІРёРµ РґР»СЏ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ';
         return res.status(200).json({ success: true, hint });
       } catch (err) {
         console.error('[identify-element]', err.message);
-        return res.status(200).json({ success: true, hint: 'Выберите действие для редактирования' });
+        return res.status(200).json({ success: true, hint: 'Р’С‹Р±РµСЂРёС‚Рµ РґРµР№СЃС‚РІРёРµ РґР»СЏ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ' });
       }
     }
 
 
-    // ═══ CREATE PERSONA — генерация 5-frame casting card по описанию + опциональные фото ═══
+    // в•ђв•ђв•ђ CREATE PERSONA вЂ” РіРµРЅРµСЂР°С†РёСЏ 5-frame casting card РїРѕ РѕРїРёСЃР°РЅРёСЋ + РѕРїС†РёРѕРЅР°Р»СЊРЅС‹Рµ С„РѕС‚Рѕ в•ђв•ђв•ђ
     if (req.body?.action === 'create-persona') {
       const { photos, personaDescription, modelName: personaName } = req.body;
       const photoKeys = photos && typeof photos === 'object' ? Object.keys(photos).filter(k => photos[k]) : [];
       const hasDescription = personaDescription && personaDescription.trim().length > 5;
       const hasPhotos = photoKeys.length > 0;
 
-      // Нужно хотя бы описание ИЛИ фото
+      // РќСѓР¶РЅРѕ С…РѕС‚СЏ Р±С‹ РѕРїРёСЃР°РЅРёРµ РР›Р С„РѕС‚Рѕ
       if (!hasDescription && !hasPhotos) {
-        return res.status(400).json({ success: false, error: 'Нужно описание персонажа или хотя бы одна фотография' });
+        return res.status(400).json({ success: false, error: 'РќСѓР¶РЅРѕ РѕРїРёСЃР°РЅРёРµ РїРµСЂСЃРѕРЅР°Р¶Р° РёР»Рё С…РѕС‚СЏ Р±С‹ РѕРґРЅР° С„РѕС‚РѕРіСЂР°С„РёСЏ' });
       }
 
       const elapsed = () => ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`🧑 [${elapsed()}s] Create Persona: name="${personaName || 'unknown'}", photos=${photoKeys.length}, hasDesc=${hasDescription}`);
+      console.log(`рџ§‘ [${elapsed()}s] Create Persona: name="${personaName || 'unknown'}", photos=${photoKeys.length}, hasDesc=${hasDescription}`);
 
       try {
         // Collect photos as image inputs
@@ -2332,12 +2332,12 @@ export default async function handler(req, res) {
             }
           }
         }
-        // ── Build persona prompt based on available inputs ──
+        // в”Ђв”Ђ Build persona prompt based on available inputs в”Ђв”Ђ
         const descBlock = hasDescription
-          ? `\n═══ CHARACTER DESCRIPTION (PRIMARY SUBJECT) ═══\n${personaDescription.trim()}${personaName ? `\nName: ${personaName}` : ''}\n`
+          ? `\nв•ђв•ђв•ђ CHARACTER DESCRIPTION (PRIMARY SUBJECT) в•ђв•ђв•ђ\n${personaDescription.trim()}${personaName ? `\nName: ${personaName}` : ''}\n`
           : '';
         const refBlock = hasPhotos
-          ? `\n═══ REFERENCE PHOTOS PROVIDED ═══\nYou have received ${imageInputs.length} reference photo(s). Use them to match the person's EXACT facial features, skin tone, hair, and body type. The generated character MUST look like the person in the reference photos.\n`
+          ? `\nв•ђв•ђв•ђ REFERENCE PHOTOS PROVIDED в•ђв•ђв•ђ\nYou have received ${imageInputs.length} reference photo(s). Use them to match the person's EXACT facial features, skin tone, hair, and body type. The generated character MUST look like the person in the reference photos.\n`
           : '';
         const subjectInstruction = hasPhotos
           ? `REPLICATE the EXACT facial features from the reference photos. ZERO creative liberty with the face.`
@@ -2345,49 +2345,49 @@ export default async function handler(req, res) {
 
         const personaPrompt = `You are an elite fashion agency photographer and casting director creating a PROFESSIONAL MODEL CASTING CARD.
 ${descBlock}${refBlock}
-═══ LAYOUT: TOP ROW (4 face close-ups) + BOTTOM (1 large full-body) ═══
+в•ђв•ђв•ђ LAYOUT: TOP ROW (4 face close-ups) + BOTTOM (1 large full-body) в•ђв•ђв•ђ
 
-TOP ROW — 4 equal portrait frames side by side:
-  [1] Face Front — head & shoulders, looking directly at camera, serious/neutral expression
-  [2] Face 3/4 Left — head & shoulders, turned ~30° to subject's left
-  [3] Face 3/4 Right — head & shoulders, turned ~30° to subject's right
-  [4] Face Profile — head & shoulders, full 90° side profile view
+TOP ROW вЂ” 4 equal portrait frames side by side:
+  [1] Face Front вЂ” head & shoulders, looking directly at camera, serious/neutral expression
+  [2] Face 3/4 Left вЂ” head & shoulders, turned ~30В° to subject's left
+  [3] Face 3/4 Right вЂ” head & shoulders, turned ~30В° to subject's right
+  [4] Face Profile вЂ” head & shoulders, full 90В° side profile view
 
-BOTTOM — 1 wide full-body frame (same width as all 4 top frames combined):
-  [5] Full Body Front — standing straight, arms relaxed at sides, facing camera, head to toe
+BOTTOM вЂ” 1 wide full-body frame (same width as all 4 top frames combined):
+  [5] Full Body Front вЂ” standing straight, arms relaxed at sides, facing camera, head to toe
 
 TOTAL: Exactly 5 frames. NO MORE. NO LESS. Top row: 4 small portraits. Bottom: 1 large full-body.
 
-═══ PHOTOGRAPHIC REALISM (CRITICAL — NO PLASTIC SKIN) ═══
+в•ђв•ђв•ђ PHOTOGRAPHIC REALISM (CRITICAL вЂ” NO PLASTIC SKIN) в•ђв•ђв•ђ
 - DO NOT apply AI smoothing, plastic skin filters, or generic CGI rendering
 - PRESERVE raw photographic texture: skin pores, micro-details, natural imperfections
-- Lighting: cinematic, dramatic with depth and micro-contrast — NOT flat studio lighting
+- Lighting: cinematic, dramatic with depth and micro-contrast вЂ” NOT flat studio lighting
 - Render hyper-realistic skin, natural hair strands, authentic human texture
 - The result must look like a real photograph, NOT an AI illustration
 
-═══ ABSOLUTE IDENTITY LOCK (CRITICAL — ZERO TOLERANCE) ═══
+в•ђв•ђв•ђ ABSOLUTE IDENTITY LOCK (CRITICAL вЂ” ZERO TOLERANCE) в•ђв•ђв•ђ
 ${subjectInstruction}
-The person in ALL 5 frames must be CONSISTENT — same person across every frame:
-- FACE: Exact bone structure — cheekbones, jawline angle, chin shape, forehead size
+The person in ALL 5 frames must be CONSISTENT вЂ” same person across every frame:
+- FACE: Exact bone structure вЂ” cheekbones, jawline angle, chin shape, forehead size
 - EYES: Same exact eye shape, color, distance, eyelid crease, piercing gaze
 - NOSE: Same exact nose bridge width, nostril shape, tip angle
 - LIPS: Same exact lip fullness, cupid's bow, natural lip color
 - SKIN: Same exact skin tone, texture, any moles/marks/freckles
-- HAIR: Same exact color, length, texture, parting, style — NO hairstyle changes
+- HAIR: Same exact color, length, texture, parting, style вЂ” NO hairstyle changes
 - BODY: Same exact build, height proportions, shoulder width, muscle definition
 - AGE: Consistent age across all 5 frames
-If ANY frame shows a different-looking person — REJECTED.
+If ANY frame shows a different-looking person вЂ” REJECTED.
 
-═══ WARDROBE & BACKGROUND ═══
+в•ђв•ђв•ђ WARDROBE & BACKGROUND в•ђв•ђв•ђ
 - Wardrobe: Simple black fitted clothing (black crew-neck t-shirt + black slim pants). No logos.
 - Background: Dark cinematic charcoal/slate with subtle vignette, matching the dramatic mood of input photos. Uniform across all frames.
 
-═══ LABELS ═══
+в•ђв•ђв•ђ LABELS в•ђв•ђв•ђ
 Small elegant white text label below each frame:
 Top: "Face Front" | "Face 3/4 Left" | "Face 3/4 Right" | "Face Profile"
 Bottom: "Full Body Front"
 
-═══ TECHNICAL ═══
+в•ђв•ђв•ђ TECHNICAL в•ђв•ђв•ђ
 - Clean thin dark borders between frames
 - Top 4 frames: equal width, portrait orientation (roughly 1:1.2 ratio)
 - Bottom 1 frame: full width, landscape orientation showing entire body
@@ -2396,9 +2396,9 @@ Bottom: "Full Body Front"
 OUTPUT: One single 4K image. Casting card with 5 frames. Masterpiece cinematic photography quality.`;
 
 
-        console.log(`🧑 [${elapsed()}s] Sending ${imageInputs.length} photo(s) to KIE.ai for persona casting card...`);
+        console.log(`рџ§‘ [${elapsed()}s] Sending ${imageInputs.length} photo(s) to KIE.ai for persona casting card...`);
         const resultUrl = await executeKieTask(personaPrompt, imageInputs, 'nano-banana-2', '16:9', '4K');
-        console.log(`✅ [${elapsed()}s] Comp card generated. Downloading...`);
+        console.log(`вњ… [${elapsed()}s] Comp card generated. Downloading...`);
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download comp card');
 
@@ -2409,13 +2409,13 @@ OUTPUT: One single 4K image. Casting card with 5 frames. Masterpiece cinematic p
 
         return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining });
       } catch (err) {
-        console.error(`❌ Create Persona error:`, err.message);
+        console.error(`вќЊ Create Persona error:`, err.message);
         alertOnError(err, `generate-image [create_persona]`).catch(() => {});
-        return res.status(200).json({ success: false, error: `Ошибка создания персонажа: ${err.message.substring(0, 200)}` });
+        return res.status(200).json({ success: false, error: `РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ РїРµСЂСЃРѕРЅР°Р¶Р°: ${err.message.substring(0, 200)}` });
       }
     }
 
-    // ═══ GENERATE MISSING ANGLE — генерация недостающего ракурса из имеющихся фото ═══
+    // в•ђв•ђв•ђ GENERATE MISSING ANGLE вЂ” РіРµРЅРµСЂР°С†РёСЏ РЅРµРґРѕСЃС‚Р°СЋС‰РµРіРѕ СЂР°РєСѓСЂСЃР° РёР· РёРјРµСЋС‰РёС…СЃСЏ С„РѕС‚Рѕ в•ђв•ђв•ђ
     if (req.body?.action === 'generate-missing-angle') {
       const { existingPhotos, missingAngle } = req.body;
       if (!existingPhotos || !Array.isArray(existingPhotos) || existingPhotos.length === 0) {
@@ -2426,12 +2426,12 @@ OUTPUT: One single 4K image. Casting card with 5 frames. Masterpiece cinematic p
       }
 
       const elapsed = () => ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`📐 [${elapsed()}s] Generate missing angle: ${missingAngle} from ${existingPhotos.length} existing photos`);
+      console.log(`рџ“ђ [${elapsed()}s] Generate missing angle: ${missingAngle} from ${existingPhotos.length} existing photos`);
 
       const ANGLE_DESCRIPTIONS = {
         front: 'a FRONT-FACING portrait photo (looking directly at camera, head and shoulders, neutral expression)',
-        left34: 'a 3/4 LEFT SIDE portrait photo (head turned ~30° to their left, showing more of the left side of face)',
-        right34: 'a 3/4 RIGHT SIDE portrait photo (head turned ~30° to their right, showing more of the right side of face)',
+        left34: 'a 3/4 LEFT SIDE portrait photo (head turned ~30В° to their left, showing more of the left side of face)',
+        right34: 'a 3/4 RIGHT SIDE portrait photo (head turned ~30В° to their right, showing more of the right side of face)',
         fullbody: 'a FULL BODY photo (standing straight, facing camera, showing the entire body from head to feet, arms relaxed at sides)',
       };
 
@@ -2456,9 +2456,9 @@ CRITICAL IDENTITY RULES:
 
 OUTPUT: One single high-quality photo. No text. No collage. No explanations.`;
 
-        console.log(`📐 [${elapsed()}s] Sending to KIE.ai for missing angle generation...`);
+        console.log(`рџ“ђ [${elapsed()}s] Sending to KIE.ai for missing angle generation...`);
         const resultUrl = await executeKieTask(missingPrompt, imageInputs, 'nano-banana-2');
-        console.log(`✅ [${elapsed()}s] Missing angle generated. Downloading...`);
+        console.log(`вњ… [${elapsed()}s] Missing angle generated. Downloading...`);
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download generated angle');
 
@@ -2468,20 +2468,20 @@ OUTPUT: One single high-quality photo. No text. No collage. No explanations.`;
 
         return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining });
       } catch (err) {
-        console.error(`❌ Generate missing angle error:`, err.message);
+        console.error(`вќЊ Generate missing angle error:`, err.message);
         alertOnError(err, `generate-image [missing_angle]`).catch(() => {});
-        return res.status(200).json({ success: false, error: `Ошибка генерации ракурса: ${err.message.substring(0, 200)}` });
+        return res.status(200).json({ success: false, error: `РћС€РёР±РєР° РіРµРЅРµСЂР°С†РёРё СЂР°РєСѓСЂСЃР°: ${err.message.substring(0, 200)}` });
       }
     }
 
-    // ═══ EDIT CARD — редактирование карточки маркетплейса через GPT Image 2 ═══
+    // в•ђв•ђв•ђ EDIT CARD вЂ” СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РєР°СЂС‚РѕС‡РєРё РјР°СЂРєРµС‚РїР»РµР№СЃР° С‡РµСЂРµР· GPT Image 2 в•ђв•ђв•ђ
     if (req.body?.action === 'edit-card') {
       const { sourceImageBase64: editSrc, editInstruction: editText } = req.body;
       if (!editSrc || !editText) {
         return res.status(400).json({ success: false, error: 'sourceImageBase64 and editInstruction are required' });
       }
       const elapsed = () => ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`✏️ [${elapsed()}s] Edit Card: instruction="${editText.substring(0, 80)}"`);
+      console.log(`вњЏпёЏ [${elapsed()}s] Edit Card: instruction="${editText.substring(0, 80)}"`);
       try {
         const editPrompt = `You are editing a marketplace product card image. Apply this change precisely:\n"${editText}"\n\nRules:\n- Preserve the overall layout, typography style, brand identity, and Russian text quality.\n- Only modify what the user explicitly asked to change.\n- Keep all other elements exactly as they are.\n- The result must still look like a premium product card.\n- All text must remain in Russian Cyrillic.\n- Output ONLY the modified image.`;
 
@@ -2496,9 +2496,9 @@ OUTPUT: One single high-quality photo. No text. No collage. No explanations.`;
 
         return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining });
       } catch (err) {
-        console.error(`❌ Edit Card error:`, err.message);
+        console.error(`вќЊ Edit Card error:`, err.message);
         alertOnError(err, `generate-image [edit_card]`).catch(() => {});
-        return res.status(200).json({ success: false, error: `Ошибка редактирования: ${err.message.substring(0, 200)}` });
+        return res.status(200).json({ success: false, error: `РћС€РёР±РєР° СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ: ${err.message.substring(0, 200)}` });
       }
     }
 
@@ -2514,18 +2514,18 @@ OUTPUT: One single high-quality photo. No text. No collage. No explanations.`;
       }
       
       if (!targetImage) {
-        return res.status(400).json({ success: false, error: 'Изображение не найдено для анализа' });
+        return res.status(400).json({ success: false, error: 'РР·РѕР±СЂР°Р¶РµРЅРёРµ РЅРµ РЅР°Р№РґРµРЅРѕ РґР»СЏ Р°РЅР°Р»РёР·Р°' });
       }
 
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        console.warn('⚠️ GEMINI_API_KEY not set, returning fallback card text');
+        console.warn('вљ пёЏ GEMINI_API_KEY not set, returning fallback card text');
         return res.status(200).json({
           success: true,
-          title: 'СТИЛЬНЫЙ ТОВАР',
-          material: 'Премиум качество',
+          title: 'РЎРўРР›Р¬РќР«Р™ РўРћР’РђР ',
+          material: 'РџСЂРµРјРёСѓРј РєР°С‡РµСЃС‚РІРѕ',
           size: '',
-          benefit: 'Лучший выбор'
+          benefit: 'Р›СѓС‡С€РёР№ РІС‹Р±РѕСЂ'
         });
       }
 
@@ -2539,13 +2539,13 @@ Generate realistic Russian selling metadata for this exact product.
 
 Return ONLY a strict JSON object with these exact fields:
 {
-  "title": "A catchy, short product name in Russian (2-3 words, capitalized, e.g., 'АНАТОМИЧЕСКАЯ ПОДУШКА' or 'ШЕЛКОВАЯ ПИЖАМА')",
-  "material": "One key material/composition in Russian (e.g., '100% Велюр' or 'Натуральный шелк')",
-  "size": "One key size/dimension description in Russian (e.g., 'Размер: M-L' or 'Объем: 50 мл')",
-  "benefit": "One strong product benefit or feature in Russian (e.g., 'Анатомическая форма' or 'Глубокое увлажнение')"
+  "title": "A catchy, short product name in Russian (2-3 words, capitalized, e.g., 'РђРќРђРўРћРњРР§Р•РЎРљРђРЇ РџРћР”РЈРЁРљРђ' or 'РЁР•Р›РљРћР’РђРЇ РџРР–РђРњРђ')",
+  "material": "One key material/composition in Russian (e.g., '100% Р’РµР»СЋСЂ' or 'РќР°С‚СѓСЂР°Р»СЊРЅС‹Р№ С€РµР»Рє')",
+  "size": "One key size/dimension description in Russian (e.g., 'Р Р°Р·РјРµСЂ: M-L' or 'РћР±СЉРµРј: 50 РјР»')",
+  "benefit": "One strong product benefit or feature in Russian (e.g., 'РђРЅР°С‚РѕРјРёС‡РµСЃРєР°СЏ С„РѕСЂРјР°' or 'Р“Р»СѓР±РѕРєРѕРµ СѓРІР»Р°Р¶РЅРµРЅРёРµ')"
 }
 
-IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation. DO NOT include any price — the seller sets their own pricing.`;
+IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation. DO NOT include any price вЂ” the seller sets their own pricing.`;
 
         const response = await ai.models.generateContent({
           model: 'gemini-2.5-flash',
@@ -2572,19 +2572,19 @@ IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation
         const json = JSON.parse(text);
         return res.status(200).json({
           success: true,
-          title: json.title || 'СТИЛЬНЫЙ ТОВАР',
-          material: json.material || 'Премиум качество',
+          title: json.title || 'РЎРўРР›Р¬РќР«Р™ РўРћР’РђР ',
+          material: json.material || 'РџСЂРµРјРёСѓРј РєР°С‡РµСЃС‚РІРѕ',
           size: json.size || '',
-          benefit: json.benefit || 'Лучший выбор'
+          benefit: json.benefit || 'Р›СѓС‡С€РёР№ РІС‹Р±РѕСЂ'
         });
       } catch (err) {
-        console.error('❌ Gemini card text generation failed:', err.message);
+        console.error('вќЊ Gemini card text generation failed:', err.message);
         return res.status(200).json({
           success: true,
-          title: 'СТИЛЬНЫЙ ТОВАР',
-          material: 'Премиум качество',
+          title: 'РЎРўРР›Р¬РќР«Р™ РўРћР’РђР ',
+          material: 'РџСЂРµРјРёСѓРј РєР°С‡РµСЃС‚РІРѕ',
           size: '',
-          benefit: 'Лучший выбор'
+          benefit: 'Р›СѓС‡С€РёР№ РІС‹Р±РѕСЂ'
         });
       }
     }
@@ -2626,11 +2626,11 @@ IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation
       userProductInfo = '',
     } = req.body;
 
-    // ═══ PHOTO EDIT MODE — precise, non-destructive editing ═══
+    // в•ђв•ђв•ђ PHOTO EDIT MODE вЂ” precise, non-destructive editing в•ђв•ђв•ђ
     // Sends the EXISTING photo + edit instruction to Gemini.
-    // Does NOT regenerate from scratch — only modifies what the user asked for.
+    // Does NOT regenerate from scratch вЂ” only modifies what the user asked for.
     if (isPhotoEdit && editInstruction) {
-      console.log(`✏️ [${new Date().toISOString()}] Photo Edit: "${editInstruction}"`);
+      console.log(`вњЏпёЏ [${new Date().toISOString()}] Photo Edit: "${editInstruction}"`);
       try {
         // Get source image data
         let sourceData = null;
@@ -2641,12 +2641,12 @@ IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation
           sourceData = { mimeType, base64str };
         }
         if (!sourceData) {
-          return res.status(200).json({ success: false, error: 'Нет исходного изображения для редактирования.' });
+          return res.status(200).json({ success: false, error: 'РќРµС‚ РёСЃС…РѕРґРЅРѕРіРѕ РёР·РѕР±СЂР°Р¶РµРЅРёСЏ РґР»СЏ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ.' });
         }
 
-        console.log(`✏️ Source image: ${sourceData.mimeType}, ${Math.round(sourceData.base64str.length / 1024)}KB base64`);
+        console.log(`вњЏпёЏ Source image: ${sourceData.mimeType}, ${Math.round(sourceData.base64str.length / 1024)}KB base64`);
 
-        const editPrompt = `PHOTO EDITING MODE — NON-DESTRUCTIVE RETOUCHING.
+        const editPrompt = `PHOTO EDITING MODE вЂ” NON-DESTRUCTIVE RETOUCHING.
 
 You are receiving an existing photograph. Your ONLY job is to make ONE specific modification to it.
 
@@ -2665,42 +2665,42 @@ ABSOLUTE REQUIREMENTS:
 Return ONLY the edited photograph.`;
 
         const resultUrl = await executeKieTask(editPrompt, [`data:${sourceData.mimeType};base64,${sourceData.base64str}`], 'nano-banana-2');
-        console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Photo edit complete. Downloading result...`);
+        console.log(`вњ… [${((Date.now() - startTime) / 1000).toFixed(1)}s] Photo edit complete. Downloading result...`);
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error("Failed to download edited image");
         const creditsRemaining = await getCreditsRemainingForReservation(creditReservation);
         
         return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining });
       } catch (editError) {
-        console.error(`❌ Photo edit error:`, editError.message);
-        return res.status(200).json({ success: false, error: `Ошибка редактирования: ${editError.message}` });
+        console.error(`вќЊ Photo edit error:`, editError.message);
+        return res.status(200).json({ success: false, error: `РћС€РёР±РєР° СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ: ${editError.message}` });
       }
     }
 
-    // ═══ GARMENT SOURCE RESOLUTION ═══
+    // в•ђв•ђв•ђ GARMENT SOURCE RESOLUTION в•ђв•ђв•ђ
     // Handles: Firebase Storage URLs, base64 data URLs (fallback), legacy fields
     let garmentImages = [];
     if (garmentImageUrls.length > 0) {
-      console.log(`☁️ Processing ${garmentImageUrls.length} garment source(s)...`);
+      console.log(`вЃпёЏ Processing ${garmentImageUrls.length} garment source(s)...`);
       const processed = await Promise.all(garmentImageUrls.map(async (url) => {
         if (url.startsWith('data:')) {
-          // Already a base64 data URL — use directly (fallback mode when Storage is down)
-          console.log('  📎 Using base64 data URL directly (Storage fallback)');
+          // Already a base64 data URL вЂ” use directly (fallback mode when Storage is down)
+          console.log('  рџ“Ћ Using base64 data URL directly (Storage fallback)');
           return url;
         }
-        // Firebase Storage URL — download server-side
+        // Firebase Storage URL вЂ” download server-side
         const dl = await downloadToBase64(url);
         return dl ? `data:${dl.mimeType};base64,${dl.base64str}` : null;
       }));
       garmentImages = processed.filter(Boolean);
-      console.log(`☁️ Resolved ${garmentImages.length}/${garmentImageUrls.length} garment(s) successfully`);
+      console.log(`вЃпёЏ Resolved ${garmentImages.length}/${garmentImageUrls.length} garment(s) successfully`);
     } else if (garmentImagesBase64.length > 0) {
       garmentImages = garmentImagesBase64;
     } else if (garmentImageBase64) {
       garmentImages = [garmentImageBase64];
     }
     
-    console.log(`🚀 [${new Date().toISOString()}] Запрос: calibration=${isCalibration}, garments=${garmentImages.length}, refs=${modelReferenceImages?.length || 0}, edit=${editInstruction || 'none'}, beauty=${isBeautyMode}, source=${garmentImageUrls.length > 0 ? 'URLs' : 'base64'}`);
+    console.log(`рџљЂ [${new Date().toISOString()}] Р—Р°РїСЂРѕСЃ: calibration=${isCalibration}, garments=${garmentImages.length}, refs=${modelReferenceImages?.length || 0}, edit=${editInstruction || 'none'}, beauty=${isBeautyMode}, source=${garmentImageUrls.length > 0 ? 'URLs' : 'base64'}`);
 
     // Detect gender from model preset text
     const gender = detectGender(modelPreset);
@@ -2732,19 +2732,19 @@ Return ONLY the edited photograph.`;
           }
         }
       }
-      console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Отправляем калибровку в KIE.ai...`);
+      console.log(`вЏі [${((Date.now() - startTime) / 1000).toFixed(1)}s] РћС‚РїСЂР°РІР»СЏРµРј РєР°Р»РёР±СЂРѕРІРєСѓ РІ KIE.ai...`);
       const resultUrl = await executeKieTask(calibPrompt, imageInputs, 'nano-banana-2');
-      console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Калибровка успешна. Downloading result...`);
+      console.log(`вњ… [${((Date.now() - startTime) / 1000).toFixed(1)}s] РљР°Р»РёР±СЂРѕРІРєР° СѓСЃРїРµС€РЅР°. Downloading result...`);
       const dl = await downloadToBase64(resultUrl);
       if (!dl) throw new Error("Failed to download generated image");
       const creditsRemaining = await getCreditsRemainingForReservation(creditReservation);
       return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining });
     }
 
-    // ═══ MODEL CARD — карточка маркетплейса с моделью через GPT Image 2 ═══
+    // в•ђв•ђв•ђ MODEL CARD вЂ” РєР°СЂС‚РѕС‡РєР° РјР°СЂРєРµС‚РїР»РµР№СЃР° СЃ РјРѕРґРµР»СЊСЋ С‡РµСЂРµР· GPT Image 2 в•ђв•ђв•ђ
     if (isModelCard) {
       const elapsed = () => ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`👤 [${elapsed()}s] Model Card Mode: style=${quickCardStyle}, source=${garmentImageUrls?.length || 0} URLs`);
+      console.log(`рџ‘¤ [${elapsed()}s] Model Card Mode: style=${quickCardStyle}, source=${garmentImageUrls?.length || 0} URLs`);
       try {
         let modelCardImages = [];
         if (garmentImages && garmentImages.length > 0) {
@@ -2763,7 +2763,7 @@ Return ONLY the edited photograph.`;
           if (dl) modelCardImages.push(`data:${dl.mimeType};base64,${dl.base64str}`);
         }
         if (modelCardImages.length === 0) {
-          return res.status(200).json({ success: false, error: 'Нет исходного фото для создания карточки с моделью.' });
+          return res.status(200).json({ success: false, error: 'РќРµС‚ РёСЃС…РѕРґРЅРѕРіРѕ С„РѕС‚Рѕ РґР»СЏ СЃРѕР·РґР°РЅРёСЏ РєР°СЂС‚РѕС‡РєРё СЃ РјРѕРґРµР»СЊСЋ.' });
         }
 
         const modelPrompt = isPhotoOnly ? MODEL_PHOTO_PROMPT : (quickCardStyle === 'epic' ? MODEL_CARD_PROMPT_EPIC : MODEL_CARD_PROMPT_NATURAL);
@@ -2772,9 +2772,9 @@ Return ONLY the edited photograph.`;
           finalPrompt += `\n\nUSER PROVIDED PRODUCT INFORMATION (use this for text on the card):\n${userProductInfo.trim()}`;
         }
 
-        console.log(`👤 [${elapsed()}s] Sending MODEL CARD to KIE.ai (gpt-image-2, style=${quickCardStyle})...`);
+        console.log(`рџ‘¤ [${elapsed()}s] Sending MODEL CARD to KIE.ai (gpt-image-2, style=${quickCardStyle})...`);
         const resultUrl = await executeKieTask(finalPrompt, modelCardImages, 'nano-banana-2');
-        console.log(`✅ [${elapsed()}s] Model card ready. Downloading...`);
+        console.log(`вњ… [${elapsed()}s] Model card ready. Downloading...`);
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download model card from KIE.ai');
 
@@ -2785,16 +2785,16 @@ Return ONLY the edited photograph.`;
 
         return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining });
       } catch (modelErr) {
-        console.error(`❌ Model card error:`, modelErr.message);
+        console.error(`вќЊ Model card error:`, modelErr.message);
         alertOnError(modelErr, `generate-image [model_card]`).catch(() => {});
-        return res.status(200).json({ success: false, error: `Ошибка создания карточки с моделью: ${modelErr.message.substring(0, 200)}` });
+        return res.status(200).json({ success: false, error: `РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ РєР°СЂС‚РѕС‡РєРё СЃ РјРѕРґРµР»СЊСЋ: ${modelErr.message.substring(0, 200)}` });
       }
     }
 
-    // ═══ UGC MODE — реалистичные фото «от покупателей» через GPT Image 2 ═══
+    // в•ђв•ђв•ђ UGC MODE вЂ” СЂРµР°Р»РёСЃС‚РёС‡РЅС‹Рµ С„РѕС‚Рѕ В«РѕС‚ РїРѕРєСѓРїР°С‚РµР»РµР№В» С‡РµСЂРµР· GPT Image 2 в•ђв•ђв•ђ
     if (isUgcMode) {
       const elapsed = () => ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`📱 [${elapsed()}s] UGC Mode: source=${garmentImageUrls?.length || 0} URLs`);
+      console.log(`рџ“± [${elapsed()}s] UGC Mode: source=${garmentImageUrls?.length || 0} URLs`);
       try {
         let ugcImageInputs = [];
         if (garmentImages && garmentImages.length > 0) {
@@ -2813,12 +2813,12 @@ Return ONLY the edited photograph.`;
           if (dl) ugcImageInputs.push(`data:${dl.mimeType};base64,${dl.base64str}`);
         }
         if (ugcImageInputs.length === 0) {
-          return res.status(200).json({ success: false, error: 'Нет исходного фото для создания UGC.' });
+          return res.status(200).json({ success: false, error: 'РќРµС‚ РёСЃС…РѕРґРЅРѕРіРѕ С„РѕС‚Рѕ РґР»СЏ СЃРѕР·РґР°РЅРёСЏ UGC.' });
         }
 
-        console.log(`📱 [${elapsed()}s] Sending UGC to KIE.ai (gpt-image-2)...`);
+        console.log(`рџ“± [${elapsed()}s] Sending UGC to KIE.ai (gpt-image-2)...`);
         const resultUrl = await executeKieTask(QUICK_UGC_PROMPT, ugcImageInputs, 'nano-banana-2');
-        console.log(`✅ [${elapsed()}s] UGC ready. Downloading...`);
+        console.log(`вњ… [${elapsed()}s] UGC ready. Downloading...`);
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download UGC from KIE.ai');
 
@@ -2829,19 +2829,19 @@ Return ONLY the edited photograph.`;
 
         return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining });
       } catch (ugcErr) {
-        console.error(`❌ UGC error:`, ugcErr.message);
+        console.error(`вќЊ UGC error:`, ugcErr.message);
         alertOnError(ugcErr, `generate-image [ugc]`).catch(() => {});
-        return res.status(200).json({ success: false, error: `Ошибка создания UGC-фото: ${ugcErr.message.substring(0, 200)}` });
+        return res.status(200).json({ success: false, error: `РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ UGC-С„РѕС‚Рѕ: ${ugcErr.message.substring(0, 200)}` });
       }
     }
 
-    // ═══ QUICK CARD — полноценная карточка маркетплейса через GPT Image 2 ═══
+    // в•ђв•ђв•ђ QUICK CARD вЂ” РїРѕР»РЅРѕС†РµРЅРЅР°СЏ РєР°СЂС‚РѕС‡РєР° РјР°СЂРєРµС‚РїР»РµР№СЃР° С‡РµСЂРµР· GPT Image 2 в•ђв•ђв•ђ
     if (isQuickCard) {
       const elapsed = () => ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`📋 [${elapsed()}s] Quick Card: style=${quickCardStyle}, source=${garmentImageUrls?.length || 0} URLs, userInfo=${userProductInfo?.length || 0} chars`);
+      console.log(`рџ“‹ [${elapsed()}s] Quick Card: style=${quickCardStyle}, source=${garmentImageUrls?.length || 0} URLs, userInfo=${userProductInfo?.length || 0} chars`);
       try {
         let cardImageInputs = [];
-        // Получаем изображение товара
+        // РџРѕР»СѓС‡Р°РµРј РёР·РѕР±СЂР°Р¶РµРЅРёРµ С‚РѕРІР°СЂР°
         if (garmentImages && garmentImages.length > 0) {
           for (const img of garmentImages.slice(0, 1)) {
             if (img.startsWith('data:')) { cardImageInputs.push(img); }
@@ -2858,19 +2858,19 @@ Return ONLY the edited photograph.`;
           if (dl) cardImageInputs.push(`data:${dl.mimeType};base64,${dl.base64str}`);
         }
         if (cardImageInputs.length === 0) {
-          return res.status(200).json({ success: false, error: 'Нет исходного фото для создания карточки.' });
+          return res.status(200).json({ success: false, error: 'РќРµС‚ РёСЃС…РѕРґРЅРѕРіРѕ С„РѕС‚Рѕ РґР»СЏ СЃРѕР·РґР°РЅРёСЏ РєР°СЂС‚РѕС‡РєРё.' });
         }
 
-        // Выбираем системный промпт карточки
+        // Р’С‹Р±РёСЂР°РµРј СЃРёСЃС‚РµРјРЅС‹Р№ РїСЂРѕРјРїС‚ РєР°СЂС‚РѕС‡РєРё
         const cardPrompt = quickCardStyle === 'epic' ? QUICK_CARD_PROMPT_EPIC : QUICK_CARD_PROMPT_NATURAL;
-        // Если пользователь добавил информацию — вставляем в промпт
+        // Р•СЃР»Рё РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ РґРѕР±Р°РІРёР» РёРЅС„РѕСЂРјР°С†РёСЋ вЂ” РІСЃС‚Р°РІР»СЏРµРј РІ РїСЂРѕРјРїС‚
         const fullPrompt = userProductInfo && userProductInfo.trim()
           ? `${cardPrompt}\n\n<USER_PROVIDED_PRODUCT_INFO>\nThe seller has provided the following verified product information. Use ONLY this data for text on the card. Do NOT invent additional claims.\n${userProductInfo.trim()}\n</USER_PROVIDED_PRODUCT_INFO>`
           : cardPrompt;
 
-        console.log(`📋 [${elapsed()}s] Sending Quick Card to KIE.ai (gpt-image-2)...`);
+        console.log(`рџ“‹ [${elapsed()}s] Sending Quick Card to KIE.ai (gpt-image-2)...`);
         const resultUrl = await executeKieTask(fullPrompt, cardImageInputs, 'nano-banana-2');
-        console.log(`✅ [${elapsed()}s] Quick Card ready. Downloading...`);
+        console.log(`вњ… [${elapsed()}s] Quick Card ready. Downloading...`);
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download quick card from KIE.ai');
 
@@ -2881,16 +2881,16 @@ Return ONLY the edited photograph.`;
 
         return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining });
       } catch (cardErr) {
-        console.error(`❌ Quick Card error:`, cardErr.message);
+        console.error(`вќЊ Quick Card error:`, cardErr.message);
         alertOnError(cardErr, `generate-image [quick_card]`).catch(() => {});
-        return res.status(200).json({ success: false, error: `Ошибка создания карточки: ${cardErr.message.substring(0, 200)}` });
+        return res.status(200).json({ success: false, error: `РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ РєР°СЂС‚РѕС‡РєРё: ${cardErr.message.substring(0, 200)}` });
       }
     }
 
-    // ═══ CARD DESIGN MODE — маркетплейсная карточка товара ═══
+    // в•ђв•ђв•ђ CARD DESIGN MODE вЂ” РјР°СЂРєРµС‚РїР»РµР№СЃРЅР°СЏ РєР°СЂС‚РѕС‡РєР° С‚РѕРІР°СЂР° в•ђв•ђв•ђ
     if (isCardDesign) {
       const elapsed = () => ((Date.now() - startTime) / 1000).toFixed(1);
-      console.log(`🎴 [${elapsed()}s] Card Design: style=${cardStyle}, source=${sourceImageUrl ? 'url' : sourceImageBase64 ? 'base64' : 'garment'}`);
+      console.log(`рџЋґ [${elapsed()}s] Card Design: style=${cardStyle}, source=${sourceImageUrl ? 'url' : sourceImageBase64 ? 'base64' : 'garment'}`);
       try {
         let cardImageInputs = [];
         if (sourceImageUrl) {
@@ -2908,28 +2908,28 @@ Return ONLY the edited photograph.`;
           }
         }
         if (cardImageInputs.length === 0) {
-          return res.status(200).json({ success: false, error: 'Нет исходного фото для создания карточки.' });
+          return res.status(200).json({ success: false, error: 'РќРµС‚ РёСЃС…РѕРґРЅРѕРіРѕ С„РѕС‚Рѕ РґР»СЏ СЃРѕР·РґР°РЅРёСЏ РєР°СЂС‚РѕС‡РєРё.' });
         }
 
         const EPIC_CARD_PROMPT = `ROLE: Elite Russian E-commerce Art Director (Wildberries/Ozon).
 TASK: Transform this product photo into a stunning marketplace card background template.
-STYLE: EPIC — Dark cinematic. Deep mysterious dark background (#06060c to #111122 gradient) with dynamic abstract shapes, light beams or soft glowing particles.
+STYLE: EPIC вЂ” Dark cinematic. Deep mysterious dark background (#06060c to #111122 gradient) with dynamic abstract shapes, light beams or soft glowing particles.
 LAYOUT: Place the product photo on the right/center (55-60% of card width) with realistic contact shadows and glowing ambient backlighting.
 TEXT WARNING: DO NOT WRITE ANY TEXT, WORDS, LETTERS, CHARACTERS, NUMBERS OR BADGES ON THE IMAGE. Keep the left side (approx 40-45% width) completely clean and empty for text overlay.
 OUTPUT: A clean, high-end marketplace background template with the product integrated, containing NO text or letters.`;
 
         const NATURAL_CARD_PROMPT = `ROLE: Elite Russian E-commerce Art Director (Wildberries/Ozon).
 TASK: Transform this product photo into a stunning marketplace card background template.
-STYLE: NATURAL — Clean, premium lifestyle. Soft cream, beige, or warm white minimalist aesthetic background (#faf8f5) with soft shadows or organic shadows.
+STYLE: NATURAL вЂ” Clean, premium lifestyle. Soft cream, beige, or warm white minimalist aesthetic background (#faf8f5) with soft shadows or organic shadows.
 LAYOUT: Place the product in the center-bottom or right (55% height/width) with realistic soft ground shadows.
 TEXT WARNING: DO NOT WRITE ANY TEXT, WORDS, LETTERS, CHARACTERS, NUMBERS OR BADGES ON THE IMAGE. Keep the top/left area clean and empty for text overlay.
 OUTPUT: A clean, high-end marketplace background template with the product integrated, containing NO text or letters.`;
 
         const cardPrompt = cardStyle === 'epic' ? EPIC_CARD_PROMPT : NATURAL_CARD_PROMPT;
 
-        console.log(`🎴 [${elapsed()}s] Sending to KIE.ai gpt-image-2...`);
+        console.log(`рџЋґ [${elapsed()}s] Sending to KIE.ai gpt-image-2...`);
         const resultUrl = await executeKieTask(cardPrompt, cardImageInputs, 'nano-banana-2');
-        console.log(`✅ [${elapsed()}s] Card design ready. Downloading...`);
+        console.log(`вњ… [${elapsed()}s] Card design ready. Downloading...`);
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download card design from KIE.ai');
 
@@ -2939,17 +2939,17 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
 
         return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining });
       } catch (cardErr) {
-        console.error(`❌ Card Design error:`, cardErr.message);
+        console.error(`вќЊ Card Design error:`, cardErr.message);
         alertOnError(cardErr, `generate-image [card_design]`).catch(() => {});
-        return res.status(200).json({ success: false, error: `Ошибка создания карточки: ${cardErr.message.substring(0, 200)}` });
+        return res.status(200).json({ success: false, error: `РћС€РёР±РєР° СЃРѕР·РґР°РЅРёСЏ РєР°СЂС‚РѕС‡РєРё: ${cardErr.message.substring(0, 200)}` });
       }
     }
 
-    // ═══ PRODUCT MODE — предметная съемка товаров ═══
-    // Использует buildProductPrompt() вместо fashion pipeline
+    // в•ђв•ђв•ђ PRODUCT MODE вЂ” РїСЂРµРґРјРµС‚РЅР°СЏ СЃСЉРµРјРєР° С‚РѕРІР°СЂРѕРІ в•ђв•ђв•ђ
+    // РСЃРїРѕР»СЊР·СѓРµС‚ buildProductPrompt() РІРјРµСЃС‚Рѕ fashion pipeline
     if (isProductMode) {
 
-      console.log(`📦 [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product Mode: category=${categoryId}, images=${garmentImages.length}, withModel=${withHumanModel}`);
+      console.log(`рџ“¦ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product Mode: category=${categoryId}, images=${garmentImages.length}, withModel=${withHumanModel}`);
       
       const effectPrompt = customPoseText || '';
       const productPromptText = buildProductPrompt({
@@ -2972,7 +2972,7 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
         imageInputs.push(img.startsWith('data:') ? img : `data:image/jpeg;base64,${extractBase64(img).base64str}`);
       }
 
-      // Референсы модели-человека
+      // Р РµС„РµСЂРµРЅСЃС‹ РјРѕРґРµР»Рё-С‡РµР»РѕРІРµРєР°
       if (withHumanModel && humanModelRefImages && Array.isArray(humanModelRefImages) && humanModelRefImages.length > 0) {
         for (const img of humanModelRefImages.slice(0, 5)) {
           if (!img) continue;
@@ -2984,27 +2984,27 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
         }
       }
 
-      // Поддержка локаций для товаров
+      // РџРѕРґРґРµСЂР¶РєР° Р»РѕРєР°С†РёР№ РґР»СЏ С‚РѕРІР°СЂРѕРІ
       if (locationImages && Array.isArray(locationImages) && locationImages.length > 0) {
-        console.log(`📍 [Product] Loading ${locationImages.length} location image(s)...`);
+        console.log(`рџ“Ќ [Product] Loading ${locationImages.length} location image(s)...`);
         for (const img of locationImages.slice(0, 5)) {
           if (img.startsWith('data:')) { imageInputs.push(img); }
           else if (img.startsWith('http')) {
             const result = await downloadToBase64(img);
             if (result) {
               imageInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
-              console.log(`✅ [Product] Location image loaded OK (${result.base64str.length} bytes b64)`);
+              console.log(`вњ… [Product] Location image loaded OK (${result.base64str.length} bytes b64)`);
             } else {
-              console.error(`❌ [Product] FAILED to load location image: ${img.substring(0, 80)}`);
+              console.error(`вќЊ [Product] FAILED to load location image: ${img.substring(0, 80)}`);
             }
           }
         }
-        console.log(`📍 [Product] After loc load: imageInputs.length=${imageInputs.length}`);
+        console.log(`рџ“Ќ [Product] After loc load: imageInputs.length=${imageInputs.length}`);
       }
 
-      console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product Mode → KIE.ai (gpt-image-2), ${imageInputs.length} image(s), model=${withHumanModel}...`);
+      console.log(`вЏі [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product Mode в†’ KIE.ai (gpt-image-2), ${imageInputs.length} image(s), model=${withHumanModel}...`);
       const resultUrl = await executeKieTask(productPromptText, imageInputs, 'nano-banana-2');
-      console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product shot ready. Downloading...`);
+      console.log(`вњ… [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product shot ready. Downloading...`);
       const dl = await downloadToBase64(resultUrl);
       if (!dl) throw new Error("Failed to download product image from KIE.ai");
 
@@ -3021,7 +3021,7 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
       ? `\nADAPTIVE FASHION DIRECTIVE: Accurately represent the specified physical disability. Do NOT "correct" or "fix" the model's body.\n`
       : '';
     const multiGarmentNote = garmentImages.length > 1
-      ? 'MULTIPLE garment assets provided — extract and drape ALL of them simultaneously.'
+      ? 'MULTIPLE garment assets provided вЂ” extract and drape ALL of them simultaneously.'
       : '';
     const hasModelRef = !!(modelReferenceImages && modelReferenceImages.length);
     const modelInstruction = hasModelRef
@@ -3029,17 +3029,17 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
       : '';
     const poseStr = customPoseText || posePreset;
 
-    // ═══ GARMENT SANITIZATION — CRITICAL: must run before SCHEMA pipeline ═══
+    // в•ђв•ђв•ђ GARMENT SANITIZATION вЂ” CRITICAL: must run before SCHEMA pipeline в•ђв•ђв•ђ
     // Deep Think suggested removing this, but was WRONG. Semantic masking in text
     // alone does NOT prevent identity leak. Gemini still extracts facial features
     // from raw photos. The solid black box physically destroys face pixels and
     // is the ONLY proven method that blocks identity transfer.
     if (garmentImages.length > 0) {
-      console.log(`🧹 [${((Date.now() - startTime) / 1000).toFixed(1)}s] Sanitizing ${garmentImages.length} garment image(s) (solid black box)...`);
+      console.log(`рџ§№ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Sanitizing ${garmentImages.length} garment image(s) (solid black box)...`);
       garmentImages = await Promise.all(
         garmentImages.map((img, i) => sanitizeGarmentImage(img, i))
       );
-      console.log(`🧹 [${((Date.now() - startTime) / 1000).toFixed(1)}s] Sanitization complete`);
+      console.log(`рџ§№ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Sanitization complete`);
     }
 
     let promptText = `<system_directive>
@@ -3053,7 +3053,7 @@ SOURCE GARMENT REFERENCE:
 Analyze the physical fabric, cut, color, and fit of the clothing in the attached images.
 ${hasModelRef ? '' : `
 <IDENTITY_FIREWALL>
-ABSOLUTE PRIORITY — The person wearing the clothing in these reference images is COMPLETELY IRRELEVANT.
+ABSOLUTE PRIORITY вЂ” The person wearing the clothing in these reference images is COMPLETELY IRRELEVANT.
 You MUST NOT extract, copy, reference, or be influenced by:
 - Their face, facial bone structure, or facial features
 - Their skin tone, complexion, or skin texture
@@ -3062,7 +3062,7 @@ You MUST NOT extract, copy, reference, or be influenced by:
 - Their age, ethnicity appearance, or any biometric data
 - Their tattoos, jewelry, or accessories
 
-The wearer in the reference photos is a TRANSPARENT INVISIBLE GHOST — a lifeless plastic display mannequin.
+The wearer in the reference photos is a TRANSPARENT INVISIBLE GHOST вЂ” a lifeless plastic display mannequin.
 You are ONLY looking at the FABRIC draped on this ghost: the color, material, cut, seams, zippers, logos, and construction of the garment itself.
 
 AFTER extracting the garment data, you must COMPLETELY FORGET the ghost. Generate a BRAND NEW person from scratch based ONLY on the text description in ACTOR_PROFILE below.
@@ -3117,7 +3117,7 @@ IMPERATIVE RULES FOR POSE EXECUTION:
     }
 
     if (locationImages && Array.isArray(locationImages) && locationImages.length > 0) {
-      console.log(`📍 [Fashion] Loading ${locationImages.length} location image(s)...`);
+      console.log(`рџ“Ќ [Fashion] Loading ${locationImages.length} location image(s)...`);
       promptText += `\n<location_reference>\nUse the attached location images as reference for the background.\n</location_reference>\n`;
       for (const img of locationImages.slice(0, 5)) {
         if (img.startsWith('data:')) {
@@ -3126,13 +3126,13 @@ IMPERATIVE RULES FOR POSE EXECUTION:
           const result = await downloadToBase64(img);
           if (result) {
             imageInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
-            console.log(`✅ [Fashion] Location image loaded OK`);
+            console.log(`вњ… [Fashion] Location image loaded OK`);
           } else {
-            console.error(`❌ [Fashion] FAILED to load location image: ${img.substring(0, 80)}`);
+            console.error(`вќЊ [Fashion] FAILED to load location image: ${img.substring(0, 80)}`);
           }
         }
       }
-      console.log(`📍 [Fashion] After loc load: imageInputs.length=${imageInputs.length}`);
+      console.log(`рџ“Ќ [Fashion] After loc load: imageInputs.length=${imageInputs.length}`);
     }
 
     promptText += `<schema_generation_directive>
@@ -3149,8 +3149,8 @@ ${skinPrompt}
 </mandatory_constraints>
 
 <prohibitions>
-- ZERO INVENTION (CLOTHING): Do NOT invent, hallucinate, or add ANY structural elements to the clothing. This means: NO added sleeves, NO added undershirts, NO added layers beneath a vest, NO added pockets, NO added belts, NO added zippers, NO added buttons, NO added patterns. If the source garment is a sleeveless vest — the output MUST show a sleeveless vest with bare arms visible. NEVER add a shirt or sweater underneath.
-- ZERO INVENTION (BODY): Do NOT add tattoos, piercings, jewelry, watches, bracelets, necklaces, or accessories UNLESS explicitly requested in <APPLIED_CHARACTERISTICS>. If <TATTOO_CONSTRAINT> says NO tattoos — the skin MUST be completely clean.
+- ZERO INVENTION (CLOTHING): Do NOT invent, hallucinate, or add ANY structural elements to the clothing. This means: NO added sleeves, NO added undershirts, NO added layers beneath a vest, NO added pockets, NO added belts, NO added zippers, NO added buttons, NO added patterns. If the source garment is a sleeveless vest вЂ” the output MUST show a sleeveless vest with bare arms visible. NEVER add a shirt or sweater underneath.
+- ZERO INVENTION (BODY): Do NOT add tattoos, piercings, jewelry, watches, bracelets, necklaces, or accessories UNLESS explicitly requested in <APPLIED_CHARACTERISTICS>. If <TATTOO_CONSTRAINT> says NO tattoos вЂ” the skin MUST be completely clean.
 - CLOTHING PHYSICS: You MUST physically deform, stretch, and adjust the volume of the original clothing to perfectly match the <BODY_OVERRIDE> target. Do NOT lazily copy the body shape from the source garment image.
 - MODIFICATION EXPOSURE: If <TATTOO> or <PIERCING> dictates mandatory visibility, ensure the model pose naturally exposes those areas (arms, neck, ears) so the ink/metal is clearly seen.
 - IDENTITY LOCK: Do NOT transfer any physical traits, skin tones, or facial structure from the garment reference image to the new actor.
@@ -3162,21 +3162,21 @@ ${skinPrompt}
 <trigger>FINAL EXECUTION: Generate the photorealistic render based strictly on the SCHEMA. Execute now.</trigger>
 </schema_generation_directive>`;
 
-    console.log(`⏳ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Отправляем запрос в KIE.ai (gpt-image-2)...`);
+    console.log(`вЏі [${((Date.now() - startTime) / 1000).toFixed(1)}s] РћС‚РїСЂР°РІР»СЏРµРј Р·Р°РїСЂРѕСЃ РІ KIE.ai (gpt-image-2)...`);
     
     const resultUrl = await executeKieTask(promptText, imageInputs, 'nano-banana-2');
-    console.log(`✅ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Картинка сгенерирована. Downloading result...`);
+    console.log(`вњ… [${((Date.now() - startTime) / 1000).toFixed(1)}s] РљР°СЂС‚РёРЅРєР° СЃРіРµРЅРµСЂРёСЂРѕРІР°РЅР°. Downloading result...`);
     const dl = await downloadToBase64(resultUrl);
     if (!dl) throw new Error("Failed to download final generated image from KIE.ai");
 
     const creditsRemainingFashion = await getCreditsRemainingForReservation(creditReservation);
 
-    // ═══ STATS: атомарно инкрементируем счётчик генераций ═══
+    // в•ђв•ђв•ђ STATS: Р°С‚РѕРјР°СЂРЅРѕ РёРЅРєСЂРµРјРµРЅС‚РёСЂСѓРµРј СЃС‡С‘С‚С‡РёРє РіРµРЅРµСЂР°С†РёР№ в•ђв•ђв•ђ
     const mode = req.body?.isCalibration ? 'generationsCalibration' : 'generationsFashion';
     incrementGlobalCounter('generationsTotal').catch(() => {});
     incrementGlobalCounter(mode).catch(() => {});
 
-    // Записываем детальный лог успешной генерации
+    // Р—Р°РїРёСЃС‹РІР°РµРј РґРµС‚Р°Р»СЊРЅС‹Р№ Р»РѕРі СѓСЃРїРµС€РЅРѕР№ РіРµРЅРµСЂР°С†РёРё
     saveGenerationLog({
       userId: verifiedUid,
       success: true,
@@ -3188,9 +3188,9 @@ ${skinPrompt}
     return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining: creditsRemainingFashion });
   } catch (error) {
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.error(`❌ [${elapsed}s] Ошибка:`, error.message);
+    console.error(`вќЊ [${elapsed}s] РћС€РёР±РєР°:`, error.message);
     
-    // Записываем детальный лог ошибки генерации
+    // Р—Р°РїРёСЃС‹РІР°РµРј РґРµС‚Р°Р»СЊРЅС‹Р№ Р»РѕРі РѕС€РёР±РєРё РіРµРЅРµСЂР°С†РёРё
     saveGenerationLog({
       userId: verifiedUid,
       success: false,
@@ -3199,7 +3199,7 @@ ${skinPrompt}
       durationMs: Date.now() - startTime
     }).catch(() => {});
 
-    // ═══ ADMIN ALERT — отправка в Telegram (фоновая, не блокирует ответ) ═══
+    // в•ђв•ђв•ђ ADMIN ALERT вЂ” РѕС‚РїСЂР°РІРєР° РІ Telegram (С„РѕРЅРѕРІР°СЏ, РЅРµ Р±Р»РѕРєРёСЂСѓРµС‚ РѕС‚РІРµС‚) в•ђв•ђв•ђ
     const mode = req.body?.isProductMode ? 'product' : req.body?.isCalibration ? 'calibration' : req.body?.isPhotoEdit ? 'photo_edit' : 'fashion';
     alertOnError(error, `generate-image [${mode}] ${elapsed}s`).catch(() => {});
     
@@ -3216,20 +3216,20 @@ ${skinPrompt}
     if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota') || msg.includes('rate')) {
       return res.status(200).json({ 
         success: false, 
-        error: '⏳ Лимит запросов временно исчерпан. Подождите 1-2 минуты и попробуйте снова.',
+        error: 'вЏі Р›РёРјРёС‚ Р·Р°РїСЂРѕСЃРѕРІ РІСЂРµРјРµРЅРЅРѕ РёСЃС‡РµСЂРїР°РЅ. РџРѕРґРѕР¶РґРёС‚Рµ 1-2 РјРёРЅСѓС‚С‹ Рё РїРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°.',
         isQuotaError: true
       });
     }
     if (msg.includes('422') || msg.includes('not supported')) {
       return res.status(200).json({ 
         success: false, 
-        error: '⚠️ Модель генерации временно недоступна. Попробуйте позже.'
+        error: 'вљ пёЏ РњРѕРґРµР»СЊ РіРµРЅРµСЂР°С†РёРё РІСЂРµРјРµРЅРЅРѕ РЅРµРґРѕСЃС‚СѓРїРЅР°. РџРѕРїСЂРѕР±СѓР№С‚Рµ РїРѕР·Р¶Рµ.'
       });
     }
     if (msg.includes('400') || msg.includes('INVALID_ARGUMENT')) {
       return res.status(200).json({ 
         success: false, 
-        error: '❌ Некорректный запрос. Попробуйте другие настройки или фото.'
+        error: 'вќЊ РќРµРєРѕСЂСЂРµРєС‚РЅС‹Р№ Р·Р°РїСЂРѕСЃ. РџРѕРїСЂРѕР±СѓР№С‚Рµ РґСЂСѓРіРёРµ РЅР°СЃС‚СЂРѕР№РєРё РёР»Рё С„РѕС‚Рѕ.'
       });
     }
     
@@ -3237,20 +3237,20 @@ ${skinPrompt}
     if (msg.includes('KIE') || msg.includes('Task failed') || msg.includes('Task timed out')) {
       return res.status(200).json({
         success: false,
-        error: `⚠️ Сервис генерации (KIE.ai): ${msg.substring(0, 200)}`,
+        error: `вљ пёЏ РЎРµСЂРІРёСЃ РіРµРЅРµСЂР°С†РёРё (KIE.ai): ${msg.substring(0, 200)}`,
       });
     }
     // Network/download errors
     if (msg.includes('network') || msg.includes('ECONNREFUSED') || msg.includes('ETIMEDOUT') || msg.includes('Failed to download')) {
       return res.status(200).json({
         success: false,
-        error: `🌐 Ошибка сети: ${msg.substring(0, 200)}. Попробуйте снова.`,
+        error: `рџЊђ РћС€РёР±РєР° СЃРµС‚Рё: ${msg.substring(0, 200)}. РџРѕРїСЂРѕР±СѓР№С‚Рµ СЃРЅРѕРІР°.`,
       });
     }
     
-    // Catch-all with FULL error details for diagnosis (status 200 — Vercel truncates 500 bodies)
+    // Catch-all with FULL error details for diagnosis (status 200 вЂ” Vercel truncates 500 bodies)
     const fullError = `${error.name || 'Error'}: ${msg}`.substring(0, 400);
-    console.error(`❌ [catch-all] Full error:`, error.name, msg, error.stack?.substring(0, 300));
-    return res.status(200).json({ success: false, error: `Ошибка генерации: ${fullError}` });
+    console.error(`вќЊ [catch-all] Full error:`, error.name, msg, error.stack?.substring(0, 300));
+    return res.status(200).json({ success: false, error: `РћС€РёР±РєР° РіРµРЅРµСЂР°С†РёРё: ${fullError}` });
   }
 }
