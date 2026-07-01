@@ -1,6 +1,14 @@
 import { alertOnError } from './_admin-alerts.js';
-import { query } from './_db.js';
+import { query as _dbQuery } from './_db.js';
 import jwt from 'jsonwebtoken';
+
+// Safety wrapper: if _db.js fails to load, provide clear error instead of "ReferenceError: _db is not defined"
+const query = (...args) => {
+  if (typeof _dbQuery !== 'function') {
+    throw new Error(`DB module not loaded: query is ${typeof _dbQuery}. Check _db.js and DATABASE_URL env var.`);
+  }
+  return _dbQuery(...args);
+};
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
 
