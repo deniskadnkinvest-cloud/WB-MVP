@@ -267,7 +267,7 @@ export default function LoginPage() {
               <FaTelegramPlane size={20} />
               {loading ? '⏳ Подключаемся...' : `Войти как ${tgDisplayName || 'Telegram'}`}
             </button>
-            <p className="login-toggle" style={{ marginTop: '20px', color: '#D4A843', opacity: 0.9 }} onClick={() => window.Telegram.WebApp.close()}>
+            <p className="login-toggle" style={{ marginTop: '20px', color: '#CBAE75', opacity: 0.9 }} onClick={() => window.Telegram.WebApp.close()}>
               Закрыть
             </p>
           </div>

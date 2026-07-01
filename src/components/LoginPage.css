@@ -122,14 +122,14 @@
 }
 
 .login-subtitle {
-  color: #D99436;
+  color: #CBAE75;
   font-family: 'Inter', var(--font-body), sans-serif;
   font-size: 0.65rem;
   margin-bottom: 40px;
   letter-spacing: 5px;
   text-transform: uppercase;
   font-weight: 400;
-  text-shadow: 0 0 10px rgba(217, 148, 54, 0.4);
+  text-shadow: 0 0 10px rgba(203, 174, 117, 0.4);
 }
 
 /* ═══ Tabs (unused but kept for compat) ═══ */
@@ -388,23 +388,23 @@
   gap: 12px;
   padding: 16px 20px;
   background: rgba(15, 15, 15, 0.8);
-  border: 1px solid rgba(212, 168, 67, 0.3);
-  color: #D4A843;
+  border: 1px solid rgba(203, 174, 117, 0.3);
+  color: #CBAE75;
   border-radius: var(--r-md);
   font-family: 'Inter', var(--font-body), sans-serif;
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(212, 168, 67, 0.1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(203, 174, 117, 0.1);
 }
 
 .auth-social-btn:hover:not(:disabled) {
   transform: translateY(-3px);
   background: rgba(20, 20, 20, 0.9);
-  border-color: rgba(212, 168, 67, 0.6);
-  color: #F1C40F;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6), inset 0 0 15px rgba(212, 168, 67, 0.15);
+  border-color: rgba(203, 174, 117, 0.6);
+  color: #E2D0A5;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6), inset 0 0 15px rgba(203, 174, 117, 0.15);
 }
 
 /* ═══ OTP Verification UI ═══ */
