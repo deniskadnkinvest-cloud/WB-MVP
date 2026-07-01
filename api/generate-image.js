@@ -459,7 +459,6 @@ async function uploadBase64ToKie(base64DataUrl, apiKey, index = 0) {
 }
 
 async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana-2", aspectRatio = "auto", resolution = "1K") {
-  return withKieConcurrency(`${modelName}:${aspectRatio}:${resolution}`, async () => {
   const rawKey = process.env.KIE_API_KEY;
   if (!rawKey) throw new Error("API key missing. Set KIE_API_KEY in .env");
   // Strip BOM, zero-width chars, and whitespace that PowerShell/editors inject
@@ -487,6 +486,7 @@ async function executeKieTask(prompt, imageInputs = [], modelName = "nano-banana
     }
   };
 
+  return withKieConcurrency(`${modelName}:${aspectRatio}:${resolution}`, async () => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 sec timeout for creation
   let response;
@@ -3225,6 +3225,24 @@ ${skinPrompt}
       });
     }
     
-    return res.status(500).json({ success: false, error: 'Ошибка генерации', details: msg.substring(0, 300) });
+    // KIE.ai specific errors
+    if (msg.includes('KIE') || msg.includes('Task failed') || msg.includes('Task timed out')) {
+      return res.status(200).json({
+        success: false,
+        error: `⚠️ Сервис генерации (KIE.ai): ${msg.substring(0, 200)}`,
+      });
+    }
+    // Network/download errors
+    if (msg.includes('network') || msg.includes('ECONNREFUSED') || msg.includes('ETIMEDOUT') || msg.includes('Failed to download')) {
+      return res.status(200).json({
+        success: false,
+        error: `🌐 Ошибка сети: ${msg.substring(0, 200)}. Попробуйте снова.`,
+      });
+    }
+    
+    // Catch-all with FULL error details for diagnosis (status 200 — Vercel truncates 500 bodies)
+    const fullError = `${error.name || 'Error'}: ${msg}`.substring(0, 400);
+    console.error(`❌ [catch-all] Full error:`, error.name, msg, error.stack?.substring(0, 300));
+    return res.status(200).json({ success: false, error: `Ошибка генерации: ${fullError}` });
   }
 }
