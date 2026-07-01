@@ -1,0 +1,242 @@
+[
+    {
+        "Id": "70a101d03e8425728eb13e68d2fc227bd020612c6ec20c8a519b61b22a2cf322",
+        "Created": "2026-06-27T02:45:27.288465388Z",
+        "Path": "docker-entrypoint.sh",
+        "Args": [
+            "node",
+            "server.js"
+        ],
+        "State": {
+            "Status": "running",
+            "Running": true,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 1517,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2026-06-30T15:26:09.187718155Z",
+            "FinishedAt": "2026-06-30T15:26:07.784479572Z"
+        },
+        "Image": "sha256:a9ad3bd2167259944d3fcedf838768b3f29a5f0e3ebe1d99421b03999066ace6",
+        "ResolvConfPath": "/var/lib/docker/containers/70a101d03e8425728eb13e68d2fc227bd020612c6ec20c8a519b61b22a2cf322/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/70a101d03e8425728eb13e68d2fc227bd020612c6ec20c8a519b61b22a2cf322/hostname",
+        "HostsPath": "/var/lib/docker/containers/70a101d03e8425728eb13e68d2fc227bd020612c6ec20c8a519b61b22a2cf322/hosts",
+        "LogPath": "/var/lib/docker/containers/70a101d03e8425728eb13e68d2fc227bd020612c6ec20c8a519b61b22a2cf322/70a101d03e8425728eb13e68d2fc227bd020612c6ec20c8a519b61b22a2cf322-json.log",
+        "Name": "/vton-mvp",
+        "RestartCount": 0,
+        "Driver": "overlayfs",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "docker-default",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": null,
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {}
+            },
+            "NetworkMode": "traefik_traefik",
+            "PortBindings": {},
+            "RestartPolicy": {
+                "Name": "always",
+                "MaximumRetryCount": 0
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+                0,
+                0
+            ],
+            "CapAdd": null,
+            "CapDrop": null,
+            "CgroupnsMode": "private",
+            "Dns": [],
+            "DnsOptions": [],
+            "DnsSearch": [],
+            "ExtraHosts": [],
+            "GroupAdd": null,
+            "IpcMode": "private",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": false,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": false,
+            "SecurityOpt": null,
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 67108864,
+            "Runtime": "runc",
+            "Isolation": "",
+            "CpuShares": 0,
+            "Memory": 0,
+            "NanoCpus": 0,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": null,
+            "BlkioDeviceReadBps": null,
+            "BlkioDeviceWriteBps": null,
+            "BlkioDeviceReadIOps": null,
+            "BlkioDeviceWriteIOps": null,
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "",
+            "CpusetMems": "",
+            "Devices": null,
+            "DeviceCgroupRules": null,
+            "DeviceRequests": null,
+            "MemoryReservation": 0,
+            "MemorySwap": 0,
+            "MemorySwappiness": null,
+            "OomKillDisable": null,
+            "PidsLimit": null,
+            "Ulimits": null,
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "MaskedPaths": [
+                "/proc/acpi",
+                "/proc/asound",
+                "/proc/interrupts",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/sys/devices/virtual/powercap",
+                "/sys/firmware"
+            ],
+            "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+            ]
+        },
+        "Storage": {
+            "RootFS": {
+                "Snapshot": {
+                    "Name": "overlayfs"
+                }
+            }
+        },
+        "Mounts": [],
+        "Config": {
+            "Hostname": "70a101d03e84",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": true,
+            "AttachStderr": true,
+            "ExposedPorts": {
+                "3001/tcp": {}
+            },
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "YOOKASSA_SECRET_KEY=live_ryq66SxgL9oDicFQO1ZDZr-qelxW1kF8eOCYEe0MUUE",
+                "DATABASE_URL=postgresql://vton_user:VtonStrongPass2026!@10.8.0.1:5432/vton_mvp",
+                "NODE_ENV=production",
+                "RESEND_API_KEY=re_VxNbbFYV_5RiL8Jiy1gfNLyJfNMqpJxEm",
+                "PORT=3001",
+                "GEMINI_API_KEY=AIzaSyCXbfDvMwGB2XfgjhKc-AtEFFTKK1xqNVY",
+                "KIE_API_KEY=fd3b0049f2798dd29acf1e7f955ee832",
+                "JWT_SECRET=vton-jwt-secret-2026-prod",
+                "REVE_API_KEY=papi.b26fe3a3-5892-4574-b134-5422b2027c16.0kyggscBxhzVI74kNNN2Gos0EGXdjSOX",
+                "TELEGRAM_BOT_TOKEN=8378700313:AAGktDqcA8rvoQQAm8F-j5J5M6itfR-qxn8",
+                "YOOKASSA_SHOP_ID=1373290",
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "NODE_VERSION=20.20.2",
+                "YARN_VERSION=1.22.22"
+            ],
+            "Cmd": [
+                "node",
+                "server.js"
+            ],
+            "Image": "vton-mvp-app-vton-mvp",
+            "Volumes": null,
+            "WorkingDir": "/app",
+            "Entrypoint": [
+                "docker-entrypoint.sh"
+            ],
+            "Labels": {
+                "com.docker.compose.config-hash": "b2340f591373f4d9f495a7e3ff1e7498e65843fc03b5a7bc64eec9cd3b3fa137",
+                "com.docker.compose.container-number": "1",
+                "com.docker.compose.depends_on": "",
+                "com.docker.compose.image": "sha256:a9ad3bd2167259944d3fcedf838768b3f29a5f0e3ebe1d99421b03999066ace6",
+                "com.docker.compose.oneoff": "False",
+                "com.docker.compose.project": "vton-mvp-app",
+                "com.docker.compose.project.config_files": "/root/vton-mvp-app/docker-compose.yml",
+                "com.docker.compose.project.working_dir": "/root/vton-mvp-app",
+                "com.docker.compose.service": "vton-mvp",
+                "com.docker.compose.version": "5.1.4",
+                "traefik.enable": "true",
+                "traefik.http.middlewares.https-redirect.redirectscheme.permanent": "true",
+                "traefik.http.middlewares.https-redirect.redirectscheme.scheme": "https",
+                "traefik.http.routers.vton-mvp-http.entrypoints": "web",
+                "traefik.http.routers.vton-mvp-http.middlewares": "https-redirect",
+                "traefik.http.routers.vton-mvp-http.rule": "Host(`seller-studio-ai.ru`)",
+                "traefik.http.routers.vton-mvp.entrypoints": "websecure",
+                "traefik.http.routers.vton-mvp.rule": "Host(`seller-studio-ai.ru`)",
+                "traefik.http.routers.vton-mvp.tls": "true",
+                "traefik.http.routers.vton-mvp.tls.certresolver": "letsencrypt",
+                "traefik.http.services.vton-mvp.loadbalancer.server.port": "3001"
+            }
+        },
+        "NetworkSettings": {
+            "SandboxID": "83651d228bce17ea6a454e31d04c07cfa54997c19199a4cdc14d9d07ea1d2d57",
+            "SandboxKey": "/var/run/docker/netns/83651d228bce",
+            "Ports": {
+                "3001/tcp": null
+            },
+            "Networks": {
+                "traefik_traefik": {
+                    "IPAMConfig": null,
+                    "Links": null,
+                    "Aliases": [
+                        "vton-mvp",
+                        "vton-mvp"
+                    ],
+                    "DriverOpts": null,
+                    "GwPriority": 0,
+                    "NetworkID": "87d8a65ed769637f1f8913c73d06a1bc495c8e223e79ee1cf2be81d654c2eb7a",
+                    "EndpointID": "43fe2554cc77570bee97064f1ac1fe0cc39fd6be0f7b7e3bf5560a4735cdf898",
+                    "Gateway": "172.20.0.1",
+                    "IPAddress": "172.20.0.2",
+                    "MacAddress": "82:71:ce:3c:1f:3a",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "DNSNames": [
+                        "vton-mvp",
+                        "70a101d03e84"
+                    ]
+                }
+            }
+        },
+        "ImageManifestDescriptor": {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:94d752b1e7787670658cab0fab5c8db27e0a78e0d6fc0ff99d053734a05ac444",
+            "size": 2387,
+            "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+            }
+        }
+    }
+]

@@ -428,7 +428,7 @@ export function AuthProvider({ children }) {
   // ═══════════════════════════════════════════
   const signInWithTelegramWidget = async (widgetUser) => {
     const { customToken, uid, telegramId, user: tgUser } = await retryTransient(async () => {
-      const resp = await fetchWithTimeout('/api/auth-telegram-widget', {
+      const resp = await fetchWithTimeout('/api/auth-telegram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         cache: 'no-store',

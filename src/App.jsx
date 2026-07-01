@@ -310,6 +310,8 @@ function App() {
   // Photoshoot mode
   const [photoshootImages, setPhotoshootImages] = useState([]);
   const [isPhotoshooting, setIsPhotoshooting] = useState(false);
+  const [photoshootStatus, setPhotoshootStatus] = useState({});
+  const [photoshootErrors, setPhotoshootErrors] = useState({});
 
   // Per-photo editor
   const [editingPhotoIdx, setEditingPhotoIdx] = useState(null);
@@ -444,6 +446,8 @@ function App() {
       const handler = () => {
         if (photoshootImages.length > 0) {
           setPhotoshootImages([]);
+          setPhotoshootStatus({});
+          setPhotoshootErrors({});
         } else {
           setGeneratedImage(null);
           setImageHistory([]);
@@ -2311,16 +2315,40 @@ ${userProductInfo.trim()}
 
   const handlePhotoshoot = async (count = 5) => {
     if (!garmentUrls.length || isPhotoshooting) return;
+
+    const creditsAvailable = subscription?.credits || 0;
+    if (creditsAvailable < count && !subscription?.local) {
+      setShowPricing(true);
+      setStatusText(`⚡ Для фотосессии нужно ${count} кредитов, доступно ${creditsAvailable}`);
+      setStatusType('error');
+      return;
+    }
+    if (subscription?.local && creditsAvailable < count) {
+      setStatusText(`⚡ Для фотосессии нужно ${count} кредитов, доступно ${creditsAvailable}`);
+      setStatusType('error');
+      return;
+    }
+
     setIsPhotoshooting(true);
     
     const angles = appMode === 'product'
       ? PRODUCT_PHOTOSHOOT_ANGLES.slice(0, count)
       : PHOTOSHOOT_ANGLES.slice(0, count);
 
-    // APPEND: add null placeholders for new batch at the end of existing gallery
-    const existingCount = photoshootImages.filter(Boolean).length;
-    setPhotoshootImages(prev => [...prev.filter(Boolean), ...new Array(count).fill(null)]);
-    setStatusText(`📸 Генерируем ещё ${count} кадров...`); setStatusType('');
+    const existingCount = photoshootImages.length;
+    const queuedStatus = {};
+    angles.forEach((_, idx) => {
+      queuedStatus[existingCount + idx] = 'queued';
+    });
+    setPhotoshootImages(prev => [...prev, ...new Array(count).fill(null)]);
+    setPhotoshootStatus(prev => ({ ...prev, ...queuedStatus }));
+    setPhotoshootErrors(prev => {
+      const next = { ...prev };
+      angles.forEach((_, idx) => delete next[existingCount + idx]);
+      return next;
+    });
+    setStatusText(`📸 Запускаем ${count} кадров параллельно...`);
+    setStatusType('');
     try {
       let modelPrompt = '';
       let bgPrompt = '';
@@ -2377,55 +2405,89 @@ ${userProductInfo.trim()}
         }
       }
 
-      // PARALLEL generation
       let successCount = 0;
-      setStatusText(`📸 Генерируем кадры (параллельно)...`); setStatusType('');
+      let failedCount = 0;
+      const updateProgress = () => {
+        const doneCount = successCount + failedCount;
+        setStatusText(`📸 Фотосессия: готово ${doneCount} из ${count}${failedCount > 0 ? `, ошибок: ${failedCount}` : ''}`);
+        setStatusType(failedCount > 0 && successCount === 0 && doneCount === count ? 'error' : '');
+      };
+
       const promises = angles.map(async (angle, idx) => {
         const slotIdx = existingCount + idx;
         try {
+          setPhotoshootStatus(prev => ({ ...prev, [slotIdx]: 'generating' }));
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), GENERATION_REQUEST_TIMEOUT_MS);
           const biometricSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
-          const resp = await authFetch('/api/generate-image', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            signal: controller.signal,
-            body: JSON.stringify({
-              userId: user?.uid || null,
-              garmentImageUrls: garmentUrls, modelPreset: modelPrompt,
-              posePreset: angle.pose, cameraAngle: angle.camera,
-              backgroundPreset: bgPrompt, aspectRatio: selectedRatios[0].id,
-              modelReferenceImages: modelRefImages, locationImages: locImages,
-              attributes: appMode === 'product' ? productModelDetails : modelDetails, isBeautyMode, biometricSeed,
-              isProductMode: appMode === 'product',
-              categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
-              withHumanModel: appMode === 'product' && productWithModel,
-              humanModelPrompt: window.__humanModelPrompt || undefined,
-              humanModelRefImages: window.__humanModelRefImages || undefined,
-              idempotencyKey: createIdempotencyKey('photoshoot'),
-            }),
-          });
-          clearTimeout(timeoutId);
-          const data = await safeParseJSON(resp);
+          let data;
+          try {
+            const resp = await authFetch('/api/generate-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              signal: controller.signal,
+              body: JSON.stringify({
+                userId: user?.uid || null,
+                garmentImageUrls: garmentUrls, modelPreset: modelPrompt,
+                posePreset: angle.pose, cameraAngle: angle.camera,
+                backgroundPreset: bgPrompt, aspectRatio: selectedRatios[0].id,
+                modelReferenceImages: modelRefImages, locationImages: locImages,
+                attributes: appMode === 'product' ? productModelDetails : modelDetails, isBeautyMode, biometricSeed,
+                isProductMode: appMode === 'product',
+                categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
+                withHumanModel: appMode === 'product' && productWithModel,
+                humanModelPrompt: window.__humanModelPrompt || undefined,
+                humanModelRefImages: window.__humanModelRefImages || undefined,
+                idempotencyKey: createIdempotencyKey('photoshoot'),
+              }),
+            });
+            data = await safeParseJSON(resp);
+          } finally {
+            clearTimeout(timeoutId);
+          }
+
           if (data.success) {
             const imgData = data.imageUrl || data.imageBase64;
             setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = imgData; return n; });
             setPhotoHistory(prev => ({ ...prev, [slotIdx]: [imgData] }));
             setPhotoViewIdx(prev => ({ ...prev, [slotIdx]: 0 }));
+            setPhotoshootStatus(prev => ({ ...prev, [slotIdx]: 'done' }));
+            setPhotoshootErrors(prev => {
+              const next = { ...prev };
+              delete next[slotIdx];
+              return next;
+            });
+            setGeneratedImage(imgData);
+            setImageHistory(prev => {
+              const label = `📸 Фотосессия ${idx + 1}`;
+              const history = [...prev, { image: imgData, label }];
+              setHistoryIndex(history.length - 1);
+              return history;
+            });
+            successCount += 1;
+            updateProgress();
             return { success: true, creditsRemaining: data.creditsRemaining };
           } else {
-            console.warn(`Кадр ${idx + 1}: ${data.details || data.error}`);
+            const errorText = data.details || data.error || 'Не удалось сгенерировать кадр';
+            console.warn(`Кадр ${idx + 1}: ${errorText}`);
+            setPhotoshootStatus(prev => ({ ...prev, [slotIdx]: 'error' }));
+            setPhotoshootErrors(prev => ({ ...prev, [slotIdx]: errorText }));
             setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = null; return n; });
-            return { success: false, error: data.details || data.error };
+            failedCount += 1;
+            updateProgress();
+            return { success: false, error: errorText };
           }
         } catch (frameErr) {
-          if (frameErr.name === 'AbortError') {
-            console.warn(`Кадр ${idx + 1}: Превышен таймаут 180 сек`);
-          } else {
-            console.warn(`Кадр ${idx + 1} ошибка:`, frameErr.message);
-          }
+          const errorText = frameErr.name === 'AbortError'
+            ? 'Превышен таймаут ожидания кадра'
+            : frameErr.message;
+          console.warn(`Кадр ${idx + 1} ошибка:`, errorText);
+          setPhotoshootStatus(prev => ({ ...prev, [slotIdx]: 'error' }));
+          setPhotoshootErrors(prev => ({ ...prev, [slotIdx]: errorText }));
           setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = null; return n; });
-          return { success: false, error: frameErr.message };
+          failedCount += 1;
+          updateProgress();
+          return { success: false, error: errorText };
         }
       });
 
@@ -2433,8 +2495,6 @@ ${userProductInfo.trim()}
       successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
       const lastWithCredits = [...results].reverse().find(r => r.status === 'fulfilled' && r.value?.creditsRemaining != null);
       if (lastWithCredits) refreshCreditsFromResponse(lastWithCredits.value);
-      // Clean up nulls from failed frames
-      setPhotoshootImages(prev => prev.filter(Boolean));
       setStatusText(successCount > 0 ? `🎉 Фотосессия: ${successCount} кадров готово!` : 'Упс! Не удалось сгенерировать кадры. Попробуйте снова.');
       setStatusType(successCount > 0 ? 'success' : 'error');
     } catch (err) { setStatusText(`Ошибка фотосессии: ${err.message}`); setStatusType('error'); }
@@ -4591,13 +4651,16 @@ ${userProductInfo.trim()}
                     const viewIdx = photoViewIdx[i] ?? (versions ? versions.length - 1 : 0);
                     const displayImg = hasEdits ? versions[viewIdx] : img;
                     const isEditing = editingPhotos.has(i);
+                    const slotStatus = photoshootStatus[i] || (displayImg ? 'done' : 'queued');
+                    const slotError = photoshootErrors[i];
                     return (
-                    <div key={i} className={`photoshoot-item ${hasEdits ? 'photoshoot-item--edited' : ''} ${isEditing ? 'photoshoot-item--processing' : ''}`}>
+                    <div key={i} className={`photoshoot-item photoshoot-item--${slotStatus} ${hasEdits ? 'photoshoot-item--edited' : ''} ${isEditing ? 'photoshoot-item--processing' : ''}`}>
                       {displayImg ? (
                         <>
                           <img src={displayImg} alt={`Кадр ${i+1}`} onClick={() => {
-                            const gallery = hasEdits ? versions : photoshootImages;
-                            openLightboxGallery(gallery, hasEdits ? viewIdx : i);
+                            const gallery = hasEdits ? versions : photoshootImages.filter(Boolean);
+                            const galleryIndex = hasEdits ? viewIdx : Math.max(0, gallery.findIndex(src => src === displayImg));
+                            openLightboxGallery(gallery, galleryIndex);
                           }} style={{cursor:'pointer'}} />
                           {isEditing && (
                             <div className="photo-editing-overlay">
@@ -4656,7 +4719,22 @@ ${userProductInfo.trim()}
                           </div>
                         </>
                       ) : (
-                        <div className="photoshoot-placeholder"><div className="processing-spinner" style={{width:24,height:24}} /></div>
+                        <div className="photoshoot-placeholder">
+                          {slotStatus === 'error' ? (
+                            <>
+                              <span className="photoshoot-error-icon">!</span>
+                              <span className="photoshoot-placeholder-title">Не удалось</span>
+                              <span className="photoshoot-placeholder-text">{slotError || 'Ошибка генерации'}</span>
+                            </>
+                          ) : (
+                            <>
+                              <div className="processing-spinner" style={{width:24,height:24}} />
+                              <span className="photoshoot-placeholder-title">
+                                {slotStatus === 'queued' ? 'В очереди' : 'Генерируется'}
+                              </span>
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
                     );

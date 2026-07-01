@@ -8,39 +8,53 @@
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background:
-    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(212, 168, 67, 0.06), transparent 50%),
-    radial-gradient(ellipse 60% 50% at 80% 90%, rgba(100, 60, 220, 0.04), transparent 45%);
+  background-color: #050505;
+  background-image: 
+    radial-gradient(ellipse 80% 60% at 50% 120%, rgba(212, 168, 67, 0.15), transparent 60%),
+    radial-gradient(ellipse 40% 40% at 50% -20%, rgba(212, 168, 67, 0.05), transparent 50%);
+  position: relative;
+  overflow: hidden;
 }
 
 .login-card {
-  background: rgba(10, 10, 18, 0.85);
+  background: rgba(10, 10, 15, 0.65);
   backdrop-filter: blur(40px);
   -webkit-backdrop-filter: blur(40px);
-  border: 1px solid var(--border-dim);
-  border-top: 2px solid rgba(212, 168, 67, 0.2);
-  border-radius: var(--r-2xl);
-  padding: 56px 40px;
-  max-width: 440px;
+  border: 1px solid rgba(212, 168, 67, 0.4);
+  border-top: 2px solid rgba(212, 168, 67, 0.7);
+  border-radius: 20px;
+  padding: 48px 40px;
+  max-width: 400px;
   width: 100%;
   text-align: center;
   position: relative;
-  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.8), inset 0 0 40px rgba(212, 168, 67, 0.05), 0 0 20px rgba(212, 168, 67, 0.15);
+  z-index: 10;
+}
+
+.login-header {
+  margin-bottom: 8px;
+}
+
+.login-logo-svg {
+  filter: drop-shadow(0 4px 12px rgba(212, 168, 67, 0.5));
+  margin-bottom: 12px;
 }
 
 .login-logo {
-  font-family: var(--font-display);
-  font-size: 2.2rem;
-  font-weight: 800;
-  background: linear-gradient(135deg, #FFE87C 0%, #D4A843 40%, #A08530 70%, #D4A843 100%);
-  background-size: 400% 400%;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 2.6rem;
+  font-weight: 700;
+  font-style: italic;
+  background: linear-gradient(135deg, #FFD700 0%, #D4A843 45%, #C8960C 100%);
+  background-size: 200% 200%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: goldFlow 8s ease-in-out infinite;
-  margin-bottom: 8px;
+  animation: goldFlow 6s ease-in-out infinite;
+  margin-bottom: 4px;
   letter-spacing: -0.5px;
-  filter: drop-shadow(0 0 30px rgba(212, 168, 67, 0.2));
+  filter: drop-shadow(0 2px 10px rgba(212, 168, 67, 0.4));
 }
 
 @keyframes goldFlow {
@@ -49,48 +63,197 @@
 }
 
 .login-subtitle {
-  color: var(--text-muted);
+  color: #A09A8A;
   font-family: var(--font-body);
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   margin-bottom: 40px;
-  letter-spacing: 4px;
+  letter-spacing: 5px;
   text-transform: uppercase;
-  font-weight: 400;
+  font-weight: 500;
 }
 
-/* ═══ Social Auth Button (Telegram, etc.) ═══ */
-.auth-social-btn {
+.login-tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 4px;
+  border-radius: var(--r-md);
+}
+
+.login-tab {
+  flex: 1;
+  padding: 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--fast) ease;
+}
+
+.login-tab:hover {
+  color: var(--text-secondary);
+}
+
+.login-tab.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* ═══ Email Form ═══ */
+.email-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
+}
+
+.input-group label {
+  display: none; /* Hide for cleaner look, relying on placeholder */
+}
+
+.login-input {
   width: 100%;
+  padding: 16px 20px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(212, 168, 67, 0.25);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: monospace;
+  font-size: 0.95rem;
+  outline: none;
+  transition: all var(--fast) ease;
+  box-sizing: border-box;
+}
+
+.login-input:focus {
+  border-color: rgba(212, 168, 67, 0.8);
+  background: rgba(0, 0, 0, 0.7);
+  box-shadow: 0 0 15px rgba(212, 168, 67, 0.15);
+}
+
+.login-input::placeholder {
+  color: var(--text-ghost);
+}
+
+/* ═══ SmartCaptcha Mock ═══ */
+.smart-captcha-mock {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #f0f0f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.smart-captcha-mock:hover {
+  background: #ffffff;
+}
+
+.captcha-checkbox {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #ccc;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 15px 20px;
-  background: rgba(255,255,255,0.06);
+  transition: all 0.2s ease;
+}
+
+.smart-captcha-mock.verified .captcha-checkbox {
+  border-color: #2ECC71;
+}
+
+.captcha-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.captcha-title {
+  color: #333;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.captcha-subtitle {
+  color: #888;
+  font-size: 0.65rem;
+}
+
+.captcha-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  color: #999;
+  font-size: 0.55rem;
+}
+
+.captcha-logo-y {
+  color: #FF0000;
+  font-weight: bold;
+  font-size: 0.8rem;
+  margin-bottom: -2px;
+}
+
+/* ═══ Email Submit ═══ */
+.email-btn {
+  width: 100%;
+  padding: 16px;
+  background: linear-gradient(180deg, #E8BC57 0%, #D4A843 40%, #A07820 100%);
   color: #fff;
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: var(--r-md);
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  font-weight: 600;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
   cursor: pointer;
   transition: all var(--normal) var(--ease);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  box-shadow: 0 8px 32px rgba(212, 168, 67, 0.5), inset 0 1px 1px rgba(255,255,255,0.4);
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
 }
 
-.auth-social-btn:hover:not(:disabled) {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 40px rgba(255,255,255,0.1);
-  background: rgba(255,255,255,0.1);
+.email-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: linear-gradient(180deg, #F1C40F 0%, #D4A843 40%, #B8860B 100%);
+  box-shadow: 0 12px 40px rgba(212, 168, 67, 0.7), inset 0 1px 1px rgba(255,255,255,0.5);
 }
 
-.auth-social-btn:active:not(:disabled) {
-  transform: translateY(-1px);
-}
-
-.auth-social-btn:disabled {
-  opacity: 0.5;
+.email-btn:disabled {
+  opacity: 0.45;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ═══ Guest Button ═══ */
+.guest-text-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 8px 0;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.2);
+  text-underline-offset: 4px;
+  transition: all var(--fast) ease;
+  text-align: center;
+}
+
+.guest-text-btn:hover {
+  color: var(--text-primary);
+  text-decoration-color: var(--gold);
 }
 
 /* ═══ Divider ═══ */
@@ -98,13 +261,11 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  margin: 32px 0;
-  color: var(--text-ghost);
+  margin: 24px 0 16px;
+  color: #A09A8A;
   font-family: var(--font-body);
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 3px;
-  font-weight: 500;
+  font-size: 0.7rem;
+  font-weight: 400;
 }
 
 .login-divider::before,
@@ -112,182 +273,203 @@
   content: '';
   flex: 1;
   height: 1px;
-  background: var(--border-dim);
+  background: rgba(212, 168, 67, 0.2);
 }
 
-/* ═══ Email Form ═══ */
-.email-form {
+/* ═══ Social Row ═══ */
+.social-row {
   display: flex;
-  flex-direction: column;
-  gap: 14px;
+  justify-content: center;
+  gap: 16px;
 }
 
-.login-input {
-  width: 100%;
-  padding: 15px 18px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--r-sm);
-  color: var(--text-primary);
-  font-family: var(--font-body);
-  font-size: 0.88rem;
-  outline: none;
-  transition: all var(--fast) ease;
-  box-sizing: border-box;
-}
-
-.login-input:focus {
-  border-color: var(--gold);
-  box-shadow: 0 0 0 3px var(--gold-dim);
-}
-
-.login-input::placeholder {
-  color: var(--text-ghost);
-}
-
-/* ═══ Password ═══ */
-.password-field { position: relative; }
-.password-field .login-input { padding-right: 48px; }
-
-.password-toggle {
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 1rem;
-  width: 40px;
-  height: 40px;
+.social-circle-btn {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid rgba(212, 168, 67, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.35;
-  transition: opacity var(--fast) ease;
-  padding: 0;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(212, 168, 67, 0.1);
 }
 
-.password-toggle:hover { opacity: 0.7; }
+.social-circle-btn:hover {
+  transform: translateY(-4px);
+  border-color: rgba(212, 168, 67, 0.8);
+  box-shadow: 0 8px 25px rgba(212, 168, 67, 0.3), inset 0 0 15px rgba(212, 168, 67, 0.2);
+}
 
-/* ═══ Email Submit ═══ */
-.email-btn {
+.social-circle-btn.vk-btn { background: rgba(0, 0, 0, 0.6); }
+.social-circle-btn.vk-btn svg path { fill: #2787F5; transition: 0.3s; }
+.social-circle-btn.vk-btn:hover svg path { filter: drop-shadow(0 0 8px #2787F5); }
+
+.social-circle-btn.tg-btn { background: rgba(0, 0, 0, 0.6); }
+.social-circle-btn.tg-btn svg path { fill: #29B6F6; transition: 0.3s; }
+.social-circle-btn.tg-btn:hover svg path { filter: drop-shadow(0 0 8px #29B6F6); }
+
+.social-circle-btn.yandex-btn { background: rgba(0, 0, 0, 0.6); }
+.social-circle-btn.yandex-btn svg path { fill: #FF2B2B; transition: 0.3s; }
+.social-circle-btn.yandex-btn:hover svg path { filter: drop-shadow(0 0 8px #FF2B2B); }
+
+.social-circle-btn.apple-btn { background: rgba(0, 0, 0, 0.6); }
+.social-circle-btn.apple-btn svg path { fill: #FFF; transition: 0.3s; }
+.social-circle-btn.apple-btn:hover svg path { filter: drop-shadow(0 0 8px #FFF); }
+
+.social-circle-btn:active {
+  transform: translateY(0);
+}
+
+/* ═══ Telegram Button (Native) ═══ */
+.telegram-native-auth {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.auth-social-btn {
   width: 100%;
-  padding: 15px;
-  background: linear-gradient(135deg, #FFE87C, #D4A843, #A08530);
-  color: var(--bg-void);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #29B6F6, #0288D1);
+  color: #fff;
   border: none;
-  border-radius: var(--r-sm);
-  font-family: var(--font-display);
-  font-size: 0.92rem;
-  font-weight: 700;
+  border-radius: var(--r-md);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all var(--normal) var(--ease);
-  margin-top: 4px;
-  box-shadow: 0 6px 24px rgba(212, 168, 67, 0.25);
-  letter-spacing: 0.5px;
+  box-shadow: 0 6px 20px rgba(41, 182, 246, 0.3);
 }
 
-.email-btn:hover:not(:disabled) {
+.auth-social-btn:hover:not(:disabled) {
   transform: translateY(-3px);
-  box-shadow: 0 12px 40px rgba(212, 168, 67, 0.4);
+  box-shadow: 0 12px 30px rgba(41, 182, 246, 0.5);
 }
 
-.email-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+/* ═══ OTP Verification UI ═══ */
+.otp-verify-section {
+  text-align: center;
 }
 
-/* ═══ Messages ═══ */
-.login-error {
-  color: var(--red);
-  font-size: 0.78rem;
-  margin-top: 12px;
-  padding: 10px 14px;
-  background: rgba(255, 107, 107, 0.06);
-  border: 1px solid rgba(255, 107, 107, 0.15);
-  border-radius: var(--r-sm);
-  text-align: left;
+.otp-verify-title {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  color: var(--text-primary);
+  margin-bottom: 8px;
 }
 
-.login-success {
-  color: var(--green);
-  font-size: 0.78rem;
-  margin-top: 12px;
-  padding: 10px 14px;
-  background: rgba(68, 223, 170, 0.06);
-  border: 1px solid rgba(68, 223, 170, 0.15);
-  border-radius: var(--r-sm);
-  text-align: left;
-}
-
-/* ═══ Links ═══ */
-.login-links { margin-top: 24px; }
-
-.login-toggle {
+.otp-verify-subtitle {
+  font-size: 0.85rem;
   color: var(--text-secondary);
-  font-size: 0.78rem;
-  margin-top: 8px;
+  margin-bottom: 32px;
+}
+
+.otp-inputs-container {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin: 0 0 32px;
+}
+
+.otp-input-box {
+  width: 48px;
+  height: 56px;
+  font-size: 1.6rem;
+  font-weight: 700;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--r-sm);
+  color: var(--gold);
+  outline: none;
+  transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.otp-input-box:focus {
+  border-color: var(--gold);
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 15px rgba(212, 168, 67, 0.3);
+  transform: translateY(-4px) scale(1.05);
+}
+
+.otp-timer-text {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+}
+
+.otp-resend-btn {
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.85rem;
+  text-decoration: underline;
+  text-decoration-color: rgba(255,255,255,0.3);
+  text-underline-offset: 4px;
+  transition: all var(--fast) ease;
+}
+
+.otp-resend-btn:hover {
+  color: var(--gold);
+  text-decoration-color: var(--gold);
+}
+
+.otp-change-email {
+  color: var(--text-ghost);
+  font-size: 0.85rem;
   cursor: pointer;
   transition: color var(--fast) ease;
 }
-.login-toggle:hover { color: var(--gold-light); }
-.login-toggle strong { color: var(--gold); font-weight: 700; }
 
-.login-toggle-secondary {
-  color: var(--text-muted);
-  font-size: 0.72rem;
-  margin-top: 12px;
-  cursor: pointer;
-}
-.login-toggle-secondary:hover { color: var(--text-secondary); }
-
-/* ═══ Guest ═══ */
-.guest-section { margin-top: 0; }
-.guest-section .login-divider { margin: 20px 0 16px 0; }
-
-.guest-btn {
-  width: 100%;
-  padding: 13px;
-  background: transparent;
+.otp-change-email:hover {
   color: var(--text-secondary);
-  border: 1px solid var(--border-subtle);
+}
+
+/* ═══ Messages ═══ */
+.login-error, .login-success {
+  font-size: 0.85rem;
+  margin-top: 16px;
+  padding: 12px 16px;
   border-radius: var(--r-sm);
-  font-family: var(--font-body);
-  font-size: 0.82rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--normal) var(--ease);
+  text-align: left;
 }
 
-.guest-btn:hover:not(:disabled) {
-  color: var(--gold-light);
-  border-color: var(--gold);
-  background: var(--gold-dim);
+.login-error {
+  color: #ff8b8b;
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid rgba(255, 107, 107, 0.2);
 }
 
-.guest-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.guest-hint {
-  color: var(--text-ghost);
-  font-size: 0.65rem;
-  margin-top: 10px;
-  letter-spacing: 0.5px;
+.login-success {
+  color: #74f5c9;
+  background: rgba(68, 223, 170, 0.1);
+  border: 1px solid rgba(68, 223, 170, 0.2);
 }
 
 .login-footer {
-  margin-top: 22px;
+  margin-top: 32px;
   text-align: center;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
 }
 
 .login-footer a {
-  color: var(--text-secondary);
+  color: var(--text-ghost);
   text-decoration: none;
+  transition: color var(--fast) ease;
 }
 
 .login-footer a:hover {
-  color: var(--gold-light);
+  color: var(--text-secondary);
 }
 
 /* ═══ In-App Warning ═══ */
@@ -301,7 +483,6 @@
   margin-bottom: 24px;
   text-align: left;
 }
-
 .inapp-banner-icon { font-size: 1.3rem; flex-shrink: 0; line-height: 1.4; }
 .inapp-banner-text { flex: 1; }
 .inapp-banner-text strong {
@@ -333,112 +514,8 @@
 /* ═══ Mobile ═══ */
 @media (max-width: 480px) {
   .login-card { padding: 40px 24px; border-radius: 20px; }
-  .login-logo { font-size: 2.2rem; }
-  .login-subtitle { font-size: 0.6rem; margin-bottom: 32px; }
-  .inapp-banner { padding: 12px; gap: 10px; }
-}
-
-/* ═══ Telegram Button ═══ */
-.telegram-btn {
-  background: linear-gradient(135deg, #29B6F6, #0288D1) !important;
-  color: #fff !important;
-  box-shadow: 0 4px 20px rgba(41, 182, 246, 0.3) !important;
-}
-
-.telegram-btn:hover:not(:disabled) {
-  box-shadow: 0 12px 40px rgba(41, 182, 246, 0.4) !important;
-}
-
-/* ═══ Magic Link Button ═══ */
-.magic-link-btn {
-  width: 100%;
-  padding: 13px 20px;
-  background: transparent;
-  color: var(--text-secondary);
-  border: 1px dashed var(--border-subtle);
-  border-radius: var(--r-sm);
-  font-family: var(--font-body);
-  font-size: 0.82rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--normal) var(--ease);
-  margin-top: 12px;
-}
-
-.magic-link-btn:hover {
-  color: var(--gold-light);
-  border-color: var(--gold);
-  background: var(--gold-dim);
-  border-style: solid;
-}
-
-/* ═══ OTP Verification UI ═══ */
-.otp-inputs-container {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin: 24px 0;
-}
-
-.otp-input-box {
-  width: 44px;
-  height: 52px;
-  font-size: 1.5rem;
-  font-weight: 700;
-  text-align: center;
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(40px);
-  -webkit-backdrop-filter: blur(40px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--r-sm);
-  color: var(--text-primary);
-  outline: none;
-  transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
-}
-
-.otp-input-box:focus {
-  border-color: var(--gold);
-  background: rgba(255, 255, 255, 0.07);
-  box-shadow: 0 0 15px rgba(212, 168, 67, 0.3);
-  transform: translateY(-2px) scale(1.05);
-}
-
-.otp-input-box:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.otp-timer-text {
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  margin-top: 14px;
-}
-
-.otp-resend-btn {
-  background: none;
-  border: none;
-  color: var(--gold);
-  font-weight: 700;
-  cursor: pointer;
-  padding: 0;
-  font-size: 0.78rem;
-  text-decoration: underline;
-  transition: color var(--fast) ease;
-}
-
-.otp-resend-btn:hover {
-  color: var(--gold-light);
-}
-
-.otp-change-email {
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  margin-top: 14px;
-  cursor: pointer;
-  text-decoration: none;
-  transition: color var(--fast) ease;
-}
-
-.otp-change-email:hover {
-  color: var(--text-secondary);
+  .login-logo { font-size: 1.8rem; }
+  .social-row { gap: 12px; }
+  .social-circle-btn { width: 48px; height: 48px; }
+  .otp-input-box { width: 42px; height: 50px; font-size: 1.4rem; }
 }
