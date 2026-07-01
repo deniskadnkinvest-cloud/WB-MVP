@@ -519,14 +519,14 @@
 }
 
 .login-footer a {
-  color: rgba(201, 168, 76, 0.35);
+  color: rgba(255, 255, 255, 0.4);
   text-decoration: none;
   transition: color 0.3s ease;
   font-family: 'Inter', var(--font-body), sans-serif;
 }
 
 .login-footer a:hover {
-  color: rgba(201, 168, 76, 0.7);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 /* ═══ In-App Warning ═══ */
