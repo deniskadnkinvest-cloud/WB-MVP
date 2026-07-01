@@ -1,138 +1,77 @@
 /* ═══════════════════════════════════════════ */
-/*  SELLER STUDIO — Login / Premium Golden    */
+/*  SELLER STUDIO — Login / Fashion Terminal  */
 /* ═══════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500;600;700&family=Inter:wght@400;500;600&display=swap');
-
-/* ═══ Wrapper ═══ */
 .login-wrapper {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: #000 url('/golden_crystals_bg_user.jpg') no-repeat center center;
-  background-size: cover;
+  background-color: #050505;
+  background-image: 
+    radial-gradient(ellipse 80% 60% at 50% 120%, rgba(212, 168, 67, 0.15), transparent 60%),
+    radial-gradient(ellipse 40% 40% at 50% -20%, rgba(212, 168, 67, 0.05), transparent 50%);
   position: relative;
   overflow: hidden;
 }
 
-/* ═══ Card ═══ */
 .login-card {
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: 
-    0 20px 50px rgba(0, 0, 0, 0.8),
-    0 0 40px rgba(217, 148, 54, 0.15),
-    inset 0 0 20px rgba(245, 194, 107, 0.05);
-  border: 1px solid rgba(245, 194, 107, 0.3);
-  border-radius: 32px;
-  padding: 48px 36px 36px;
-  max-width: 380px;
-  min-height: 680px;
+  background: rgba(10, 10, 15, 0.65);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(212, 168, 67, 0.4);
+  border-top: 2px solid rgba(212, 168, 67, 0.7);
+  border-radius: 20px;
+  padding: 48px 40px;
+  max-width: 400px;
   width: 100%;
   text-align: center;
   position: relative;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.8), inset 0 0 40px rgba(212, 168, 67, 0.05), 0 0 20px rgba(212, 168, 67, 0.15);
   z-index: 10;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
 }
 
-.login-card::before {
-  content: '';
-  position: absolute;
-  top: -1px; left: -1px; right: -1px; bottom: -1px;
-  border-radius: 32px;
-  padding: 1px;
-  background: linear-gradient(
-    180deg, 
-    rgba(255, 243, 214, 0.8) 0%, 
-    rgba(217, 148, 54, 0.5) 20%, 
-    rgba(166, 97, 26, 0.3) 50%, 
-    rgba(217, 148, 54, 0.5) 80%,
-    rgba(255, 243, 214, 0.8) 100%
-  );
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  pointer-events: none;
-}
-
-/* ═══ Header & Logo ═══ */
 .login-header {
   margin-bottom: 8px;
 }
 
-.login-logo-container {
-  margin-bottom: 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.login-icon {
-  margin-bottom: 16px;
-  filter: drop-shadow(0 0 15px rgba(245, 194, 107, 0.5));
-}
-
 .login-logo-svg {
-  filter: drop-shadow(0 4px 20px rgba(217, 148, 54, 0.5));
-  margin-bottom: 4px;
+  filter: drop-shadow(0 4px 12px rgba(212, 168, 67, 0.5));
+  margin-bottom: 12px;
 }
 
 .login-logo {
-  font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
-  font-size: 3.4rem;
-  font-weight: 400;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 2.6rem;
+  font-weight: 700;
   font-style: italic;
-  background: linear-gradient(
-    180deg,
-    #FFF3D6 0%,
-    #F5C26B 25%,
-    #D99436 55%,
-    #A6611A 80%,
-    #693507 100%
-  );
+  background: linear-gradient(135deg, #FFD700 0%, #D4A843 45%, #C8960C 100%);
+  background-size: 200% 200%;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  margin-bottom: 8px;
-  letter-spacing: 1px;
-  line-height: 1.1;
-  white-space: nowrap;
-  /* Complex drop-shadows to simulate 3D bevel and bloom */
-  filter: 
-    drop-shadow(0px 1px 0px rgba(255, 243, 214, 0.9)) /* Highlight */
-    drop-shadow(0px 2px 1px rgba(166, 97, 26, 0.9))   /* Shadow base */
-    drop-shadow(0px 4px 2px rgba(105, 53, 7, 0.9))    /* Extrusion */
-    drop-shadow(0 0 20px rgba(217, 148, 54, 0.4))     /* Warm Gold Bloom */
-    drop-shadow(0 10px 15px rgba(0, 0, 0, 0.8));      /* Ambient shadow */
+  animation: goldFlow 6s ease-in-out infinite;
+  margin-bottom: 4px;
+  letter-spacing: -0.5px;
+  filter: drop-shadow(0 2px 10px rgba(212, 168, 67, 0.4));
 }
 
-.login-diamond {
-  display: block;
-  text-align: center;
-  color: rgba(201, 168, 76, 0.4);
-  font-size: 0.65rem;
-  margin-bottom: 4px;
-  letter-spacing: 4px;
+@keyframes goldFlow {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 .login-subtitle {
-  color: #D99436;
-  font-family: 'Inter', var(--font-body), sans-serif;
+  color: #A09A8A;
+  font-family: var(--font-body);
   font-size: 0.65rem;
   margin-bottom: 40px;
   letter-spacing: 5px;
   text-transform: uppercase;
-  font-weight: 400;
-  text-shadow: 0 0 10px rgba(217, 148, 54, 0.4);
+  font-weight: 500;
 }
 
-/* ═══ Tabs (unused but kept for compat) ═══ */
 .login-tabs {
   display: flex;
   gap: 12px;
@@ -155,7 +94,9 @@
   transition: all var(--fast) ease;
 }
 
-.login-tab:hover { color: var(--text-secondary); }
+.login-tab:hover {
+  color: var(--text-secondary);
+}
 
 .login-tab.active {
   background: rgba(255, 255, 255, 0.1);
@@ -167,211 +108,219 @@
 .email-form {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
   text-align: left;
-  width: 100%;
 }
 
-.input-group label { display: none; }
-
-.input-group {
-  position: relative;
-}
-
-.input-mail-icon {
-  position: absolute;
-  left: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: rgba(201, 168, 76, 0.4);
-  font-size: 1rem;
-  pointer-events: none;
-  z-index: 2;
+.input-group label {
+  display: none; /* Hide for cleaner look, relying on placeholder */
 }
 
 .login-input {
   width: 100%;
-  padding: 16px 20px 16px 44px;
-  background: rgba(10, 8, 5, 0.5);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(217, 148, 54, 0.4);
-  border-radius: 12px;
-  color: #FFFFFF;
-  font-family: 'Inter', var(--font-body), sans-serif;
+  padding: 16px 20px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(212, 168, 67, 0.25);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: monospace;
   font-size: 0.95rem;
   outline: none;
+  transition: all var(--fast) ease;
   box-sizing: border-box;
-  transition: all 0.3s ease;
-  box-shadow: 
-    inset 0 2px 10px rgba(0, 0, 0, 0.8),
-    0 0 15px rgba(217, 148, 54, 0.1);
 }
 
 .login-input:focus {
-  background: rgba(15, 10, 5, 0.7);
-  border-color: #F5C26B;
-  box-shadow: 
-    inset 0 2px 10px rgba(0, 0, 0, 0.8),
-    0 0 20px rgba(245, 194, 107, 0.3), 
-    0 0 5px rgba(245, 194, 107, 0.6);
+  border-color: rgba(212, 168, 67, 0.8);
+  background: rgba(0, 0, 0, 0.7);
+  box-shadow: 0 0 15px rgba(212, 168, 67, 0.15);
 }
 
 .login-input::placeholder {
-  color: rgba(255, 255, 255, 0.25);
-  font-weight: 400;
+  color: var(--text-ghost);
 }
 
+/* ═══ SmartCaptcha Mock ═══ */
+.smart-captcha-mock {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #f0f0f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.smart-captcha-mock:hover {
+  background: #ffffff;
+}
+
+.captcha-checkbox {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #ccc;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.smart-captcha-mock.verified .captcha-checkbox {
+  border-color: #2ECC71;
+}
+
+.captcha-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.captcha-title {
+  color: #333;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.captcha-subtitle {
+  color: #888;
+  font-size: 0.65rem;
+}
+
+.captcha-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  color: #999;
+  font-size: 0.55rem;
+}
+
+.captcha-logo-y {
+  color: #FF0000;
+  font-weight: bold;
+  font-size: 0.8rem;
+  margin-bottom: -2px;
+}
 
 /* ═══ Email Submit ═══ */
 .email-btn {
   width: 100%;
   padding: 16px;
-  background: linear-gradient(
-    180deg,
-    #F9D386 0%,
-    #D99436 40%,
-    #A6611A 70%,
-    #693507 100%
-  );
-  color: #1A1005;
-  border: none;
-  border-radius: 12px;
-  font-family: 'Inter', var(--font-body), sans-serif;
-  font-size: 1.1rem;
-  font-weight: 600;
+  background: linear-gradient(180deg, #E8BC57 0%, #D4A843 40%, #A07820 100%);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
   cursor: pointer;
+  transition: all var(--normal) var(--ease);
+  box-shadow: 0 8px 32px rgba(212, 168, 67, 0.5), inset 0 1px 1px rgba(255,255,255,0.4);
   letter-spacing: 0.5px;
-  box-shadow:
-    0 10px 30px rgba(217, 148, 54, 0.3),          /* Warm Gold Bloom */
-    inset 0 2px 4px rgba(255, 243, 214, 0.9),     /* Top edge highlight */
-    inset 0 -3px 8px rgba(70, 30, 0, 0.7);        /* Bottom edge shadow */
-  transition: all 0.3s ease;
-  position: relative;
-}
-
-.email-btn::before {
-  content: '';
-  position: absolute;
-  top: 1px; left: 1px; right: 1px; bottom: 1px;
-  border-radius: 11px;
-  border: 1px solid rgba(255, 243, 214, 0.4);
-  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
 }
 
 .email-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  background: linear-gradient(
-    180deg,
-    #FFF3D6 0%,
-    #F5C26B 30%,
-    #D99436 60%,
-    #A6611A 100%
-  );
-  box-shadow:
-    0 15px 40px rgba(217, 148, 54, 0.5),
-    inset 0 2px 5px rgba(255, 243, 214, 1),
-    inset 0 -3px 8px rgba(70, 30, 0, 0.9);
+  transform: translateY(-2px);
+  background: linear-gradient(180deg, #F1C40F 0%, #D4A843 40%, #B8860B 100%);
+  box-shadow: 0 12px 40px rgba(212, 168, 67, 0.7), inset 0 1px 1px rgba(255,255,255,0.5);
 }
 
 .email-btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
 }
 
 /* ═══ Guest Button ═══ */
 .guest-text-btn {
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.45);
-  font-size: 0.8rem;
-  font-family: 'Inter', var(--font-body), sans-serif;
-  font-weight: 400;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
   cursor: pointer;
   padding: 8px 0;
   text-decoration: underline;
-  text-decoration-color: rgba(255, 255, 255, 0.15);
+  text-decoration-color: rgba(255, 255, 255, 0.2);
   text-underline-offset: 4px;
-  transition: all 0.3s ease;
+  transition: all var(--fast) ease;
   text-align: center;
 }
 
 .guest-text-btn:hover {
-  color: rgba(201, 168, 76, 0.8);
-  text-decoration-color: rgba(201, 168, 76, 0.4);
+  color: var(--text-primary);
+  text-decoration-color: var(--gold);
 }
 
 /* ═══ Divider ═══ */
 .login-divider {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin: 30px 0 24px;
-  width: 100%;
+  gap: 16px;
+  margin: 24px 0 16px;
+  color: #A09A8A;
+  font-family: var(--font-body);
+  font-size: 0.7rem;
+  font-weight: 400;
 }
 
-.divider-line {
+.login-divider::before,
+.login-divider::after {
+  content: '';
   flex: 1;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(217, 148, 54, 0.5), transparent);
-}
-
-.divider-diamond {
-  color: #D99436;
-  font-size: 0.5rem;
-  filter: drop-shadow(0 0 5px rgba(217, 148, 54, 0.8));
-}
-
-.divider-text {
-  color: rgba(255, 243, 214, 0.5);
-  font-family: 'Inter', var(--font-body), sans-serif;
-  font-size: 0.75rem;
-  font-weight: 400;
+  background: rgba(212, 168, 67, 0.2);
 }
 
 /* ═══ Social Row ═══ */
 .social-row {
   display: flex;
   justify-content: center;
-  gap: 20px;
+  gap: 16px;
 }
 
 .social-circle-btn {
-  width: 60px;
-  height: 60px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  background: rgba(10, 8, 5, 0.6);
-  border: 1px solid rgba(217, 148, 54, 0.5);
+  border: 1px solid rgba(212, 168, 67, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.3s ease;
-  padding: 0;
-  color: #F5C26B;
-  box-shadow: 
-    0 0 20px rgba(217, 148, 54, 0.2),
-    inset 0 0 15px rgba(217, 148, 54, 0.15);
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5), inset 0 0 10px rgba(212, 168, 67, 0.1);
 }
 
 .social-circle-btn:hover {
-  transform: translateY(-2px);
-  background: rgba(15, 10, 5, 0.8);
-  border-color: #FFF3D6;
-  color: #FFFFFF;
-  box-shadow: 
-    0 0 30px rgba(245, 194, 107, 0.5), 
-    0 0 10px rgba(255, 243, 214, 0.5),
-    inset 0 0 20px rgba(245, 194, 107, 0.3);
+  transform: translateY(-4px);
+  border-color: rgba(212, 168, 67, 0.8);
+  box-shadow: 0 8px 25px rgba(212, 168, 67, 0.3), inset 0 0 15px rgba(212, 168, 67, 0.2);
 }
+
+.social-circle-btn.vk-btn { background: rgba(0, 0, 0, 0.6); }
+.social-circle-btn.vk-btn svg path { fill: #2787F5; transition: 0.3s; }
+.social-circle-btn.vk-btn:hover svg path { filter: drop-shadow(0 0 8px #2787F5); }
+
+.social-circle-btn.tg-btn { background: rgba(0, 0, 0, 0.6); }
+.social-circle-btn.tg-btn svg path { fill: #29B6F6; transition: 0.3s; }
+.social-circle-btn.tg-btn:hover svg path { filter: drop-shadow(0 0 8px #29B6F6); }
+
+.social-circle-btn.yandex-btn { background: rgba(0, 0, 0, 0.6); }
+.social-circle-btn.yandex-btn svg path { fill: #FF2B2B; transition: 0.3s; }
+.social-circle-btn.yandex-btn:hover svg path { filter: drop-shadow(0 0 8px #FF2B2B); }
+
+.social-circle-btn.apple-btn { background: rgba(0, 0, 0, 0.6); }
+.social-circle-btn.apple-btn svg path { fill: #FFF; transition: 0.3s; }
+.social-circle-btn.apple-btn:hover svg path { filter: drop-shadow(0 0 8px #FFF); }
 
 .social-circle-btn:active {
   transform: translateY(0);
 }
-
-/* Individual icon colors handled inline via react-icons color prop */
 
 /* ═══ Telegram Button (Native) ═══ */
 .telegram-native-auth {
@@ -391,11 +340,11 @@
   color: #fff;
   border: none;
   border-radius: var(--r-md);
-  font-family: 'Inter', var(--font-body), sans-serif;
+  font-family: var(--font-body);
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all var(--normal) var(--ease);
   box-shadow: 0 6px 20px rgba(41, 182, 246, 0.3);
 }
 
@@ -410,7 +359,7 @@
 }
 
 .otp-verify-title {
-  font-family: 'Cormorant Garamond', var(--font-display), serif;
+  font-family: var(--font-display);
   font-size: 1.6rem;
   color: var(--text-primary);
   margin-bottom: 8px;
@@ -467,7 +416,7 @@
   text-decoration: underline;
   text-decoration-color: rgba(255,255,255,0.3);
   text-underline-offset: 4px;
-  transition: all 0.3s ease;
+  transition: all var(--fast) ease;
 }
 
 .otp-resend-btn:hover {
@@ -479,7 +428,7 @@
   color: var(--text-ghost);
   font-size: 0.85rem;
   cursor: pointer;
-  transition: color 0.3s ease;
+  transition: color var(--fast) ease;
 }
 
 .otp-change-email:hover {
@@ -493,8 +442,6 @@
   padding: 12px 16px;
   border-radius: var(--r-sm);
   text-align: left;
-  width: 100%;
-  box-sizing: border-box;
 }
 
 .login-error {
@@ -510,20 +457,19 @@
 }
 
 .login-footer {
-  margin-top: 28px;
+  margin-top: 32px;
   text-align: center;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
 }
 
 .login-footer a {
-  color: rgba(201, 168, 76, 0.35);
+  color: var(--text-ghost);
   text-decoration: none;
-  transition: color 0.3s ease;
-  font-family: 'Inter', var(--font-body), sans-serif;
+  transition: color var(--fast) ease;
 }
 
 .login-footer a:hover {
-  color: rgba(201, 168, 76, 0.7);
+  color: var(--text-secondary);
 }
 
 /* ═══ In-App Warning ═══ */
@@ -561,211 +507,15 @@
   font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all var(--fast) ease;
 }
 .inapp-open-btn:hover { box-shadow: 0 4px 16px rgba(212, 168, 67, 0.3); transform: translateY(-1px); }
 
-/* ═══ Telegram widget ═══ */
-.telegram-widget-wrapper {
-  margin-top: 20px;
-  display: flex;
-  justify-content: center;
-}
-
-/* ═══════════════════════════════════════════ */
-/*  ACTIVE STATE — Luxury Champagne Gold & Silver */
-/* ═══════════════════════════════════════════ */
-
-/* Ultra-smooth, elegant transitions */
-.login-card,
-.login-card::before,
-.login-logo,
-.login-logo-svg,
-.login-subtitle,
-.login-diamond,
-.login-input,
-.email-btn,
-.email-btn::before,
-.divider-line,
-.divider-diamond,
-.divider-text,
-.social-circle-btn,
-.input-mail-icon,
-.guest-text-btn,
-.login-footer a {
-  transition: all 0.8s cubic-bezier(0.25, 1, 0.5, 1);
-}
-
-/* ── Card: Deepened Glass with Silver-Gold Edge ── */
-.login-card {
-  background: rgba(12, 10, 8, 0.5); /* Very subtle darkening for contrast */
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: 
-    0 30px 60px rgba(0, 0, 0, 0.7), /* Deep realistic shadow */
-    0 0 0 1px rgba(255, 255, 255, 0.05), /* Inner glass reflection */
-    inset 0 1px 2px rgba(255, 255, 255, 0.1); /* Top edge light */
-}
-
-/* 1px Metallic Border Gradient (Champagne & Silver) */
-.login-card::before {
-  background: linear-gradient(
-    135deg, 
-    rgba(255, 255, 255, 0.9) 0%,      /* Silver highlight */
-    rgba(224, 211, 175, 0.8) 15%,     /* Pale Champagne Gold */
-    rgba(140, 125, 90, 0.3) 30%,      /* Shadow */
-    rgba(255, 255, 255, 0.1) 50%,     /* Glassy center */
-    rgba(140, 125, 90, 0.3) 70%,      /* Shadow */
-    rgba(224, 211, 175, 0.8) 85%,     /* Pale Champagne Gold */
-    rgba(255, 255, 255, 0.9) 100%     /* Silver highlight */
-  );
-  opacity: 1;
-}
-
-/* ── Logo Text: Refined Silver-Gold Sheen ── */
-.login-card .login-logo {
-  background: linear-gradient(
-    170deg,
-    #FFFFFF 0%,         /* Pure Silver */
-    #F4EED8 30%,        /* Soft White Gold */
-    #CBAE75 55%,        /* Champagne Gold */
-    #8A7347 75%,        /* Deep Antique Gold */
-    #FFFFFF 100%        /* Bottom reflection */
-  );
-  -webkit-background-clip: text;
-  background-clip: text;
-  filter: 
-    drop-shadow(0px 1px 2px rgba(0, 0, 0, 0.6)) 
-    drop-shadow(0px 4px 15px rgba(203, 174, 117, 0.2)); /* Expensive, subtle ambient glow */
-}
-
-/* ── Logo Icon: Metallic Shine ── */
-.login-card .login-logo-svg {
-  filter: drop-shadow(0 2px 10px rgba(203, 174, 117, 0.3));
-}
-
-/* ── Subtitle ── */
-.login-card .login-subtitle {
-  color: #CBAE75;
-  letter-spacing: 7px; 
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
-}
-
-/* ── Input Field: Premium Glass Input ── */
-.login-card .login-input {
-  background: rgba(15, 13, 10, 0.6);
-  border-color: rgba(203, 174, 117, 0.3);
-  color: #FFFFFF;
-  box-shadow: 
-    inset 0 2px 5px rgba(0, 0, 0, 0.6), 
-    0 1px 0 rgba(255, 255, 255, 0.08); 
-}
-
-.login-card .login-input:focus {
-  border-color: #E2D0A5; /* Lighter silver-gold */
-  background: rgba(20, 18, 14, 0.8);
-  box-shadow: 
-    inset 0 2px 5px rgba(0, 0, 0, 0.5),
-    0 0 0 1px rgba(226, 208, 165, 0.5), /* Sharp 1px ring, no blurry neon */
-    0 4px 15px rgba(226, 208, 165, 0.15); /* Very soft, realistic light scatter */
-}
-
-.login-card .input-mail-icon {
-  color: #CBAE75;
-}
-
-/* ── Button: Brushed Champagne Gold & Silver ── */
-.login-card .email-btn {
-  background: linear-gradient(
-    180deg,
-    #FFFFFF 0%,       /* Silver top lip */
-    #E8DCBA 15%,      /* Light Champagne */
-    #CBAE75 45%,      /* Rich Gold core */
-    #9C804D 75%,      /* Deep metallic shadow */
-    #735E35 100%
-  );
-  color: #110E0A; /* Near black for maximum contrast */
-  font-weight: 600;
-  letter-spacing: 1px;
-  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.5); /* Etched text effect */
-  box-shadow: 
-    0 10px 20px rgba(0, 0, 0, 0.5), /* Structural shadow */
-    0 4px 15px rgba(203, 174, 117, 0.2), /* Subtle reflection on surface below */
-    inset 0 1px 2px #FFFFFF, /* Crisp specular highlight */
-    inset 0 -2px 4px rgba(0, 0, 0, 0.3); /* 3D bottom bevel */
-}
-
-/* Button Border Highlight - Sharp silver/gold edge */
-.login-card .email-btn::before {
-  border: 1px solid transparent;
-  background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(203,174,117,0.5), rgba(255,255,255,0.2)) border-box;
-  -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: destination-out;
-  mask-composite: exclude;
-  border-radius: 12px;
-}
-
-.login-card .email-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  background: linear-gradient(
-    180deg,
-    #FFFFFF 0%,
-    #F4EED8 20%,
-    #DCC495 50%,
-    #A68B57 85%,
-    #7A6539 100%
-  );
-  box-shadow: 
-    0 12px 25px rgba(0, 0, 0, 0.6),
-    0 6px 20px rgba(203, 174, 117, 0.3),
-    inset 0 1px 2px #FFFFFF,
-    inset 0 -2px 4px rgba(0, 0, 0, 0.4);
-}
-
-/* ── Divider ── */
-.login-card .divider-line {
-  background: linear-gradient(90deg, transparent, rgba(203, 174, 117, 0.4), transparent);
-}
-.login-card .divider-diamond {
-  color: #CBAE75;
-  filter: drop-shadow(0 0 2px rgba(203, 174, 117, 0.4));
-}
-.login-card .divider-text {
-  color: rgba(255, 255, 255, 0.6);
-}
-
-/* ── Social Buttons: Silver/Gold Ring ── */
-.login-card .social-circle-btn {
-  border-color: rgba(203, 174, 117, 0.4);
-  color: #DCC495;
-  background: rgba(12, 10, 8, 0.6);
-  box-shadow: 
-    0 4px 10px rgba(0, 0, 0, 0.4),
-    inset 0 1px 1px rgba(255, 255, 255, 0.08); /* Frosted glass lip */
-}
-
-.login-card .social-circle-btn:hover {
-  background: rgba(20, 16, 10, 0.9);
-  box-shadow: 
-    0 8px 16px rgba(0, 0, 0, 0.6),
-    0 0 0 1px #D4AF37,
-    inset 0 1px 1px rgba(255, 255, 255, 0.1);
-}
-
-/* ── Text Buttons ── */
-.login-card .guest-text-btn {
-  color: rgba(255, 255, 255, 0.6);
-}
-.login-card .guest-text-btn:hover {
-  color: #D4AF37;
-  text-decoration-color: rgba(212, 175, 55, 0.4);
-}
-
 /* ═══ Mobile ═══ */
 @media (max-width: 480px) {
-  .login-card { padding: 36px 24px 28px; border-radius: 22px; }
-  .login-logo { font-size: 1.9rem; }
-  .social-row { gap: 14px; }
-  .social-circle-btn { width: 50px; height: 50px; }
+  .login-card { padding: 40px 24px; border-radius: 20px; }
+  .login-logo { font-size: 1.8rem; }
+  .social-row { gap: 12px; }
+  .social-circle-btn { width: 48px; height: 48px; }
   .otp-input-box { width: 42px; height: 50px; font-size: 1.4rem; }
 }
