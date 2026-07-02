@@ -31,30 +31,184 @@ async function incrementGlobalCounter(field) {
   }
 }
 
+let generationColumnsCache = null;
+
+async function getGenerationColumns() {
+  if (generationColumnsCache) return generationColumnsCache;
+
+  const result = await query(`
+    SELECT column_name, data_type, column_default
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'generations'
+  `);
+
+  generationColumnsCache = new Map(
+    result.rows.map(row => [
+      row.column_name,
+      {
+        dataType: row.data_type || '',
+        columnDefault: row.column_default || null,
+      },
+    ])
+  );
+
+  return generationColumnsCache;
+}
+
+function getGenerationType(reqBody = {}) {
+  if (reqBody?.isUgcMode) return 'ugc';
+  if (reqBody?.isModelCard) return 'model';
+  if (reqBody?.isQuickCard) return 'quick';
+  if (reqBody?.isProductMode || reqBody?.isCardDesign) return 'product';
+  if (reqBody?.isCalibration) return 'calibration';
+  return 'fashion';
+}
+
+async function resolveGenerationUserId(userId, columns) {
+  const userColumn = columns.get('user_id');
+  if (!userColumn) return undefined;
+
+  const dbUser = await findBillingUser({ uid: userId }).catch(() => null);
+  const dataType = userColumn.dataType || '';
+  if (dataType.includes('integer') || dataType === 'bigint' || dataType === 'smallint') {
+    return dbUser?.id || null;
+  }
+
+  return userId || dbUser?.telegram_id || null;
+}
+
+function shouldInsertGenerationId(columns) {
+  const idColumn = columns.get('id');
+  if (!idColumn) return false;
+  if (idColumn.columnDefault) return false;
+  return /char|text/i.test(idColumn.dataType || '');
+}
+
 // Р—Р°РїРёСЃС‹РІР°РµС‚ РїРѕРґСЂРѕР±РЅС‹Р№ Р»РѕРі РіРµРЅРµСЂР°С†РёРё РІ PostgreSQL
 async function saveGenerationLog({ userId, success, imageUrl, error, reqBody, durationMs }) {
   try {
     const generationId = `gen_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const type = reqBody?.isUgcMode ? 'ugc' : reqBody?.isModelCard ? 'model' : reqBody?.isQuickCard ? 'quick' : reqBody?.isProductMode ? 'product' : reqBody?.isCalibration ? 'calibration' : reqBody?.isCardDesign ? 'product' : 'fashion';
+    const columns = await getGenerationColumns();
+    const type = getGenerationType(reqBody);
     const garmentUrls = reqBody?.garmentImageUrls || [];
     const attributes = reqBody?.attributes || null;
-    
+
+    if (columns.size === 0) {
+      console.warn('[stats log] generations table has no visible columns; skipping');
+      return;
+    }
+
+    const metadata = {
+      type,
+      aspectRatio: reqBody?.aspectRatio || '3:4',
+      garmentUrls,
+      modelPreset: reqBody?.modelPreset || '',
+      posePreset: reqBody?.posePreset || '',
+      backgroundPreset: reqBody?.backgroundPreset || '',
+      cameraAngle: reqBody?.cameraAngle || '',
+      categoryId: reqBody?.categoryId || '',
+      withHumanModel: Boolean(reqBody?.withHumanModel),
+      isCardDesign: Boolean(reqBody?.isCardDesign),
+      cardStyle: reqBody?.quickCardStyle || reqBody?.cardStyle || '',
+      isBeautyMode: Boolean(reqBody?.isBeautyMode),
+      isPhotoEdit: Boolean(reqBody?.isPhotoEdit),
+      editInstruction: reqBody?.editInstruction || '',
+      customPoseText: reqBody?.customPoseText || '',
+      attributes,
+      userProductInfo: reqBody?.userProductInfo || '',
+      quickPromptName: reqBody?.quickPromptName || '',
+      isPhotoshoot: Boolean(reqBody?.isPhotoshoot),
+      photoshootFrameIndex: reqBody?.photoshootFrameIndex || null,
+      photoshootBatchSize: reqBody?.photoshootBatchSize || null,
+    };
+
+    const userValue = await resolveGenerationUserId(userId, columns);
+    const valuesByColumn = {
+      id: generationId,
+      user_id: userValue,
+      success: Boolean(success),
+      status: success ? 'success' : 'error',
+      duration_ms: durationMs || 0,
+      credits_used: getGenerationCreditCost(reqBody),
+      type,
+      aspect_ratio: metadata.aspectRatio,
+      garment_urls: JSON.stringify(garmentUrls),
+      model_preset: metadata.modelPreset,
+      pose_preset: metadata.posePreset,
+      background_preset: metadata.backgroundPreset,
+      camera_angle: metadata.cameraAngle,
+      category_id: metadata.categoryId,
+      with_human_model: metadata.withHumanModel,
+      is_card_design: metadata.isCardDesign,
+      card_style: metadata.cardStyle,
+      is_beauty_mode: metadata.isBeautyMode,
+      is_photo_edit: metadata.isPhotoEdit,
+      edit_instruction: metadata.editInstruction,
+      custom_pose_text: metadata.customPoseText,
+      attributes: attributes ? JSON.stringify(attributes) : null,
+      user_product_info: metadata.userProductInfo,
+      quick_prompt_name: metadata.quickPromptName,
+      image_url: imageUrl || null,
+      result_url: imageUrl || null,
+      prompt: metadata.modelPreset || metadata.posePreset || '',
+      model: 'nano-banana-2',
+      metadata: JSON.stringify(metadata),
+      error: error || null,
+    };
+
+    const preferredColumns = [
+      'id',
+      'user_id',
+      'success',
+      'status',
+      'duration_ms',
+      'credits_used',
+      'type',
+      'aspect_ratio',
+      'garment_urls',
+      'model_preset',
+      'pose_preset',
+      'background_preset',
+      'camera_angle',
+      'category_id',
+      'with_human_model',
+      'is_card_design',
+      'card_style',
+      'is_beauty_mode',
+      'is_photo_edit',
+      'edit_instruction',
+      'custom_pose_text',
+      'attributes',
+      'user_product_info',
+      'quick_prompt_name',
+      'image_url',
+      'result_url',
+      'prompt',
+      'model',
+      'metadata',
+      'error',
+    ];
+
+    const insertColumns = preferredColumns.filter(column => {
+      if (!columns.has(column)) return false;
+      if (column === 'id' && !shouldInsertGenerationId(columns)) return false;
+      return valuesByColumn[column] !== undefined;
+    });
+
+    if (insertColumns.length === 0) {
+      console.warn('[stats log] generations insert has no matching columns; skipping');
+      return;
+    }
+
+    const placeholders = insertColumns.map((_, idx) => `$${idx + 1}`).join(', ');
+    const values = insertColumns.map(column => valuesByColumn[column]);
+
     await query(`
-      INSERT INTO generations (
-        id, user_id, success, duration_ms, type, aspect_ratio, garment_urls, model_preset, pose_preset, background_preset,
-        camera_angle, category_id, with_human_model, is_card_design, card_style, is_beauty_mode, is_photo_edit, edit_instruction,
-        custom_pose_text, attributes, user_product_info, quick_prompt_name, image_url, error
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
-      )
-    `, [
-      generationId, userId || 'anonymous', success, durationMs || 0, type, reqBody?.aspectRatio || '3:4',
-      JSON.stringify(garmentUrls), reqBody?.modelPreset || '', reqBody?.posePreset || '', reqBody?.backgroundPreset || '',
-      reqBody?.cameraAngle || '', reqBody?.categoryId || '', reqBody?.withHumanModel || false, reqBody?.isCardDesign || false,
-      reqBody?.quickCardStyle || reqBody?.cardStyle || '', reqBody?.isBeautyMode || false, reqBody?.isPhotoEdit || false,
-      reqBody?.editInstruction || '', reqBody?.customPoseText || '', attributes ? JSON.stringify(attributes) : null, reqBody?.userProductInfo || '',
-      reqBody?.quickPromptName || '', imageUrl || null, error || null
-    ]);
+      INSERT INTO generations (${insertColumns.join(', ')})
+      VALUES (${placeholders})
+    `, values);
+
     console.log(`рџ“Љ [stats] Logged generation ${generationId} for user ${userId || 'anonymous'} (${success ? 'success' : 'failed'})`);
   } catch (e) {
     console.warn('[stats log] Failed to write generation log:', e.message);
@@ -2476,16 +2630,23 @@ OUTPUT: One single high-quality photo. No text. No collage. No explanations.`;
 
     // в•ђв•ђв•ђ EDIT CARD вЂ” СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ РєР°СЂС‚РѕС‡РєРё РјР°СЂРєРµС‚РїР»РµР№СЃР° С‡РµСЂРµР· GPT Image 2 в•ђв•ђв•ђ
     if (req.body?.action === 'edit-card') {
-      const { sourceImageBase64: editSrc, editInstruction: editText } = req.body;
-      if (!editSrc || !editText) {
-        return res.status(400).json({ success: false, error: 'sourceImageBase64 and editInstruction are required' });
+      const { sourceImageBase64: editSrc, sourceImageUrl: editSrcUrl, editInstruction: editText } = req.body;
+      if ((!editSrc && !editSrcUrl) || !editText) {
+        return res.status(400).json({ success: false, error: 'sourceImageBase64/sourceImageUrl and editInstruction are required' });
       }
       const elapsed = () => ((Date.now() - startTime) / 1000).toFixed(1);
       console.log(`вњЏпёЏ [${elapsed()}s] Edit Card: instruction="${editText.substring(0, 80)}"`);
       try {
         const editPrompt = `You are editing a marketplace product card image. Apply this change precisely:\n"${editText}"\n\nRules:\n- Preserve the overall layout, typography style, brand identity, and Russian text quality.\n- Only modify what the user explicitly asked to change.\n- Keep all other elements exactly as they are.\n- The result must still look like a premium product card.\n- All text must remain in Russian Cyrillic.\n- Output ONLY the modified image.`;
 
-        const imageInput = editSrc.startsWith('data:') ? editSrc : `data:image/jpeg;base64,${editSrc}`;
+        let imageInput = null;
+        if (editSrcUrl) {
+          const sourceData = await downloadToBase64(editSrcUrl);
+          if (!sourceData) throw new Error('Failed to download source card image');
+          imageInput = `data:${sourceData.mimeType};base64,${sourceData.base64str}`;
+        } else {
+          imageInput = editSrc.startsWith('data:') ? editSrc : `data:image/jpeg;base64,${editSrc}`;
+        }
         const resultUrl = await executeKieTask(editPrompt, [imageInput], 'nano-banana-2');
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error('Failed to download edited card');
@@ -2624,6 +2785,9 @@ IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation
       isPhotoOnly = false,
       quickCardStyle = 'natural',
       userProductInfo = '',
+      isPhotoshoot = false,
+      photoshootFrameIndex,
+      photoshootBatchSize,
     } = req.body;
 
     // в•ђв•ђв•ђ PHOTO EDIT MODE вЂ” precise, non-destructive editing в•ђв•ђв•ђ
@@ -2711,6 +2875,18 @@ Return ONLY the edited photograph.`;
     const skinPrompt = isBeautyMode ? SKIN_BEAUTY_PROMPT : SKIN_REALISM_PROMPT;
     const genderLock = buildGenderLock(gender);
     const selectedPose = selectPoseFromSeed(biometricSeed, gender);
+    const variationDirective = isPhotoshoot
+      ? `<PHOTOSHOOT_FRAME_DIRECTIVE>
+This is frame ${photoshootFrameIndex || '?'} of ${photoshootBatchSize || '?'} in a multi-frame photoshoot.
+The output MUST be a visually distinct photograph from the other frames in this batch.
+Do NOT reuse the same body silhouette, crop, leg position, arm position, facial expression, or camera distance from any previous frame.
+The target pose and camera below are mandatory and override any reference-image composition.
+</PHOTOSHOOT_FRAME_DIRECTIVE>`
+      : biometricSeed
+        ? `<VARIATION_DIRECTIVE>
+Unique generation id: ${biometricSeed}. Produce a fresh composition for this exact request. Do not duplicate another returned frame from the same batch.
+</VARIATION_DIRECTIVE>`
+        : '';
 
     const enhancedActorProfile = enhanceBodyMetrics(modelPreset, editInstruction);
 
@@ -3095,6 +3271,7 @@ IMPERATIVE RULES FOR POSE EXECUTION:
 2. FABRIC PHYSICS & GRAVITY: The clothing must dynamically adapt to this specific pose. Calculate realistic fabric tension, drape, stretching, and wrinkles based on the model's body angle and limb positioning.
 3. EDITORIAL VIBE: The final image must look like a high-end fashion magazine lookbook. Break the flat "mannequin" syndrome entirely.
 </POSE_AND_CAMERA_DIRECTIVE>
+${variationDirective}
 </phase_2_subject_recasting>
 `;
 
@@ -3104,7 +3281,7 @@ IMPERATIVE RULES FOR POSE EXECUTION:
     }
 
     if (modelReferenceImages && Array.isArray(modelReferenceImages) && modelReferenceImages.length > 0) {
-      promptText += `\n<identity_reference>\nACTOR IDENTITY LOCK:\nThe generated person MUST closely resemble the REAL person in the attached reference photos. Match facial features, ethnicity, and skin tone.\n</identity_reference>\n`;
+      promptText += `\n<identity_reference>\nACTOR IDENTITY LOCK:\nUse the attached reference photos ONLY for the person's identity: face, skin tone, hair, body proportions, and recognizability.\nDo NOT copy the reference photo's exact pose, crop, background, lighting, leg position, arm position, or full composition.\nThe TARGET POSE and CAMERA in this request are mandatory and must visibly change the shot.\n</identity_reference>\n`;
       for (const img of modelReferenceImages.slice(0, 5)) {
         if (!img) continue;
         if (img.startsWith('data:')) {

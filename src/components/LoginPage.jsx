@@ -45,8 +45,10 @@ export default function LoginPage() {
     signInAsGuest,
     signInWithTelegramAccount,
     signInWithTelegramWidget,
+    signInWithOAuthToken,
     isInAppBrowser,
     isTelegram,
+    hasTelegramInitData,
     telegramUser,
     isPrivate,
   } = useAuth();
@@ -70,6 +72,33 @@ export default function LoginPage() {
     }, 1000);
     return () => clearInterval(interval);
   }, [otpTimer]);
+
+  // OAuth Message Listener
+  useEffect(() => {
+    const handleMessage = async (event) => {
+      // Убедимся, что это наше окно отправляет сообщение (можно добавить проверку origin)
+      if (event.data?.type === 'OAUTH_SUCCESS') {
+        const { token, userData } = event.data;
+        if (token && userData) {
+          setError('');
+          setLoading(true);
+          try {
+            await signInWithOAuthToken(token, userData);
+            setSuccess('Успешный вход!');
+          } catch (err) {
+            setError(err.message || 'Ошибка входа через соцсеть');
+          } finally {
+            setLoading(false);
+          }
+        }
+      } else if (event.data?.type === 'OAUTH_ERROR') {
+        setError(event.data.error || 'Ошибка авторизации через соцсеть');
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [signInWithOAuthToken]);
 
   const formatTimer = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -193,13 +222,28 @@ export default function LoginPage() {
     window.open(url, '_system') || window.open(url, '_blank');
   };
 
+  const handleCloseTelegram = () => {
+    if (window.Telegram?.WebApp?.close) {
+      window.Telegram.WebApp.close();
+      return;
+    }
+    window.close();
+  };
+
   const handleMockSocial = (provider) => {
-    alert(`Вход через ${provider} будет доступен после регистрации приложения в кабинете разработчика и настройки ключей OAuth.`);
+    if (provider === 'VK') {
+      window.open('/api/auth-vk', 'oauth-vk', 'width=500,height=600');
+    } else if (provider === 'Яндекс') {
+      window.open('/api/auth-yandex', 'oauth-yandex', 'width=500,height=600');
+    } else {
+      alert(`Вход через ${provider} будет доступен после регистрации приложения в кабинете разработчика и настройки ключей OAuth.`);
+    }
   };
 
   const tgDisplayName = telegramUser
     ? [telegramUser.firstName, telegramUser.lastName].filter(Boolean).join(' ')
     : null;
+  const showTelegramMiniAppAuth = isTelegram && hasTelegramInitData;
 
   return (
     <div className="login-wrapper">
@@ -261,13 +305,23 @@ export default function LoginPage() {
           </div>
         )}
 
-        {isTelegram ? (
+        {isTelegram && !hasTelegramInitData && (
+          <div className="inapp-banner" style={{ borderColor: 'rgba(203,174,117,0.35)' }}>
+            <span className="inapp-banner-icon">↗</span>
+            <div className="inapp-banner-text">
+              <strong>Telegram Desktop</strong>
+              <p>Нативный Mini App-вход недоступен в этом окне. Войдите через Telegram-кнопку ниже.</p>
+            </div>
+          </div>
+        )}
+
+        {showTelegramMiniAppAuth ? (
           <div className="telegram-native-auth">
             <button className="auth-social-btn" onClick={handleTelegramLogin} disabled={loading}>
               <FaTelegramPlane size={20} />
               {loading ? '⏳ Подключаемся...' : `Войти как ${tgDisplayName || 'Telegram'}`}
             </button>
-            <p className="login-toggle" style={{ marginTop: '20px', color: '#CBAE75', opacity: 0.9 }} onClick={() => window.Telegram.WebApp.close()}>
+            <p className="login-toggle" style={{ marginTop: '20px', color: '#CBAE75', opacity: 0.9 }} onClick={handleCloseTelegram}>
               Закрыть
             </p>
           </div>
@@ -323,7 +377,7 @@ export default function LoginPage() {
             
             {/* Telegram Widget */}
             <div className="telegram-widget-wrapper">
-              <TelegramWidget botName="seller_sstudio_bot" onAuth={handleTelegramWidgetAuth} />
+              <TelegramWidget botName="seller_studio_bot" onAuth={handleTelegramWidgetAuth} />
             </div>
 
           </form>

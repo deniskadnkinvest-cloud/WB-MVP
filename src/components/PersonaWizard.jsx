@@ -50,7 +50,7 @@ function compressImage(file, maxSize = 1200, quality = 0.85) {
   });
 }
 
-export default function PersonaWizard({ onClose, onSave, authHeaders, credits }) {
+export default function PersonaWizard({ onClose, onSave, getAuthToken, credits }) {
   const [step, setStep] = useState('describe'); // 'describe' | 'result'
   const [modelName, setModelName] = useState('');
   const [description, setDescription] = useState('');
@@ -64,6 +64,11 @@ export default function PersonaWizard({ onClose, onSave, authHeaders, credits })
   const fileInputRef = useRef(null);
 
   const canGenerate = modelName.trim().length > 0 && description.trim().length > 10;
+
+  const buildAuthHeaders = useCallback(async () => {
+    const token = await getAuthToken?.();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, [getAuthToken]);
 
   // ── Upload reference photos (optional) ──
   const handleRefPhotoUpload = useCallback(async (files) => {
@@ -97,9 +102,10 @@ export default function PersonaWizard({ onClose, onSave, authHeaders, credits })
       const keys = ['front', 'left34', 'right34', 'fullbody'];
       refPhotos.forEach((photo, i) => { if (keys[i]) photoPayload[keys[i]] = photo; });
 
+      const headers = await buildAuthHeaders();
       const res = await fetch('/api/generate-image', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        headers: { 'Content-Type': 'application/json', ...headers },
         body: JSON.stringify({
           action: 'create-persona',
           photos: photoPayload,
@@ -118,7 +124,7 @@ export default function PersonaWizard({ onClose, onSave, authHeaders, credits })
     } finally {
       setIsGenerating(false);
     }
-  }, [canGenerate, description, modelName, refPhotos, authHeaders, compCards.length]);
+  }, [canGenerate, description, modelName, refPhotos, buildAuthHeaders, compCards.length]);
 
   // ── Regenerate ──
   const handleRegenerate = useCallback(async () => {
@@ -129,9 +135,10 @@ export default function PersonaWizard({ onClose, onSave, authHeaders, credits })
       const keys = ['front', 'left34', 'right34', 'fullbody'];
       refPhotos.forEach((photo, i) => { if (keys[i]) photoPayload[keys[i]] = photo; });
 
+      const headers = await buildAuthHeaders();
       const res = await fetch('/api/generate-image', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        headers: { 'Content-Type': 'application/json', ...headers },
         body: JSON.stringify({
           action: 'create-persona',
           photos: photoPayload,
@@ -148,7 +155,7 @@ export default function PersonaWizard({ onClose, onSave, authHeaders, credits })
     } finally {
       setIsGenerating(false);
     }
-  }, [description, modelName, refPhotos, authHeaders]);
+  }, [description, modelName, refPhotos, buildAuthHeaders]);
 
   // ── Save ──
   const handleSave = useCallback(async () => {

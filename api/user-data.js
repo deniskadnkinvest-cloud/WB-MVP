@@ -20,6 +20,79 @@ function verifyToken(req) {
   }
 }
 
+let generationColumnsCache = null;
+
+async function getGenerationColumns() {
+  if (generationColumnsCache) return generationColumnsCache;
+
+  const result = await query(`
+    SELECT column_name
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'generations'
+  `);
+
+  generationColumnsCache = new Set(result.rows.map(row => row.column_name));
+  return generationColumnsCache;
+}
+
+function getUidCandidates(uid, email) {
+  const rawUid = uid?.startsWith('tg_') ? uid.slice(3) : uid;
+  const prefixedUid = rawUid && !rawUid.startsWith('tg_') ? `tg_${rawUid}` : rawUid;
+  return [...new Set([uid, rawUid, prefixedUid, email].filter(Boolean).map(String))];
+}
+
+async function getGenerationUserCandidates(uid, email) {
+  const candidates = getUidCandidates(uid, email);
+  const result = await query(
+    `SELECT id, telegram_id, email FROM users
+     WHERE telegram_id = ANY($1::text[]) OR email = ANY($1::text[])
+     LIMIT 1`,
+    [candidates]
+  );
+  const user = result.rows[0];
+  if (user?.id != null) candidates.push(String(user.id));
+  if (user?.telegram_id) candidates.push(String(user.telegram_id));
+  if (user?.email) candidates.push(String(user.email));
+  return [...new Set(candidates)];
+}
+
+async function resolveUserIdentity(uid, email, dbUserId) {
+  const candidates = getUidCandidates(uid, email);
+
+  if (dbUserId) {
+    const byId = await query(
+      `SELECT id, telegram_id, email FROM users WHERE id = $1 LIMIT 1`,
+      [dbUserId]
+    );
+    if (byId.rows[0]) {
+      const user = byId.rows[0];
+      if (user.telegram_id) candidates.push(String(user.telegram_id));
+      if (user.email) candidates.push(String(user.email));
+      candidates.push(String(user.id));
+      return { dbId: user.id, candidates: [...new Set(candidates)] };
+    }
+  }
+
+  const result = await query(
+    `SELECT id, telegram_id, email FROM users
+     WHERE id::text = ANY($1::text[])
+        OR telegram_id = ANY($1::text[])
+        OR email = ANY($1::text[])
+     LIMIT 1`,
+    [candidates]
+  );
+  const user = result.rows[0] || null;
+  if (user?.id != null) candidates.push(String(user.id));
+  if (user?.telegram_id) candidates.push(String(user.telegram_id));
+  if (user?.email) candidates.push(String(user.email));
+
+  return {
+    dbId: user?.id || null,
+    candidates: [...new Set(candidates)],
+  };
+}
+
 export default async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -35,34 +108,54 @@ export default async function handler(req, res) {
   const uid = decoded.uid;
 
   try {
+    const identity = await resolveUserIdentity(uid, decoded.email, decoded.dbUserId);
+
     // в•ђв•ђв•ђ GET вЂ” Fetch data в•ђв•ђв•ђ
     if (req.method === 'GET') {
       const { type, limit: limitStr } = req.query;
       const maxResults = parseInt(limitStr) || 50;
 
       if (type === 'generations') {
+        const columns = await getGenerationColumns();
+        const imageExpression = columns.has('result_url') && columns.has('image_url')
+          ? 'COALESCE(result_url, image_url)'
+          : columns.has('result_url')
+            ? 'result_url'
+            : columns.has('image_url')
+              ? 'image_url'
+              : 'NULL';
+        const successFilter = columns.has('status')
+          ? `(status = 'success' OR status = 'completed' OR status IS NULL)`
+          : columns.has('success')
+            ? `success IS TRUE`
+            : `TRUE`;
         const result = await query(
-          `SELECT * FROM history WHERE user_id = (SELECT id FROM users WHERE telegram_id = $1)
+          `SELECT *, ${imageExpression} AS "__image_url"
+           FROM generations
+           WHERE user_id::text = ANY($1::text[])
+             AND ${successFilter}
            ORDER BY created_at DESC LIMIT $2`,
-          [uid, maxResults]
+          [identity.candidates.length ? identity.candidates : await getGenerationUserCandidates(uid, decoded.email), maxResults]
         );
         return res.json({ ok: true, data: result.rows.map(rowToGeneration) });
       }
 
       if (type === 'models') {
+        if (!identity.dbId) return res.status(404).json({ ok: false, error: 'User not found' });
         const result = await query(
-          `SELECT * FROM models WHERE user_id = (SELECT id FROM users WHERE telegram_id = $1)
+          `SELECT * FROM models WHERE user_id = $1
            ORDER BY created_at DESC`,
-          [uid]
+          [identity.dbId]
         );
         return res.json({ ok: true, data: result.rows.map(rowToModel) });
       }
 
       if (type === 'locations') {
+        if (!identity.dbId) return res.status(404).json({ ok: false, error: 'User not found' });
         const result = await query(
-          `SELECT * FROM locations WHERE user_id = (SELECT id FROM users WHERE telegram_id = $1)
+          `SELECT * FROM locations WHERE user_id = $1
            ORDER BY created_at DESC`,
-          [uid]
+          [identity.dbId]
         );
         return res.json({ ok: true, data: result.rows.map(rowToLocation) });
       }
@@ -75,21 +168,23 @@ export default async function handler(req, res) {
       const { type, ...data } = req.body || {};
 
       if (type === 'model') {
+        if (!identity.dbId) return res.status(404).json({ ok: false, error: 'User not found' });
         const result = await query(
           `INSERT INTO models (user_id, type, image_url, metadata)
-           VALUES ((SELECT id FROM users WHERE telegram_id = $1), $2, $3, $4)
+           VALUES ($1, $2, $3, $4)
            RETURNING *`,
-          [uid, data.type || 'unknown', data.imageUrls?.[0] || data.image_url || '', JSON.stringify(data)]
+          [identity.dbId, data.type || 'unknown', data.imageUrls?.[0] || data.image_url || '', JSON.stringify(data)]
         );
         return res.json({ ok: true, data: rowToModel(result.rows[0]) });
       }
 
       if (type === 'location') {
+        if (!identity.dbId) return res.status(404).json({ ok: false, error: 'User not found' });
         const result = await query(
           `INSERT INTO locations (user_id, name, image_url, metadata)
-           VALUES ((SELECT id FROM users WHERE telegram_id = $1), $2, $3, $4)
+           VALUES ($1, $2, $3, $4)
            RETURNING *`,
-          [uid, data.title || 'Р‘РµР· РЅР°Р·РІР°РЅРёСЏ', data.imageUrls?.[0] || data.thumbnail || '', JSON.stringify(data)]
+          [identity.dbId, data.title || 'Р‘РµР· РЅР°Р·РІР°РЅРёСЏ', data.imageUrls?.[0] || data.thumbnail || '', JSON.stringify(data)]
         );
         return res.json({ ok: true, data: rowToLocation(result.rows[0]) });
       }
@@ -102,31 +197,33 @@ export default async function handler(req, res) {
       const { type, id, ...fields } = req.body || {};
 
       if (type === 'model' && id) {
+        if (!identity.dbId) return res.status(404).json({ ok: false, error: 'User not found' });
         // РћР±РЅРѕРІР»СЏРµРј metadata СЃ РјРµСЂР¶РµРј СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёС… РїРѕР»РµР№
-        const existing = await query(`SELECT metadata FROM models WHERE id = $1`, [id]);
+        const existing = await query(`SELECT metadata FROM models WHERE id = $1 AND user_id = $2`, [id, identity.dbId]);
         const oldMeta = existing.rows[0]?.metadata || {};
         const newMeta = { ...oldMeta, ...fields };
         await query(
-          `UPDATE models SET metadata = $1 WHERE id = $2 AND user_id = (SELECT id FROM users WHERE telegram_id = $3)`,
-          [JSON.stringify(newMeta), id, uid]
+          `UPDATE models SET metadata = $1 WHERE id = $2 AND user_id = $3`,
+          [JSON.stringify(newMeta), id, identity.dbId]
         );
         return res.json({ ok: true });
       }
 
       if (type === 'location' && id) {
-        const existing = await query(`SELECT metadata FROM locations WHERE id = $1`, [id]);
+        if (!identity.dbId) return res.status(404).json({ ok: false, error: 'User not found' });
+        const existing = await query(`SELECT metadata FROM locations WHERE id = $1 AND user_id = $2`, [id, identity.dbId]);
         const oldMeta = existing.rows[0]?.metadata || {};
         const newMeta = { ...oldMeta, ...fields };
         const nameUpdate = fields.title || fields.name;
         if (nameUpdate) {
           await query(
-            `UPDATE locations SET name = $1, metadata = $2 WHERE id = $3 AND user_id = (SELECT id FROM users WHERE telegram_id = $4)`,
-            [nameUpdate, JSON.stringify(newMeta), id, uid]
+            `UPDATE locations SET name = $1, metadata = $2 WHERE id = $3 AND user_id = $4`,
+            [nameUpdate, JSON.stringify(newMeta), id, identity.dbId]
           );
         } else {
           await query(
-            `UPDATE locations SET metadata = $1 WHERE id = $2 AND user_id = (SELECT id FROM users WHERE telegram_id = $3)`,
-            [JSON.stringify(newMeta), id, uid]
+            `UPDATE locations SET metadata = $1 WHERE id = $2 AND user_id = $3`,
+            [JSON.stringify(newMeta), id, identity.dbId]
           );
         }
         return res.json({ ok: true });
@@ -140,17 +237,19 @@ export default async function handler(req, res) {
       const { type, id } = req.query;
 
       if (type === 'model' && id) {
+        if (!identity.dbId) return res.status(404).json({ ok: false, error: 'User not found' });
         await query(
-          `DELETE FROM models WHERE id = $1 AND user_id = (SELECT id FROM users WHERE telegram_id = $2)`,
-          [id, uid]
+          `DELETE FROM models WHERE id = $1 AND user_id = $2`,
+          [id, identity.dbId]
         );
         return res.json({ ok: true });
       }
 
       if (type === 'location' && id) {
+        if (!identity.dbId) return res.status(404).json({ ok: false, error: 'User not found' });
         await query(
-          `DELETE FROM locations WHERE id = $1 AND user_id = (SELECT id FROM users WHERE telegram_id = $2)`,
-          [id, uid]
+          `DELETE FROM locations WHERE id = $1 AND user_id = $2`,
+          [id, identity.dbId]
         );
         return res.json({ ok: true });
       }
@@ -184,9 +283,12 @@ function rowToGeneration(row) {
   return {
     id: row.id,
     userId: row.user_id,
-    success: row.status === 'completed',
+    success: row.status ? ['success', 'completed'].includes(row.status) : row.success !== false,
     createdAt: row.created_at?.toISOString(),
-    imageUrl: rewriteS3Url(row.result_image_url),
+    imageUrl: rewriteS3Url(row.__image_url || row.result_url || row.image_url || meta.imageUrl),
+    type: row.type || meta.type,
+    durationMs: row.duration_ms || meta.durationMs || 0,
+    creditsUsed: row.credits_used || meta.creditsUsed || 0,
     ...meta,
   };
 }

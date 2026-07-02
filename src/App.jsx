@@ -43,6 +43,86 @@ const safeParseJSON = async (resp) => {
   }
 };
 
+const readStoredValue = (key, fallback = null) => {
+  try {
+    const value = localStorage.getItem(key);
+    return value == null ? fallback : value;
+  } catch {
+    return fallback;
+  }
+};
+
+const readStoredJson = (key, fallback) => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const readStoredNumber = (key, fallback) => {
+  const raw = readStoredValue(key, null);
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const writeStoredValue = (key, value) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch (err) {
+    console.warn(`[draft] Failed to save ${key}:`, err?.message || err);
+  }
+};
+
+const removeStoredValue = (key) => {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Ignore storage cleanup failures in restricted WebViews.
+  }
+};
+
+const hasDraftValue = (value) => {
+  if (Array.isArray(value)) return value.length > 0;
+  if (value && typeof value === 'object') return Object.keys(value).length > 0;
+  return value != null && value !== '';
+};
+
+const writeStoredDraftValue = (key, value) => {
+  if (hasDraftValue(value)) {
+    writeStoredValue(key, value);
+  } else {
+    removeStoredValue(key);
+  }
+};
+
+const writeStoredJson = (key, value) => {
+  if (hasDraftValue(value)) {
+    writeStoredValue(key, JSON.stringify(value));
+  } else {
+    removeStoredValue(key);
+  }
+};
+
+const DRAFT_STORAGE_KEYS = [
+  'vton_generatedImage',
+  'vton_imageHistory',
+  'vton_historyIndex',
+  'vton_photoshootImages',
+  'vton_photoshootStatus',
+  'vton_photoshootErrors',
+  'vton_photoHistory',
+  'vton_photoViewIdx',
+  'vton_quickCardImage',
+  'vton_cardEditHistory',
+  'vton_quickResults',
+  'vton_garmentUrls',
+  'vton_previewUrls',
+  'vton_userProductInfo',
+  'vton_scrollY',
+];
+
 function App() {
   const { user, loading, signOut, isEmbedded, isTelegram } = useAuth();
 
@@ -55,7 +135,7 @@ function App() {
 
   // App mode: 'fashion' | 'product'
   const [appMode, setAppMode] = useState(() => {
-    return localStorage.getItem('vton_appMode') || 'fashion';
+    return readStoredValue('vton_appMode', 'fashion');
   });
 
   // Product mode selections
@@ -149,30 +229,20 @@ function App() {
   // Multi-upload garments
   const [imageFiles, setImageFiles] = useState([]);
   const [garmentUrls, setGarmentUrls] = useState(() => {
-    try {
-      const saved = localStorage.getItem('vton_garmentUrls');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      return [];
-    }
+    return readStoredJson('vton_garmentUrls', []);
   }); // Firebase Storage URLs (lightweight)
   const [previewUrls, setPreviewUrls] = useState(() => {
-    try {
-      const saved = localStorage.getItem('vton_garmentUrls');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      return [];
-    }
+    return readStoredJson('vton_garmentUrls', []);
   });
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
 
   // Processing
   const [generatedImage, setGeneratedImage] = useState(() => {
-    return localStorage.getItem('vton_generatedImage') || null;
+    return readStoredValue('vton_generatedImage', null);
   });
-  const [imageHistory, setImageHistory] = useState([]); // all generated renders
-  const [historyIndex, setHistoryIndex] = useState(-1); // current position in history
+  const [imageHistory, setImageHistory] = useState(() => readStoredJson('vton_imageHistory', [])); // all generated renders
+  const [historyIndex, setHistoryIndex] = useState(() => readStoredNumber('vton_historyIndex', -1)); // current position in history
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingMsg, setProcessingMsg] = useState('');
   const [statusText, setStatusText] = useState('');
@@ -308,10 +378,10 @@ function App() {
   const [shotModifier, setShotModifier] = useState('');
 
   // Photoshoot mode
-  const [photoshootImages, setPhotoshootImages] = useState([]);
+  const [photoshootImages, setPhotoshootImages] = useState(() => readStoredJson('vton_photoshootImages', []));
   const [isPhotoshooting, setIsPhotoshooting] = useState(false);
-  const [photoshootStatus, setPhotoshootStatus] = useState({});
-  const [photoshootErrors, setPhotoshootErrors] = useState({});
+  const [photoshootStatus, setPhotoshootStatus] = useState(() => readStoredJson('vton_photoshootStatus', {}));
+  const [photoshootErrors, setPhotoshootErrors] = useState(() => readStoredJson('vton_photoshootErrors', {}));
 
   // Per-photo editor
   const [editingPhotoIdx, setEditingPhotoIdx] = useState(null);
@@ -319,9 +389,9 @@ function App() {
   const [editingPhotos, setEditingPhotos] = useState(new Set()); // indices currently being edited (background)
 
   // Per-photo edit history: { [photoIndex]: [original, edit1, edit2, ...] }
-  const [photoHistory, setPhotoHistory] = useState({});
+  const [photoHistory, setPhotoHistory] = useState(() => readStoredJson('vton_photoHistory', {}));
   // Which version is currently shown per photo: { [photoIndex]: viewIndex }
-  const [photoViewIdx, setPhotoViewIdx] = useState({});
+  const [photoViewIdx, setPhotoViewIdx] = useState(() => readStoredJson('vton_photoViewIdx', {}));
   // Download menu open state
   const [downloadMenuIdx, setDownloadMenuIdx] = useState(null);
 
@@ -340,30 +410,20 @@ function App() {
   // [QUICK_MODE_V2] — Card generation + text-based editing
   const [quickMode, setQuickMode] = useState('photo'); // 'photo' | 'card'
   const [quickCardImage, setQuickCardImage] = useState(() => {
-    return localStorage.getItem('vton_quickCardImage') || null;
+    return readStoredValue('vton_quickCardImage', null);
   }); // Generated card image
   const [cardEditHistory, setCardEditHistory] = useState(() => {
-    try {
-      const saved = localStorage.getItem('vton_cardEditHistory');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      return [];
-    }
+    return readStoredJson('vton_cardEditHistory', []);
   }); // [{image, editText}]
   const [cardEditText, setCardEditText] = useState(''); // Current edit text input
   const [isCardEditing, setIsCardEditing] = useState(false); // Edit in progress
   const [userProductInfo, setUserProductInfo] = useState(() => {
-    return localStorage.getItem('vton_userProductInfo') || '';
+    return readStoredValue('vton_userProductInfo', '');
   }); // Optional product info from seller
 
   // Results cache + abort
   const [quickResults, setQuickResults] = useState(() => {
-    try {
-      const saved = localStorage.getItem('vton_quickResults');
-      return saved ? JSON.parse(saved) : {};
-    } catch (e) {
-      return {};
-    }
+    return readStoredJson('vton_quickResults', {});
   });
   const abortControllerRef = useRef(null);
   const [isGalleryGenerating, setIsGalleryGenerating] = useState(false);
@@ -372,7 +432,7 @@ function App() {
 
   // ═══ LOCALSTORAGE SYNC EFFECTS ═══
   useEffect(() => {
-    localStorage.setItem('vton_appMode', appMode);
+    writeStoredValue('vton_appMode', appMode);
   }, [appMode]);
 
   useEffect(() => {
@@ -380,35 +440,121 @@ function App() {
 
   useEffect(() => {
     if (generatedImage) {
-      localStorage.setItem('vton_generatedImage', generatedImage);
+      writeStoredDraftValue('vton_generatedImage', generatedImage);
     } else {
-      localStorage.removeItem('vton_generatedImage');
+      removeStoredValue('vton_generatedImage');
     }
   }, [generatedImage]);
 
   useEffect(() => {
-    if (quickCardImage) {
-      localStorage.setItem('vton_quickCardImage', quickCardImage);
+    writeStoredJson('vton_imageHistory', imageHistory);
+  }, [imageHistory]);
+
+  useEffect(() => {
+    if (historyIndex >= 0) {
+      writeStoredValue('vton_historyIndex', String(historyIndex));
     } else {
-      localStorage.removeItem('vton_quickCardImage');
+      removeStoredValue('vton_historyIndex');
+    }
+  }, [historyIndex]);
+
+  useEffect(() => {
+    if (imageHistory.length < 2) return;
+
+    const seen = new Set();
+    const deduped = [];
+    let changed = false;
+
+    imageHistory.forEach(item => {
+      if (!item?.image) {
+        changed = true;
+        return;
+      }
+      if (seen.has(item.image)) {
+        changed = true;
+        return;
+      }
+      seen.add(item.image);
+      deduped.push(item);
+    });
+
+    if (!changed) return;
+
+    const activeImage = imageHistory[historyIndex]?.image;
+    const nextIndex = activeImage ? deduped.findIndex(item => item.image === activeImage) : deduped.length - 1;
+    setImageHistory(deduped);
+    setHistoryIndex(deduped.length ? Math.max(0, nextIndex) : -1);
+  }, [imageHistory, historyIndex]);
+
+  useEffect(() => {
+    if (quickCardImage) {
+      writeStoredDraftValue('vton_quickCardImage', quickCardImage);
+    } else {
+      removeStoredValue('vton_quickCardImage');
     }
   }, [quickCardImage]);
 
   useEffect(() => {
-    localStorage.setItem('vton_cardEditHistory', JSON.stringify(cardEditHistory));
+    writeStoredJson('vton_cardEditHistory', cardEditHistory);
   }, [cardEditHistory]);
 
   useEffect(() => {
-    localStorage.setItem('vton_quickResults', JSON.stringify(quickResults));
+    writeStoredJson('vton_quickResults', quickResults);
   }, [quickResults]);
 
   useEffect(() => {
-    localStorage.setItem('vton_garmentUrls', JSON.stringify(garmentUrls));
+    writeStoredJson('vton_garmentUrls', garmentUrls);
   }, [garmentUrls]);
 
   useEffect(() => {
-    localStorage.setItem('vton_userProductInfo', userProductInfo);
+    writeStoredDraftValue('vton_userProductInfo', userProductInfo);
   }, [userProductInfo]);
+
+  useEffect(() => {
+    writeStoredJson('vton_photoshootImages', photoshootImages);
+  }, [photoshootImages]);
+
+  useEffect(() => {
+    writeStoredJson('vton_photoshootStatus', photoshootStatus);
+  }, [photoshootStatus]);
+
+  useEffect(() => {
+    writeStoredJson('vton_photoshootErrors', photoshootErrors);
+  }, [photoshootErrors]);
+
+  useEffect(() => {
+    writeStoredJson('vton_photoHistory', photoHistory);
+  }, [photoHistory]);
+
+  useEffect(() => {
+    writeStoredJson('vton_photoViewIdx', photoViewIdx);
+  }, [photoViewIdx]);
+
+  useEffect(() => {
+    const savedScrollY = readStoredNumber('vton_scrollY', 0);
+    if (savedScrollY > 0 && (generatedImage || photoshootImages.length > 0 || garmentUrls.length > 0)) {
+      requestAnimationFrame(() => window.scrollTo({ top: savedScrollY, behavior: 'auto' }));
+    }
+
+    let rafId = null;
+    const persistScroll = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const scrollY = Math.max(0, Math.round(window.scrollY || 0));
+        if (scrollY > 0) {
+          writeStoredValue('vton_scrollY', String(scrollY));
+        } else {
+          removeStoredValue('vton_scrollY');
+        }
+      });
+    };
+
+    window.addEventListener('scroll', persistScroll, { passive: true });
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', persistScroll);
+    };
+  }, []);
 
   // Lightbox (gallery mode)
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -438,24 +584,19 @@ function App() {
 
     const backBtn = tg.BackButton;
     // Show back button when user has generated content
-    if (generatedImage || photoshootImages.length > 0) {
+    if (generatedImage || photoshootImages.length > 0 || showHistory || lightboxSrc) {
       backBtn.show();
       const handler = () => {
-        if (photoshootImages.length > 0) {
-          setPhotoshootImages([]);
-          setPhotoshootStatus({});
-          setPhotoshootErrors({});
-        } else {
-          setGeneratedImage(null);
-          setImageHistory([]);
-        }
+        if (lightboxSrc) { setLightboxSrc(null); return; }
+        if (showHistory) { setShowHistory(false); return; }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       };
       backBtn.onClick(handler);
       return () => backBtn.offClick(handler);
     } else {
       backBtn.hide();
     }
-  }, [isTelegram, generatedImage, photoshootImages]);
+  }, [isTelegram, generatedImage, photoshootImages, showHistory, lightboxSrc]);
 
   // Load user data from Firestore (skip for guest users in embedded mode)
   useEffect(() => {
@@ -862,6 +1003,76 @@ function App() {
     return `${prefix}:${Date.now()}:${randomPart}`;
   };
 
+  const appendUniqueImageHistory = (image, label) => {
+    if (!image) return;
+    setImageHistory(prev => {
+      const existingIndex = prev.findIndex(item => item?.image === image);
+      if (existingIndex >= 0) {
+        setHistoryIndex(existingIndex);
+        return prev;
+      }
+      const history = [...prev, { image, label }];
+      setHistoryIndex(history.length - 1);
+      return history;
+    });
+  };
+
+  const getDownloadBlob = async (src) => {
+    if (src.startsWith('data:')) {
+      const resp = await fetch(src);
+      if (!resp.ok) throw new Error(`download failed: ${resp.status}`);
+      return resp.blob();
+    }
+
+    try {
+      const resp = await fetch(src, { mode: 'cors', cache: 'no-store' });
+      if (!resp.ok) throw new Error(`download failed: ${resp.status}`);
+      return await resp.blob();
+    } catch (directErr) {
+      const proxied = await authFetch(`/api/upload?url=${encodeURIComponent(src)}`, { method: 'GET' });
+      if (!proxied.ok) throw directErr;
+      return proxied.blob();
+    }
+  };
+
+  const triggerBrowserDownload = (blob, filename) => {
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    link.rel = 'noopener';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1500);
+  };
+
+  const downloadImageAsset = async (src, filename = `SellerStudio_${Date.now()}.jpg`) => {
+    if (!src) return;
+    try {
+      const blob = await getDownloadBlob(src);
+      const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
+      if (isTelegram && navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'Seller Studio' });
+          return;
+        } catch (shareErr) {
+          if (shareErr?.name === 'AbortError') return;
+        }
+      }
+      triggerBrowserDownload(blob, filename);
+    } catch (err) {
+      console.warn('Download failed:', err.message);
+      if (!src.startsWith('data:')) {
+        window.open(src, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      setStatusText('Не получилось скачать файл. Нажмите на фото и сохраните его из просмотра.');
+      setStatusType('error');
+    }
+  };
+
   const handleGenerate = async (skipConfirm = false) => {
     if (!garmentUrls.length) return;
 
@@ -1099,7 +1310,7 @@ function App() {
 
             if (data.success) {
               completedCount++;
-              const img = data.imageBase64 || data.imageUrl;
+              const img = data.imageUrl || data.imageBase64;
               setGeneratedImage(img);
               setImageHistory(prev => {
                 const label = appMode === 'product'
@@ -1147,7 +1358,7 @@ function App() {
     await runBatchGeneration();
   };
 
-  const handleDownload = () => { if (!generatedImage) return; const a = document.createElement('a'); a.href = generatedImage; a.download = `SellerStudio_${Date.now()}.jpg`; a.click(); };
+  const handleDownload = () => downloadImageAsset(generatedImage, `SellerStudio_${Date.now()}.jpg`);
 
   // Location helpers
   const handleLocFiles = async (files) => {
@@ -2058,8 +2269,8 @@ ${userProductInfo.trim()}
         clearInterval(statusIv);
         const data = await safeParseJSON(resp);
 
-        if (data.success && (data.imageBase64 || data.imageUrl)) {
-          const img = data.imageBase64 || data.imageUrl;
+        if (data.success && (data.imageUrl || data.imageBase64)) {
+          const img = data.imageUrl || data.imageBase64;
           refreshCreditsFromResponse(data);
           setQuickCardImage(img);
           setGeneratedImage(img);
@@ -2087,8 +2298,8 @@ ${userProductInfo.trim()}
         clearInterval(statusIv);
         const data = await safeParseJSON(resp);
 
-        if (data.success && (data.imageBase64 || data.imageUrl)) {
-          const img = data.imageBase64 || data.imageUrl;
+        if (data.success && (data.imageUrl || data.imageBase64)) {
+          const img = data.imageUrl || data.imageBase64;
           refreshCreditsFromResponse(data);
           setGeneratedImage(img);
           setQuickResults(prev => ({...prev, ugc: { image: img }}));
@@ -2117,8 +2328,8 @@ ${userProductInfo.trim()}
         clearInterval(statusIv);
         const data = await safeParseJSON(resp);
 
-        if (data.success && (data.imageBase64 || data.imageUrl)) {
-          const img = data.imageBase64 || data.imageUrl;
+        if (data.success && (data.imageUrl || data.imageBase64)) {
+          const img = data.imageUrl || data.imageBase64;
           refreshCreditsFromResponse(data);
           setQuickCardImage(img);
           setGeneratedImage(img);
@@ -2158,8 +2369,8 @@ ${userProductInfo.trim()}
         clearInterval(statusIv);
         const data = await safeParseJSON(resp);
 
-        if (data.success && (data.imageBase64 || data.imageUrl)) {
-          const img = data.imageBase64 || data.imageUrl;
+        if (data.success && (data.imageUrl || data.imageBase64)) {
+          const img = data.imageUrl || data.imageBase64;
           refreshCreditsFromResponse(data);
           setGeneratedImage(img);
           setQuickResults(prev => ({...prev, photo: { image: img }}));
@@ -2210,15 +2421,17 @@ ${userProductInfo.trim()}
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'edit-card',
-          sourceImageBase64: quickCardImage,
+          ...(quickCardImage.startsWith('http://') || quickCardImage.startsWith('https://')
+            ? { sourceImageUrl: quickCardImage }
+            : { sourceImageBase64: quickCardImage }),
           editInstruction: cardEditText.trim(),
           idempotencyKey: createIdempotencyKey('card-edit'),
         }),
       });
       const data = await safeParseJSON(resp);
 
-      if (data.success && (data.imageBase64 || data.imageUrl)) {
-        const newImg = data.imageBase64 || data.imageUrl;
+      if (data.success && (data.imageUrl || data.imageBase64)) {
+        const newImg = data.imageUrl || data.imageBase64;
         refreshCreditsFromResponse(data);
         setQuickCardImage(newImg);
         setGeneratedImage(newImg);
@@ -2351,6 +2564,8 @@ ${userProductInfo.trim()}
       let bgPrompt = '';
       let modelRefImages = null;
       let locImages = null;
+      let humanModelPrompt = null;
+      let humanModelRefImages = null;
 
       if (appMode === 'product') {
         modelPrompt = customProductPrompt.trim() || selectedProductCategory.defaultPrompt;
@@ -2363,16 +2578,20 @@ ${userProductInfo.trim()}
         }
         // Модель-человек в фотосессии товаров
         if (productWithModel) {
-          let humanPrompt = customProductModelPrompt.trim() || (productModelPreset.prompt + buildDetailString(productModelDetails));
+          humanModelPrompt = customProductModelPrompt.trim() || (productModelPreset.prompt + buildDetailString(productModelDetails));
           if (productSavedModelId) {
             const sm = myModels.find(m => m.id === productSavedModelId);
-            if (sm) { humanPrompt = sm.prompt || humanPrompt; modelRefImages = sm.imageBase64?.length > 0 ? sm.imageBase64 : (sm.imageUrls || []); }
+            if (sm) {
+              humanModelPrompt = sm.prompt || humanModelPrompt;
+              humanModelRefImages = sm.imageBase64?.length > 0 ? sm.imageBase64 : (sm.imageUrls || []);
+              modelRefImages = humanModelRefImages;
+            }
           }
-          window.__humanModelPrompt = humanPrompt;
-          window.__humanModelRefImages = modelRefImages;
-        } else {
-          window.__humanModelPrompt = null;
-          window.__humanModelRefImages = null;
+          if ((!humanModelRefImages || humanModelRefImages.length === 0) && generatedImage) {
+            humanModelRefImages = [generatedImage];
+            modelRefImages = humanModelRefImages;
+            humanModelPrompt += '. Keep the exact same human model identity, face, body proportions, hair, and skin tone from the provided finished render reference.';
+          }
         }
         if (selectedLocId) {
           const loc = myLocations.find(l => l.id === selectedLocId);
@@ -2394,6 +2613,10 @@ ${userProductInfo.trim()}
         if (selectedSavedModelId) {
           const sm = myModels.find(m => m.id === selectedSavedModelId);
           if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageBase64?.length > 0 ? sm.imageBase64 : (sm.imageUrls || []); }
+        }
+        if ((!modelRefImages || modelRefImages.length === 0) && generatedImage) {
+          modelRefImages = [generatedImage];
+          modelPrompt += '. Keep the exact same generated model identity, face, body proportions, hair, and skin tone from the provided finished render reference. Only change pose, camera angle, and scene.';
         }
         bgPrompt = customBgText.trim() || selectedBgs[0].prompt;
         if (selectedLocId) {
@@ -2433,8 +2656,11 @@ ${userProductInfo.trim()}
                 isProductMode: appMode === 'product',
                 categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
                 withHumanModel: appMode === 'product' && productWithModel,
-                humanModelPrompt: window.__humanModelPrompt || undefined,
-                humanModelRefImages: window.__humanModelRefImages || undefined,
+                humanModelPrompt: humanModelPrompt || undefined,
+                humanModelRefImages: humanModelRefImages || undefined,
+                isPhotoshoot: true,
+                photoshootFrameIndex: idx + 1,
+                photoshootBatchSize: count,
                 idempotencyKey: createIdempotencyKey('photoshoot'),
               }),
             });
@@ -2557,6 +2783,38 @@ ${userProductInfo.trim()}
     }
   };
 
+  const resetWorkspace = () => {
+    setGeneratedImage(null);
+    setImageHistory([]);
+    setHistoryIndex(-1);
+    setPhotoshootImages([]);
+    setPhotoshootStatus({});
+    setPhotoshootErrors({});
+    setPhotoHistory({});
+    setPhotoViewIdx({});
+    setEditingPhotoIdx(null);
+    setPhotoEditText('');
+    setEditingPhotos(new Set());
+    setDownloadMenuIdx(null);
+    setQuickCardImage(null);
+    setCardEditHistory([]);
+    setCardEditText('');
+    setUserProductInfo('');
+    setQuickResults({});
+    setCardResult(null);
+    setImageFiles([]);
+    setGarmentUrls([]);
+    setPreviewUrls([]);
+    setLightboxSrc(null);
+    setLightboxGallery([]);
+    setLightboxIdx(0);
+    setStatusText('');
+    setStatusType('');
+    setProcessingMsg('');
+    DRAFT_STORAGE_KEYS.forEach(removeStoredValue);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   if (loading) return <div className="app-wrapper" style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh'}}><div className="processing-spinner" /></div>;
   if (!user) return <LoginPage />;
 
@@ -2567,7 +2825,7 @@ ${userProductInfo.trim()}
     // Formats
     if (gen.aspectRatio) {
       const ratio = ASPECT_RATIOS.find(r => r.id === gen.aspectRatio);
-      if (ratio) setSelectedRatio(ratio);
+      if (ratio) setSelectedRatios([ratio]);
     }
     if (gen.cameraAngle) {
       const cam = CAMERA_ANGLES.find(c => c.id === gen.cameraAngle || c.prompt === gen.cameraAngle);
@@ -2638,6 +2896,15 @@ ${userProductInfo.trim()}
     setStatusType('success');
   };
 
+  const hasSavedDraft = Boolean(
+    generatedImage ||
+    quickCardImage ||
+    garmentUrls.length > 0 ||
+    photoshootImages.length > 0 ||
+    imageHistory.length > 0 ||
+    Object.keys(quickResults).length > 0
+  );
+
   return (
     <div className="app-wrapper">
       <header className="app-header">
@@ -2678,6 +2945,25 @@ ${userProductInfo.trim()}
           <button className="my-history-btn" onClick={() => setShowHistory(true)} title="Мои работы">
             🖼️ Мои работы
           </button>
+          {hasSavedDraft && (
+            <button
+              onClick={resetWorkspace}
+              title="Сбросить текущий черновик"
+              style={{
+                fontSize: '0.72rem',
+                color: 'rgba(255,255,255,0.72)',
+                background: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.14)',
+                borderRadius: '9999px',
+                padding: '7px 14px',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-body)',
+                fontWeight: 700,
+              }}
+            >
+              Сброс
+            </button>
+          )}
           <span style={{fontSize:'0.75rem',color:'var(--text-muted)'}}>{user.displayName || user.email}</span>
           {!isEmbedded && <button onClick={signOut} style={{fontSize:'0.7rem',color:'var(--text-muted)',background:'none',border:'1px solid var(--border-subtle)',borderRadius:'9999px',padding:'4px 14px',cursor:'pointer',fontFamily:'var(--font-body)',letterSpacing:'1px',textTransform:'uppercase'}}>Выйти</button>}
         </div>
@@ -4485,23 +4771,7 @@ ${userProductInfo.trim()}
           {/* BOTTOM ACTION */}
           <div style={{textAlign: 'center'}}>
             <button
-              onClick={() => {
-                setGeneratedImage(null);
-                setQuickCardImage(null);
-                setCardEditHistory([]);
-                setCardEditText('');
-                setUserProductInfo('');
-                setQuickResults({});
-                setImageFiles([]);
-                setGarmentUrls([]);
-                setPreviewUrls([]);
-                localStorage.removeItem('vton_generatedImage');
-                localStorage.removeItem('vton_quickCardImage');
-                localStorage.removeItem('vton_cardEditHistory');
-                localStorage.removeItem('vton_quickResults');
-                localStorage.removeItem('vton_garmentUrls');
-                localStorage.removeItem('vton_userProductInfo');
-              }}
+              onClick={resetWorkspace}
               style={{
                 background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.4)', fontSize: 14, cursor: 'pointer', transition: 'all 0.2s', textDecoration: 'underline'
               }}
@@ -4525,8 +4795,8 @@ ${userProductInfo.trim()}
                 onClick={() => {
                   setGeneratedImage(null);
                   setImageHistory([]);
-                  setHistoryIndex(0);
-                  localStorage.removeItem('vton_generatedImage');
+                  setHistoryIndex(-1);
+                  removeStoredValue('vton_generatedImage');
                 }}
                 title="Закрыть рендер"
                 style={{background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:'50%', width:'32px', height:'32px', cursor:'pointer', fontSize:'16px', color:'rgba(255,255,255,0.6)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all 0.2s'}}
@@ -4791,7 +5061,7 @@ ${userProductInfo.trim()}
           <PersonaWizard
             onClose={() => setShowPersonaWizard(false)}
             onSave={savePersonaModel}
-            authHeaders={(() => { const token = user?.accessToken || user?.stsTokenManager?.accessToken; return token ? { Authorization: `Bearer ${token}` } : {}; })()}
+            getAuthToken={async () => user?.getIdToken?.()}
             credits={subscription?.credits || 0}
           />
         )}

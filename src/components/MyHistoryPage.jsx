@@ -66,17 +66,31 @@ function formatDate(createdAt) {
   }
 }
 
-async function downloadImage(url, filename) {
+async function downloadImage(url, filename, token) {
   try {
-    const resp = await fetch(url);
+    let resp;
+    try {
+      resp = url.startsWith('data:')
+        ? await fetch(url)
+        : await fetch(url, { mode: 'cors', cache: 'no-store' });
+      if (!resp.ok) throw new Error(`download failed: ${resp.status}`);
+    } catch (directErr) {
+      if (url.startsWith('data:')) throw directErr;
+      resp = await fetch(`/api/upload?url=${encodeURIComponent(url)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!resp.ok) throw directErr;
+    }
     const blob = await resp.blob();
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = filename || 'seller-studio-result.jpg';
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(a.href);
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
   } catch {
-    window.open(url, '_blank');
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 }
 
@@ -131,7 +145,8 @@ export default function MyHistoryPage({ onClose, onReuseSettings }) {
   const handleDownload = async (e, gen, idx) => {
     e.stopPropagation();
     setDownloading(idx);
-    await downloadImage(gen.imageUrl, `seller-studio-${gen.type}-${idx + 1}.jpg`);
+    const token = await user?.getIdToken?.();
+    await downloadImage(gen.imageUrl, `seller-studio-${gen.type}-${idx + 1}.jpg`, token);
     setDownloading(null);
   };
 
@@ -405,7 +420,10 @@ export default function MyHistoryPage({ onClose, onReuseSettings }) {
                 >→</button>
                 <button
                   className="history-lb-download"
-                  onClick={() => downloadImage(gen.imageUrl, `seller-studio-${gen.type}-${lightbox + 1}.jpg`)}
+                  onClick={async () => {
+                    const token = await user?.getIdToken?.();
+                    await downloadImage(gen.imageUrl, `seller-studio-${gen.type}-${lightbox + 1}.jpg`, token);
+                  }}
                   title="Скачать оригинал"
                 >
                   ⬇️ Скачать

@@ -3,6 +3,40 @@ import { getToken, setToken, removeToken, getSavedUser, setSavedUser, removeSave
 
 const AuthContext = createContext(null);
 
+const getTelegramLaunchParam = (name) => {
+  try {
+    const candidates = [];
+    const search = window.location.search || '';
+    const hash = window.location.hash || '';
+
+    if (search) candidates.push(search.startsWith('?') ? search.slice(1) : search);
+    if (hash) {
+      const cleanHash = hash.startsWith('#') ? hash.slice(1) : hash;
+      candidates.push(cleanHash);
+      const hashQueryIndex = cleanHash.indexOf('?');
+      if (hashQueryIndex >= 0) candidates.push(cleanHash.slice(hashQueryIndex + 1));
+    }
+
+    for (const candidate of candidates) {
+      const value = new URLSearchParams(candidate).get(name);
+      if (value) return value;
+    }
+  } catch {
+    // Telegram Desktop can expose unusual URLs; fall back to no launch params.
+  }
+  return '';
+};
+
+const getTelegramInitData = () => {
+  try {
+    return window.Telegram?.WebApp?.initData || getTelegramLaunchParam('tgWebAppData') || '';
+  } catch {
+    return '';
+  }
+};
+
+const hasTelegramInitData = Boolean(getTelegramInitData());
+
 // ═══════════════════════════════════════════
 //  ENVIRONMENT DETECTION
 // ═══════════════════════════════════════════
@@ -14,7 +48,7 @@ const AuthContext = createContext(null);
 const isTelegram = (() => {
   try {
     // Method 1: SDK injected by Telegram mobile
-    if (window.Telegram?.WebApp?.initData && window.Telegram.WebApp.initData.length > 0) {
+    if (hasTelegramInitData) {
       return true;
     }
     // Method 2: User-Agent contains Telegram identifier
@@ -23,7 +57,7 @@ const isTelegram = (() => {
       return true;
     }
     // Method 3: URL has tgWebAppData parameter (Telegram passes data via URL)
-    if (window.location.search.includes('tgWebAppData') || window.location.hash.includes('tgWebAppData')) {
+    if (getTelegramLaunchParam('tgWebAppData')) {
       return true;
     }
     return false;
@@ -35,8 +69,9 @@ const telegramUser = (() => {
   try {
     if (!isTelegram) return null;
     const tg = window.Telegram?.WebApp;
+    const initData = getTelegramInitData();
     const user = tg?.initDataUnsafe?.user || (() => {
-      const initData = tg?.initData || new URLSearchParams(window.location.search).get('tgWebAppData') || '';
+      if (!initData) return null;
       const rawUser = new URLSearchParams(initData).get('user');
       return rawUser ? JSON.parse(rawUser) : null;
     })();
@@ -202,7 +237,7 @@ export function AuthProvider({ children }) {
       savedUser.getIdToken = async () => getToken();
       setUser(savedUser);
       setLoading(false);
-    } else if (isTelegram && telegramUser) {
+    } else if (hasTelegramInitData) {
       // Автоматический вход через Telegram при первом открытии
       signInWithTelegramAccountInternal()
         .then(() => setLoading(false))
@@ -263,9 +298,9 @@ export function AuthProvider({ children }) {
 
   // ═══ Internal Telegram login (no dependency on Firebase) ═══
   const signInWithTelegramAccountInternal = async () => {
-    const initData = window.Telegram?.WebApp?.initData;
+    const initData = getTelegramInitData();
     if (!initData) {
-      throw new Error('Telegram initData не доступна. Откройте приложение через Telegram.');
+      throw new Error('Telegram initData не доступна. В Telegram Desktop используйте вход через Telegram Widget ниже.');
     }
 
     const resp = await fetch('/api/auth-telegram', {
@@ -417,7 +452,7 @@ export function AuthProvider({ children }) {
   //  Uses JWT with deterministic UID: tg_{telegramId}
   // ═══════════════════════════════════════════
   const signInWithTelegramAccount = async () => {
-    if (!isTelegram && !telegramUser) {
+    if (!getTelegramInitData()) {
       throw new Error('Доступно только в Telegram');
     }
     return signInWithTelegramAccountInternal();
@@ -463,6 +498,26 @@ export function AuthProvider({ children }) {
     return { user: userData };
   };
 
+  // ═══════════════════════════════════════════
+  //  SIGN IN WITH OAUTH (VK, Yandex) POPUP
+  // ═══════════════════════════════════════════
+  const signInWithOAuthToken = async (token, userData) => {
+    setToken(token);
+
+    const formattedUserData = {
+      uid: userData.uid,
+      displayName: userData.displayName,
+      email: userData.email,
+      photoURL: userData.photoUrl || null,
+      isAnonymous: false,
+      getIdToken: async () => getToken(),
+    };
+
+    setSavedUser(formattedUserData);
+    setUser(formattedUserData);
+    return { user: formattedUserData };
+  };
+
   // Upgrade anonymous user to email account (disabled without Firebase)
   const upgradeGuestToEmail = async (email, password) => {
     // В новой системе гость просто вводит OTP код
@@ -484,6 +539,7 @@ export function AuthProvider({ children }) {
     loading,
     isEmbedded,
     isTelegram,
+    hasTelegramInitData,
     telegramUser,
     isInAppBrowser,
     isMobile,
@@ -498,6 +554,7 @@ export function AuthProvider({ children }) {
     signInAsGuest,
     signInWithTelegramAccount,
     signInWithTelegramWidget,
+    signInWithOAuthToken,
     upgradeGuestToEmail,
     signOut: handleSignOut,
   };

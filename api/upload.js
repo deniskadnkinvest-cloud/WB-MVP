@@ -71,7 +71,32 @@ export default async function handler(req, res) {
 
     // в•ђв•ђв•ђ GET вЂ” РЎРєР°С‡Р°С‚СЊ С„Р°Р№Р» РєР°Рє base64 в•ђв•ђв•ђ
     if (req.method === 'GET') {
-      const { path: filePath } = req.query;
+      const { path: filePath, url: remoteUrl } = req.query;
+
+      if (remoteUrl) {
+        let parsedUrl;
+        try {
+          parsedUrl = new URL(remoteUrl);
+        } catch {
+          return res.status(400).json({ ok: false, error: 'invalid url' });
+        }
+
+        const blockedHosts = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
+        if (!['https:', 'http:'].includes(parsedUrl.protocol) || blockedHosts.has(parsedUrl.hostname)) {
+          return res.status(400).json({ ok: false, error: 'url is not allowed' });
+        }
+
+        const upstream = await fetch(parsedUrl.toString(), { redirect: 'follow' });
+        if (!upstream.ok) {
+          return res.status(502).json({ ok: false, error: `remote download failed: ${upstream.status}` });
+        }
+
+        const contentType = upstream.headers.get('content-type') || 'image/jpeg';
+        const buffer = Buffer.from(await upstream.arrayBuffer());
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'private, max-age=300');
+        return res.status(200).send(buffer);
+      }
 
       if (!filePath) {
         return res.status(400).json({ ok: false, error: 'path is required' });

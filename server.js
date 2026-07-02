@@ -17,8 +17,14 @@ import verifyOtpHandler from './api/verify-otp.js';
 import createTgSessionHandler from './api/_create-tg-session.js';
 import completeTgAuthHandler from './api/_complete-tg-auth.js';
 import authTelegramHandler from './api/auth-telegram.js';
+import authTelegramWidgetHandler from './api/auth-telegram-widget.js';
 import uploadHandler from './api/upload.js';
 import userDataHandler from './api/user-data.js';
+
+import authVkHandler from './api/auth-vk.js';
+import authYandexHandler from './api/auth-yandex.js';
+import authVkCallbackHandler from './api/auth-vk-callback.js';
+import authYandexCallbackHandler from './api/auth-yandex-callback.js';
 
 
 import path from 'path';
@@ -130,6 +136,24 @@ app.post('/api/complete-tg-auth', async (req, res) => {
 
 app.post('/api/auth-telegram', async (req, res) => {
   return authTelegramHandler(req, res);
+});
+
+app.post('/api/auth-telegram-widget', async (req, res) => {
+  return authTelegramWidgetHandler(req, res);
+});
+
+// ═══ OAUTH (VK & YANDEX) ═══
+app.get('/api/auth-vk', async (req, res) => {
+  return authVkHandler(req, res);
+});
+app.get('/api/auth-yandex', async (req, res) => {
+  return authYandexHandler(req, res);
+});
+app.get('/api/auth-vk-callback', async (req, res) => {
+  return authVkCallbackHandler(req, res);
+});
+app.get('/api/auth-yandex-callback', async (req, res) => {
+  return authYandexCallbackHandler(req, res);
 });
 
 app.post('/api/upload', async (req, res) => {
