@@ -2791,7 +2791,7 @@ OUTPUT: One single high-quality photo. No text. No collage. No explanations.`;
       } catch (err) {
         console.error(`РІСњРЉ Edit Card error:`, err.message);
         alertOnError(err, `generate-image [edit_card]`).catch(() => {});
-        return res.status(200).json({ success: false, error: `Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎР‚Р ВµР Т‘Р В°Р С”РЎвЂљР С‘РЎР‚Р С•Р Р†Р В°Р Р…Р С‘РЎРЏ: ${err.message.substring(0, 200)}` });
+        return res.status(200).json({ success: false, error: humanizeGenerationError(err.message) });
       }
     }
 

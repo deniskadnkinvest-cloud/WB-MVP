@@ -29,6 +29,8 @@ export default function LoraModal({
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showCreditsModal, setShowCreditsModal] = useState(false);
   const [initialized, setInitialized] = useState(false);
+  const [editingSlot, setEditingSlot] = useState(null);
+  const [editText, setEditText] = useState('');
 
   // Pre-fill slots from editModel when opening in edit mode
   useEffect(() => {
@@ -138,6 +140,43 @@ export default function LoraModal({
     SLOTS.filter(s => !getDisplayPhoto(s.key)).forEach(s => generateSingle(s.key));
   };
 
+  // Точечная правка слота по текстовой инструкции (action=edit-card). Работает и для
+  // AI-сгенерированных, и для загруженных пользователем фото. Результат — новый вариант слота.
+  const applyEdit = async (slotKey) => {
+    const instruction = editText.trim();
+    const currentPhoto = getDisplayPhoto(slotKey);
+    if (!instruction || !currentPhoto) return;
+    setEditingSlot(null);
+    setGeneratingSlots(prev => new Set([...prev, slotKey]));
+    setGenError('');
+    try {
+      const headers = await buildAuthHeaders();
+      if (!headers.Authorization) throw new Error('Для генерации необходимо авторизоваться');
+      const body = { action: 'edit-card', editInstruction: instruction };
+      if (currentPhoto.startsWith('http://') || currentPhoto.startsWith('https://')) body.sourceImageUrl = currentPhoto;
+      else body.sourceImageBase64 = currentPhoto;
+      const res = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        if (json.isBillingError) { setShowCreditsModal(true); return; }
+        throw new Error(json.error || 'Не удалось отредактировать изображение');
+      }
+      const edited = json.imageBase64 || json.imageUrl;
+      setSlotVariants(v => {
+        const updated = [...v[slotKey], edited];
+        setVariantIdx(i => ({ ...i, [slotKey]: updated.length - 1 }));
+        return { ...v, [slotKey]: updated };
+      });
+      setLoraPhotos(prev => ({ ...prev, [slotKey]: null })); // показываем отредактированный вариант
+      setEditText('');
+    } catch (err) { setGenError(err.message); }
+    finally { setGeneratingSlots(prev => { const n = new Set(prev); n.delete(slotKey); return n; }); }
+  };
+
   const handleVariantNav = (key, dir) => {
     const total = slotVariants[key].length;
     if (total < 2) return;
@@ -243,6 +282,25 @@ export default function LoraModal({
                       🔄 Ещё вариант
                     </button>
                   )}
+                  {displayPhoto && !isGenerating && (editingSlot === key ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      <input value={editText} onChange={e => setEditText(e.target.value)} autoFocus
+                        onKeyDown={e => { if (e.key === 'Enter') applyEdit(key); }}
+                        placeholder="Что поправить? Напр.: смотреть вправо"
+                        style={{ padding: '6px 8px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(168,85,247,0.4)', color: '#fff', fontSize: 11, outline: 'none' }} />
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button onClick={() => applyEdit(key)} disabled={!editText.trim()}
+                          style={{ flex: 1, padding: '5px', borderRadius: 8, background: 'rgba(168,85,247,0.2)', border: '1px solid rgba(168,85,247,0.4)', color: '#a855f7', fontSize: 10, fontWeight: 700, cursor: editText.trim() ? 'pointer' : 'not-allowed', opacity: editText.trim() ? 1 : 0.5 }}>✨ Применить</button>
+                        <button onClick={() => { setEditingSlot(null); setEditText(''); }}
+                          style={{ padding: '5px 9px', borderRadius: 8, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.6)', fontSize: 10, cursor: 'pointer' }}>✕</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => { setEditingSlot(key); setEditText(''); setGenError(''); }}
+                      style={{ padding: '5px 8px', borderRadius: 8, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.75)', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
+                      ✏️ Поправить
+                    </button>
+                  ))}
                 </div>
               );
             })}
