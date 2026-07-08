@@ -3,6 +3,17 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { PLANS } from '../lib/subscriptionService';
 import './PricingModal.css';
 
+// Пакеты доп-генераций (top-up). ИСТОЧНИК ИСТИНЫ по цене/кредитам —
+// PLAN_CONFIG в api/create-payment.js и PLAN_CREDITS в api/payment-webhook-yookassa.js.
+// При изменении цен там — синхронизировать здесь (см. QA-FINDINGS: дублирование конфига).
+const TOPUP_PACKAGES = [
+  { id: 'topup_5', credits: 5, price: 249 },
+  { id: 'topup_30', credits: 30, price: 1090 },
+  { id: 'topup_50', credits: 50, price: 1790, best: true },
+  { id: 'topup_100', credits: 100, price: 3490 },
+  { id: 'topup_350', credits: 350, price: 8990 },
+];
+
 const formatExpiryDate = (value) => {
   if (!value) return null;
   const date = typeof value.toDate === 'function'
@@ -194,6 +205,36 @@ export default function PricingModal({
                   </motion.div>
                 );
               })}
+            </div>
+
+            {/* Top-Up: докупка генераций без смены тарифа */}
+            <div className="topup-section">
+              <div className="topup-header">
+                <h3 className="topup-title">⚡ Нужно больше генераций?</h3>
+                <p className="topup-subtitle">Докупите пакет к текущему тарифу — разово, без подписки</p>
+              </div>
+              <div className="topup-grid">
+                {TOPUP_PACKAGES.map((pkg) => {
+                  const isSelected = selectedPlanId === pkg.id;
+                  const perCredit = Math.round(pkg.price / pkg.credits);
+                  return (
+                    <button
+                      key={pkg.id}
+                      className={`topup-card ${pkg.best ? 'topup-card--best' : ''} ${isSelected ? 'topup-card--selected' : ''}`}
+                      onClick={() => handleSelect(pkg.id)}
+                      disabled={loading && isSelected}
+                    >
+                      {pkg.best && <span className="topup-badge">Выгодно</span>}
+                      <span className="topup-credits">{pkg.credits.toLocaleString('ru-RU')}</span>
+                      <span className="topup-credits-label">генераций</span>
+                      <span className="topup-price">
+                        {loading && isSelected ? '⏳' : `${pkg.price.toLocaleString('ru-RU')} ₽`}
+                      </span>
+                      <span className="topup-per">≈ {perCredit} ₽/шт</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {subscription && subscription.plan !== 'none' && subscription.plan !== 'trial' && (
