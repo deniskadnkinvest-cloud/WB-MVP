@@ -7,7 +7,7 @@ export default [
     rules: {
       // Синтаксические правила — ловим ошибки до деплоя
       'no-undef': 'off',           // API файлы используют Node.js глобалы
-      'no-unused-vars': 'warn',    // Предупреждение, не ошибка
+      'no-unused-vars': ['warn', { args: 'none', caughtErrors: 'none', varsIgnorePattern: '^_' }], // ignore intentional _-prefixed / args / catch
       'no-unreachable': 'error',   // Код после return/throw — ошибка
       'no-constant-condition': 'error',
       'no-dupe-keys': 'error',

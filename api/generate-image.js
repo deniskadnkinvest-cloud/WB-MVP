@@ -295,11 +295,13 @@ CONSTRAINTS: ${adaptiveBlock} The clothing must be ON the actor's body. No water
 </phase_3_final_composite>`;
 };
 
-const KIE_API_KEY = process.env.KIE_API_KEY;
+const _KIE_API_KEY = process.env.KIE_API_KEY;
 const TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const GET_TASK_URL = 'https://api.kie.ai/api/v1/jobs/recordInfo?taskId=';
 const FILE_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-base64-upload';
-const MAX_CONCURRENT_KIE_TASKS = Math.max(1, Number.parseInt(process.env.MAX_CONCURRENT_KIE_TASKS || '5', 10) || 5);
+// KIE allows 100+ concurrent tasks per account (create limit 20/10s); 5 was our own bottleneck.
+// 15 keeps big batches flowing well under KIE's create rate limit and the VPS memory budget.
+const MAX_CONCURRENT_KIE_TASKS = Math.max(1, Number.parseInt(process.env.MAX_CONCURRENT_KIE_TASKS || '15', 10) || 15);
 const IDEMPOTENCY_TTL_MS = 30 * 60 * 1000;
 const IDEMPOTENCY_MAX_ENTRIES = 200;
 
@@ -444,6 +446,34 @@ function billingError(message, code, extra = {}) {
   err.code = code;
   Object.assign(err, extra);
   return err;
+}
+
+// Converts any raw/technical/English generation error into a clear, friendly Russian message.
+// The raw message is only logged (never shown), so no scary English or mojibake leaks to the UI.
+function humanizeGenerationError(rawMessage) {
+  const m = String(rawMessage || '').toLowerCase();
+  if (/(sensitive|flag|moderation|nsfw|safety|violat|not allowed|content policy|inappropriate|prohibited)/.test(m)) {
+    return '🛡️ Изображение не прошло модерацию ИИ: обнаружен чувствительный контент (например, слишком откровенная одежда или обнажённые участки тела). Попробуйте фото в более закрытой одежде или другой кадр.';
+  }
+  if (/(timed out|timeout|took too long|deadline)/.test(m)) {
+    return '⏳ Генерация заняла слишком много времени и была прервана. Попробуйте ещё раз — обычно со второй попытки всё получается. Кредит за неудачную попытку возвращён.';
+  }
+  if (/(429|quota|resource_exhausted|rate limit|too many)/.test(m)) {
+    return '⚡ Сейчас идёт слишком много генераций одновременно. Подождите 1–2 минуты и попробуйте снова.';
+  }
+  if (/(422|not supported|unsupported)/.test(m)) {
+    return '⚠️ Это изображение не поддерживается моделью. Попробуйте другое фото — чёткое, хорошо освещённое, где человек или товар хорошо видны.';
+  }
+  if (/(400|invalid_argument|invalid request|bad request|malformed)/.test(m)) {
+    return '⚠️ Некорректный запрос к генерации. Попробуйте изменить настройки или загрузить другое фото.';
+  }
+  if (/(network|econnrefused|etimedout|failed to download|fetch failed|socket|dns|enotfound)/.test(m)) {
+    return '🌐 Не удалось связаться с сервисом генерации. Проверьте интернет и попробуйте ещё раз через минуту. Кредит возвращён.';
+  }
+  if (/(kie|task failed|no image|no taskid|resultjson|generation)/.test(m)) {
+    return '🎨 Сервис генерации не смог создать изображение с этими данными. Попробуйте ещё раз или измените фото либо настройки.';
+  }
+  return '😔 Не удалось сгенерировать изображение. Попробуйте ещё раз. Если ошибка повторяется — напишите в поддержку.';
 }
 
 async function reserveGenerationCredits(authContext, amount, requestId) {
@@ -638,15 +668,12 @@ async function executeKieTask(prompt, imageInputs = [], modelName = "gpt-image-2
   let uploadedImageUrls = [];
   if (imageInputs.length > 0) {
     console.log(`   Checking/Uploading ${imageInputs.length} image(s) to KIE File Upload API...\n   ImageInputs: `, imageInputs.map(img => img.substring(0, 60) + '...'));
-    for (let idx = 0; idx < imageInputs.length; idx++) {
-      const img = imageInputs[idx];
-      if (img.startsWith('http://') || img.startsWith('https://')) {
-        uploadedImageUrls.push(img);
-      } else {
-        const url = await uploadBase64ToKie(img, apiKey, idx);
-        if (url) uploadedImageUrls.push(url);
-      }
-    }
+    // Upload all input images in PARALLEL (was a sequential for-await loop → slow for multi-photo
+    // generations). Promise.all preserves order; nulls (failed uploads) are filtered out.
+    uploadedImageUrls = (await Promise.all(imageInputs.map((img, idx) => {
+      if (img.startsWith('http://') || img.startsWith('https://')) return img;
+      return uploadBase64ToKie(img, apiKey, idx);
+    }))).filter(Boolean);
     console.log(`   Uploaded ${uploadedImageUrls.length}/${imageInputs.length} images: `, uploadedImageUrls);
   }
 
@@ -756,7 +783,7 @@ const extractBase64 = (dataUrl) => {
 // This function crops frame [3], flips it horizontally, and pastes it back.
 // Layout: TOP ROW = 4 equal portrait frames, BOTTOM = 1 wide full-body frame.
 // Frame [3] is the 3rd portrait in the top row (index 2, 0-based).
-async function flipPersonaFrame3(base64Data) {
+async function _flipPersonaFrame3(base64Data) {
   try {
     const rawBase64 = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
     const buffer = Buffer.from(rawBase64, 'base64');
@@ -1422,7 +1449,7 @@ ${humanModelBlock}
 }
 
 
-const QUICK_CARD_PROMPT_NATURAL = `You are an elite marketplace creative director, product photographer, conversion designer, Russian e-commerce copywriter, visual merchandising expert, and premium e-commerce art director.
+const _QUICK_CARD_PROMPT_NATURAL = `You are an elite marketplace creative director, product photographer, conversion designer, Russian e-commerce copywriter, visual merchandising expert, and premium e-commerce art director.
 
 Your task is to transform the provided product image into a premium, high-converting product card for Russian marketplaces, suitable for modern Wildberries and Ozon-style selling logic, but without copying their logos, UI, badges, colors, layout systems, or brand identity.
 
@@ -1700,7 +1727,7 @@ No website interface.
 No marketplace logo.
 Only the polished product card image.`;
 
-const QUICK_CARD_PROMPT_EPIC = `You are a world-class marketplace art director, cinematic advertising designer, conversion-focused e-commerce strategist, Russian copywriter, and AI visual director.
+const _QUICK_CARD_PROMPT_EPIC = `You are a world-class marketplace art director, cinematic advertising designer, conversion-focused e-commerce strategist, Russian copywriter, and AI visual director.
 
 Your task is to transform the provided product image into an extremely eye-catching, high-impact, scroll-stopping marketplace product card for Russian marketplaces such as Wildberries and Ozon.
 
@@ -2150,7 +2177,7 @@ No website interface.
 Only the final polished product card image.`;
 
 // в•ђв•ђв•ђ UGC PROMPT вЂ” СЂРµР°Р»РёСЃС‚РёС‡РЅС‹Рµ С„РѕС‚Рѕ В«РѕС‚ РїРѕРєСѓРїР°С‚РµР»РµР№В» РґР»СЏ РѕС‚Р·С‹РІРѕРІ в•ђв•ђв•ђ
-const QUICK_UGC_PROMPT = `You are an expert at creating hyper-realistic smartphone photographs that look exactly like real customer review photos on Russian marketplaces (Wildberries, Ozon, AliExpress).
+const _QUICK_UGC_PROMPT = `You are an expert at creating hyper-realistic smartphone photographs that look exactly like real customer review photos on Russian marketplaces (Wildberries, Ozon, AliExpress).
 
 Your task: Take the provided product image, carefully analyze what the product is, and create a NEW photograph that looks like it was taken by a real customer on their smartphone after receiving the product.
 
@@ -2210,7 +2237,7 @@ No text. No watermarks. No studio look. No explanations.
 Just the photograph.`;
 
 // РІвЂўС’РІвЂўС’РІвЂўС’ MODEL PHOTO PROMPT РІР‚вЂќ Р С”РЎР‚Р В°РЎРѓР С‘Р Р†Р С•Р Вµ РЎвЂћР С•РЎвЂљР С• РЎвЂљР С•Р Р†Р В°РЎР‚Р В° РЎРѓ Р СР С•Р Т‘Р ВµР В»РЎРЉРЎР‹ (Р В±Р ВµР В· Р С‘Р Р…РЎвЂћР С•Р С–РЎР‚Р В°РЎвЂћР С‘Р С”Р С‘) РІвЂўС’РІвЂўС’РІвЂўС’
-const MODEL_PHOTO_PROMPT = `You are an elite product photographer and creative director.
+const _MODEL_PHOTO_PROMPT = `You are an elite product photographer and creative director.
 
 Your task: Create a stunning, high-quality PHOTOGRAPH of a HUMAN MODEL naturally interacting with the product shown in the reference image(s).
 
@@ -2244,7 +2271,7 @@ STRICT RULES:
 OUTPUT: One finished vertical product photo with a human model. No explanations. No text overlays.`;
 
 // РІвЂўС’РІвЂўС’РІвЂўС’ MODEL CARD PROMPTS РІР‚вЂќ Р С”Р В°РЎР‚РЎвЂљР С•РЎвЂЎР С”Р С‘ Р СР В°РЎР‚Р С”Р ВµРЎвЂљР С—Р В»Р ВµР в„–РЎРѓР В° РЎРѓ РЎвЂЎР ВµР В»Р С•Р Р†Р ВµР С”Р С•Р С-Р СР С•Р Т‘Р ВµР В»РЎРЉРЎР‹ РІвЂўС’РІвЂўС’РІвЂўС’
-const MODEL_CARD_PROMPT_NATURAL = `You are an elite marketplace creative director, product photographer, and Russian copywriter.
+const _MODEL_CARD_PROMPT_NATURAL = `You are an elite marketplace creative director, product photographer, and Russian copywriter.
 
 Your task: Create a premium, clean, minimalist marketplace product card for Russian marketplaces (Wildberries, Ozon) that features a HUMAN MODEL holding, wearing, demonstrating, or using the product.
 
@@ -2292,7 +2319,7 @@ FINAL OUTPUT:
 One finished vertical premium marketplace card with a human model and the product.
 No explanations. No mockup frame. Only the card.`;
 
-const MODEL_CARD_PROMPT_EPIC = `You are a world-class marketplace art director, cinematic advertising designer, and Russian copywriter.
+const _MODEL_CARD_PROMPT_EPIC = `You are a world-class marketplace art director, cinematic advertising designer, and Russian copywriter.
 
 Your task: Create an EPIC, cinematic, scroll-stopping marketplace product card for Russian marketplaces (Wildberries, Ozon) that features a HUMAN MODEL dramatically interacting with the product.
 
@@ -2683,10 +2710,10 @@ OUTPUT: One single 4K image. Casting card with exactly 4 frames. Masterpiece cin
       console.log(`СЂСџвЂњС’ [${elapsed()}s] Generate missing angle: ${missingAngle} from ${existingPhotos.length} existing photos`);
 
       const ANGLE_DESCRIPTIONS = {
-        front: 'a FRONT-FACING portrait photo (looking directly at camera, head and shoulders, neutral expression)',
-        left34: 'a 3/4 LEFT SIDE portrait photo (head turned ~30Р’В° to their left, showing more of the left side of face)',
-        right34: 'a 3/4 RIGHT SIDE portrait photo (head turned ~30Р’В° to their right, showing more of the right side of face)',
-        fullbody: 'a FULL BODY photo (standing straight, facing camera, showing the entire body from head to feet, arms relaxed at sides)',
+        front: 'a FRONT-FACING portrait: the person looks STRAIGHT into the camera, head and shoulders, face symmetrical, neutral expression',
+        left34: 'a 3/4 portrait turned to the LEFT — the face and nose clearly point toward the LEFT side of the image (about 30 degrees). This MUST be the mirror-opposite of the right 3/4 angle: it looks the OPPOSITE way',
+        right34: 'a 3/4 portrait turned to the RIGHT — the face and nose clearly point toward the RIGHT side of the image (about 30 degrees). This MUST be the mirror-opposite of the left 3/4 angle: it looks the OPPOSITE way',
+        fullbody: 'a FULL BODY photo: standing straight, facing camera, entire body from head to feet, arms relaxed at sides',
       };
 
       const angleDesc = ANGLE_DESCRIPTIONS[missingAngle] || ANGLE_DESCRIPTIONS.front;
@@ -2701,6 +2728,8 @@ OUTPUT: One single 4K image. Casting card with exactly 4 frames. Masterpiece cin
 
         const missingPrompt = `You have received ${existingPhotos.length} reference photo(s) of a REAL PERSON.
 Generate ${angleDesc} of this EXACT SAME PERSON.
+
+HEAD DIRECTION (CRITICAL): Follow the requested angle EXACTLY. A LEFT 3/4 must look toward the left of the frame; a RIGHT 3/4 must look toward the right of the frame. Do NOT default to front-facing and do NOT copy the direction of the other photos.
 
 CRITICAL IDENTITY RULES:
 - The generated photo must show the EXACT SAME PERSON as in the reference photos
@@ -2727,7 +2756,7 @@ OUTPUT: One single high-quality photo. No text. No collage. No explanations.`;
       } catch (err) {
         console.error(`РІСњРЉ Generate missing angle error:`, err.message);
         alertOnError(err, `generate-image [missing_angle]`).catch(() => {});
-        return res.status(200).json({ success: false, error: `Р С›РЎв‚¬Р С‘Р В±Р С”Р В° Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘ РЎР‚Р В°Р С”РЎС“РЎР‚РЎРѓР В°: ${err.message.substring(0, 200)}` });
+        return res.status(200).json({ success: false, error: humanizeGenerationError(err.message) });
       }
     }
 
@@ -2865,7 +2894,7 @@ IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation
       modelReferenceImages,
       locationImages,
       customPoseText,
-      previewMode,
+      previewMode: _previewMode,
       isCalibration = false,
       isPhotoEdit = false,
       sourceImageBase64,
@@ -3493,44 +3522,8 @@ ${skinPrompt}
         creditsRemaining: error.creditsRemaining ?? 0
       });
     }
-    if (msg.includes('429') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('quota') || msg.includes('rate')) {
-      return res.status(200).json({ 
-        success: false, 
-        error: 'РІРЏС– Р вЂєР С‘Р СР С‘РЎвЂљ Р В·Р В°Р С—РЎР‚Р С•РЎРѓР С•Р Р† Р Р†РЎР‚Р ВµР СР ВµР Р…Р Р…Р С• Р С‘РЎРѓРЎвЂЎР ВµРЎР‚Р С—Р В°Р Р…. Р СџР С•Р Т‘Р С•Р В¶Р Т‘Р С‘РЎвЂљР Вµ 1-2 Р СР С‘Р Р…РЎС“РЎвЂљРЎвЂ№ Р С‘ Р С—Р С•Р С—РЎР‚Р С•Р В±РЎС“Р в„–РЎвЂљР Вµ РЎРѓР Р…Р С•Р Р†Р В°.',
-        isQuotaError: true
-      });
-    }
-    if (msg.includes('422') || msg.includes('not supported')) {
-      return res.status(200).json({ 
-        success: false, 
-        error: 'РІС™В РїС‘РЏ Р СљР С•Р Т‘Р ВµР В»РЎРЉ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘ Р Р†РЎР‚Р ВµР СР ВµР Р…Р Р…Р С• Р Р…Р ВµР Т‘Р С•РЎРѓРЎвЂљРЎС“Р С—Р Р…Р В°. Р СџР С•Р С—РЎР‚Р С•Р В±РЎС“Р в„–РЎвЂљР Вµ Р С—Р С•Р В·Р В¶Р Вµ.'
-      });
-    }
-    if (msg.includes('400') || msg.includes('INVALID_ARGUMENT')) {
-      return res.status(200).json({ 
-        success: false, 
-        error: 'РІСњРЉ Р СњР ВµР С”Р С•РЎР‚РЎР‚Р ВµР С”РЎвЂљР Р…РЎвЂ№Р в„– Р В·Р В°Р С—РЎР‚Р С•РЎРѓ. Р СџР С•Р С—РЎР‚Р С•Р В±РЎС“Р в„–РЎвЂљР Вµ Р Т‘РЎР‚РЎС“Р С–Р С‘Р Вµ Р Р…Р В°РЎРѓРЎвЂљРЎР‚Р С•Р в„–Р С”Р С‘ Р С‘Р В»Р С‘ РЎвЂћР С•РЎвЂљР С•.'
-      });
-    }
-    
-    // KIE.ai specific errors
-    if (msg.includes('KIE') || msg.includes('Task failed') || msg.includes('Task timed out')) {
-      return res.status(200).json({
-        success: false,
-        error: `РІС™В РїС‘РЏ Р РЋР ВµРЎР‚Р Р†Р С‘РЎРѓ Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘ (KIE.ai): ${msg.substring(0, 200)}`,
-      });
-    }
-    // Network/download errors
-    if (msg.includes('network') || msg.includes('ECONNREFUSED') || msg.includes('ETIMEDOUT') || msg.includes('Failed to download')) {
-      return res.status(200).json({
-        success: false,
-        error: `СЂСџРЉС’ Р С›РЎв‚¬Р С‘Р В±Р С”Р В° РЎРѓР ВµРЎвЂљР С‘: ${msg.substring(0, 200)}. Р СџР С•Р С—РЎР‚Р С•Р В±РЎС“Р в„–РЎвЂљР Вµ РЎРѓР Р…Р С•Р Р†Р В°.`,
-      });
-    }
-    
-    // Catch-all with FULL error details for diagnosis (status 200 РІР‚вЂќ Vercel truncates 500 bodies)
-    const fullError = `${error.name || 'Error'}: ${msg}`.substring(0, 400);
-    console.error(`РІСњРЉ [catch-all] Full error:`, error.name, msg, error.stack?.substring(0, 300));
-    return res.status(200).json({ success: false, error: `Р С›РЎв‚¬Р С‘Р В±Р С”Р В° Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р С‘: ${fullError}` });
+    // All other errors → one clear Russian message (raw detail is logged above, never shown to the user)
+    console.error('[generate-image] error →', error.name, msg, error.stack?.substring(0, 300));
+    return res.status(200).json({ success: false, error: humanizeGenerationError(msg) });
   }
 }
