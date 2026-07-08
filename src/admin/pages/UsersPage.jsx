@@ -91,8 +91,8 @@ function UserDetailDrawer({ open, onClose, userId, authHeaders, onRefreshList })
     }
   };
 
-  const sub = userData?.user?.subscription || {};
-  const profile = userData?.user?.profile || {};
+  const sub = userData?.subscription || {};
+  const profile = userData?.profile || {};
   const summary = userData?.generationSummary || {};
   const generations = userData?.generations || [];
   const payments = userData?.payments || [];
@@ -311,6 +311,7 @@ export default function UsersPage() {
       const res = await fetch('/api/admin/users?limit=200', { headers: { ...authHeaders } });
       const json = await res.json();
       if (json.ok) setUsers(json.users || []);
+      else message.error(json.error || 'Сервер вернул ошибку при загрузке пользователей');
     } catch {
       message.error('Не удалось загрузить пользователей');
     } finally {
@@ -395,15 +396,8 @@ export default function UsersPage() {
       title: 'Генерации',
       key: 'gens',
       width: 90,
-      sorter: (a, b) => {
-        const aTotal = Object.values(a.generationsByType || {}).reduce((s, v) => s + v, 0);
-        const bTotal = Object.values(b.generationsByType || {}).reduce((s, v) => s + v, 0);
-        return aTotal - bTotal;
-      },
-      render: (_, record) => {
-        const total = Object.values(record.generationsByType || {}).reduce((s, v) => s + v, 0);
-        return <Text>{total}</Text>;
-      },
+      sorter: (a, b) => (a.generationCount || 0) - (b.generationCount || 0),
+      render: (_, record) => <Text>{record.generationCount || 0}</Text>,
     },
     {
       title: '',

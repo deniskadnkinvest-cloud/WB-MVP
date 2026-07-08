@@ -61,9 +61,9 @@ export default function SummaryPage() {
     activeUsers = 0,
     generationsTotal = 0,
     generationsToday = 0,
-    starsToday = 0,
-    starsTotal = 0,
-    starsWeek = 0,
+    revenueToday = 0,
+    revenueTotal = 0,
+    revenueWeek = 0,
     realPaymentsCount = 0,
     conversionRate = 0,
     recentPayments = [],
@@ -93,17 +93,17 @@ export default function SummaryPage() {
       <Row gutter={[12, 12]}>
         <Col xs={12} sm={8}>
           <Card size="small">
-            <Statistic title="Доход сегодня" value={starsToday} suffix="⭐" valueStyle={{ color: '#faad14' }} prefix={<StarOutlined />} />
+            <Statistic title="Доход сегодня" value={revenueToday} suffix="₽" valueStyle={{ color: '#faad14' }} prefix={<StarOutlined />} />
           </Card>
         </Col>
         <Col xs={12} sm={8}>
           <Card size="small">
-            <Statistic title="Доход за неделю" value={starsWeek} suffix="⭐" valueStyle={{ color: '#faad14' }} />
+            <Statistic title="Доход за неделю" value={revenueWeek} suffix="₽" valueStyle={{ color: '#faad14' }} />
           </Card>
         </Col>
         <Col xs={12} sm={8}>
           <Card size="small">
-            <Statistic title="Доход всего" value={starsTotal} suffix="⭐" valueStyle={{ color: '#d4b106' }} />
+            <Statistic title="Доход всего" value={revenueTotal} suffix="₽" valueStyle={{ color: '#d4b106' }} />
           </Card>
         </Col>
         <Col xs={12} sm={8}>
@@ -156,7 +156,8 @@ export default function SummaryPage() {
                     <Tag color={PLAN_COLORS[event.planId] || 'default'}>
                       {PLAN_NAMES[event.planId] || event.planId || '—'}
                     </Tag>
-                    {event.stars != null && <Text strong>{event.stars} ⭐</Text>}
+                    {event.amount != null && <Text strong>{event.amount} ₽</Text>}
+                    {event.credits != null && <Text strong>+{event.credits} кр.</Text>}
                   </Space>
                   <div>
                     <Text type="secondary" style={{ fontSize: '12px' }}>
