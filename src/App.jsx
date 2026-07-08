@@ -578,27 +578,47 @@ function App() {
   const [modelPreviewName, setModelPreviewName] = useState('');
 
   // ═══ TELEGRAM BACK BUTTON ═══
-  // Show/hide Telegram's native back button based on app state
+  // Native back closes the top-most open overlay (LIFO). Fixes users being forced to
+  // close the whole Mini App because wizards/modals/panels had no working "back".
   useEffect(() => {
     if (!isTelegram) return;
     const tg = window.Telegram?.WebApp;
-    if (!tg) return;
-
+    if (!tg?.BackButton) return;
     const backBtn = tg.BackButton;
-    // Show back button when user has generated content
-    if (generatedImage || photoshootImages.length > 0 || showHistory || lightboxSrc) {
+
+    // Priority order: top-most / most-transient overlay first, base result view last.
+    const closers = [
+      [!!lightboxSrc, () => setLightboxSrc(null)],
+      [!!confirmModal, () => setConfirmModal(null)],
+      [showBatchConfirm, () => setShowBatchConfirm(false)],
+      [showCardCountModal, () => setShowCardCountModal(false)],
+      [showCardExamples, () => setShowCardExamples(false)],
+      [editingPhotoIdx !== null, () => setEditingPhotoIdx(null)],
+      [showSaveModelModal, () => setShowSaveModelModal(false)],
+      [showLocModal, () => setShowLocModal(false)],
+      [showModelModifier, () => setShowModelModifier(false)],
+      [showLocModifier, () => setShowLocModifier(false)],
+      [!!modelPreviewSrc, () => { setModelPreviewSrc(null); setIsPreviewingModel(false); setShowModelPreviewSave(false); }],
+      [showLoraModal, () => setShowLoraModal(false)],
+      [showCalibWizard, () => setShowCalibWizard(false)],
+      [showPersonaWizard, () => setShowPersonaWizard(false)],
+      [showProductModelDetails, () => setShowProductModelDetails(false)],
+      [showDetails, () => setShowDetails(false)],
+      [showPricing, () => setShowPricing(false)],
+      [showHistory, () => setShowHistory(false)],
+      // base: return from a result back to the studio (results persist in history)
+      [!!generatedImage || photoshootImages.length > 0, () => { setGeneratedImage(null); setPhotoshootImages([]); }],
+    ];
+
+    const top = closers.find(([open]) => open);
+    if (top) {
       backBtn.show();
-      const handler = () => {
-        if (lightboxSrc) { setLightboxSrc(null); return; }
-        if (showHistory) { setShowHistory(false); return; }
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      };
+      const handler = () => top[1]();
       backBtn.onClick(handler);
       return () => backBtn.offClick(handler);
-    } else {
-      backBtn.hide();
     }
-  }, [isTelegram, generatedImage, photoshootImages, showHistory, lightboxSrc]);
+    backBtn.hide();
+  }, [isTelegram, lightboxSrc, confirmModal, showBatchConfirm, showCardCountModal, showCardExamples, editingPhotoIdx, showSaveModelModal, showLocModal, showModelModifier, showLocModifier, modelPreviewSrc, showLoraModal, showCalibWizard, showPersonaWizard, showProductModelDetails, showDetails, showPricing, showHistory, generatedImage, photoshootImages]);
 
   // Load user data from Firestore (skip for guest users in embedded mode)
   useEffect(() => {
@@ -1063,10 +1083,17 @@ function App() {
           if (shareErr?.name === 'AbortError') return;
         }
       }
+      // Telegram in-app WebView blocks <a download>/window.open; use its native downloader for hosted images.
+      const tg = isTelegram ? window.Telegram?.WebApp : null;
+      if (tg?.downloadFile && !src.startsWith('data:')) {
+        try { tg.downloadFile({ url: src, file_name: filename }); return; } catch { /* fall through */ }
+      }
       triggerBrowserDownload(blob, filename);
     } catch (err) {
       console.warn('Download failed:', err.message);
       if (!src.startsWith('data:')) {
+        const tg = isTelegram ? window.Telegram?.WebApp : null;
+        if (tg?.openLink) { tg.openLink(src); return; }
         window.open(src, '_blank', 'noopener,noreferrer');
         return;
       }
@@ -4028,13 +4055,13 @@ ${userProductInfo.trim()}
                 {customProductBg !== '' && (
                   <div className="custom-variant-row" style={{marginTop: 12}}>
                     <input autoFocus className="custom-variant-input" placeholder="Локация с нуля: «деревянный стол в скандинавском стиле, на фоне размытое окно»"
-                      value={customProductBg.trim()} onChange={e => { setCustomProductBg(e.target.value); setSelectedLocId(null); }} />
+                      value={customProductBg.replace(/^\s+/, '')} onChange={e => { setCustomProductBg(e.target.value); setSelectedLocId(null); }} />
                   </div>
                 )}
                 <div className="section-subtitle-small" style={{marginTop: 18, marginBottom: 8, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px', opacity: selectedProductEffects.some(s => s.id === 'none') ? 0.6 : 1}}>
                   <span>✨</span> Добавить спецэффект
                 </div>
-                <div className={`preset-grid ${selectedProductEffects.some(s => s.id === 'none') ? 'dimmed' : ''}`} style={{opacity: selectedProductEffects.some(s => s.id === 'none') ? 0.6 : 1, filter: selectedProductEffects.some(s => s.id === 'none') ? 'grayscale(0.8)' : 'none'}}>
+                <div className="preset-grid" style={{opacity: selectedProductEffects.some(s => s.id === 'none') ? 0.6 : 1, filter: selectedProductEffects.some(s => s.id === 'none') ? 'grayscale(0.8)' : 'none'}}>
                   {PRODUCT_EFFECTS.map(e => {
                     const isActive = selectedProductEffects.some(s => s.id === e.id);
                     return (
@@ -4335,29 +4362,7 @@ ${userProductInfo.trim()}
           <div className="quick-hero-actions">
             <button className="download-btn" onClick={async () => {
               const filename = quickMode === 'ugc' ? `ugc-photo-${Date.now()}.png` : `studio-photo-${Date.now()}.png`;
-              if (generatedImage.startsWith('data:')) {
-                const link = document.createElement('a');
-                link.href = generatedImage;
-                link.download = filename;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-              } else {
-                try {
-                  const resp = await fetch(generatedImage, { mode: 'cors' });
-                  const blob = await resp.blob();
-                  const blobUrl = URL.createObjectURL(blob);
-                  const link = document.createElement('a');
-                  link.href = blobUrl;
-                  link.download = filename;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  URL.revokeObjectURL(blobUrl);
-                } catch (err) {
-                  window.open(generatedImage, '_blank');
-                }
-              }
+              downloadImageAsset(generatedImage, filename);
             }}>⬇️ Скачать фото</button>
           </div>
           {/* Nav between cached results */}
@@ -4472,17 +4477,7 @@ ${userProductInfo.trim()}
               <button 
                 onClick={async () => {
                   const filename = `marketplace-card-${Date.now()}.png`;
-                  if (quickCardImage.startsWith('data:')) {
-                    const link = document.createElement('a'); link.href = quickCardImage; link.download = filename;
-                    document.body.appendChild(link); link.click(); document.body.removeChild(link);
-                  } else {
-                    try {
-                      const resp = await fetch(quickCardImage, { mode: 'cors' });
-                      const blob = await resp.blob(); const blobUrl = URL.createObjectURL(blob);
-                      const link = document.createElement('a'); link.href = blobUrl; link.download = filename;
-                      document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(blobUrl);
-                    } catch (err) { window.open(quickCardImage, '_blank'); }
-                  }
+                  downloadImageAsset(quickCardImage, filename);
                 }}
                 disabled={isCardEditing}
                 style={{
@@ -4571,16 +4566,7 @@ ${userProductInfo.trim()}
                           onClick={(e) => {
                             e.stopPropagation();
                             const filename = `gallery-slide-${idx+1}-${Date.now()}.png`;
-                            if (img.startsWith('data:')) {
-                              const link = document.createElement('a'); link.href = img; link.download = filename;
-                              document.body.appendChild(link); link.click(); document.body.removeChild(link);
-                            } else {
-                              fetch(img, { mode: 'cors' }).then(r => r.blob()).then(b => {
-                                const u = URL.createObjectURL(b);
-                                const link = document.createElement('a'); link.href = u; link.download = filename;
-                                document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(u);
-                              }).catch(() => window.open(img, '_blank'));
-                            }
+                            downloadImageAsset(img, filename);
                           }}
                           style={{position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10}}
                           title="Скачать"
@@ -4693,16 +4679,7 @@ ${userProductInfo.trim()}
                           onClick={(e) => {
                             e.stopPropagation();
                             const filename = `ab-test-variant-${idx === 0 ? 'A' : 'B'}-${Date.now()}.png`;
-                            if (img.startsWith('data:')) {
-                              const link = document.createElement('a'); link.href = img; link.download = filename;
-                              document.body.appendChild(link); link.click(); document.body.removeChild(link);
-                            } else {
-                              fetch(img, { mode: 'cors' }).then(r => r.blob()).then(b => {
-                                const u = URL.createObjectURL(b);
-                                const link = document.createElement('a'); link.href = u; link.download = filename;
-                                document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(u);
-                              }).catch(() => window.open(img, '_blank'));
-                            }
+                            downloadImageAsset(img, filename);
                           }}
                           style={{position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.6)', border: 'none', borderRadius: '50%', width: 22, height: 22, color: '#fff', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10}}
                           title="Скачать"
@@ -5241,7 +5218,7 @@ ${userProductInfo.trim()}
             )}
             <div className="lightbox-footer">
               {lightboxGallery.length > 1 && <span className="lightbox-counter">{lightboxIdx + 1} / {lightboxGallery.length}</span>}
-              <button className="lightbox-download" onClick={e => { e.stopPropagation(); const a = document.createElement('a'); a.href = lightboxSrc; a.download = `SellerStudio_${Date.now()}.jpg`; a.click(); }}>⬇️ Скачать</button>
+              <button className="lightbox-download" onClick={e => { e.stopPropagation(); downloadImageAsset(lightboxSrc); }}>⬇️ Скачать</button>
             </div>
           </motion.div>
         )}
