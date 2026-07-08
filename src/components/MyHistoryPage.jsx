@@ -116,11 +116,19 @@ export default function MyHistoryPage({ onClose, onReuseSettings }) {
       const resp = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await resp.json();
-      if (!data.ok) throw new Error(data.error || 'Ошибка загрузки');
+      let data;
+      try {
+        data = await resp.json();
+      } catch {
+        throw new Error(resp.ok ? 'empty-response' : `http-${resp.status}`);
+      }
+      if (!resp.ok || !data.ok) throw new Error(data?.error || 'load-failed');
       setGenerations(data.generations || []);
     } catch (e) {
-      setError(e.message);
+      // Never surface a raw JS/technical exception to the user — show a friendly RU message.
+      const raw = String(e?.message || '');
+      const technical = /json|unexpected|fetch|network|failed to|empty-response|http-|load-failed|token|undefined|getidtoken/i.test(raw);
+      setError(technical ? 'Не удалось загрузить историю. Проверьте соединение и попробуйте ещё раз.' : raw);
     } finally {
       setLoading(false);
     }
