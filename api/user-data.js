@@ -1,4 +1,4 @@
-﻿// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 // API endpoint: /api/user-data
 // CRUD operations for user models, locations, and generations
 // Replaces direct Firestore calls from frontend
@@ -169,11 +169,14 @@ export default async function handler(req, res) {
 
       if (type === 'model') {
         if (!identity.dbId) return res.status(404).json({ ok: false, error: 'User not found' });
+        const modelSubType = data.model_type || data.type || 'unknown';
+        // Remove temporary model_type if present to keep metadata clean
+        delete data.model_type;
         const result = await query(
           `INSERT INTO models (user_id, type, image_url, metadata)
            VALUES ($1, $2, $3, $4)
            RETURNING *`,
-          [identity.dbId, data.type || 'unknown', data.imageUrls?.[0] || data.image_url || '', JSON.stringify(data)]
+          [identity.dbId, modelSubType, data.imageUrls?.[0] || data.image_url || '', JSON.stringify({ ...data, type: modelSubType })]
         );
         return res.json({ ok: true, data: rowToModel(result.rows[0]) });
       }
@@ -198,13 +201,26 @@ export default async function handler(req, res) {
 
       if (type === 'model' && id) {
         if (!identity.dbId) return res.status(404).json({ ok: false, error: 'User not found' });
-        // РћР±РЅРѕРІР»СЏРµРј metadata СЃ РјРµСЂР¶РµРј СЃСѓС‰РµСЃС‚РІСѓСЋС‰РёС… РїРѕР»РµР№
-        const existing = await query(`SELECT metadata FROM models WHERE id = $1 AND user_id = $2`, [id, identity.dbId]);
-        const oldMeta = existing.rows[0]?.metadata || {};
+        // Получаем текущие данные из БД
+        const existing = await query(`SELECT type, image_url, metadata FROM models WHERE id = $1 AND user_id = $2`, [id, identity.dbId]);
+        if (!existing.rows[0]) return res.status(404).json({ ok: false, error: 'Model not found' });
+
+        const oldMeta = existing.rows[0].metadata || {};
         const newMeta = { ...oldMeta, ...fields };
+
+        // Тип модели и URL картинки берем из переданных полей или оставляем старые
+        const typeVal = fields.model_type || fields.type || existing.rows[0].type;
+        const imageUrlVal = fields.imageUrls?.[0] || fields.image_url || existing.rows[0].image_url;
+
+        // Очищаем служебные поля из metadata
+        delete newMeta.model_type;
+        delete newMeta.type;
+        delete newMeta.id;
+        delete newMeta.uid;
+
         await query(
-          `UPDATE models SET metadata = $1 WHERE id = $2 AND user_id = $3`,
-          [JSON.stringify(newMeta), id, identity.dbId]
+          `UPDATE models SET type = $1, image_url = $2, metadata = $3 WHERE id = $4 AND user_id = $5`,
+          [typeVal, imageUrlVal, JSON.stringify(newMeta), id, identity.dbId]
         );
         return res.json({ ok: true });
       }

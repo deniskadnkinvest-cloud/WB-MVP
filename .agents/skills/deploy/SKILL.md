@@ -177,7 +177,7 @@ node migrations/migrate-local.mjs
 | API Create Task | `https://api.kie.ai/api/v1/jobs/createTask` |
 | File Upload | `https://kieai.redpandaai.co/api/file-base64-upload` |
 | Polling | `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=` |
-| Модель | `nano-banana-2` |
+| Модель | `gpt-image-2-image-to-image` |
 | Макс. параллельных | 5 (`MAX_CONCURRENT_KIE_TASKS`) |
 | Idempotency | in-memory Map, TTL 30 мин |
 

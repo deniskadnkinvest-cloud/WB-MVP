@@ -154,7 +154,7 @@ export const POSE_PRESETS = [
   {
     id: 'hands_on_hips',
     label: 'Руки на бёдрах',
-    emoji: '💃',
+    emoji: '💁‍♀️',
     prompt: 'standing with hands on hips, power pose, chest forward, confident commercial look',
   },
 ];

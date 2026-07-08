@@ -26,7 +26,7 @@ export const PLANS = {
     id: 'trial',
     label: 'Тест-драйв',
     emoji: '🎯',
-    credits: 25,
+    credits: 10,
     price: 500,
     period: null, // one-time
     canSaveModels: false,
@@ -34,7 +34,7 @@ export const PLANS = {
     canPhotoshoot: false,
     canUsePresets: true,
     canUseCustomPrompts: true,
-    description: 'Полный креатив, но без сохранения моделей',
+    description: 'Попробуйте все возможности — без подписки',
   },
   base: {
     id: 'base',
@@ -48,14 +48,14 @@ export const PLANS = {
     canPhotoshoot: true,
     canUsePresets: true,
     canUseCustomPrompts: true,
-    description: 'Полноценный инструмент для создания бренда',
+    description: 'Свои модели, персонажи и фотосессии',
     bestSeller: true,
   },
   pro: {
     id: 'pro',
-    label: 'Бизнес',
-    emoji: '🚀',
-    credits: 1000,
+    label: 'Gold Seller',
+    emoji: '👑',
+    credits: 350,
     price: 14990,
     period: 'month',
     canSaveModels: true,
@@ -63,7 +63,7 @@ export const PLANS = {
     canPhotoshoot: true,
     canUsePresets: true,
     canUseCustomPrompts: true,
-    description: 'Максимальный пакет для крупных селлеров и студий',
+    description: 'Эксклюзивные условия для профессиональных брендов',
   },
 };
 

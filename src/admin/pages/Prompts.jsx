@@ -74,6 +74,43 @@ export default function Prompts() {
   const [search, setSearch] = useState('');
   const [group, setGroup] = useState('all');
 
+  const [langSetting, setLangSetting] = useState(null); // 'ru' | 'en' | null
+  const [langLoading, setLangLoading] = useState(false);
+  const [langMsg, setLangMsg] = useState('');
+
+  const loadLang = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/settings', { headers: { ...authHeaders } });
+      const json = await res.json();
+      if (json.ok) setLangSetting(json.settings?.prompt_lang?.value || 'ru');
+    } catch (e) { /* ignore */ }
+  }, [authHeaders]);
+
+  const toggleLang = useCallback(async () => {
+    const newLang = langSetting === 'ru' ? 'en' : 'ru';
+    setLangLoading(true);
+    setLangMsg('');
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ key: 'prompt_lang', value: newLang }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setLangSetting(newLang);
+        setLangMsg(`✅ Язык промптов переключён на ${newLang.toUpperCase()}`);
+      } else {
+        setLangMsg(`❌ ${json.error}`);
+      }
+    } catch (e) {
+      setLangMsg(`❌ ${e.message}`);
+    } finally {
+      setLangLoading(false);
+      setTimeout(() => setLangMsg(''), 4000);
+    }
+  }, [langSetting, authHeaders]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -91,7 +128,8 @@ export default function Prompts() {
 
   useEffect(() => {
     load();
-  }, [load]);
+    loadLang();
+  }, [load, loadLang]);
 
   const prompts = useMemo(() => data?.prompts || [], [data?.prompts]);
   const groups = useMemo(() => ['all', ...Object.keys(data?.summary?.groups || {}).sort()], [data]);
@@ -112,6 +150,33 @@ export default function Prompts() {
         <p style={{ margin: 0, color: c.text2, fontSize: '14px', lineHeight: 1.55 }}>
           Показывает промпты из текущего кода: backend-системные шаблоны, prompt builders, карточки и UI-пресеты. После изменения и деплоя код автоматически отражается здесь.
         </p>
+        {/* === Переключатель языка промптов === */}
+        <div style={{ marginTop: '18px', display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+          <div style={{ color: c.text2, fontSize: '13px', fontWeight: 700 }}>Промпты на языке:</div>
+          <button
+            onClick={toggleLang}
+            disabled={langLoading || langSetting === null}
+            style={{
+              padding: '8px 20px',
+              borderRadius: '12px',
+              border: `1px solid ${langSetting === 'ru' ? c.green : c.blue}44`,
+              background: langSetting === 'ru' ? `${c.green}18` : `${c.blue}18`,
+              color: langSetting === 'ru' ? c.green : c.blue,
+              fontSize: '13px',
+              fontWeight: 900,
+              cursor: langLoading ? 'wait' : 'pointer',
+              transition: 'all 0.2s',
+              letterSpacing: '0.5px',
+            }}
+          >
+            {langLoading ? '…' : langSetting === 'ru' ? '🇷🇺 РУССКИЙ → переключить на EN' : '🇬🇧 ENGLISH → переключить на RU'}
+          </button>
+          {langMsg && (
+            <span style={{ fontSize: '13px', color: langMsg.startsWith('✅') ? c.green : c.red }}>
+              {langMsg}
+            </span>
+          )}
+        </div>
       </div>
 
       {loading ? (

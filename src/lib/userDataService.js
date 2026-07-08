@@ -35,13 +35,34 @@ export const getUserGenerations = async (uid, maxResults = 50) => {
  * @param {{ name: string, type: string, imageUrls: string[], storagePaths?: string[], prompt?: string }} data
  */
 export const saveModel = async (uid, data) => {
+  const { type: modelSubType, ...rest } = data;
   const res = await apiFetch('/api/user-data', {
     method: 'POST',
-    body: JSON.stringify({ type: 'model', uid, ...data }),
+    body: JSON.stringify({ type: 'model', uid, model_type: modelSubType, ...rest }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || 'Ошибка сохранения модели');
+  }
+  const json = await res.json();
+  return json.data || { id: json.id };
+};
+
+/**
+ * Обновить данные модели.
+ * @param {string} uid
+ * @param {string} modelId
+ * @param {object} data
+ */
+export const updateModel = async (uid, modelId, data) => {
+  const { type: modelSubType, ...rest } = data;
+  const res = await apiFetch('/api/user-data', {
+    method: 'PATCH',
+    body: JSON.stringify({ type: 'model', id: modelId, uid, model_type: modelSubType, ...rest }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Ошибка обновления модели');
   }
   const json = await res.json();
   return json.data || { id: json.id };

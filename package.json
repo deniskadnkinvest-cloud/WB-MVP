@@ -12,6 +12,7 @@
     "dev:server": "node server.js",
     "lint": "eslint api/*.js",
     "lint:fix": "eslint api/*.js --fix",
+    "test:revenue": "node tests/revenue.test.js",
     "build": "vite build",
     "preview": "vite preview",
     "catalog:server": "MOCK_KIE=true node server-autocatalog.js",
@@ -36,7 +37,8 @@
     "pg": "^8.22.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "react-icons": "^5.7.0"
+    "react-icons": "^5.7.0",
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

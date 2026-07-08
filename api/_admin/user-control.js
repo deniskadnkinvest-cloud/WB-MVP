@@ -1,4 +1,4 @@
-﻿// POST /api/admin/user-control
+// POST /api/admin/user-control
 // Admin operations for looking up users, setting plans, and adding credits.
 // РРЎРўРћР§РќРРљ РРЎРўРРќР«: PostgreSQL (Р¤Р—-152 compliant, СЂРѕСЃСЃРёР№СЃРєРёР№ С…РѕСЃС‚РёРЅРі)
 // Auth РїРѕР»РЅРѕСЃС‚СЊСЋ СѓРґР°Р»С‘РЅ. Р’СЃРµ РѕРїРµСЂР°С†РёРё РёРґСѓС‚ С‡РµСЂРµР· _db.js в†’ PostgreSQL.
@@ -7,9 +7,9 @@ import { checkAdminAuth } from './verify.js';
 import { query as pgQuery } from '../_db.js';
 
 const PLAN_CREDITS = {
-  trial: 25,
+  trial: 10,
   base: 100,
-  pro: 1000,
+  pro: 350,
 };
 
 const PAID_PLANS = new Set(['base', 'pro']);

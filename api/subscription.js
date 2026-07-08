@@ -1,4 +1,4 @@
-﻿// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 // GET/POST /api/subscription
 // РЈРїСЂР°РІР»РµРЅРёРµ РїРѕРґРїРёСЃРєР°РјРё РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№
 // РРЎРўРћР§РќРРљ РРЎРўРРќР«: PostgreSQL (СЂРѕСЃСЃРёР№СЃРєРёР№ С…РѕСЃС‚РёРЅРі, Р¤Р—-152)
@@ -8,6 +8,7 @@ import jwt from 'jsonwebtoken';
 import { query } from './_db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
+const PLAN_CREDITS = { trial: 10, base: 100, pro: 350 };
 
 function verifyToken(req) {
   const authHeader = req.headers.authorization || '';
@@ -145,12 +146,19 @@ export default async function handler(req, res) {
       // РџРѕР»СѓС‡РёС‚СЊ РёСЃС‚РѕСЂРёСЋ РїР»Р°С‚РµР¶РµР№
       const payments = await getPayments(userId);
 
+      const planName = sub.plan_name || 'none';
+      let credits = sub.credits || 0;
+      let creditsTotal = sub.credits_total || 0;
+
+      // Защита: автоматическое приведение к лимиту тарифа, если реальный лимит в БД больше стандартного
+      // Topups and rollover credits are allowed to exceed standard limit
+
       return res.json({
         ok: true,
         data: {
-          plan: sub.plan_name || 'none',
-          credits: sub.credits || 0,
-          creditsTotal: sub.credits_total || 0,
+          plan: planName,
+          credits,
+          creditsTotal,
           planActivatedAt: sub.created_at?.toISOString(),
           planExpiresAt: sub.expires_at?.toISOString() || null,
           subscriptionStatus: sub.status || 'inactive',
@@ -166,7 +174,6 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const { planId } = req.body || {};
 
-      const PLAN_CREDITS = { trial: 25, base: 100, pro: 1000 };
       const credits = PLAN_CREDITS[planId];
 
       if (!credits) {

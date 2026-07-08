@@ -117,10 +117,10 @@ export async function generateWithKie(garmentImageUrl, params, classification) {
 
   // 3. Создать задачу
   const reqBody = {
-    model: 'nano-banana-2',
+    model: 'gpt-image-2-image-to-image',
     input: {
       prompt,
-      image_input: [kieImageUrl],
+      input_urls: [kieImageUrl],
       aspect_ratio: '3:4',
       resolution: '1K',
       output_format: 'png'

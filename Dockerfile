@@ -18,6 +18,7 @@ RUN npm install --omit=dev
 COPY server.js .
 COPY server-autocatalog.js .
 COPY api ./api
+COPY src/data ./src/data
 
 # Копируем собранный фронтенд
 COPY --from=build /app/dist ./dist

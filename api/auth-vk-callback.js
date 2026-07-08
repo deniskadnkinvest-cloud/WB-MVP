@@ -1,10 +1,24 @@
+// GET /api/auth-vk-callback
+// Обработка callback'а от VK ID OAuth
+// Обменивает code на access_token через VK ID endpoints
+
 import jwt from 'jsonwebtoken';
 import { query } from './_db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
 
+function parseCookies(cookieHeader) {
+  const cookies = {};
+  if (!cookieHeader) return cookies;
+  cookieHeader.split(';').forEach(pair => {
+    const [name, ...rest] = pair.trim().split('=');
+    cookies[name] = rest.join('=');
+  });
+  return cookies;
+}
+
 export default async function handler(req, res) {
-  const { code, error } = req.query;
+  const { code, error, state, device_id } = req.query;
 
   // Если пользователь отменил авторизацию
   if (error) {
@@ -27,35 +41,89 @@ export default async function handler(req, res) {
     return res.status(500).send('VK keys are not configured');
   }
 
+  // Восстанавливаем PKCE verifier и state из cookie
+  const cookies = parseCookies(req.headers.cookie);
+  let codeVerifier = '';
+  let savedState = '';
+
+  try {
+    const pkceData = JSON.parse(decodeURIComponent(cookies.vk_pkce || '{}'));
+    codeVerifier = pkceData.v || '';
+    savedState = pkceData.s || '';
+  } catch (e) {
+    console.warn('[auth-vk] Failed to parse PKCE cookie:', e.message);
+  }
+
+  // Проверяем state для CSRF-защиты
+  if (savedState && state && savedState !== state) {
+    console.error('[auth-vk] State mismatch:', { savedState, receivedState: state });
+    return res.send(`
+      <script>
+        window.opener.postMessage({ type: 'OAUTH_ERROR', error: 'CSRF state mismatch' }, '*');
+        window.close();
+      </script>
+    `);
+  }
+
   const protocol = req.headers['x-forwarded-proto'] || 'https';
   const host = req.headers.host || 'localhost:5173';
   const redirectUri = `${protocol}://${host}/api/auth-vk-callback`;
 
+  // Очищаем PKCE cookie
+  res.setHeader('Set-Cookie', 'vk_pkce=; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0');
+
   try {
-    // 1. Обмен кода на access_token
-    const tokenResponse = await fetch(`https://oauth.vk.com/access_token?client_id=${vkAppId}&client_secret=${vkAppSecret}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`);
+    // 1. Обмен кода на access_token через VK ID endpoint
+    const tokenBody = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: redirectUri,
+      client_id: vkAppId,
+      client_secret: vkAppSecret,
+      code_verifier: codeVerifier,
+      ...(device_id ? { device_id } : {}),
+      ...(state ? { state } : {}),
+    });
+
+    const tokenResponse = await fetch('https://id.vk.com/oauth2/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenBody.toString(),
+    });
+
     const tokenData = await tokenResponse.json();
 
-    if (tokenData.error) {
-      throw new Error(tokenData.error_description || tokenData.error);
+    if (tokenData.error || !tokenData.access_token) {
+      console.error('[auth-vk] Token exchange error:', tokenData);
+      throw new Error(tokenData.error_description || tokenData.error || 'Token exchange failed');
     }
 
-    const { access_token, user_id, email: vkEmail } = tokenData;
+    const { access_token, user_id: tokenUserId } = tokenData;
 
-    // 2. Получение профиля пользователя
-    const profileResponse = await fetch(`https://api.vk.com/method/users.get?user_ids=${user_id}&fields=photo_200&access_token=${access_token}&v=5.131`);
-    const profileData = await profileResponse.json();
+    // 2. Получение профиля через VK ID user_info endpoint
+    const userInfoBody = new URLSearchParams({
+      client_id: vkAppId,
+      access_token,
+    });
 
-    if (profileData.error) {
-      throw new Error(profileData.error.error_msg);
+    const userInfoResponse = await fetch('https://id.vk.com/oauth2/user_info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: userInfoBody.toString(),
+    });
+
+    const userInfo = await userInfoResponse.json();
+
+    if (userInfo.error) {
+      console.error('[auth-vk] User info error:', userInfo);
+      throw new Error(userInfo.error_description || 'Failed to get user info');
     }
 
-    const userProfile = profileData.response[0];
-    const vkIdStr = String(user_id);
+    const vkIdStr = String(userInfo.user_id || tokenUserId);
     const stableUid = `vk_${vkIdStr}`;
-    const email = vkEmail || `${stableUid}@vk.user`;
-    const displayName = [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ');
-    const photoUrl = userProfile.photo_200;
+    const email = userInfo.email || `${stableUid}@vk.user`;
+    const displayName = [userInfo.first_name, userInfo.last_name].filter(Boolean).join(' ');
+    const photoUrl = userInfo.avatar || userInfo.photo_200 || '';
 
     console.log(`[auth-vk] Verified VK user ${vkIdStr} (${displayName}), issuing token for UID: ${stableUid}`);
 
@@ -70,7 +138,7 @@ export default async function handler(req, res) {
            ELSE users.email
          END
        RETURNING id, telegram_id, email, role`,
-      [stableUid, email], // В telegram_id сохраняем наш stableUid (vk_123) для совместимости с текущей схемой БД
+      [stableUid, email],
       { attempts: 3, retryUnsafe: true }
     );
 
@@ -89,7 +157,7 @@ export default async function handler(req, res) {
     const customToken = jwt.sign(
       {
         uid: stableUid,
-        telegramId: stableUid, // Для обратной совместимости во фронтенде
+        telegramId: stableUid,
         dbUserId: dbUser.id,
       },
       JWT_SECRET,
@@ -128,7 +196,7 @@ export default async function handler(req, res) {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(`
       <script>
-        window.opener.postMessage({ type: 'OAUTH_ERROR', error: '${err.message}' }, '*');
+        window.opener.postMessage({ type: 'OAUTH_ERROR', error: '${err.message.replace(/'/g, "\\'")}' }, '*');
         window.close();
       </script>
       <p>Ошибка авторизации: ${err.message}</p>

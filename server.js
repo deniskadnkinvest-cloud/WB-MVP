@@ -26,7 +26,6 @@ import authYandexHandler from './api/auth-yandex.js';
 import authVkCallbackHandler from './api/auth-vk-callback.js';
 import authYandexCallbackHandler from './api/auth-yandex-callback.js';
 
-
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -34,7 +33,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(cors({ optionsSuccessStatus: 200 }));
+app.use(cors({
+  origin: ['https://seller-studio-ai.ru', 'http://localhost:5173', 'http://localhost:3000'],
+  credentials: true,
+  optionsSuccessStatus: 200
+}));
 
 // Global Request Logger
 app.use((req, res, next) => {
@@ -75,7 +78,18 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use('/api/inngest', serve({ client: inngest, functions }));
 
 // Раздача статики (React-фронтенд)
-app.use(express.static(path.join(__dirname, 'dist')));
+// index.html — no-cache чтобы браузер не кешировал и всегда получал свежий HTML
+app.use(express.static(path.join(__dirname, 'dist'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+  }
+}));
 
 app.get('/api/auth-ping', (req, res) => {
   res.json({ ok: true });
@@ -217,4 +231,3 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 
 // KIE.ai может обрабатывать задачи до 4-5 минут — ставим таймаут 10 минут
 server.setTimeout(10 * 60 * 1000); // 10 минут
-

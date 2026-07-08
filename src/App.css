@@ -5731,3 +5731,16 @@ button[onclick*="signOut"],
   right: -12px;
 }
 
+/* Dimmed section when no effects are chosen */
+.effects-section-dimmed {
+  opacity: 0.4;
+  transition: opacity 0.2s ease, filter 0.2s ease;
+  filter: grayscale(0.3);
+}
+
+.effects-section-dimmed:hover,
+.effects-section-dimmed:focus-within {
+  opacity: 1;
+  filter: grayscale(0);
+}
+

@@ -207,9 +207,9 @@ function UserDetailDrawer({ open, onClose, userId, authHeaders, onRefreshList })
               <Divider style={{ margin: '12px 0' }}>Выдать тариф</Divider>
               <Space.Compact style={{ width: '100%' }}>
                 <Select value={selectedPlan} onChange={setSelectedPlan} style={{ width: '60%' }}>
-                  <Select.Option value="trial">🟡 Старт (25 генераций)</Select.Option>
+                  <Select.Option value="trial">🟡 Старт (10 генераций)</Select.Option>
                   <Select.Option value="base">🔵 Про (100 генераций)</Select.Option>
-                  <Select.Option value="pro">🟣 Бизнес (1000 генераций)</Select.Option>
+                  <Select.Option value="pro">🟣 Бизнес (350 генераций)</Select.Option>
                 </Select>
                 <Button type="primary" icon={<GiftOutlined />} loading={opLoading} onClick={() => doAction('set-plan', { plan: selectedPlan })}>
                   Выдать

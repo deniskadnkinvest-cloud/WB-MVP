@@ -66,20 +66,23 @@ export default function PricingModal({
                 const isActive = currentPlan === plan.id;
                 const isSelected = selectedPlanId === plan.id;
                 const isBest = plan.bestSeller;
+                const isGold = plan.id === 'pro';
 
                 return (
                   <motion.div
                     key={plan.id}
-                    className={`pricing-card ${isBest ? 'pricing-card--best' : ''} ${isActive ? 'pricing-card--active' : ''} ${isSelected ? 'pricing-card--selected' : ''}`}
+                    className={`pricing-card ${isBest ? 'pricing-card--best' : ''} ${isGold ? 'pricing-card--gold' : ''} ${isActive ? 'pricing-card--active' : ''} ${isSelected ? 'pricing-card--selected' : ''}`}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.1, duration: 0.4 }}
                   >
                     {isActive 
                       ? <div className="pricing-badge pricing-badge--active">✓ Активен</div>
-                      : isBest 
-                        ? <div className="pricing-badge">⭐ Best Seller</div>
-                        : null
+                      : isGold
+                        ? <div className="pricing-badge pricing-badge--gold">Gold Seller</div>
+                        : isBest 
+                          ? <div className="pricing-badge pricing-badge--best">⭐ Best Seller</div>
+                          : null
                     }
 
                     <div className="pricing-card-emoji">{plan.emoji}</div>
@@ -98,26 +101,61 @@ export default function PricingModal({
                     </div>
 
                     <ul className="pricing-features">
+                      <li className="pricing-feature-group">Базовые возможности</li>
                       <li className="pricing-feature pricing-feature--yes">
-                        ✅ Все промпты и фоны
+                        <span className="feature-icon">✅</span> <span className="feature-text">Виртуальная примерка одежды на AI-модели</span>
+                      </li>
+                      <li className="pricing-feature pricing-feature--yes">
+                        <span className="feature-icon">✅</span> <span className="feature-text">Реалистичные фото от покупателей (UGC)</span>
+                      </li>
+                      <li className="pricing-feature pricing-feature--yes">
+                        <span className="feature-icon">✅</span> <span className="feature-text">Готовые карточки для WB, Ozon, Inst</span>
+                      </li>
+                      <li className="pricing-feature pricing-feature--yes">
+                        <span className="feature-icon">✅</span> <span className="feature-text">Предметная и студийная съёмка</span>
+                      </li>
+                      <li className="pricing-feature pricing-feature--yes">
+                        <span className="feature-icon">✅</span> <span className="feature-text">10+ моделей · 7 фонов · 5 форматов</span>
+                      </li>
+
+                      {/* PRO Features - show on all, locked on Trial */}
+                      <li className="pricing-feature-group">{plan.id === 'trial' ? 'PRO-инструменты' : 'Всё базовое, а также:'}</li>
+                      <li className={`pricing-feature ${plan.canSaveModels ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
+                        <span className="feature-icon">{plan.canSaveModels ? '✅' : '🔒'}</span> <span className="feature-text">Своя AI-модель по вашим фото</span>
                       </li>
                       <li className={`pricing-feature ${plan.canSaveModels ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
-                        {plan.canSaveModels ? '✅' : '🔒'} Сохранение модели (Identity)
+                        <span className="feature-icon">{plan.canSaveModels ? '✅' : '🔒'}</span> <span className="feature-text">Создание уникальных персонажей</span>
                       </li>
                       <li className={`pricing-feature ${plan.canSaveLocations ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
-                        {plan.canSaveLocations ? '✅' : '🔒'} Свои локации
+                        <span className="feature-icon">{plan.canSaveLocations ? '✅' : '🔒'}</span> <span className="feature-text">Свои фоны и локации для съёмки</span>
                       </li>
                       <li className={`pricing-feature ${plan.canPhotoshoot ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
-                        {plan.canPhotoshoot ? '✅' : '🔒'} Пакетная генерация (5 генераций)
+                        <span className="feature-icon">{plan.canPhotoshoot ? '✅' : '🔒'}</span> <span className="feature-text">Фотосессия: 5 ракурсов за 1 клик</span>
                       </li>
-                      <li className={`pricing-feature ${plan.canUseCustomPrompts ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
-                        {plan.canUseCustomPrompts ? '✅' : '🔒'} Свой текст модели
-                      </li>
+
+                      {/* GOLD Features - hide on Trial, show on Base/Pro */}
+                      {plan.id !== 'trial' && (
+                        <>
+                          <li className="pricing-feature-group">{isGold ? 'Эксклюзивно для Gold:' : 'Gold-премиум'}</li>
+                          <li className={`pricing-feature ${isGold ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
+                            <span className="feature-icon">{isGold ? '✅' : '🔒'}</span> <span className="feature-text">Fast Track — приоритетная генерация</span>
+                          </li>
+                          <li className={`pricing-feature ${isGold ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
+                            <span className="feature-icon">{isGold ? '✅' : '🔒'}</span> <span className="feature-text">Закрытый клуб и ранний доступ</span>
+                          </li>
+                          <li className={`pricing-feature ${isGold ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
+                            <span className="feature-icon">{isGold ? '✅' : '🔒'}</span> <span className="feature-text">Приоритет техподдержки</span>
+                          </li>
+                          <li className={`pricing-feature ${isGold ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
+                            <span className="feature-icon">{isGold ? '✅' : '🔒'}</span> <span className="feature-text">Перенос неиспользованных генераций</span>
+                          </li>
+                        </>
+                      )}
                     </ul>
 
                     <div className="pricing-action-area">
                       <button
-                        className={`pricing-btn ${isBest ? 'pricing-btn--best' : ''} ${isActive ? 'pricing-btn--active' : ''}`}
+                        className={`pricing-btn ${isBest ? 'pricing-btn--best' : ''} ${isGold ? 'pricing-btn--gold' : ''} ${isActive ? 'pricing-btn--active' : ''}`}
                         onClick={() => handleSelect(plan.id)}
                         disabled={isActive || (loading && isSelected)}
                       >
@@ -127,7 +165,7 @@ export default function PricingModal({
                           '✓ Активен'
                         ) : (
                           <>
-                            {isBest ? `🚀 Подключить ${plan.label.toUpperCase()}` : `Подключить ${plan.label}`} —
+                            {isGold ? `👑 Подключить ${plan.label.toUpperCase()}` : isBest ? `🚀 Подключить ${plan.label.toUpperCase()}` : `Подключить ${plan.label}`} —
                             <br />
                             {plan.price.toLocaleString('ru-RU')} ₽
                           </>

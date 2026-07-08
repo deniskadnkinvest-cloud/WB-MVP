@@ -1,4 +1,4 @@
-﻿import { query } from './_db.js';
+import { query } from './_db.js';
 import { alertOnError } from './_admin-alerts.js';
 import jwt from 'jsonwebtoken';
 
@@ -37,8 +37,12 @@ export default async function handler(req, res) {
       return res.status(403).json({ ok: false, error: 'Forbidden' });
     }
 
-    // Resolve user
-    const userRes = await query(`SELECT id FROM users WHERE telegram_id = $1 LIMIT 1`, [uid]);
+    // Resolve user (strip tg_ prefix since DB stores telegram_id without prefix)
+    let resolvedTelegramId = uid;
+    if (uid && uid.startsWith('tg_')) {
+      resolvedTelegramId = uid.slice(3);
+    }
+    const userRes = await query(`SELECT id FROM users WHERE telegram_id = $1 LIMIT 1`, [resolvedTelegramId]);
     if (userRes.rows.length === 0) {
       return res.status(404).json({ ok: false, error: 'User not found' });
     }

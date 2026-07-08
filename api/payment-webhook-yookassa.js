@@ -1,17 +1,27 @@
-﻿// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 // POST /api/payment-webhook-yookassa
 // РџСЂРёРЅРёРјР°РµС‚ РІРµР±С…СѓРєРё РѕС‚ Р®Kassa РѕР± СѓСЃРїРµС€РЅРѕР№ РѕРїР»Р°С‚Рµ С‚Р°СЂРёС„Р°
-// РСЃРїРѕР»СЊР·СѓРµС‚ PostgreSQL РІРјРµСЃС‚Рѕ Auth PostgreSQL
+// Р˜СЃРїРѕР»СЊР·СѓРµС‚ PostgreSQL РІРјРµСЃС‚Рѕ Auth PostgreSQL
 // в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 
 import { pool } from './_db.js';
 import { alertOnPayment, alertOnError } from './_admin-alerts.js';
 
-// РљРѕР»РёС‡РµСЃС‚РІРѕ РєСЂРµРґРёС‚РѕРІ РїРѕ С‚Р°СЂРёС„РЅС‹Рј РїР»Р°РЅР°Рј
+// Количество кредитов по тарифным планам и пополнениям
 const PLAN_CREDITS = {
-  trial: 25,
+  trial: 10,
   base: 100,
-  pro: 1000,
+  pro: 350,
+  
+  topup_5: 5,
+  topup_10_trial: 10,
+  topup_25: 25,
+  topup_10: 10,
+  topup_30: 30,
+  topup_100: 100,
+  topup_50: 50,
+  topup_150: 150,
+  topup_350: 350,
 };
 
 export default async function handler(req, res) {
@@ -67,10 +77,11 @@ export default async function handler(req, res) {
   }
 
   const credits = PLAN_CREDITS[planId];
+  const isTopUp = planId.startsWith('topup_');
   const now = new Date();
   let expiresAt = null;
 
-  if (planId !== 'trial') {
+  if (planId !== 'trial' && !isTopUp) {
     expiresAt = new Date(now);
     expiresAt.setMonth(expiresAt.getMonth() + 1);
   }
@@ -83,7 +94,7 @@ export default async function handler(req, res) {
   }
 
   const paymentId = object.id;
-  const isSubscription = planId !== 'trial';
+  const isSubscription = planId !== 'trial' && !isTopUp;
   const paymentMethodId = (isSubscription && object.payment_method?.saved)
     ? object.payment_method.id
     : null;
@@ -117,39 +128,62 @@ export default async function handler(req, res) {
     }
 
     // 3. РћР±РЅРѕРІР»СЏРµРј/СЃРѕР·РґР°С‘Рј РїРѕРґРїРёСЃРєСѓ
-    await client.query(
-      `INSERT INTO subscriptions (user_id, plan_name, credits, credits_total, status, expires_at, auto_renew, yookassa_payment_method_id)
-       VALUES ($1, $2, $3, $4, 'active', $5, $6, $7)
-       ON CONFLICT (user_id) DO UPDATE SET
-         plan_name = EXCLUDED.plan_name,
-         credits = EXCLUDED.credits,
-         credits_total = EXCLUDED.credits_total,
-         status = 'active',
-         expires_at = EXCLUDED.expires_at,
-         auto_renew = EXCLUDED.auto_renew,
-         yookassa_payment_method_id = COALESCE(EXCLUDED.yookassa_payment_method_id, subscriptions.yookassa_payment_method_id),
-         updated_at = NOW()`,
-      [
-        userId,
-        planId,
-        credits,
-        credits,
-        expiresAt,
-        isSubscription, // auto_renew
-        paymentMethodId,
-      ]
-    );
+    if (isTopUp) {
+      const { rows: subRows } = await client.query(
+        `SELECT id FROM subscriptions WHERE user_id = $1`,
+        [userId]
+      );
+      if (subRows.length === 0) {
+        await client.query(
+          `INSERT INTO subscriptions (user_id, plan_name, credits, credits_total, status, expires_at, auto_renew)
+           VALUES ($1, 'none', $2, $2, 'active', NULL, false)`,
+          [userId, credits]
+        );
+      } else {
+        await client.query(
+          `UPDATE subscriptions 
+           SET credits = COALESCE(credits, 0) + $1,
+               credits_total = COALESCE(credits_total, 0) + $1,
+               updated_at = NOW()
+           WHERE user_id = $2`,
+          [credits, userId]
+        );
+      }
+    } else {
+      await client.query(
+        `INSERT INTO subscriptions (user_id, plan_name, credits, credits_total, status, expires_at, auto_renew, yookassa_payment_method_id)
+         VALUES ($1, $2, $3, $4, 'active', $5, $6, $7)
+         ON CONFLICT (user_id) DO UPDATE SET
+           plan_name = EXCLUDED.plan_name,
+           credits = EXCLUDED.credits,
+           credits_total = EXCLUDED.credits_total,
+           status = 'active',
+           expires_at = EXCLUDED.expires_at,
+           auto_renew = EXCLUDED.auto_renew,
+           yookassa_payment_method_id = COALESCE(EXCLUDED.yookassa_payment_method_id, subscriptions.yookassa_payment_method_id),
+           updated_at = NOW()`,
+        [
+          userId,
+          planId,
+          credits,
+          credits,
+          expiresAt,
+          isSubscription, // auto_renew
+          paymentMethodId,
+        ]
+      );
+    }
 
     // 4. Р—Р°РїРёСЃС‹РІР°РµРј РїР»Р°С‚С‘Р¶ РІ С‚Р°Р±Р»РёС†Сѓ payments
     await client.query(
-      `INSERT INTO payments (user_id, plan_id, method, yookassa_payment_id, amount, currency, paid_at)
-       VALUES ($1, $2, 'yookassa', $3, $4, $5, $6)`,
+      `INSERT INTO payments (user_id, plan_id, method, yookassa_payment_id, amount, credits_amount, currency, paid_at)
+       VALUES ($1, $2, 'yookassa', $3, $4, $5, 'RUB', $6)`,
       [
         userId,
         planId,
         paymentId,
         parseFloat(object.amount.value),
-        object.amount.currency || 'RUB',
+        credits,
         now.toISOString(),
       ]
     );

@@ -1,4 +1,4 @@
-﻿// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 // Р•РґРёРЅС‹Р№ РјР°СЂС€СЂСѓС‚РёР·Р°С‚РѕСЂ РґР»СЏ РІСЃРµС… СЌРЅРґРїРѕРёРЅС‚РѕРІ /api/admin/*
 // в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
 
@@ -7,6 +7,9 @@ import statsHandler from './_admin/stats.js';
 import usersHandler from './_admin/users.js';
 import userControlHandler from './_admin/user-control.js';
 import userHistoryHandler from './_admin/user-history.js';
+import settingsHandler from './_admin/settings.js';
+import promptsHandler from './_admin/prompts.js';
+import generationsHandler from './_admin/generations.js';
 
 export default async function handler(req, res) {
   // Р Р°Р·Р±РёСЂР°РµРј URL-РїСѓС‚СЊ (РЅР°РїСЂРёРјРµСЂ, "/api/admin/verify?key=..." -> "/api/admin/verify")
@@ -28,6 +31,12 @@ export default async function handler(req, res) {
       return userControlHandler(req, res);
     case 'user-history':
       return userHistoryHandler(req, res);
+    case 'settings':
+      return settingsHandler(req, res);
+    case 'prompts':
+      return promptsHandler(req, res);
+    case 'generations':
+      return generationsHandler(req, res);
     default:
       // Fallback РЅР° РІРµСЂРёС„РёРєР°С†РёСЋ, РµСЃР»Рё СЌС‚Рѕ РєРѕСЂРЅРµРІРѕР№ POST-Р·Р°РїСЂРѕСЃ
       if (action === '' && req.method === 'POST') {

@@ -1,5 +1,8 @@
-// POST /api/auth-vk or GET /api/auth-vk
-// Перенаправляет пользователя на страницу авторизации VK
+// GET /api/auth-vk
+// Перенаправляет пользователя на страницу авторизации VK ID
+// Использует VK ID endpoints (id.vk.com) с PKCE (S256)
+
+import crypto from 'crypto';
 
 export default async function handler(req, res) {
   const vkAppId = process.env.VK_APP_ID;
@@ -10,21 +13,45 @@ export default async function handler(req, res) {
 
   // Динамически определяем хост для redirect_uri
   const protocol = req.headers['x-forwarded-proto'] || 'https';
-  const host = req.headers.host || 'localhost:5173'; // fallback
-  
-  // Для VK, так как он не принимает localhost по HTTP в кабинете разработчика,
-  // при локальном запуске подменяем redirect_uri на продакшен-домен.
+  const host = req.headers.host || 'localhost:5173';
+
   let redirectUri;
-  console.log('VK AUTH: req.headers =', JSON.stringify(req.headers));
   if (host.includes('localhost') || host.includes('127.0.0.1')) {
     redirectUri = 'https://seller-studio-ai.ru/api/auth-vk-callback';
   } else {
     redirectUri = `${protocol}://${host}/api/auth-vk-callback`;
   }
-  console.log('VK AUTH: host =', host, 'redirectUri =', redirectUri);
 
-  const authUrl = `https://oauth.vk.com/authorize?client_id=${vkAppId}&display=popup&redirect_uri=${encodeURIComponent(redirectUri)}&scope=email&response_type=code&v=5.131`;
+  // PKCE: генерируем code_verifier и code_challenge
+  const codeVerifier = crypto.randomBytes(32).toString('base64url');
+  const codeChallenge = crypto
+    .createHash('sha256')
+    .update(codeVerifier)
+    .digest('base64url');
 
-  // Перенаправляем (302)
+  // State для CSRF-защиты
+  const state = crypto.randomBytes(16).toString('hex');
+
+  // Сохраняем verifier и state в cookie для callback'а
+  const cookiePayload = JSON.stringify({ v: codeVerifier, s: state });
+  res.setHeader(
+    'Set-Cookie',
+    `vk_pkce=${encodeURIComponent(cookiePayload)}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=600`
+  );
+
+  console.log('VK AUTH (VK ID): host =', host, 'redirectUri =', redirectUri);
+
+  // VK ID authorize endpoint
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: vkAppId,
+    redirect_uri: redirectUri,
+    state,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
+    scope: 'vkid.personal_info email',
+  });
+
+  const authUrl = `https://id.vk.com/authorize?${params.toString()}`;
   res.redirect(302, authUrl);
 }

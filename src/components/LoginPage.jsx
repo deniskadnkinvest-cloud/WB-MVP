@@ -233,6 +233,10 @@ export default function LoginPage() {
   const handleMockSocial = (provider) => {
     if (provider === 'VK') {
       window.open('/api/auth-vk', 'oauth-vk', 'width=500,height=600');
+    } else if (provider === 'Telegram') {
+      document.querySelector('.telegram-widget-wrapper')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setError('');
+      setSuccess('Нажмите кнопку Telegram ниже — она работает как запасной вход для Telegram Desktop.');
     } else if (provider === 'Яндекс') {
       window.open('/api/auth-yandex', 'oauth-yandex', 'width=500,height=600');
     } else {

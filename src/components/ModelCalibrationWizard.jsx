@@ -208,11 +208,14 @@ export default function ModelCalibrationWizard({
     };
 
     const token = getAuthToken ? await getAuthToken() : null;
+    if (!token) {
+      throw new Error('Для генерации необходимо авторизоваться');
+    }
     const resp = await fetch('/api/generate-image', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
     });

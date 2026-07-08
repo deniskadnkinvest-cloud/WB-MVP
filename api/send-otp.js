@@ -1,4 +1,4 @@
-﻿import { query } from './_db.js';
+import { query } from './_db.js';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 
@@ -8,13 +8,13 @@ const classifySendError = (sendError = '') => {
   if (sendError.includes('domain is not verified')) {
     return {
       code: 'resend_domain_not_verified',
-      error: 'Email-РѕС‚РїСЂР°РІРєР° РІСЂРµРјРµРЅРЅРѕ РЅРµ РЅР°СЃС‚СЂРѕРµРЅР°. РњС‹ СѓР¶Рµ РїСЂРѕРІРµСЂСЏРµРј РґРѕРјРµРЅ РѕС‚РїСЂР°РІРёС‚РµР»СЏ.',
+      error: 'Email-отправка временно не настроена. Мы уже проверяем домен отправителя.',
     };
   }
 
   return {
     code: 'otp_email_send_failed',
-    error: 'РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ РєРѕРґ РЅР° email. РџРѕРїСЂРѕР±СѓР№С‚Рµ РµС‰С‘ СЂР°Р· РёР»Рё РІРѕР№РґРёС‚Рµ СЃ РїР°СЂРѕР»РµРј.',
+    error: 'Не удалось отправить код на email. Попробуйте ещё раз или войдите с паролем.',
   };
 };
 
@@ -129,15 +129,15 @@ export default async function handler(req, res) {
           body: JSON.stringify({
             from: fromEmail,
             to: [email],
-            subject: 'РљРѕРґ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ Seller Studio',
+            subject: 'Код подтверждения Seller Studio',
             html: `
               <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; background-color: #0c1020; color: #ffffff;">
-                <h2 style="color: #d4af37; text-align: center;">РЎРµР»Р»РµСЂ-РЎС‚СѓРґРёСЏ</h2>
-                <p style="font-size: 16px; text-align: center;">Р’Р°С€ РѕРґРЅРѕСЂР°Р·РѕРІС‹Р№ РєРѕРґ РґР»СЏ РІС…РѕРґР° РІ РІРёСЂС‚СѓР°Р»СЊРЅСѓСЋ РїСЂРёРјРµСЂРѕС‡РЅСѓСЋ:</p>
+                <h2 style="color: #d4af37; text-align: center;">Селлер-Студия</h2>
+                <p style="font-size: 16px; text-align: center;">Ваш одноразовый код для входа в виртуальную примерочную:</p>
                 <div style="background-color: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; font-size: 32px; font-weight: bold; letter-spacing: 5px; text-align: center; color: #ffffff; border: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
                   ${code}
                 </div>
-                <p style="font-size: 12px; color: #888; text-align: center;">РљРѕРґ РґРµР№СЃС‚РІРёС‚РµР»РµРЅ РІ С‚РµС‡РµРЅРёРµ 5 РјРёРЅСѓС‚. РќРµ СЃРѕРѕР±С‰Р°Р№С‚Рµ РµРіРѕ РЅРёРєРѕРјСѓ.</p>
+                <p style="font-size: 12px; color: #888; text-align: center;">Код действителен в течение 5 минут. Не сообщайте его никому.</p>
               </div>
             `
           })
@@ -179,15 +179,15 @@ export default async function handler(req, res) {
         const mailOptions = {
           from: process.env.SMTP_FROM || `"Seller Studio" <${process.env.SMTP_USER}>`,
           to: email,
-          subject: 'РљРѕРґ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ Seller Studio',
+          subject: 'Код подтверждения Seller Studio',
           html: `
             <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; background-color: #0c1020; color: #ffffff;">
-              <h2 style="color: #d4af37; text-align: center;">РЎРµР»Р»РµСЂ-РЎС‚СѓРґРёСЏ</h2>
-              <p style="font-size: 16px; text-align: center;">Р’Р°С€ РѕРґРЅРѕСЂР°Р·РѕРІС‹Р№ РєРѕРґ РґР»СЏ РІС…РѕРґР° РІ РІРёСЂС‚СѓР°Р»СЊРЅСѓСЋ РїСЂРёРјРµСЂРѕС‡РЅСѓСЋ:</p>
+              <h2 style="color: #d4af37; text-align: center;">Селлер-Студия</h2>
+              <p style="font-size: 16px; text-align: center;">Ваш одноразовый код для входа в виртуальную примерочную:</p>
               <div style="background-color: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; font-size: 32px; font-weight: bold; letter-spacing: 5px; text-align: center; color: #ffffff; border: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
                 ${code}
               </div>
-              <p style="font-size: 12px; color: #888; text-align: center;">РљРѕРґ РґРµР№СЃС‚РІРёС‚РµР»РµРЅ РІ С‚РµС‡РµРЅРёРµ 5 РјРёРЅСѓС‚. РќРµ СЃРѕРѕР±С‰Р°Р№С‚Рµ РµРіРѕ РЅРёРєРѕРјСѓ.</p>
+              <p style="font-size: 12px; color: #888; text-align: center;">Код действителен в течение 5 минут. Не сообщайте его никому.</p>
             </div>
           `
         };
@@ -230,10 +230,10 @@ export default async function handler(req, res) {
     if (!emailSent && telegramBotToken && targetChatId) {
       try {
         const text = [
-          `рџ”‘ <b>[OTP Р’С…РѕРґ] РљРѕРґ РїРѕРґС‚РІРµСЂР¶РґРµРЅРёСЏ</b>`,
-          `Р”Р»СЏ РїРѕС‡С‚С‹: <code>${email}</code>`,
-          `РљРѕРґ: <b><code>${code}</code></b>`,
-          `<i>РљРѕРґ РґРµР№СЃС‚РІРёС‚РµР»РµРЅ 5 РјРёРЅСѓС‚. Р’РІРµРґРёС‚Рµ РµРіРѕ РІ РїСЂРёР»РѕР¶РµРЅРёРё.</i>`
+          `🔑 <b>[OTP Вход] Код подтверждения</b>`,
+          `Для почты: <code>${email}</code>`,
+          `Код: <b><code>${code}</code></b>`,
+          `<i>Код действителен 5 минут. Введите его в приложении.</i>`
         ].join('\n');
         
         const tgUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;

@@ -7,8 +7,8 @@ async function loginAsGuest(page) {
   await page.goto('http://localhost:5173/', { waitUntil: 'networkidle', timeout: 30000 });
   await page.waitForTimeout(1500);
   
-  // Ищем кнопку «Попробовать без регистрации»
-  const guestBtn = page.getByText('Попробовать без регистрации');
+  // Ищем кнопку «Продолжить без регистрации» по классу .guest-text-btn
+  const guestBtn = page.locator('.guest-text-btn');
   if (await guestBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
     await guestBtn.click();
     // Ждём пока приложение загрузится (появится переключатель режимов)
@@ -33,7 +33,7 @@ test.describe('📦 Product Mode — Deep Chaos QA Level 3', () => {
     
     // Проверяем наличие обоих режимов
     const fashionBtn = page.locator('button.mode-btn', { hasText: 'Одежда' });
-    const productBtn = page.locator('button.mode-btn', { hasText: 'Товары' });
+    const productBtn = page.locator('button.mode-btn', { hasText: 'Предметка' });
     await expect(fashionBtn).toBeVisible();
     await expect(productBtn).toBeVisible();
     
@@ -69,7 +69,7 @@ test.describe('📦 Product Mode — Deep Chaos QA Level 3', () => {
   test('Итерация 2: Прокликивание всех 11 категорий', async ({ page }) => {
     await loginAsGuest(page);
     
-    await page.locator('button.mode-btn', { hasText: 'Товары' }).click();
+    await page.locator('button.mode-btn', { hasText: 'Предметка' }).click();
     await page.waitForTimeout(1000);
     
     const categories = [
@@ -104,7 +104,7 @@ test.describe('📦 Product Mode — Deep Chaos QA Level 3', () => {
   test('Итерация 3: Секция Модель-человек без калибровки', async ({ page }) => {
     await loginAsGuest(page);
     
-    await page.locator('button.mode-btn', { hasText: 'Товары' }).click();
+    await page.locator('button.mode-btn', { hasText: 'Предметка' }).click();
     await page.waitForTimeout(1000);
     
     // Ищем секцию Модель-человек
@@ -154,7 +154,7 @@ test.describe('📦 Product Mode — Deep Chaos QA Level 3', () => {
   test('Итерация 4: Композиция + Сцена + Эффекты + Формат', async ({ page }) => {
     await loginAsGuest(page);
     
-    await page.locator('button.mode-btn', { hasText: 'Товары' }).click();
+    await page.locator('button.mode-btn', { hasText: 'Предметка' }).click();
     await page.waitForTimeout(1000);
     
     // КОМПОЗИЦИЯ
@@ -215,7 +215,7 @@ test.describe('📦 Product Mode — Deep Chaos QA Level 3', () => {
     
     await loginAsGuest(page);
     
-    await page.locator('button.mode-btn', { hasText: 'Товары' }).click();
+    await page.locator('button.mode-btn', { hasText: 'Предметка' }).click();
     await page.waitForTimeout(1000);
     
     // Прокликиваем всё подряд для провоцирования ошибок
@@ -237,7 +237,7 @@ test.describe('📦 Product Mode — Deep Chaos QA Level 3', () => {
     for (let i = 0; i < 3; i++) {
       await page.locator('button.mode-btn', { hasText: 'Одежда' }).click();
       await page.waitForTimeout(200);
-      await page.locator('button.mode-btn', { hasText: 'Товары' }).click();
+      await page.locator('button.mode-btn', { hasText: 'Предметка' }).click();
       await page.waitForTimeout(200);
     }
     
@@ -260,7 +260,7 @@ test.describe('📦 Product Mode — Deep Chaos QA Level 3', () => {
     await loginAsGuest(page);
     
     // В Product mode
-    await page.locator('button.mode-btn', { hasText: 'Товары' }).click();
+    await page.locator('button.mode-btn', { hasText: 'Предметка' }).click();
     await page.waitForTimeout(1000);
     
     await expect(page.getByText('Категория товара')).toBeVisible();

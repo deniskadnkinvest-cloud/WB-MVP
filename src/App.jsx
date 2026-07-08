@@ -14,7 +14,7 @@ import PricingModal from './components/PricingModal';
 import SubscriptionBadge from './components/SubscriptionBadge';
 import MyHistoryPage from './components/MyHistoryPage';
 import { useAuth } from './contexts/AuthContext';
-import { getModels, saveModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt, patchLocation } from './lib/userDataService';
+import { getModels, saveModel, updateModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt, patchLocation } from './lib/userDataService';
 import { uploadBase64Image, compressImage, uploadImage, deleteImage, downloadStoragePathAsBase64 } from './lib/storageService';
 import { getSubscription, checkFeature, canGenerate, activatePlan } from './lib/subscriptionService';
 // CardLayerStudio removed — replaced by text-based card editing
@@ -214,6 +214,7 @@ function App() {
   const [showLoraModal, setShowLoraModal] = useState(false);
   const [loraName, setLoraName] = useState('');
   const [loraPhotos, setLoraPhotos] = useState({ front: null, left34: null, right34: null, fullbody: null });
+  const [loraToEdit, setLoraToEdit] = useState(null);
   const [showSaveModelModal, setShowSaveModelModal] = useState(false);
   const [saveModelName, setSaveModelName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -222,6 +223,7 @@ function App() {
   const [showCalibWizard, setShowCalibWizard] = useState(false);
   const [calibPurpose, setCalibPurpose] = useState('save'); // 'save' | 'photoshoot'
   const [showPersonaWizard, setShowPersonaWizard] = useState(false);
+  const [personaToEdit, setPersonaToEdit] = useState(null);
   const [cardWithModel, setCardWithModel] = useState(false);
   const [viewingCompCard, setViewingCompCard] = useState(null); // comp card URL for lightbox
 
@@ -1486,6 +1488,7 @@ function App() {
       await saveModel(user.uid, { name: loraName.trim(), type: 'lora', modelType: 'own_model', imageUrls, storagePaths, prompt: '' });
       const models = await getModels(user.uid);
       setMyModels(models);
+      setLoraToEdit(null);
       setShowLoraModal(false); setLoraName(''); setLoraPhotos({ front: null, left34: null, right34: null, fullbody: null });
       setStatusText('⭐ Модель сохранена!'); setStatusType('success');
     } catch (err) {
@@ -1494,6 +1497,40 @@ function App() {
       throw err;
     }
     finally { setIsSaving(false); }
+  };
+
+  const updateLoraModel = async (modelId, photosOverride) => {
+    if (!loraName.trim() || !user) return;
+    setIsSaving(true);
+    try {
+      const photos = photosOverride || loraPhotos;
+      const photoEntries = Object.entries(photos).filter(([, v]) => v);
+      if (photoEntries.length === 0) throw new Error('Нет фотографий для сохранения');
+      const uploads = await Promise.all(photoEntries.map(async ([, base64OrUrl]) => {
+        if (typeof base64OrUrl === 'string' && base64OrUrl.startsWith('data:')) {
+          return uploadBase64Image(user.uid, base64OrUrl, 'models');
+        }
+        return { url: base64OrUrl, path: '' };
+      }));
+      const imageUrls = uploads.map(u => u.url);
+      const storagePaths = uploads.map(u => u.path);
+      await updateModel(user.uid, modelId, { name: loraName.trim(), type: 'lora', modelType: 'own_model', imageUrls, storagePaths, prompt: '' });
+      const models = await getModels(user.uid);
+      setMyModels(models);
+      setLoraToEdit(null);
+      setShowLoraModal(false); setLoraName(''); setLoraPhotos({ front: null, left34: null, right34: null, fullbody: null });
+      setStatusText('⭐ Модель обновлена!'); setStatusType('success');
+    } catch (err) {
+      console.error('Ошибка обновления модели:', err);
+      throw err;
+    }
+    finally { setIsSaving(false); }
+  };
+
+  const handleEditLora = (model) => {
+    setLoraToEdit(model);
+    setLoraName(model.name || '');
+    setShowLoraModal(true);
   };
 
   // Save generated model (Firebase)
@@ -3344,17 +3381,42 @@ ${userProductInfo.trim()}
                       ) : (
                         <>
                           {myModels.length > 0 ? (
-                            <div className="model-avatar-grid">
-                              {myModels.map(m => (
-                                <div key={m.id} className={`model-avatar ${productSavedModelId===m.id?'active':''}`}
-                                  onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
-                                  <img src={m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
-                                  <div className="avatar-name">{m.name}</div>
-                                  <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
-                                  <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>✕</button>
-                                </div>
-                              ))}
-                            </div>
+                            <>
+                              <div className="model-avatar-grid">
+                                {myModels.map(m => (
+                                  <div key={m.id} className={`model-avatar ${productSavedModelId===m.id?'active':''}`}
+                                    onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
+                                    <img src={m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
+                                    <div className="avatar-name">{m.name}</div>
+                                    <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
+                                    <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>✕</button>
+                                  </div>
+                                ))}
+                              </div>
+                              {productSavedModelId && (() => {
+                                const sm = myModels.find(m => m.id === productSavedModelId);
+                                if (!sm) return null;
+                                const isPersona = sm.modelType === 'persona' || sm.type === 'persona';
+                                const isLora = sm.type === 'lora' || sm.modelType === 'own_model';
+                                return (
+                                  <div className="modifier-block" style={{ marginTop: 12 }}>
+                                    {isPersona ? (
+                                      <button className="modifier-toggle" onClick={() => { setPersonaToEdit(sm); setShowPersonaWizard(true); }}>
+                                        ✏️ Изменить модель
+                                      </button>
+                                    ) : isLora ? (
+                                      <button className="modifier-toggle" onClick={() => { handleEditLora(sm); }}>
+                                        ✏️ Изменить модель
+                                      </button>
+                                    ) : (
+                                      <button className="modifier-toggle" onClick={() => { setShowModelModifier(!showModelModifier); setModelPreviewSrc(null); }}>
+                                        {showModelModifier ? '✖ Скрыть' : '✏️ Изменить модель'}
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+                            </>
                           ) : (
                             <p className="section-hint" style={{textAlign:'center',padding:'20px 0'}}>У вас пока нет сохранённых моделей.</p>
                           )}
@@ -3478,14 +3540,16 @@ ${userProductInfo.trim()}
               <span className="emoji">📋</span><span className="label">Другое</span>
             </div>
           </div>
-          {selectedProductCategory.id === 'other' && !customProductPrompt && (
-            <p className="section-hint" style={{fontSize:'0.78rem',color:'var(--text-muted)',marginTop:6,textAlign:'center'}}>☝️ Опишите ваш товар в поле ниже — это улучшит качество генерации</p>
+          {selectedProductCategory.id === 'other' && (
+            <>
+              <p className="section-hint" style={{fontSize:'0.78rem',color:'var(--text-muted)',marginTop:6,textAlign:'center'}}>☝️ Опишите ваш товар в поле ниже — это улучшит качество генерации</p>
+              <div className="custom-variant-row">
+                <input className="custom-variant-input" type="text" placeholder="Опишите ваш товар: «набор кистей для макияжа в чехле»"
+                  value={customProductPrompt} 
+                  onChange={e => setCustomProductPrompt(e.target.value)} />
+              </div>
+            </>
           )}
-          <div className="custom-variant-row">
-            <input className="custom-variant-input" type="text" placeholder={selectedProductCategory.id === 'other' ? 'Опишите ваш товар: «набор кистей для макияжа в чехле»' : 'Описать товар с нуля: «круглая баночка крема с золотой крышкой»'}
-              value={customProductPrompt} 
-              onChange={e => setCustomProductPrompt(e.target.value)} />
-          </div>
         </motion.div>
 
         {/* ═══ МОДЕЛЬ-ЧЕЛОВЕК В ПРЕДМЕТНОЙ СЪЁМКЕ ═══ */}
@@ -3559,7 +3623,8 @@ ${userProductInfo.trim()}
                 ) : (
                   <>
                     {myModels.length > 0 && (
-                      <div className="model-avatar-grid">
+                      <>
+                        <div className="model-avatar-grid">
                         {myModels.map(m => (
                           <div key={m.id} className={`model-avatar ${productSavedModelId===m.id?'active':''}`}
                             onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
@@ -3567,10 +3632,35 @@ ${userProductInfo.trim()}
                             <div className="avatar-name">{m.name}</div>
                             <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
                             <button className="delete-btn" onClick={e => { e.stopPropagation(); deleteModel(m.id); }}>✕</button>
+
                           </div>
                         ))}
                       </div>
-                    )}
+                      {productSavedModelId && (() => {
+                        const sm = myModels.find(m => m.id === productSavedModelId);
+                        if (!sm) return null;
+                        const isPersona = sm.modelType === 'persona' || sm.type === 'persona';
+                        const isLora = sm.type === 'lora' || sm.modelType === 'own_model';
+                        return (
+                          <div className="modifier-block" style={{ marginTop: 12 }}>
+                            {isPersona ? (
+                              <button className="modifier-toggle" onClick={() => { setPersonaToEdit(sm); setShowPersonaWizard(true); }}>
+                                ✏️ Изменить модель
+                              </button>
+                            ) : isLora ? (
+                              <button className="modifier-toggle" onClick={() => { handleEditLora(sm); }}>
+                                ✏️ Изменить модель
+                              </button>
+                            ) : (
+                              <button className="modifier-toggle" onClick={() => { setShowModelModifier(!showModelModifier); setModelPreviewSrc(null); }}>
+                                {showModelModifier ? '✖ Скрыть' : '✏️ Изменить модель'}
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </>
+                  )}
                     {myModels.length === 0 && (
                       <p className="section-hint" style={{textAlign:'center',padding:'20px 0'}}>У вас пока нет сохранённых моделей</p>
                     )}
@@ -3699,35 +3789,49 @@ ${userProductInfo.trim()}
                     ))}
                   </div>
                   {selectedSavedModelId && <div className="selected-model-indicator">⭐ Ваша модель выбрана</div>}
-                  {selectedSavedModelId && (
-                    <div className="modifier-block">
-                      <button className="modifier-toggle" onClick={() => { setShowModelModifier(!showModelModifier); setModelPreviewSrc(null); }}>
-                        {showModelModifier ? '✖ Скрыть' : '✏️ Изменить модель'}
-                      </button>
-                      {showModelModifier && (
-                        <div className="modifier-content">
-                          <textarea className="modifier-input" rows={2} placeholder="Например: добавить татуировку на левую руку, сделать волосы рыжими, рост выше"
-                            value={modelModifier} onChange={e => setModelModifier(e.target.value)} />
-                          {/* Tattoo warning (text input) */}
-                          {/тату/i.test(modelModifier) && (
-                            <div className="tattoo-warning">⚠️ Татуировка отлично получится на одиночном фото, но в серии (фотосессия) может искажаться. Для стабильной модели старайтесь не использовать тату.</div>
-                          )}
-                          <button className="modifier-save-btn" onClick={handlePreviewModel} disabled={!modelModifier.trim() || isPreviewingModel}>
-                            {isPreviewingModel ? '⏳ Генерируем превью...' : '👁️ Предпросмотр'}
+                  {selectedSavedModelId && (() => {
+                    const sm = myModels.find(m => m.id === selectedSavedModelId);
+                    const isPersona = sm?.modelType === 'persona' || sm?.type === 'persona';
+                    const isLora = sm?.type === 'lora' || sm?.modelType === 'own_model';
+                    return (
+                      <div className="modifier-block">
+                        {isPersona ? (
+                          <button className="modifier-toggle" onClick={() => { setPersonaToEdit(sm); setShowPersonaWizard(true); }}>
+                            ✏️ Изменить модель
                           </button>
-                          {modelPreviewSrc && (
-                            <div className="model-preview-block">
-                              <img src={modelPreviewSrc} alt="Превью модели" className="model-preview-img" onClick={() => setLightboxSrc(modelPreviewSrc)} />
-                              <input className="custom-variant-input" type="text" placeholder="Назовите новую модель" value={modelPreviewName} onChange={e => setModelPreviewName(e.target.value)} />
-                              <button className="modifier-save-btn" onClick={saveModelAsNew} disabled={!modelPreviewName.trim() || isSaving}>
-                                {isSaving ? '⏳ Сохраняем...' : '💾 Сохранить как новую модель'}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                        ) : isLora ? (
+                          <button className="modifier-toggle" onClick={() => { handleEditLora(sm); }}>
+                            ✏️ Изменить модель
+                          </button>
+                        ) : (
+                          <button className="modifier-toggle" onClick={() => { setShowModelModifier(!showModelModifier); setModelPreviewSrc(null); }}>
+                            {showModelModifier ? '✖ Скрыть' : '✏️ Изменить модель'}
+                          </button>
+                        )}
+                        {!isPersona && !isLora && showModelModifier && (
+                          <div className="modifier-content">
+                            <textarea className="modifier-input" rows={2} placeholder="Например: добавить татуировку на левую руку, сделать волосы рыжими, рост выше"
+                              value={modelModifier} onChange={e => setModelModifier(e.target.value)} />
+                            {new RegExp('тату', 'i').test(modelModifier) && (
+                              <div className="tattoo-warning">⚠️ Татуировка отлично получится на одиночном фото, но в серии (фотосессия) может искажаться. Для стабильной модели старайтесь не использовать тату.</div>
+                            )}
+                            <button className="modifier-save-btn" onClick={handlePreviewModel} disabled={!modelModifier.trim() || isPreviewingModel}>
+                              {isPreviewingModel ? '⏳ Генерируем превью...' : '👁️ Предпросмотр'}
+                            </button>
+                            {modelPreviewSrc && (
+                              <div className="model-preview-block">
+                                <img src={modelPreviewSrc} alt="Превью модели" className="model-preview-img" onClick={() => setLightboxSrc(modelPreviewSrc)} />
+                                <input className="custom-variant-input" type="text" placeholder="Назовите новую модель" value={modelPreviewName} onChange={e => setModelPreviewName(e.target.value)} />
+                                <button className="modifier-save-btn" onClick={saveModelAsNew} disabled={!modelPreviewName.trim() || isSaving}>
+                                  {isSaving ? '⏳ Сохраняем...' : '💾 Сохранить как новую модель'}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </>
               )}
               <div className="add-location-card" style={{marginTop: myModels.length ? 12 : 0, background:'rgba(168,85,247,0.08)', borderColor:'rgba(168,85,247,0.2)'}} onClick={() => setShowPersonaWizard(true)}>
@@ -3916,14 +4020,21 @@ ${userProductInfo.trim()}
                     );
                   })}
                 </div>
-                <div className="custom-variant-row" style={{marginTop: 12}}>
-                  <input className="custom-variant-input" placeholder="Локация с нуля: «деревянный стол в скандинавском стиле, на фоне размытое окно»"
-                    value={customProductBg} onChange={e => { setCustomProductBg(e.target.value); setSelectedLocId(null); }} />
-                </div>
-                <div className="section-subtitle-small" style={{marginTop: 18, marginBottom: 8, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px'}}>
+                {!customProductBg && (
+                  <div className="preset-card add-custom-card" style={{marginTop: 12}} onClick={() => { setCustomProductBg(' '); setSelectedLocId(null); }}>
+                    <span className="emoji">➕</span><span className="label">Свой вариант</span>
+                  </div>
+                )}
+                {customProductBg !== '' && (
+                  <div className="custom-variant-row" style={{marginTop: 12}}>
+                    <input autoFocus className="custom-variant-input" placeholder="Локация с нуля: «деревянный стол в скандинавском стиле, на фоне размытое окно»"
+                      value={customProductBg.trim()} onChange={e => { setCustomProductBg(e.target.value); setSelectedLocId(null); }} />
+                  </div>
+                )}
+                <div className="section-subtitle-small" style={{marginTop: 18, marginBottom: 8, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px', opacity: selectedProductEffects.some(s => s.id === 'none') ? 0.6 : 1}}>
                   <span>✨</span> Добавить спецэффект
                 </div>
-                <div className="preset-grid">
+                <div className={`preset-grid ${selectedProductEffects.some(s => s.id === 'none') ? 'dimmed' : ''}`} style={{opacity: selectedProductEffects.some(s => s.id === 'none') ? 0.6 : 1, filter: selectedProductEffects.some(s => s.id === 'none') ? 'grayscale(0.8)' : 'none'}}>
                   {PRODUCT_EFFECTS.map(e => {
                     const isActive = selectedProductEffects.some(s => s.id === e.id);
                     return (
@@ -5059,9 +5170,15 @@ ${userProductInfo.trim()}
       <AnimatePresence>
         {showPersonaWizard && (
           <PersonaWizard
-            onClose={() => setShowPersonaWizard(false)}
+            editModel={personaToEdit}
+            existingModels={myModels}
+            onClose={() => { setShowPersonaWizard(false); setPersonaToEdit(null); }}
             onSave={savePersonaModel}
-            getAuthToken={async () => user?.getIdToken?.()}
+            getAuthToken={async () => {
+              const token = await user?.getIdToken?.();
+              if (!token) throw new Error('Сессия истекла. Перезайдите в аккаунт.');
+              return token;
+            }}
             credits={subscription?.credits || 0}
           />
         )}
@@ -5080,9 +5197,9 @@ ${userProductInfo.trim()}
 
       {/* МОДАЛКА: LoRA модель */}
       <AnimatePresence>
-        <LoraModal show={showLoraModal} onClose={()=>{setShowLoraModal(false);setLoraName('');setLoraPhotos({front:null,left34:null,right34:null,fullbody:null});}}
-          onSave={saveLoraModel} loraName={loraName} setLoraName={setLoraName} loraPhotos={loraPhotos} setLoraPhotos={setLoraPhotos}
-          authHeaders={(() => { const t = user?.accessToken; return t ? { Authorization: 'Bearer ' + t } : {}; })()} />
+        <LoraModal show={showLoraModal} onClose={()=>{setShowLoraModal(false);setLoraToEdit(null);setLoraName('');setLoraPhotos({front:null,left34:null,right34:null,fullbody:null});}}
+          onSave={saveLoraModel} onUpdate={updateLoraModel} editModel={loraToEdit} loraName={loraName} setLoraName={setLoraName} loraPhotos={loraPhotos} setLoraPhotos={setLoraPhotos}
+          getAuthToken={async () => { const token = await user?.getIdToken(); return token; }} />
       </AnimatePresence>
 
       {/* МОДАЛКА: Сохранить сгенерированную модель */}

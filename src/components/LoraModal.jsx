@@ -1,5 +1,6 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import TerminalOfMagic from './TerminalOfMagic';
 
 const SLOTS = [
   { key: 'front',     label: 'Фронт',        icon: '👤', desc: 'Лицо прямо в камеру' },
@@ -11,10 +12,11 @@ const SLOTS = [
 const spring = { type: 'spring', stiffness: 400, damping: 25, mass: 0.5 };
 
 export default function LoraModal({
-  show, onClose, onSave,
+  show, onClose, onSave, onUpdate,
   loraName, setLoraName, loraPhotos, setLoraPhotos,
-  authHeaders,
+  getAuthToken, editModel, subscription,
 }) {
+  const isEditMode = !!editModel;
   const fileRefs = useRef({});
   const [slotVariants, setSlotVariants] = useState({ front: [], left34: [], right34: [], fullbody: [] });
   const [variantIdx, setVariantIdx] = useState({ front: 0, left34: 0, right34: 0, fullbody: 0 });
@@ -25,6 +27,25 @@ export default function LoraModal({
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [dragOverSlot, setDragOverSlot] = useState(null);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [showCreditsModal, setShowCreditsModal] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+
+  // Pre-fill slots from editModel when opening in edit mode
+  useEffect(() => {
+    if (show && editModel && !initialized) {
+      const urls = editModel.imageUrls || [];
+      const newPhotos = { front: null, left34: null, right34: null, fullbody: null };
+      SLOTS.forEach((slot, i) => {
+        if (urls[i]) newPhotos[slot.key] = urls[i];
+      });
+      setLoraPhotos(newPhotos);
+      if (editModel.name) setLoraName(editModel.name);
+      setSlotVariants({ front: [], left34: [], right34: [], fullbody: [] });
+      setVariantIdx({ front: 0, left34: 0, right34: 0, fullbody: 0 });
+      setInitialized(true);
+    }
+    if (!show) setInitialized(false);
+  }, [show, editModel, initialized, setLoraPhotos, setLoraName]);
 
   const compressImg = (dataUrl) => new Promise(resolve => {
     const img = new Image();
@@ -77,18 +98,33 @@ export default function LoraModal({
   const filledCount = SLOTS.filter(s => getDisplayPhoto(s.key)).length;
   const hasEnough = filledCount >= 1;
 
+  const buildAuthHeaders = useCallback(async () => {
+    const token = await getAuthToken?.();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, [getAuthToken]);
+
   const generateSingle = async (slotKey) => {
     setGeneratingSlots(prev => new Set([...prev, slotKey]));
     setGenError('');
     try {
       const existingPhotos = SLOTS.filter(s => s.key !== slotKey).map(s => getDisplayPhoto(s.key)).filter(Boolean);
+      const headers = await buildAuthHeaders();
+      if (!headers.Authorization) {
+        throw new Error('Для генерации необходимо авторизоваться');
+      }
       const res = await fetch('/api/generate-image', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(authHeaders || {}) },
+        headers: { 'Content-Type': 'application/json', ...headers },
         body: JSON.stringify({ action: 'generate-missing-angle', existingPhotos, missingAngle: slotKey }),
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || 'Ошибка генерации');
+      if (!json.success) {
+        if (json.isBillingError) {
+          setShowCreditsModal(true);
+          return;
+        }
+        throw new Error(json.error || 'Ошибка генерации');
+      }
       setSlotVariants(v => {
         const updated = [...v[slotKey], json.imageBase64];
         setVariantIdx(i => ({ ...i, [slotKey]: updated.length - 1 }));
@@ -119,7 +155,11 @@ export default function LoraModal({
           merged[s.key] = slotVariants[s.key][variantIdx[s.key]];
       }
       setLoraPhotos(merged);
-      await onSave(merged);
+      if (isEditMode && onUpdate) {
+        await onUpdate(editModel.id, merged);
+      } else {
+        await onSave(merged);
+      }
       onClose();
     } catch (err) { setSaveError(err.message || 'Ошибка сохранения'); }
     finally { setIsSaving(false); }
@@ -141,10 +181,12 @@ export default function LoraModal({
         <motion.div className="modal-content" initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
           onClick={e => e.stopPropagation()} style={{ maxWidth: 540, width: '92vw', position: 'relative' }}>
 
-          <div className="modal-title">👤 Добавить свою модель</div>
+          <div className="modal-title">{isEditMode ? '✏️ Редактировать модель' : '👤 Добавить свою модель'}</div>
           <p className="modal-hint">
-            Загрузите или перетащите <strong>до 4 фотографий</strong> с разных ракурсов.<br />
-            <span style={{ opacity: 0.7 }}>Нет ракурса? Нажмите <strong>«Сгенерировать»</strong>. Нажмите на фото для просмотра.</span>
+            {isEditMode
+              ? <>Замените фото, добавьте недостающие ракурсы или <strong>перегенерируйте</strong> любой слот.</>
+              : <>Загрузите или перетащите <strong>до 4 фотографий</strong> с разных ракурсов.<br />
+                <span style={{ opacity: 0.7 }}>Нет ракурса? Нажмите <strong>«Сгенерировать»</strong>. Нажмите на фото для просмотра.</span></>}
           </p>
 
           <input className="modal-input" placeholder="Имя модели (напр. Алина, Дмитрий)"
@@ -179,10 +221,7 @@ export default function LoraModal({
                         {isAI && <div style={{ position: 'absolute', top: 4, left: 4, background: 'rgba(168,85,247,0.85)', borderRadius: 4, padding: '1px 6px', fontSize: 9, color: '#fff', fontWeight: 700, zIndex: 2 }}>AI</div>}
                       </>
                     ) : isGenerating ? (
-                      <div style={{ textAlign: 'center', padding: 16 }}>
-                        <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: 'linear' }} style={{ fontSize: 24, marginBottom: 6 }}>⏳</motion.div>
-                        <div style={{ fontSize: 11, color: '#a855f7', fontWeight: 700 }}>Генерация...</div>
-                      </div>
+                      <TerminalOfMagic isActive={isGenerating} inSlot={true} />
                     ) : (
                       <>
                         <div className="lora-slot-icon">{icon}</div>
@@ -209,6 +248,12 @@ export default function LoraModal({
             })}
           </div>
 
+          {isAnyGenerating && (
+            <div style={{ textAlign: 'center', marginTop: 10, fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>
+              ⏳ Идёт генерация... Кредиты уже списаны и <span style={{ color: '#fbbf24' }}>не будут возвращены</span> при отмене
+            </div>
+          )}
+
           {emptyCount >= 2 && hasEnough && !isAnyGenerating && (
             <button onClick={generateAllMissing} style={{ width: '100%', marginTop: 12, padding: '10px 16px', borderRadius: 10, background: 'linear-gradient(135deg, rgba(168,85,247,0.2), rgba(168,85,247,0.1))', border: '1px solid rgba(168,85,247,0.3)', color: '#a855f7', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
               ✨ Сгенерировать все пустые ракурсы ({emptyCount} шт.)
@@ -226,7 +271,7 @@ export default function LoraModal({
           <div className="modal-actions" style={{ marginTop: 16 }}>
             <button className="modal-btn-cancel" onClick={handleCloseAttempt}>Отмена</button>
             <button className="modal-btn-primary" onClick={handleSave} disabled={!loraName.trim() || filledCount < 1 || isAnyGenerating || isSaving}>
-              {isSaving ? '⏳ Сохраняем...' : '✅ Сохранить'}
+              {isSaving ? '⏳ Сохраняем...' : isEditMode ? '💾 Обновить' : '✅ Сохранить'}
             </button>
           </div>
         </motion.div>
@@ -256,6 +301,70 @@ export default function LoraModal({
                 <button onClick={() => setShowCloseConfirm(false)} style={{ flex: 1, padding: '12px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Продолжить</button>
                 <button onClick={confirmClose} style={{ flex: 1, padding: '12px', borderRadius: 10, background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Да, закрыть</button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Credits Modal */}
+      <AnimatePresence>
+        {showCreditsModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            style={{ position: 'fixed', inset: 0, zIndex: 10001, background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={() => setShowCreditsModal(false)}>
+            <motion.div initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.85, opacity: 0 }} transition={spring}
+              onClick={e => e.stopPropagation()}
+              style={{ background: 'linear-gradient(145deg, #1a1a2e, #0d0d1a)', border: '1px solid rgba(255,215,0,0.2)', borderRadius: 20, padding: 32, maxWidth: 400, width: '92vw', textAlign: 'center' }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>⚡</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: '#f0f0f5', marginBottom: 8 }}>Генерации закончились</div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, marginBottom: 24 }}>
+                Для создания ракурсов нужны генерации.<br/>
+                Пополните баланс, чтобы продолжить работу.
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+                {(subscription?.plan === 'pro' 
+                  ? [
+                      { credits: 50, price: 1790, label: '~35 ₽/генерация' },
+                      { credits: 150, price: 4490, label: '~30 ₽/генерация', popular: true },
+                      { credits: 350, price: 8990, label: '~25 ₽/генерация' },
+                    ]
+                  : subscription?.plan === 'base'
+                  ? [
+                      { credits: 10, price: 390, label: '~39 ₽/генерация' },
+                      { credits: 30, price: 1090, label: '~36 ₽/генерация', popular: true },
+                      { credits: 100, price: 3490, label: '~35 ₽/генерация' },
+                    ]
+                  : [
+                      { credits: 5, price: 249, label: '~50 ₽/генерация' },
+                      { credits: 10, price: 449, label: '~45 ₽/генерация', popular: true },
+                      { credits: 25, price: 990, label: '~40 ₽/генерация' },
+                    ]
+                ).map(pkg => (
+                  <button key={pkg.credits} onClick={() => { setShowCreditsModal(false); window.location.href = '/offer'; }}
+                    style={{
+                      position: 'relative',
+                      padding: '14px 16px',
+                      borderRadius: 12,
+                      background: pkg.popular ? 'linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,215,0,0.05))' : 'rgba(255,255,255,0.04)',
+                      border: pkg.popular ? '1px solid rgba(255,215,0,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}>
+                    <div style={{ textAlign: 'left' }}>
+                      <div style={{ fontSize: 14, fontWeight: 700 }}>{pkg.credits} генераций</div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{pkg.label}</div>
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#ffd700' }}>{pkg.price} ₽</div>
+                    {pkg.popular && <div style={{ position: 'absolute', top: -8, right: 12, background: '#ffd700', color: '#000', fontSize: 9, fontWeight: 800, padding: '2px 8px', borderRadius: 8 }}>ХИТ</div>}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setShowCreditsModal(false)}
+                style={{ width: '100%', padding: 12, borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Не сейчас
+              </button>
             </motion.div>
           </motion.div>
         )}

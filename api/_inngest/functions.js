@@ -14,7 +14,7 @@ const PLAN_CONFIG = {
   },
   pro: {
     priceRub: 14990,
-    credits: 1000,
+    credits: 350,
     title: 'Seller Studio Business',
   },
 };
@@ -315,16 +315,30 @@ export const subscriptionAutoRenew = inngest.createFunction(
           const expiresAt = new Date();
           expiresAt.setMonth(expiresAt.getMonth() + 1);
 
-          await query(
-            `UPDATE subscriptions
-             SET credits = $2,
-                 credits_total = $2,
-                 expires_at = $3,
-                 status = 'active',
-                 updated_at = NOW()
-             WHERE id = $1`,
-            [sub.id, plan.credits, expiresAt]
-          );
+          const isGold = sub.plan_name === 'pro';
+          if (isGold) {
+            await query(
+              `UPDATE subscriptions
+               SET credits = COALESCE(credits, 0) + $2,
+                   credits_total = COALESCE(credits_total, 0) + $2,
+                   expires_at = $3,
+                   status = 'active',
+                   updated_at = NOW()
+               WHERE id = $1`,
+              [sub.id, plan.credits, expiresAt]
+            );
+          } else {
+            await query(
+              `UPDATE subscriptions
+               SET credits = $2,
+                   credits_total = $2,
+                   expires_at = $3,
+                   status = 'active',
+                   updated_at = NOW()
+               WHERE id = $1`,
+              [sub.id, plan.credits, expiresAt]
+            );
+          }
           await query(
             `INSERT INTO payments (user_id, plan_id, method, yookassa_payment_id, amount, credits_amount, currency, paid_at, metadata)
              VALUES ($1, $2, 'auto_renew', $3, $4, $5, 'RUB', NOW(), $6)`,

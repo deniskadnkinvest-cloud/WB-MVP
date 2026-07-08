@@ -221,9 +221,9 @@ export default function GrantsPage() {
                 <Divider style={{ margin: '12px 0' }}>Выдать тариф</Divider>
                 <Space.Compact style={{ width: '100%' }}>
                   <Select value={selectedPlan} onChange={setSelectedPlan} style={{ width: '65%' }}>
-                    <Select.Option value="trial">🎯 Тест-драйв (25 кадров)</Select.Option>
+                    <Select.Option value="trial">🎯 Тест-драйв (10 кадров)</Select.Option>
                     <Select.Option value="base">⚡ Про (100 кадров)</Select.Option>
-                    <Select.Option value="pro">🚀 Бизнес (1000 кадров)</Select.Option>
+                    <Select.Option value="pro">🚀 Бизнес (350 кадров)</Select.Option>
                   </Select>
                   <Button type="primary" icon={<GiftOutlined />} loading={opLoading} onClick={() => doAction('set-plan', { plan: selectedPlan })}>
                     Выдать тариф
