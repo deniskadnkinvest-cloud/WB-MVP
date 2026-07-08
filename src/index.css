@@ -72,6 +72,8 @@ html {
   scroll-behavior: smooth;
   scrollbar-width: thin;
   scrollbar-color: rgba(212, 168, 67, 0.2) transparent;
+  /* Prevent overscroll chaining → part of stopping Telegram Mini App swipe-to-close */
+  overscroll-behavior: none;
 }
 
 body {
@@ -82,6 +84,8 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   position: relative;
+  /* Backstop for Telegram clients where disableVerticalSwipes() is unsupported/ignored */
+  overscroll-behavior-y: none;
 }
 
 /* ═══ ANIMATED GRADIENT MESH ═══ */

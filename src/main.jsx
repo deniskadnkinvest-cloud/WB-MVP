@@ -1,6 +1,7 @@
 ﻿import React, { Component, StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import TelegramInit from './components/TelegramInit'
 
 // Р РѕСѓС‚РёРЅРі: РµСЃР»Рё URL СЃРѕРґРµСЂР¶РёС‚ ?mode=admin РёР»Рё #/admin вЂ” СЂРµРЅРґРµСЂРёРј Р°РґРјРёРЅРєСѓ
 const isAdmin = new URLSearchParams(window.location.search).get('mode') === 'admin'
@@ -48,7 +49,7 @@ class GlobalErrorBoundary extends Component {
 }
 
 const renderApp = (children) => {
-  root.render(<StrictMode><GlobalErrorBoundary>{children}</GlobalErrorBoundary></StrictMode>);
+  root.render(<StrictMode><GlobalErrorBoundary><TelegramInit />{children}</GlobalErrorBoundary></StrictMode>);
 };
 
 const renderBootstrapError = (error) => {
