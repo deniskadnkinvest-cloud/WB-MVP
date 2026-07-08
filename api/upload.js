@@ -102,6 +102,11 @@ export default async function handler(req, res) {
         return res.status(400).json({ ok: false, error: 'path is required' });
       }
 
+      // Ownership guard: a user may only read files under their own prefix (prevents IDOR).
+      if (!String(filePath).startsWith(`users/${uid}/`)) {
+        return res.status(403).json({ ok: false, error: 'Forbidden' });
+      }
+
       try {
         const command = new GetObjectCommand({
           Bucket: S3_BUCKET,
@@ -131,6 +136,11 @@ export default async function handler(req, res) {
 
       if (!filePath) {
         return res.status(400).json({ ok: false, error: 'path is required' });
+      }
+
+      // Ownership guard: a user may only delete files under their own prefix (prevents IDOR).
+      if (!String(filePath).startsWith(`users/${uid}/`)) {
+        return res.status(403).json({ ok: false, error: 'Forbidden' });
       }
 
       await deleteFile(filePath);

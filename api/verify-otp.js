@@ -63,13 +63,15 @@ export default async function handler(req, res) {
     // 3. User Resolution (Get or Create Postgres User)
     // Priority: find existing PostgreSQL user by email -> use their telegram_id
     let stableUid;
+    let dbUserId = null;
     try {
       const existingUser = await query(
-        `SELECT telegram_id FROM users WHERE email = $1 LIMIT 1`,
+        `SELECT id, telegram_id FROM users WHERE email = $1 ORDER BY id ASC LIMIT 1`,
         [email]
       );
       if (existingUser.rows.length > 0 && existingUser.rows[0].telegram_id) {
         // User already exists in DB
+        dbUserId = existingUser.rows[0].id;
         stableUid = uidForToken(existingUser.rows[0].telegram_id);
         console.log(`рџ”— Linked email ${email} to existing user: uid=${stableUid}`);
       } else {
@@ -84,6 +86,7 @@ export default async function handler(req, res) {
            RETURNING id, telegram_id`,
           [stableUid, email]
         );
+        dbUserId = rows[0]?.id ?? null;
         // Ensure subscription record exists
         if (rows[0]) {
           await query(
@@ -105,6 +108,7 @@ export default async function handler(req, res) {
       {
         uid: stableUid,
         email,
+        dbUserId,
       },
       JWT_SECRET,
       { expiresIn: '30d' }

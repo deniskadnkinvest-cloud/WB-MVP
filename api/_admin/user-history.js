@@ -31,29 +31,29 @@ async function getGenerationColumns() {
   return generationColumnsCache;
 }
 
-async function resolveUserIdentity(uid, email) {
+async function resolveUserIdentity(uid, email, dbUserId) {
+  // Exact match by the DB id carried in the token — zero ambiguity, no cross-user risk.
+  if (dbUserId != null && /^\d+$/.test(String(dbUserId))) {
+    return { dbId: Number(dbUserId), candidates: [String(dbUserId)] };
+  }
+
   const rawUid = uid?.startsWith('tg_') ? uid.slice(3) : uid;
   const prefixedUid = rawUid && !rawUid.startsWith('tg_') ? `tg_${rawUid}` : rawUid;
+  // ORDER BY id makes the LIMIT 1 deterministic if two rows ever match (e.g. duplicate email).
   const result = await query(
     `SELECT id, telegram_id, email FROM users
      WHERE telegram_id = $1 OR telegram_id = $2 OR telegram_id = $3 OR email = $4
+     ORDER BY id ASC
      LIMIT 1`,
     [uid, rawUid, prefixedUid, email || null]
   );
   const user = result.rows[0] || null;
-  const candidates = [
-    uid,
-    rawUid,
-    prefixedUid,
-    email,
-    user?.id != null ? String(user.id) : null,
-    user?.telegram_id,
-    user?.email,
-  ].filter(Boolean);
 
+  // generations.user_id is always the integer FK to users.id — scope strictly to it,
+  // never to the raw uid/email strings (which can't match an integer column and only widen risk).
   return {
     dbId: user?.id || null,
-    candidates: [...new Set(candidates.map(String))],
+    candidates: user?.id != null ? [String(user.id)] : [],
   };
 }
 
@@ -120,7 +120,7 @@ export default async function handler(req, res) {
   const uid = decoded.uid;
 
   try {
-    const identity = await resolveUserIdentity(uid, decoded.email);
+    const identity = await resolveUserIdentity(uid, decoded.email, decoded.dbUserId);
     if (identity.candidates.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
