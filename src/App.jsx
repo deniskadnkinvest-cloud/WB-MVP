@@ -1019,7 +1019,9 @@ function App() {
     });
   };
 
-  const GENERATION_REQUEST_TIMEOUT_MS = 180000;
+  // 5 min — aligned with server-side KIE polling so slow frames finish client-side and are shown,
+  // instead of the client abandoning them at 3 min (server keeps going → charged but only in history).
+  const GENERATION_REQUEST_TIMEOUT_MS = 300000;
   const createIdempotencyKey = (prefix = 'gen') => {
     const randomPart = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
     return `${prefix}:${Date.now()}:${randomPart}`;
@@ -1354,9 +1356,18 @@ function App() {
               console.error('Task failed:', data.error || data.details);
             }
           } catch (taskErr) {
-            failedCount++;
-            results.push({ success: false, error: taskErr.message, task });
-            console.error('Task execution error:', taskErr.message);
+            if (taskErr.name === 'AbortError') {
+              // Client stopped waiting, but the server keeps generating — the frame lands in history.
+              // Not a failure: the credit is committed on server success (or auto-refunded on failure).
+              results.push({ success: false, background: true, error: 'still generating', task });
+              setStatusText('⏳ Часть кадров ещё генерируется в фоне — они появятся в разделе «Мои работы».');
+              setStatusType('info');
+              console.warn('Task still generating in background (client timeout)');
+            } else {
+              failedCount++;
+              results.push({ success: false, error: taskErr.message, task });
+              console.error('Task execution error:', taskErr.message);
+            }
           } finally {
             updateProgressText();
           }
