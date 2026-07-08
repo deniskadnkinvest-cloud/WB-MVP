@@ -232,14 +232,14 @@ export default function LoraModal({
                     )}
                   </div>
                   {!displayPhoto && !isGenerating && hasEnough && (
-                    <button onClick={() => generateSingle(key)} disabled={isAnyGenerating}
-                      style={{ padding: '6px 8px', borderRadius: 8, background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.3)', color: '#a855f7', fontSize: 11, fontWeight: 700, cursor: isAnyGenerating ? 'not-allowed' : 'pointer', opacity: isAnyGenerating ? 0.5 : 1 }}>
+                    <button onClick={() => generateSingle(key)}
+                      style={{ padding: '6px 8px', borderRadius: 8, background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.3)', color: '#a855f7', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                       ✨ Сгенерировать
                     </button>
                   )}
                   {isAI && !isGenerating && (
-                    <button onClick={() => generateSingle(key)} disabled={isAnyGenerating}
-                      style={{ padding: '5px 8px', borderRadius: 8, background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)', color: '#a855f7', fontSize: 10, fontWeight: 600, cursor: isAnyGenerating ? 'not-allowed' : 'pointer', opacity: isAnyGenerating ? 0.5 : 1 }}>
+                    <button onClick={() => generateSingle(key)}
+                      style={{ padding: '5px 8px', borderRadius: 8, background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)', color: '#a855f7', fontSize: 10, fontWeight: 600, cursor: 'pointer' }}>
                       🔄 Ещё вариант
                     </button>
                   )}
