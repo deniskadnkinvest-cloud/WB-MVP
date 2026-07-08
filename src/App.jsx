@@ -3016,7 +3016,11 @@ ${userProductInfo.trim()}
         </div>
 
         <div style={{marginTop:16,display:'flex',alignItems:'center',justifyContent:'center',gap:8,flexWrap:'wrap'}}>
-          <SubscriptionBadge subscription={subscription} onClick={() => setShowPricing(true)} />
+          <SubscriptionBadge
+            subscription={subscription}
+            onClick={() => setShowPricing(true)}
+            onTopUp={() => setShowPricing(true)}
+          />
           <button className="my-history-btn" onClick={() => setShowHistory(true)} title="Мои работы">
             🖼️ Мои работы
           </button>

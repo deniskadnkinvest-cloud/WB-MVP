@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PLANS } from '../lib/subscriptionService';
 import './PricingModal.css';
@@ -36,6 +36,19 @@ export default function PricingModal({
 }) {
   const [selectedPlanId, setSelectedPlanId] = useState(null);
 
+  // Escape closes modal (parity with Telegram Back / desktop UX)
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose?.();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const plans = [PLANS.trial, PLANS.base, PLANS.pro];
@@ -55,6 +68,8 @@ export default function PricingModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
+          role="dialog"
+          aria-modal="true"
         >
           <motion.div
             className="pricing-modal"
