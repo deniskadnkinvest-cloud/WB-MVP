@@ -3568,12 +3568,12 @@ ${userProductInfo.trim()}
           <div className="section-title"><span className="icon">🧴</span> Категория товара</div>
           <div className="preset-grid">
             {PRODUCT_CATEGORIES.map(cat => (
-              <div key={cat.id} className={`preset-card ${selectedProductCategory.id===cat.id&&!customProductPrompt?'active':''}`}
+              <div key={cat.id} className={`preset-card ${selectedProductCategory.id===cat.id?'active':''}`}
                 onClick={() => { setSelectedProductCategory(cat); setCustomProductPrompt(''); }}>
                 <span className="emoji">{cat.emoji}</span><span className="label">{cat.label}</span>
               </div>
             ))}
-            <div className={`preset-card ${selectedProductCategory.id==='other'&&!customProductPrompt?'active':''}`}
+            <div className={`preset-card ${selectedProductCategory.id==='other'?'active':''}`}
               onClick={() => { setSelectedProductCategory({ id: 'other', label: 'Другое', emoji: '📋', defaultPrompt: 'product item, commercial product photography' }); setCustomProductPrompt(''); }}>
               <span className="emoji">📋</span><span className="label">Другое</span>
             </div>
@@ -3583,9 +3583,12 @@ ${userProductInfo.trim()}
               <p className="section-hint" style={{fontSize:'0.78rem',color:'var(--text-muted)',marginTop:6,textAlign:'center'}}>☝️ Опишите ваш товар в поле ниже — это улучшит качество генерации</p>
               <div className="custom-variant-row">
                 <input className="custom-variant-input" type="text" placeholder="Опишите ваш товар: «набор кистей для макияжа в чехле»"
-                  value={customProductPrompt} 
+                  value={customProductPrompt}
                   onChange={e => setCustomProductPrompt(e.target.value)} />
               </div>
+              {customProductPrompt.trim() && (
+                <p style={{fontSize:'0.76rem',color:'#22c55e',marginTop:6,textAlign:'center',fontWeight:600}}>✓ Учтём при генерации: «{customProductPrompt.trim()}»</p>
+              )}
             </>
           )}
         </motion.div>
