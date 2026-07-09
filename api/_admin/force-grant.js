@@ -1,12 +1,12 @@
 // POST/GET /api/admin/force-grant
-// Backward-compatible alias for /api/admin/grant-access.
-// Uses the normal admin auth headers; no hardcoded secrets in production code.
+// Backward-compatible alias for set-plan via /api/admin/user-control.
+// Uses normal admin auth headers; no hardcoded secrets.
 
-import grantAccessHandler from './grant-access.js';
+import userControlHandler from './user-control.js';
 
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
-    return grantAccessHandler(req, res);
+    return userControlHandler(req, res);
   }
 
   if (req.method !== 'GET' && req.method !== 'POST') {
@@ -18,11 +18,12 @@ export default async function handler(req, res) {
 
   req.method = 'POST';
   req.body = {
+    action: 'set-plan',
     identifier,
     plan: params.plan || 'base',
     credits: params.credits,
     note: params.note || 'force-grant compatibility route',
   };
 
-  return grantAccessHandler(req, res);
+  return userControlHandler(req, res);
 }

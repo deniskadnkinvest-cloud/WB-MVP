@@ -11,6 +11,7 @@ import settingsHandler from './_admin/settings.js';
 import promptsHandler from './_admin/prompts.js';
 import generationsHandler from './_admin/generations.js';
 import errorsHandler from './_admin/errors.js';
+import forceGrantHandler from './_admin/force-grant.js';
 
 export default async function handler(req, res) {
   // Р Р°Р·Р±РёСЂР°РµРј URL-РїСѓС‚СЊ (РЅР°РїСЂРёРјРµСЂ, "/api/admin/verify?key=..." -> "/api/admin/verify")
@@ -40,6 +41,9 @@ export default async function handler(req, res) {
       return generationsHandler(req, res);
     case 'errors':
       return errorsHandler(req, res);
+    case 'force-grant':
+    case 'grant-access':
+      return forceGrantHandler(req, res);
     default:
       // Fallback РЅР° РІРµСЂРёС„РёРєР°С†РёСЋ, РµСЃР»Рё СЌС‚Рѕ РєРѕСЂРЅРµРІРѕР№ POST-Р·Р°РїСЂРѕСЃ
       if (action === '' && req.method === 'POST') {
