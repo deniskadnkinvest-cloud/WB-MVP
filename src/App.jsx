@@ -125,6 +125,7 @@ const DRAFT_STORAGE_KEYS = [
 
 function App() {
   const { user, loading, signOut, isEmbedded, isTelegram } = useAuth();
+  const isGuestUser = Boolean(user?.isGuest || (user?.isAnonymous && !user?.isTelegramUser));
 
   // Subscription state
   const [subscription, setSubscription] = useState({ plan: 'none', credits: 0, creditsTotal: 0 });
@@ -134,11 +135,39 @@ function App() {
   const [cancelingSubscription, setCancelingSubscription] = useState(false);
   const [copiedUid, setCopiedUid] = useState(false);
 
-  const handleCopyUid = () => {
+  const handleCopyUid = async () => {
     if (!user?.uid) return;
-    navigator.clipboard.writeText(user.uid);
-    setCopiedUid(true);
-    setTimeout(() => setCopiedUid(false), 2000);
+
+    const copyWithTextarea = () => {
+      const textarea = document.createElement('textarea');
+      textarea.value = user.uid;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      const copied = document.execCommand('copy');
+      textarea.remove();
+      if (!copied) throw new Error('Copy command was rejected');
+    };
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(user.uid);
+        } catch {
+          copyWithTextarea();
+        }
+      } else {
+        copyWithTextarea();
+      }
+      setCopiedUid(true);
+      setTimeout(() => setCopiedUid(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy UID:', error);
+      setStatusText('Не удалось скопировать ID. Попробуйте ещё раз.');
+      setStatusType('error');
+    }
   };
 
   // App mode: 'fashion' | 'product'
@@ -254,9 +283,14 @@ function App() {
   const [imageHistory, setImageHistory] = useState(() => readStoredJson('vton_imageHistory', [])); // all generated renders
   const [historyIndex, setHistoryIndex] = useState(() => readStoredNumber('vton_historyIndex', -1)); // current position in history
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showProcessingOverlay, setShowProcessingOverlay] = useState(false);
   const [processingMsg, setProcessingMsg] = useState('');
   const [statusText, setStatusText] = useState('');
   const [statusType, setStatusType] = useState('');
+
+  useEffect(() => {
+    setShowProcessingOverlay(isProcessing);
+  }, [isProcessing]);
 
   // Extra free-text for preset model
   const [extraModelPrompt, setExtraModelPrompt] = useState('');
@@ -771,6 +805,11 @@ function App() {
   // Handle plan selection from PricingModal
   const handleSelectPlan = async (planId) => {
     if (!user) return;
+    if (isGuestUser) {
+      setShowPricing(false);
+      signOut();
+      return;
+    }
     setPricingLoading(true);
     try {
       const idToken = await user.getIdToken();
@@ -2290,6 +2329,7 @@ ${userProductInfo.trim()}
     const isCardMode = quickMode === 'card';
     const isUgcMode = quickMode === 'ugc';
     const isModelMode = quickMode === 'model';
+    const requestedQuickMode = quickMode;
     const creditsNeeded = isCardMode ? 2 : 1;
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < creditsNeeded && !subscription?.local) {
@@ -2467,7 +2507,7 @@ ${userProductInfo.trim()}
     } catch (err) {
       clearInterval(statusIv);
       if (err.name === 'AbortError') {
-        const cached = quickResults[modeToUse];
+        const cached = quickResults[requestedQuickMode];
         if (cached) {
           setGeneratedImage(cached.image);
           if (cached.editHistory) { setQuickCardImage(cached.image); setCardEditHistory(cached.editHistory); }
@@ -3120,6 +3160,11 @@ ${userProductInfo.trim()}
         subscription={subscription}
         onCancelAutoRenew={handleCancelAutoRenew}
         canceling={cancelingSubscription}
+        requiresAuth={isGuestUser}
+        onAuthRequired={() => {
+          setShowPricing(false);
+          signOut();
+        }}
       />
 
       {/* ═══ CONFIRM MODAL ═══ */}
@@ -4810,19 +4855,17 @@ ${userProductInfo.trim()}
 
             {/* Widget 2: Video */}
             <div style={{background: 'linear-gradient(145deg, rgba(167, 139, 250, 0.08) 0%, rgba(0,0,0,0) 100%)', border: '1px solid rgba(167, 139, 250, 0.2)', borderRadius: 20, padding: 24, position: 'relative', display: 'flex', flexDirection: 'column'}}>
-              <div style={{position: 'absolute', top: 20, right: 20, background: 'rgba(167, 139, 250, 0.2)', color: '#d8b4fe', fontSize: 10, fontWeight: 800, padding: '4px 8px', borderRadius: 6, textTransform: 'uppercase', border: '1px solid rgba(167, 139, 250, 0.3)'}}>Тренд 2026</div>
+              <div style={{position: 'absolute', top: 20, right: 20, background: 'rgba(167, 139, 250, 0.2)', color: '#d8b4fe', fontSize: 10, fontWeight: 800, padding: '4px 8px', borderRadius: 6, textTransform: 'uppercase', border: '1px solid rgba(167, 139, 250, 0.3)'}}>В разработке</div>
               <div style={{fontSize: 28, marginBottom: 12}}>🎬</div>
               <h4 style={{margin: '0 0 8px 0', fontSize: 17, color: '#fff', fontWeight: 700}}>Оживить в Видеообложку</h4>
               <p style={{fontSize: 13, color: 'rgba(255,255,255,0.4)', margin: '0 0 20px 0', lineHeight: 1.5}}>
                 Алгоритмы WB обожают Motion. Добавим 3D-параллакс, игру света и анимацию УТП.
               </p>
-              <button 
-                onClick={() => triggerConfirm('video', 4, () => { setStatusText('🎬 Видеогенерация скоро будет доступна! Мы уже работаем над этим.'); setStatusType('processing'); })}
-                style={{width: '100%', background: 'rgba(167, 139, 250, 0.15)', color: '#d8b4fe', border: '1px solid rgba(167, 139, 250, 0.4)', padding: '12px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', marginTop: 'auto'}}
-                onMouseEnter={e => {e.currentTarget.style.background = 'rgba(167, 139, 250, 0.25)'}}
-                onMouseLeave={e => {e.currentTarget.style.background = 'rgba(167, 139, 250, 0.15)'}}
+              <button
+                disabled
+                style={{width: '100%', background: 'rgba(167, 139, 250, 0.08)', color: 'rgba(216,180,254,0.62)', border: '1px solid rgba(167, 139, 250, 0.22)', padding: '12px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'not-allowed', marginTop: 'auto'}}
               >
-                Создать видео за 4 кр.
+                Скоро — кредиты не списываются
               </button>
             </div>
 
@@ -5187,12 +5230,22 @@ ${userProductInfo.trim()}
 
       {/* OVERLAYS */}
       <AnimatePresence>
-        {isProcessing && (
+        {isProcessing && showProcessingOverlay && (
           <motion.div className="processing-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
-            <button className="processing-close-btn" onClick={() => setIsProcessing(false)} title="Скрыть">✕</button>
+            <button className="processing-close-btn" onClick={() => setShowProcessingOverlay(false)} title="Скрыть прогресс">✕</button>
             <div style={{width:'90%', maxWidth:480}}>
               <TerminalOfMagic isActive={isProcessing} customMessage={processingMsg} />
               <p className="processing-hint" style={{textAlign:'center', marginTop:12}}>Обычно 30с — 2 мин</p>
+              {abortControllerRef.current && (
+                <div className="processing-actions">
+                  <button className="processing-cancel-btn" onClick={() => abortControllerRef.current?.abort()}>
+                    Остановить генерацию
+                  </button>
+                  <button className="processing-hide-btn" onClick={() => setShowProcessingOverlay(false)}>
+                    Скрыть, но продолжить
+                  </button>
+                </div>
+              )}
             </div>
           </motion.div>
         )}

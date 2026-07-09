@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth, firebaseErrorToRussian } from '../contexts/AuthContext';
-import { FaVk, FaTelegramPlane, FaYandex, FaApple } from 'react-icons/fa';
+import { FaVk, FaTelegramPlane, FaYandex } from 'react-icons/fa';
 import './LoginPage.css';
 
 const TelegramWidget = ({ botName, onAuth }) => {
@@ -284,7 +284,7 @@ export default function LoginPage() {
         {/* Title */}
         <h1 className="login-logo">Селлер-Студия</h1>
         <span className="login-diamond">◇</span>
-        <p className="login-subtitle">Виртуальная примерочная</p>
+        <p className="login-subtitle">ИИ-фотостудия для маркетплейсов</p>
 
         {isPrivate && (
           <div className="inapp-banner" style={{ borderColor: 'rgba(255,165,0,0.4)' }}>
@@ -373,9 +373,6 @@ export default function LoginPage() {
               </button>
               <button type="button" className="social-circle-btn" onClick={() => handleMockSocial('Яндекс')} title="Яндекс">
                 <FaYandex size={26} />
-              </button>
-              <button type="button" className="social-circle-btn" onClick={() => handleMockSocial('Apple')} title="Apple">
-                <FaApple size={28} />
               </button>
             </div>
             

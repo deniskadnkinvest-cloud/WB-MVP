@@ -55,6 +55,37 @@
   text-transform: uppercase;
 }
 
+.pricing-auth-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 720px;
+  margin: -14px auto 22px;
+  padding: 14px 16px;
+  border: 1px solid rgba(212, 168, 67, 0.28);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(212, 168, 67, 0.1), rgba(255, 255, 255, 0.025));
+  color: var(--text-secondary);
+}
+
+.pricing-auth-notice-icon {
+  flex: 0 0 auto;
+  font-size: 1.15rem;
+}
+
+.pricing-auth-notice strong {
+  display: block;
+  color: var(--gold-light);
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+
+.pricing-auth-notice p {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
 .pricing-close {
   position: absolute;
   top: -8px;

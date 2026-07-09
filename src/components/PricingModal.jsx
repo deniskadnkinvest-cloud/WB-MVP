@@ -33,6 +33,8 @@ export default function PricingModal({
   subscription,
   onCancelAutoRenew,
   canceling,
+  requiresAuth = false,
+  onAuthRequired,
 }) {
   const [selectedPlanId, setSelectedPlanId] = useState(null);
 
@@ -55,6 +57,10 @@ export default function PricingModal({
   const expiryDate = formatExpiryDate(subscription?.planExpiresAt);
 
   const handleSelect = (planId) => {
+    if (requiresAuth) {
+      onAuthRequired?.();
+      return;
+    }
     setSelectedPlanId(planId);
     onSelectPlan(planId);
   };
@@ -85,6 +91,16 @@ export default function PricingModal({
               <p className="pricing-subtitle">Качество маркетплейса — скорость AI</p>
               <button className="pricing-close" onClick={onClose}>✕</button>
             </div>
+
+            {requiresAuth && (
+              <div className="pricing-auth-notice" role="status">
+                <span className="pricing-auth-notice-icon">🔐</span>
+                <div>
+                  <strong>Для оформления тарифа войдите</strong>
+                  <p>Ваш текущий черновик сохранится, а оплата будет привязана к вашему аккаунту.</p>
+                </div>
+              </div>
+            )}
 
             {/* Plans Grid */}
             <div className="pricing-grid">
@@ -185,7 +201,9 @@ export default function PricingModal({
                         onClick={() => handleSelect(plan.id)}
                         disabled={isActive || (loading && isSelected)}
                       >
-                        {loading && isSelected ? (
+                        {requiresAuth ? (
+                          'Войти и выбрать'
+                        ) : loading && isSelected ? (
                           '⏳ Активация...'
                         ) : isActive ? (
                           '✓ Активен'
@@ -223,6 +241,7 @@ export default function PricingModal({
             </div>
 
             {/* Top-Up: докупка генераций без смены тарифа */}
+            {subscription?.plan && subscription.plan !== 'none' && (
             <div className="topup-section">
               <div className="topup-header">
                 <h3 className="topup-title">⚡ Нужно больше генераций?</h3>
@@ -251,6 +270,7 @@ export default function PricingModal({
                 })}
               </div>
             </div>
+            )}
 
             {subscription && subscription.plan !== 'none' && subscription.plan !== 'trial' && (
               <div className={`subscription-info-box ${subscription.autoRenew ? 'auto-renew-on' : 'auto-renew-off'}`}>

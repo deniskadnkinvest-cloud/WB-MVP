@@ -20,6 +20,16 @@ function logToFile(msg) {
 test.describe('VTON Studio - Product Mode E2E Tests', () => {
   
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('vton_token', 'product-mode-local-token');
+      localStorage.setItem('vton_user', JSON.stringify({
+        uid: 'tg_product_mode_test',
+        displayName: 'Product Mode Test',
+        isAnonymous: false,
+        isGuest: false,
+      }));
+    });
+
     // Request logger for API calls
     page.on('request', request => {
       if (request.url().includes('/api/')) {
@@ -49,6 +59,12 @@ test.describe('VTON Studio - Product Mode E2E Tests', () => {
         })
       });
     });
+
+    await page.route(url => url.href.includes('/api/user-data'), route => route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, data: [] }),
+    }));
 
     // Navigate to the app
     await page.goto('http://localhost:5173');
@@ -93,19 +109,22 @@ test.describe('VTON Studio - Product Mode E2E Tests', () => {
   test('should allow selecting product categories and updating prompt', async ({ page }) => {
     await page.click('button:has-text("Предметка")');
 
-    // Select Cosmetics category
-    const cosmeticsCard = page.locator('.preset-card:has-text("Косметика")');
-    await cosmeticsCard.click();
-    await expect(cosmeticsCard).toHaveClass(/active/);
+    // The custom product field belongs to the "Other" category only.
+    const otherCard = page.locator('.preset-card:has-text("Другое")');
+    await otherCard.click();
+    await expect(otherCard).toHaveClass(/active/);
 
     // Type custom product prompt
-    const customInput = page.locator('input.custom-variant-input').first();
+    const customInput = page.getByPlaceholder('Опишите ваш товар: «набор кистей для макияжа в чехле»');
     await customInput.fill('luxury perfume bottle, glass, gold elements');
     
     // Selecting other category resets custom prompt based on App.jsx onClick handler
     const supplementsCard = page.locator('.preset-card:has-text("Витамины")');
     await supplementsCard.click();
     await expect(supplementsCard).toHaveClass(/active/);
+    await expect(customInput).toHaveCount(0);
+
+    await otherCard.click();
     await expect(customInput).toHaveValue('');
   });
 

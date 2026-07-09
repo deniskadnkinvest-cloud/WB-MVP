@@ -642,6 +642,58 @@
   cursor: not-allowed;
 }
 
+/* Saved calibration draft */
+.calib-draft-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 520px;
+  margin: 16px auto 4px;
+  padding: 14px 16px;
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.1), rgba(212, 168, 67, 0.05));
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2);
+}
+
+.calib-draft-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  text-align: left;
+}
+
+.calib-draft-info > span:first-child {
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+}
+
+.calib-draft-info strong {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+}
+
+.calib-draft-date {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+.calib-draft-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.calib-btn-sm {
+  min-height: 36px;
+  padding: 8px 13px;
+  font-size: 0.72rem;
+}
+
 /* ═══ REGEN BUTTON (on thumbnails) ═══ */
 .calib-regen-single {
   position: absolute;
@@ -854,6 +906,16 @@
 
   .calib-actions {
     flex-direction: column;
+  }
+
+  .calib-draft-banner,
+  .calib-draft-actions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .calib-draft-actions .calib-btn-sm {
+    width: 100%;
   }
 
   .calib-progress-label {
