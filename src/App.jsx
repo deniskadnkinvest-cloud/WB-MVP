@@ -132,6 +132,14 @@ function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [cancelingSubscription, setCancelingSubscription] = useState(false);
+  const [copiedUid, setCopiedUid] = useState(false);
+
+  const handleCopyUid = () => {
+    if (!user?.uid) return;
+    navigator.clipboard.writeText(user.uid);
+    setCopiedUid(true);
+    setTimeout(() => setCopiedUid(false), 2000);
+  };
 
   // App mode: 'fashion' | 'product'
   const [appMode, setAppMode] = useState(() => {
@@ -3044,6 +3052,60 @@ ${userProductInfo.trim()}
             </button>
           )}
           <span style={{fontSize:'0.75rem',color:'var(--text-muted)'}}>{user.displayName || user.email}</span>
+          {user?.uid && (
+            <button
+              onClick={handleCopyUid}
+              title="Скопировать ID для поддержки"
+              style={{
+                fontSize: '0.62rem',
+                color: copiedUid ? '#10b981' : 'rgba(255,255,255,0.45)',
+                background: copiedUid ? 'rgba(16,185,129,0.08)' : 'rgba(255,255,255,0.02)',
+                border: copiedUid ? '1px solid rgba(16,185,129,0.2)' : '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '6px',
+                padding: '3px 8px',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-body)',
+                fontWeight: 500,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                outline: 'none',
+                userSelect: 'none'
+              }}
+              onMouseEnter={(e) => {
+                if (!copiedUid) {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                  e.currentTarget.style.color = 'rgba(255,255,255,0.85)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.18)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!copiedUid) {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+                  e.currentTarget.style.color = 'rgba(255,255,255,0.45)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+                }
+              }}
+            >
+              {copiedUid ? (
+                <>
+                  <span>Скопирован!</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </>
+              ) : (
+                <>
+                  <span>ID: {user.uid}</span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </>
+              )}
+            </button>
+          )}
           {!isEmbedded && <button onClick={signOut} style={{fontSize:'0.7rem',color:'var(--text-muted)',background:'none',border:'1px solid var(--border-subtle)',borderRadius:'9999px',padding:'4px 14px',cursor:'pointer',fontFamily:'var(--font-body)',letterSpacing:'1px',textTransform:'uppercase'}}>Выйти</button>}
         </div>
       </header>
