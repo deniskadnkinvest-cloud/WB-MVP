@@ -2,7 +2,7 @@ import { query } from './_db.js';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 
-const DEFAULT_RESEND_FROM_EMAIL = 'Seller Studio <noreply@seller-studio-ai.ru>';
+const DEFAULT_RESEND_FROM_EMAIL = 'PANX ID <noreply@panx.app>';
 
 const classifySendError = (sendError = '') => {
   if (sendError.includes('domain is not verified')) {
@@ -129,15 +129,15 @@ export default async function handler(req, res) {
           body: JSON.stringify({
             from: fromEmail,
             to: [email],
-            subject: 'Код подтверждения Seller Studio',
+            subject: 'PANX ID: Код для входа в Seller Studio',
             html: `
               <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; background-color: #0c1020; color: #ffffff;">
-                <h2 style="color: #d4af37; text-align: center;">Селлер-Студия</h2>
-                <p style="font-size: 16px; text-align: center;">Ваш одноразовый код для входа в виртуальную примерочную:</p>
+                <h2 style="color: #a855f7; text-align: center; letter-spacing: 2px;">PANX ID</h2>
+                <p style="font-size: 16px; text-align: center;">Ваш одноразовый код для входа в приложение <b>Seller Studio</b>:</p>
                 <div style="background-color: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; font-size: 32px; font-weight: bold; letter-spacing: 5px; text-align: center; color: #ffffff; border: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
                   ${code}
                 </div>
-                <p style="font-size: 12px; color: #888; text-align: center;">Код действителен в течение 5 минут. Не сообщайте его никому.</p>
+                <p style="font-size: 12px; color: #888; text-align: center;">Это единый код для доступа к приложениям экосистемы PANX.</p>
               </div>
             `
           })
@@ -177,17 +177,17 @@ export default async function handler(req, res) {
         });
 
         const mailOptions = {
-          from: process.env.SMTP_FROM || `"Seller Studio" <${process.env.SMTP_USER}>`,
+          from: process.env.SMTP_FROM || `"PANX ID" <${process.env.SMTP_USER}>`,
           to: email,
-          subject: 'Код подтверждения Seller Studio',
+          subject: 'PANX ID: Код для входа в Seller Studio',
           html: `
             <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px; background-color: #0c1020; color: #ffffff;">
-              <h2 style="color: #d4af37; text-align: center;">Селлер-Студия</h2>
-              <p style="font-size: 16px; text-align: center;">Ваш одноразовый код для входа в виртуальную примерочную:</p>
+              <h2 style="color: #a855f7; text-align: center; letter-spacing: 2px;">PANX ID</h2>
+              <p style="font-size: 16px; text-align: center;">Ваш одноразовый код для входа в приложение <b>Seller Studio</b>:</p>
               <div style="background-color: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; font-size: 32px; font-weight: bold; letter-spacing: 5px; text-align: center; color: #ffffff; border: 1px solid rgba(255,255,255,0.1); margin: 20px 0;">
                 ${code}
               </div>
-              <p style="font-size: 12px; color: #888; text-align: center;">Код действителен в течение 5 минут. Не сообщайте его никому.</p>
+              <p style="font-size: 12px; color: #888; text-align: center;">Это единый код для доступа к приложениям экосистемы PANX.</p>
             </div>
           `
         };
