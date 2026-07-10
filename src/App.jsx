@@ -228,6 +228,9 @@ function App() {
   const [customModelChips, setCustomModelChips] = useState([]);
   const [customPoseChips, setCustomPoseChips] = useState([]);
   const [customBgChips, setCustomBgChips] = useState([]);
+  const [customProductCompositionChips, setCustomProductCompositionChips] = useState([]);
+  const [customProductBgChips, setCustomProductBgChips] = useState([]);
+  const [customProductEffectChips, setCustomProductEffectChips] = useState([]);
   const [addingCustom, setAddingCustom] = useState(null); // 'model'|'pose'|'bg'|null
   const [newChipText, setNewChipText] = useState('');
   const [customChipModalSection, setCustomChipModalSection] = useState(null);
@@ -320,6 +323,9 @@ function App() {
     }
     else if (section === 'pose') { setCustomPoseChips(prev => [...prev, chip]); setCustomPoseText(''); }
     else if (section === 'bg') { setCustomBgChips(prev => [...prev, chip]); setCustomBgText(''); }
+    else if (section === 'product_composition') { setCustomProductCompositionChips(prev => [...prev, chip]); setCustomPoseText(''); }
+    else if (section === 'product_bg') { setCustomProductBgChips(prev => [...prev, chip]); setCustomProductBg(''); }
+    else if (section === 'product_effect') { setCustomProductEffectChips(prev => [...prev, chip]); setCustomProductEffectText(''); }
     setNewChipText('');
     setAddingCustom(null);
   };
@@ -328,6 +334,9 @@ function App() {
     if (section === 'model') setCustomModelChips(prev => prev.filter(c => c.id !== chipId));
     else if (section === 'pose') setCustomPoseChips(prev => prev.filter(c => c.id !== chipId));
     else if (section === 'bg') setCustomBgChips(prev => prev.filter(c => c.id !== chipId));
+    else if (section === 'product_composition') setCustomProductCompositionChips(prev => prev.filter(c => c.id !== chipId));
+    else if (section === 'product_bg') setCustomProductBgChips(prev => prev.filter(c => c.id !== chipId));
+    else if (section === 'product_effect') setCustomProductEffectChips(prev => prev.filter(c => c.id !== chipId));
   };
 
   const openEditChipModal = (section, chip) => {
@@ -352,6 +361,9 @@ function App() {
     if (section === 'model') setCustomModelChips(updater);
     else if (section === 'pose') setCustomPoseChips(updater);
     else if (section === 'bg') setCustomBgChips(updater);
+    else if (section === 'product_composition') setCustomProductCompositionChips(updater);
+    else if (section === 'product_bg') setCustomProductBgChips(updater);
+    else if (section === 'product_effect') setCustomProductEffectChips(updater);
     setEditingChip(null);
     setNewChipText('');
   };
@@ -372,9 +384,9 @@ function App() {
     if (appMode === 'quick') return 1;
 
     if (appMode === 'product') {
-      const compCount = customPoseText.trim() ? 1 : selectedProductCompositions.length;
-      const bgCount = (customProductBg.trim() || selectedLocId) ? 1 : selectedProductBgs.length;
-      const effectCount = customProductEffectText.trim() ? 1 : selectedProductEffects.length;
+      const compCount = customPoseText.trim() ? 1 : (selectedProductCompositions.length + customProductCompositionChips.length);
+      const bgCount = (customProductBg.trim() || selectedLocId) ? 1 : (selectedProductBgs.length + customProductBgChips.length);
+      const effectCount = customProductEffectText.trim() ? 1 : (selectedProductEffects.length + customProductEffectChips.length);
       const ratioCount = selectedRatios.length;
       return compCount * bgCount * effectCount * ratioCount * variantCount;
     } else {
@@ -406,7 +418,10 @@ function App() {
     selectedBgs,
     customModelChips,
     customPoseChips,
-    customBgChips
+    customBgChips,
+    customProductCompositionChips,
+    customProductBgChips,
+    customProductEffectChips
   ]);
 
   // Extra free-text for preset bg/location
@@ -1194,15 +1209,17 @@ function App() {
 
         if (appMode === 'product') {
           // Композиции
-          const compsToUse = customPoseText.trim() ? [{ id: 'custom', prompt: customPoseText.trim(), label: 'Своя композиция' }] : selectedProductCompositions;
+          const compsToUse = customPoseText.trim()
+            ? [{ id: 'custom', prompt: customPoseText.trim(), label: 'Своя композиция' }]
+            : [...selectedProductCompositions, ...customProductCompositionChips.map(c => ({ id: c.id, prompt: c.prompt, label: c.label }))];
           // Фоны
           const bgsToUse = (customProductBg.trim() || selectedLocId) 
             ? [{ id: selectedLocId || 'custom', prompt: customProductBg.trim(), isLoc: !!selectedLocId }]
-            : selectedProductBgs;
+            : [...selectedProductBgs, ...customProductBgChips.map(c => ({ id: c.id, prompt: c.prompt, label: c.label }))];
           // Спецэффекты
           const effectsToUse = customProductEffectText.trim()
             ? [{ id: 'custom', prompt: customProductEffectText.trim(), label: 'Свой эффект' }]
-            : selectedProductEffects;
+            : [...selectedProductEffects.filter(e => e.id !== 'custom'), ...customProductEffectChips.map(c => ({ id: c.id, prompt: c.prompt, label: c.label }))];
           // Форматы
           const ratiosToUse = selectedRatios;
 
@@ -4022,10 +4039,20 @@ ${userProductInfo.trim()}
                 </div>
               );
             })}
-          </div>
-          <div className="custom-variant-row">
-            <input className="custom-variant-input" type="text" placeholder="Или опишите свою композицию: «Товар лежит на зеркальной поверхности под углом»"
-              value={customPoseText} onChange={e => setCustomPoseText(e.target.value)} />
+            {/* Custom composition chips */}
+            {customProductCompositionChips.map(chip => (
+              <div key={chip.id} className="preset-card active custom-chip-card">
+                <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
+                <div className="chip-actions">
+                  <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('product_composition', chip); }}>✏️</button>
+                  <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('product_composition', chip.id); }}>✕</button>
+                </div>
+              </div>
+            ))}
+            {/* Add custom variant */}
+            <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('product_composition'); setNewChipText(''); }}>
+              <span className="emoji">➕</span><span className="label">Свой вариант</span>
+            </div>
           </div>
         </motion.div>
       ) : (
@@ -4171,23 +4198,28 @@ ${userProductInfo.trim()}
                       </div>
                     );
                   })}
+                  {/* Custom bg chips */}
+                  {customProductBgChips.map(chip => (
+                    <div key={chip.id} className="preset-card active custom-chip-card">
+                      <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
+                      <div className="chip-actions">
+                        <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('product_bg', chip); }}>✏️</button>
+                        <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('product_bg', chip.id); }}>✕</button>
+                      </div>
+                    </div>
+                  ))}
+                  {/* Add custom variant */}
+                  {!selectedLocId && (
+                    <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('product_bg'); setNewChipText(''); }}>
+                      <span className="emoji">➕</span><span className="label">Свой вариант</span>
+                    </div>
+                  )}
                 </div>
-                {!customProductBg && (
-                  <div className="preset-card add-custom-card" style={{marginTop: 12}} onClick={() => { setCustomProductBg(' '); setSelectedLocId(null); }}>
-                    <span className="emoji">➕</span><span className="label">Свой вариант</span>
-                  </div>
-                )}
-                {customProductBg !== '' && (
-                  <div className="custom-variant-row" style={{marginTop: 12}}>
-                    <input autoFocus className="custom-variant-input" placeholder="Локация с нуля: «деревянный стол в скандинавском стиле, на фоне размытое окно»"
-                      value={customProductBg.replace(/^\s+/, '')} onChange={e => { setCustomProductBg(e.target.value); setSelectedLocId(null); }} />
-                  </div>
-                )}
                 <div className="section-subtitle-small" style={{marginTop: 18, marginBottom: 8, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px', opacity: selectedProductEffects.some(s => s.id === 'none') ? 0.6 : 1}}>
                   <span>✨</span> Добавить спецэффект
                 </div>
                 <div className="preset-grid" style={{opacity: selectedProductEffects.some(s => s.id === 'none') ? 0.6 : 1, filter: selectedProductEffects.some(s => s.id === 'none') ? 'grayscale(0.8)' : 'none'}}>
-                  {PRODUCT_EFFECTS.map(e => {
+                  {PRODUCT_EFFECTS.filter(e => e.id !== 'custom').map(e => {
                     const isActive = selectedProductEffects.some(s => s.id === e.id);
                     return (
                       <div key={e.id} className={`preset-card ${isActive ? 'active' : ''}`}
@@ -4211,17 +4243,21 @@ ${userProductInfo.trim()}
                       </div>
                     );
                   })}
-                </div>
-                {selectedProductEffects.some(s => s.id === 'custom') && (
-                  <div className="custom-variant-row" style={{marginTop:10}}>
-                    <input
-                      className="custom-variant-input"
-                      placeholder="Опишите ваш спецэффект: «взрыв конфетти, снежинки, дым»"
-                      value={customProductEffectText}
-                      onChange={ev => setCustomProductEffectText(ev.target.value)}
-                    />
+                  {/* Custom effect chips */}
+                  {customProductEffectChips.map(chip => (
+                    <div key={chip.id} className="preset-card active custom-chip-card">
+                      <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
+                      <div className="chip-actions">
+                        <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('product_effect', chip); }}>✏️</button>
+                        <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('product_effect', chip.id); }}>✕</button>
+                      </div>
+                    </div>
+                  ))}
+                  {/* Add custom variant */}
+                  <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('product_effect'); setNewChipText(''); }}>
+                    <span className="emoji">➕</span><span className="label">Свой вариант</span>
                   </div>
-                )}
+                </div>
               </>
             ) : (
               <>
@@ -4312,7 +4348,7 @@ ${userProductInfo.trim()}
                   <span>✨</span> Добавить спецэффект
                 </div>
                 <div className="preset-grid">
-                  {PRODUCT_EFFECTS.map(e => {
+                  {PRODUCT_EFFECTS.filter(e => e.id !== 'custom').map(e => {
                     const isActive = selectedProductEffects.some(s => s.id === e.id);
                     return (
                       <div key={e.id} className={`preset-card ${isActive ? 'active' : ''}`}
@@ -4336,17 +4372,21 @@ ${userProductInfo.trim()}
                       </div>
                     );
                   })}
-                </div>
-                {selectedProductEffects.some(s => s.id === 'custom') && (
-                  <div className="custom-variant-row" style={{marginTop:10}}>
-                    <input
-                      className="custom-variant-input"
-                      placeholder="Опишите ваш спецэффект: «взрыв конфетти, снежинки, дым»"
-                      value={customProductEffectText}
-                      onChange={ev => setCustomProductEffectText(ev.target.value)}
-                    />
+                  {/* Custom effect chips */}
+                  {customProductEffectChips.map(chip => (
+                    <div key={chip.id} className="preset-card active custom-chip-card">
+                      <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
+                      <div className="chip-actions">
+                        <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('product_effect', chip); }}>✏️</button>
+                        <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('product_effect', chip.id); }}>✕</button>
+                      </div>
+                    </div>
+                  ))}
+                  {/* Add custom variant */}
+                  <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('product_effect'); setNewChipText(''); }}>
+                    <span className="emoji">➕</span><span className="label">Свой вариант</span>
                   </div>
-                )}
+                </div>
               </>
             )}
           </>
@@ -5549,6 +5589,9 @@ ${userProductInfo.trim()}
                 {editingChip ? '✏️ Редактировать вариант' : (
                   customChipModalSection === 'model' ? '➕ Свой вариант модели' :
                   customChipModalSection === 'pose' ? '➕ Свой вариант позы' :
+                  customChipModalSection === 'product_composition' ? '➕ Свой вариант композиции' :
+                  customChipModalSection === 'product_bg' ? '➕ Свой вариант окружения' :
+                  customChipModalSection === 'product_effect' ? '➕ Свой вариант эффекта' :
                   '➕ Свой вариант фона'
                 )}
               </div>
@@ -5558,6 +5601,9 @@ ${userProductInfo.trim()}
                 placeholder={
                   (editingChip?.section || customChipModalSection) === 'model' ? "Например: рыжая девушка в очках..." :
                   (editingChip?.section || customChipModalSection) === 'pose' ? "Например: модель сидит на стуле..." :
+                  (editingChip?.section || customChipModalSection) === 'product_composition' ? "Например: товар лежит на зеркальной поверхности..." :
+                  (editingChip?.section || customChipModalSection) === 'product_bg' ? "Например: деревянный стол, скандинавский стиль..." :
+                  (editingChip?.section || customChipModalSection) === 'product_effect' ? "Например: взрыв конфетти, дым, снежинки..." :
                   "Например: кирпичная стена, неоновый свет..."
                 } 
                 value={newChipText} 
