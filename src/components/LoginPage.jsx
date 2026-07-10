@@ -58,6 +58,9 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  // Escape hatch: lets a user who already has an email/VK/Яндекс account (registered
+  // outside Telegram) reach that login instead of silently getting a fresh empty tg_ identity.
+  const [showEmailFallback, setShowEmailFallback] = useState(false);
 
   // OTP States
   const [otpCode, setOtpCode] = useState(['', '', '', '', '', '']);
@@ -247,7 +250,7 @@ export default function LoginPage() {
   const tgDisplayName = telegramUser
     ? [telegramUser.firstName, telegramUser.lastName].filter(Boolean).join(' ')
     : null;
-  const showTelegramMiniAppAuth = isTelegram && hasTelegramInitData;
+  const showTelegramMiniAppAuth = isTelegram && hasTelegramInitData && !showEmailFallback;
 
   return (
     <div className="login-wrapper">
@@ -328,9 +331,17 @@ export default function LoginPage() {
             <p className="login-toggle" style={{ marginTop: '20px', color: '#CBAE75', opacity: 0.9 }} onClick={handleCloseTelegram}>
               Закрыть
             </p>
+            <p className="otp-change-email" style={{ marginTop: '14px' }} onClick={() => setShowEmailFallback(true)}>
+              Не я? Войти другим способом
+            </p>
           </div>
         ) : mode === 'otp_request' ? (
           <form onSubmit={handleSendOtp} className="email-form">
+            {showEmailFallback && isTelegram && hasTelegramInitData && (
+              <p className="otp-change-email" style={{ marginBottom: '4px' }} onClick={() => setShowEmailFallback(false)}>
+                ← Войти через Telegram
+              </p>
+            )}
             {/* Email Input with mail icon */}
             <div className="input-group">
               <span className="input-mail-icon">✉</span>
