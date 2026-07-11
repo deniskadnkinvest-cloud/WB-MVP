@@ -1176,10 +1176,15 @@ function App() {
   const handleGenerate = async (skipConfirm = false) => {
     if (!garmentUrls.length) return;
 
-    // ═══ SUBSCRIPTION CHECK ═══
-    if (!canGenerate(subscription)) {
+    // Разделяем: «нет тарифа» vs «закончились кредиты»
+    if (!subscription || subscription.plan === 'none') {
       setShowPricing(true);
       setStatusText('⚡ Для генерации нужен активный тариф'); setStatusType('error');
+      return;
+    }
+    if ((subscription.credits || 0) <= 0) {
+      setShowPricing(true);
+      setStatusText('💫 Генерации закончились! Пополните баланс для продолжения работы'); setStatusType('error');
       return;
     }
     if ((subscription.credits || 0) < totalShots) {
@@ -1869,10 +1874,15 @@ function App() {
   const handleRegenerate = async () => {
     if (!shotModifier.trim() || !garmentUrls.length) return;
 
-    // ═══ SUBSCRIPTION CHECK ═══
-    if (!canGenerate(subscription)) {
+    // Разделяем: «нет тарифа» vs «закончились кредиты»
+    if (!subscription || subscription.plan === 'none') {
       setShowPricing(true);
       setStatusText('⚡ Для генерации нужен активный тариф'); setStatusType('error');
+      return;
+    }
+    if ((subscription.credits || 0) <= 0) {
+      setShowPricing(true);
+      setStatusText('💫 Генерации закончились! Пополните баланс для продолжения работы'); setStatusType('error');
       return;
     }
 
@@ -2359,13 +2369,20 @@ ${userProductInfo.trim()}
     const requestedQuickMode = quickMode;
     const creditsNeeded = isCardMode ? 2 : 1;
     const creditsAvailable = subscription?.credits || 0;
-    if (creditsAvailable < creditsNeeded && !subscription?.local) {
+    // Разделяем: «нет тарифа» vs «закончились кредиты»
+    if (!subscription || subscription.plan === 'none') {
       setShowPricing(true);
-      setStatusText(`⚡ Для генерации нужно ${creditsNeeded} кредит${creditsNeeded > 1 ? 'а' : ''}`); setStatusType('error');
+      setStatusText('⚡ Для генерации нужен активный тариф'); setStatusType('error');
       return;
     }
-    if (subscription?.local && creditsAvailable < creditsNeeded) {
-      setStatusText(`⚡ Для генерации нужно ${creditsNeeded} кредит${creditsNeeded > 1 ? 'а' : ''}`); setStatusType('error');
+    if (creditsAvailable <= 0) {
+      setShowPricing(true);
+      setStatusText('💫 Генерации закончились! Пополните баланс для продолжения работы'); setStatusType('error');
+      return;
+    }
+    if (creditsAvailable < creditsNeeded) {
+      setShowPricing(true);
+      setStatusText(`⚡ Недостаточно кредитов: нужно ${creditsNeeded}, доступно ${creditsAvailable}`); setStatusType('error');
       return;
     }
 
