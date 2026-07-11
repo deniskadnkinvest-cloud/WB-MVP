@@ -1139,7 +1139,9 @@ function App() {
     try {
       const blob = await getDownloadBlob(src);
       const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
-      if (isTelegram && navigator.canShare?.({ files: [file] })) {
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      // navigator.share on desktop Windows/Mac opens a Share dialog instead of downloading — only use on mobile
+      if (isTelegram && isMobile && navigator.canShare?.({ files: [file] })) {
         try {
           await navigator.share({ files: [file], title: 'Seller Studio' });
           return;
