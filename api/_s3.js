@@ -1,4 +1,4 @@
-﻿import {
+import {
   S3Client,
   PutObjectCommand,
   DeleteObjectCommand,
@@ -20,7 +20,7 @@ const S3_BUCKET = requiredEnv('S3_BUCKET');
 
 const s3 = new S3Client({
   endpoint: S3_ENDPOINT,
-  region: 'us-east-1',
+  region: 'ru-central1',
   credentials: {
     accessKeyId: S3_ACCESS_KEY,
     secretAccessKey: S3_SECRET_KEY,
