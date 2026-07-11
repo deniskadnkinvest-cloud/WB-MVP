@@ -289,6 +289,14 @@ export default function PricingModal({
               <>
                 {/* TopUp ПЕРВЫМ */}
                 {renderTopUp('⚡ Пополните баланс генераций', 'Докупите пакет к текущему тарифу — разово, без подписки')}
+                
+                {/* СТИЛЬНЫЙ РАЗДЕЛИТЕЛЬ */}
+                <div className="pricing-sections-divider">
+                  <span className="pricing-sections-divider-line"></span>
+                  <span className="pricing-sections-divider-text">или измените тарифный план</span>
+                  <span className="pricing-sections-divider-line"></span>
+                </div>
+
                 {/* Тарифы ниже — на случай если хочет сменить тариф */}
                 {renderPlans()}
               </>
@@ -296,6 +304,16 @@ export default function PricingModal({
               <>
                 {/* Тарифы ПЕРВЫМИ */}
                 {renderPlans()}
+                
+                {/* СТИЛЬНЫЙ РАЗДЕЛИТЕЛЬ */}
+                {hasPlan && (
+                  <div className="pricing-sections-divider">
+                    <span className="pricing-sections-divider-line"></span>
+                    <span className="pricing-sections-divider-text">или просто докупите генерации</span>
+                    <span className="pricing-sections-divider-line"></span>
+                  </div>
+                )}
+
                 {/* TopUp — внизу, если есть тариф */}
                 {hasPlan && renderTopUp('⚡ Нужно больше генераций?', 'Докупите пакет к текущему тарифу — разово, без подписки')}
               </>
