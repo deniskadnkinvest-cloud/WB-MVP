@@ -35,6 +35,7 @@ export default function PricingModal({
   canceling,
   requiresAuth = false,
   onAuthRequired,
+  initialView = 'plans', // 'plans' | 'topup'
 }) {
   const [selectedPlanId, setSelectedPlanId] = useState(null);
 
@@ -65,6 +66,181 @@ export default function PricingModal({
     onSelectPlan(planId);
   };
 
+  // Рендер секции Top-Up
+  const renderTopUp = (titleText, subtitleText) => (
+    <div className="topup-section">
+      <div className="topup-header">
+        <h3 className="topup-title">{titleText}</h3>
+        <p className="topup-subtitle">{subtitleText}</p>
+      </div>
+      <div className="topup-grid">
+        {TOPUP_PACKAGES.map((pkg) => {
+          const isSelected = selectedPlanId === pkg.id;
+          const perCredit = Math.round(pkg.price / pkg.credits);
+          return (
+            <button
+              key={pkg.id}
+              className={`topup-card ${pkg.best ? 'topup-card--best' : ''} ${isSelected ? 'topup-card--selected' : ''}`}
+              onClick={() => handleSelect(pkg.id)}
+              disabled={loading && isSelected}
+            >
+              {pkg.best && <span className="topup-badge">Выгодно</span>}
+              <span className="topup-credits">{pkg.credits.toLocaleString('ru-RU')}</span>
+              <span className="topup-credits-label">генераций</span>
+              <span className="topup-price">
+                {loading && isSelected ? '⏳' : `${pkg.price.toLocaleString('ru-RU')} ₽`}
+              </span>
+              <span className="topup-per">≈ {perCredit} ₽/шт</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  // Рендер секции тарифов
+  const renderPlans = () => (
+    <div className="pricing-grid">
+      {plans.map((plan, i) => {
+        const isActive = currentPlan === plan.id;
+        const isSelected = selectedPlanId === plan.id;
+        const isBest = plan.bestSeller;
+        const isGold = plan.id === 'pro';
+
+        return (
+          <motion.div
+            key={plan.id}
+            className={`pricing-card ${isBest ? 'pricing-card--best' : ''} ${isGold ? 'pricing-card--gold' : ''} ${isActive ? 'pricing-card--active' : ''} ${isSelected ? 'pricing-card--selected' : ''}`}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.1, duration: 0.4 }}
+          >
+            {isActive 
+              ? <div className="pricing-badge pricing-badge--active">✓ Активен</div>
+              : isGold
+                ? <div className="pricing-badge pricing-badge--gold">Gold Seller</div>
+                : isBest 
+                  ? <div className="pricing-badge pricing-badge--best">⭐ Best Seller</div>
+                  : null
+            }
+
+            <div className="pricing-card-emoji">{plan.emoji}</div>
+            <h3 className="pricing-card-name">{plan.label}</h3>
+            <p className="pricing-card-desc">{plan.description}</p>
+
+            <div className="pricing-price">
+              <span className="pricing-price-value">{plan.price.toLocaleString('ru-RU')}</span>
+              <span className="pricing-price-currency"> ₽</span>
+              {plan.period === 'month' && <span className="pricing-price-period">/мес</span>}
+              {!plan.period && <span className="pricing-price-period">разово</span>}
+            </div>
+
+            <div className="pricing-credits">
+              <span className="pricing-credits-num">{plan.credits.toLocaleString('ru-RU')}</span> генераций
+            </div>
+
+            <ul className="pricing-features">
+              <li className="pricing-feature-group">Базовые возможности</li>
+              <li className="pricing-feature pricing-feature--yes">
+                <span className="feature-icon">✅</span> <span className="feature-text">Виртуальная примерка одежды на AI-модели</span>
+              </li>
+              <li className="pricing-feature pricing-feature--yes">
+                <span className="feature-icon">✅</span> <span className="feature-text">Реалистичные фото от покупателей (UGC)</span>
+              </li>
+              <li className="pricing-feature pricing-feature--yes">
+                <span className="feature-icon">✅</span> <span className="feature-text">Готовые карточки для WB, Ozon, Inst</span>
+              </li>
+              <li className="pricing-feature pricing-feature--yes">
+                <span className="feature-icon">✅</span> <span className="feature-text">Предметная и студийная съёмка</span>
+              </li>
+              <li className="pricing-feature pricing-feature--yes">
+                <span className="feature-icon">✅</span> <span className="feature-text">10+ моделей · 7 фонов · 5 форматов</span>
+              </li>
+
+              {/* PRO Features - show on all, locked on Trial */}
+              <li className="pricing-feature-group">{plan.id === 'trial' ? 'PRO-инструменты' : 'Всё базовое, а также:'}</li>
+              <li className={`pricing-feature ${plan.canSaveModels ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
+                <span className="feature-icon">{plan.canSaveModels ? '✅' : '🔒'}</span> <span className="feature-text">Своя AI-модель по вашим фото</span>
+              </li>
+              <li className={`pricing-feature ${plan.canSaveModels ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
+                <span className="feature-icon">{plan.canSaveModels ? '✅' : '🔒'}</span> <span className="feature-text">Создание уникальных персонажей</span>
+              </li>
+              <li className={`pricing-feature ${plan.canSaveLocations ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
+                <span className="feature-icon">{plan.canSaveLocations ? '✅' : '🔒'}</span> <span className="feature-text">Свои фоны и локации для съёмки</span>
+              </li>
+              <li className={`pricing-feature ${plan.canPhotoshoot ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
+                <span className="feature-icon">{plan.canPhotoshoot ? '✅' : '🔒'}</span> <span className="feature-text">Фотосессия: 5 ракурсов за 1 клик</span>
+              </li>
+
+              {/* GOLD Features - hide on Trial, show on Base/Pro */}
+              {plan.id !== 'trial' && (
+                <>
+                  <li className="pricing-feature-group">{isGold ? 'Эксклюзивно для Gold:' : 'Gold-премиум'}</li>
+                  <li className={`pricing-feature ${isGold ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
+                    <span className="feature-icon">{isGold ? '✅' : '🔒'}</span> <span className="feature-text">Fast Track — приоритетная генерация</span>
+                  </li>
+                  <li className={`pricing-feature ${isGold ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
+                    <span className="feature-icon">{isGold ? '✅' : '🔒'}</span> <span className="feature-text">Закрытый клуб и ранний доступ</span>
+                  </li>
+                  <li className={`pricing-feature ${isGold ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
+                    <span className="feature-icon">{isGold ? '✅' : '🔒'}</span> <span className="feature-text">Приоритет техподдержки</span>
+                  </li>
+                  <li className={`pricing-feature ${isGold ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
+                    <span className="feature-icon">{isGold ? '✅' : '🔒'}</span> <span className="feature-text">Перенос неиспользованных генераций</span>
+                  </li>
+                </>
+              )}
+            </ul>
+
+            <div className="pricing-action-area">
+              <button
+                className={`pricing-btn ${isBest ? 'pricing-btn--best' : ''} ${isGold ? 'pricing-btn--gold' : ''} ${isActive ? 'pricing-btn--active' : ''}`}
+                onClick={() => handleSelect(plan.id)}
+                disabled={isActive || (loading && isSelected)}
+              >
+                {requiresAuth ? (
+                  'Войти и выбрать'
+                ) : loading && isSelected ? (
+                  '⏳ Активация...'
+                ) : isActive ? (
+                  '✓ Активен'
+                ) : (
+                  <>
+                    {isGold ? `👑 Подключить ${plan.label.toUpperCase()}` : isBest ? `🚀 Подключить ${plan.label.toUpperCase()}` : `Подключить ${plan.label}`} —
+                    <br />
+                    {plan.price.toLocaleString('ru-RU')} ₽
+                  </>
+                )}
+              </button>
+
+              {/* Обязательное уведомление ЮКасса: возможность отмены */}
+              {plan.period === 'month' && !isActive && (
+                <div className="pricing-cancel-badge">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pricing-cancel-badge-icon">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                  </svg>
+                  <span>Отмена в 1 клик в любой момент</span>
+                </div>
+              )}
+              
+              {!plan.period && !isActive && (
+                <div className="pricing-cancel-badge pricing-cancel-badge--onetime">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pricing-cancel-badge-icon">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                  <span>Разовый платеж, без подписки</span>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+
+  const hasPlan = subscription?.plan && subscription.plan !== 'none';
+  const isTopUpView = initialView === 'topup' && hasPlan;
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -87,8 +263,14 @@ export default function PricingModal({
           >
             {/* Header */}
             <div className="pricing-header">
-              <h2 className="pricing-title">Выберите тариф</h2>
-              <p className="pricing-subtitle">Качество маркетплейса — скорость AI</p>
+              <h2 className="pricing-title">
+                {isTopUpView ? 'Пополните генерации' : 'Выберите тариф'}
+              </h2>
+              <p className="pricing-subtitle">
+                {isTopUpView 
+                  ? 'Ваш тариф активен — докупите кредиты для продолжения' 
+                  : 'Качество маркетплейса — скорость AI'}
+              </p>
               <button className="pricing-close" onClick={onClose}>✕</button>
             </div>
 
@@ -102,174 +284,21 @@ export default function PricingModal({
               </div>
             )}
 
-            {/* Plans Grid */}
-            <div className="pricing-grid">
-              {plans.map((plan, i) => {
-                const isActive = currentPlan === plan.id;
-                const isSelected = selectedPlanId === plan.id;
-                const isBest = plan.bestSeller;
-                const isGold = plan.id === 'pro';
-
-                return (
-                  <motion.div
-                    key={plan.id}
-                    className={`pricing-card ${isBest ? 'pricing-card--best' : ''} ${isGold ? 'pricing-card--gold' : ''} ${isActive ? 'pricing-card--active' : ''} ${isSelected ? 'pricing-card--selected' : ''}`}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.1, duration: 0.4 }}
-                  >
-                    {isActive 
-                      ? <div className="pricing-badge pricing-badge--active">✓ Активен</div>
-                      : isGold
-                        ? <div className="pricing-badge pricing-badge--gold">Gold Seller</div>
-                        : isBest 
-                          ? <div className="pricing-badge pricing-badge--best">⭐ Best Seller</div>
-                          : null
-                    }
-
-                    <div className="pricing-card-emoji">{plan.emoji}</div>
-                    <h3 className="pricing-card-name">{plan.label}</h3>
-                    <p className="pricing-card-desc">{plan.description}</p>
-
-                    <div className="pricing-price">
-                      <span className="pricing-price-value">{plan.price.toLocaleString('ru-RU')}</span>
-                      <span className="pricing-price-currency"> ₽</span>
-                      {plan.period === 'month' && <span className="pricing-price-period">/мес</span>}
-                      {!plan.period && <span className="pricing-price-period">разово</span>}
-                    </div>
-
-                    <div className="pricing-credits">
-                      <span className="pricing-credits-num">{plan.credits.toLocaleString('ru-RU')}</span> генераций
-                    </div>
-
-                    <ul className="pricing-features">
-                      <li className="pricing-feature-group">Базовые возможности</li>
-                      <li className="pricing-feature pricing-feature--yes">
-                        <span className="feature-icon">✅</span> <span className="feature-text">Виртуальная примерка одежды на AI-модели</span>
-                      </li>
-                      <li className="pricing-feature pricing-feature--yes">
-                        <span className="feature-icon">✅</span> <span className="feature-text">Реалистичные фото от покупателей (UGC)</span>
-                      </li>
-                      <li className="pricing-feature pricing-feature--yes">
-                        <span className="feature-icon">✅</span> <span className="feature-text">Готовые карточки для WB, Ozon, Inst</span>
-                      </li>
-                      <li className="pricing-feature pricing-feature--yes">
-                        <span className="feature-icon">✅</span> <span className="feature-text">Предметная и студийная съёмка</span>
-                      </li>
-                      <li className="pricing-feature pricing-feature--yes">
-                        <span className="feature-icon">✅</span> <span className="feature-text">10+ моделей · 7 фонов · 5 форматов</span>
-                      </li>
-
-                      {/* PRO Features - show on all, locked on Trial */}
-                      <li className="pricing-feature-group">{plan.id === 'trial' ? 'PRO-инструменты' : 'Всё базовое, а также:'}</li>
-                      <li className={`pricing-feature ${plan.canSaveModels ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
-                        <span className="feature-icon">{plan.canSaveModels ? '✅' : '🔒'}</span> <span className="feature-text">Своя AI-модель по вашим фото</span>
-                      </li>
-                      <li className={`pricing-feature ${plan.canSaveModels ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
-                        <span className="feature-icon">{plan.canSaveModels ? '✅' : '🔒'}</span> <span className="feature-text">Создание уникальных персонажей</span>
-                      </li>
-                      <li className={`pricing-feature ${plan.canSaveLocations ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
-                        <span className="feature-icon">{plan.canSaveLocations ? '✅' : '🔒'}</span> <span className="feature-text">Свои фоны и локации для съёмки</span>
-                      </li>
-                      <li className={`pricing-feature ${plan.canPhotoshoot ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
-                        <span className="feature-icon">{plan.canPhotoshoot ? '✅' : '🔒'}</span> <span className="feature-text">Фотосессия: 5 ракурсов за 1 клик</span>
-                      </li>
-
-                      {/* GOLD Features - hide on Trial, show on Base/Pro */}
-                      {plan.id !== 'trial' && (
-                        <>
-                          <li className="pricing-feature-group">{isGold ? 'Эксклюзивно для Gold:' : 'Gold-премиум'}</li>
-                          <li className={`pricing-feature ${isGold ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
-                            <span className="feature-icon">{isGold ? '✅' : '🔒'}</span> <span className="feature-text">Fast Track — приоритетная генерация</span>
-                          </li>
-                          <li className={`pricing-feature ${isGold ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
-                            <span className="feature-icon">{isGold ? '✅' : '🔒'}</span> <span className="feature-text">Закрытый клуб и ранний доступ</span>
-                          </li>
-                          <li className={`pricing-feature ${isGold ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
-                            <span className="feature-icon">{isGold ? '✅' : '🔒'}</span> <span className="feature-text">Приоритет техподдержки</span>
-                          </li>
-                          <li className={`pricing-feature ${isGold ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
-                            <span className="feature-icon">{isGold ? '✅' : '🔒'}</span> <span className="feature-text">Перенос неиспользованных генераций</span>
-                          </li>
-                        </>
-                      )}
-                    </ul>
-
-                    <div className="pricing-action-area">
-                      <button
-                        className={`pricing-btn ${isBest ? 'pricing-btn--best' : ''} ${isGold ? 'pricing-btn--gold' : ''} ${isActive ? 'pricing-btn--active' : ''}`}
-                        onClick={() => handleSelect(plan.id)}
-                        disabled={isActive || (loading && isSelected)}
-                      >
-                        {requiresAuth ? (
-                          'Войти и выбрать'
-                        ) : loading && isSelected ? (
-                          '⏳ Активация...'
-                        ) : isActive ? (
-                          '✓ Активен'
-                        ) : (
-                          <>
-                            {isGold ? `👑 Подключить ${plan.label.toUpperCase()}` : isBest ? `🚀 Подключить ${plan.label.toUpperCase()}` : `Подключить ${plan.label}`} —
-                            <br />
-                            {plan.price.toLocaleString('ru-RU')} ₽
-                          </>
-                        )}
-                      </button>
-
-                      {/* Обязательное уведомление ЮКасса: возможность отмены */}
-                      {plan.period === 'month' && !isActive && (
-                        <div className="pricing-cancel-badge">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pricing-cancel-badge-icon">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                          </svg>
-                          <span>Отмена в 1 клик в любой момент</span>
-                        </div>
-                      )}
-                      
-                      {!plan.period && !isActive && (
-                        <div className="pricing-cancel-badge pricing-cancel-badge--onetime">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="pricing-cancel-badge-icon">
-                            <polyline points="20 6 9 17 4 12"></polyline>
-                          </svg>
-                          <span>Разовый платеж, без подписки</span>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-
-            {/* Top-Up: докупка генераций без смены тарифа */}
-            {subscription?.plan && subscription.plan !== 'none' && (
-            <div className="topup-section">
-              <div className="topup-header">
-                <h3 className="topup-title">⚡ Нужно больше генераций?</h3>
-                <p className="topup-subtitle">Докупите пакет к текущему тарифу — разово, без подписки</p>
-              </div>
-              <div className="topup-grid">
-                {TOPUP_PACKAGES.map((pkg) => {
-                  const isSelected = selectedPlanId === pkg.id;
-                  const perCredit = Math.round(pkg.price / pkg.credits);
-                  return (
-                    <button
-                      key={pkg.id}
-                      className={`topup-card ${pkg.best ? 'topup-card--best' : ''} ${isSelected ? 'topup-card--selected' : ''}`}
-                      onClick={() => handleSelect(pkg.id)}
-                      disabled={loading && isSelected}
-                    >
-                      {pkg.best && <span className="topup-badge">Выгодно</span>}
-                      <span className="topup-credits">{pkg.credits.toLocaleString('ru-RU')}</span>
-                      <span className="topup-credits-label">генераций</span>
-                      <span className="topup-price">
-                        {loading && isSelected ? '⏳' : `${pkg.price.toLocaleString('ru-RU')} ₽`}
-                      </span>
-                      <span className="topup-per">≈ {perCredit} ₽/шт</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {/* Порядок секций зависит от initialView */}
+            {isTopUpView ? (
+              <>
+                {/* TopUp ПЕРВЫМ */}
+                {renderTopUp('⚡ Пополните баланс генераций', 'Докупите пакет к текущему тарифу — разово, без подписки')}
+                {/* Тарифы ниже — на случай если хочет сменить тариф */}
+                {renderPlans()}
+              </>
+            ) : (
+              <>
+                {/* Тарифы ПЕРВЫМИ */}
+                {renderPlans()}
+                {/* TopUp — внизу, если есть тариф */}
+                {hasPlan && renderTopUp('⚡ Нужно больше генераций?', 'Докупите пакет к текущему тарифу — разово, без подписки')}
+              </>
             )}
 
             {subscription && subscription.plan !== 'none' && subscription.plan !== 'trial' && (

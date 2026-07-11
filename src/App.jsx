@@ -3217,6 +3217,7 @@ ${userProductInfo.trim()}
           setShowPricing(false);
           signOut();
         }}
+        initialView={subscription?.plan && subscription.plan !== 'none' && (subscription.credits || 0) <= 0 ? 'topup' : 'plans'}
       />
 
       {/* ═══ CONFIRM MODAL ═══ */}
@@ -5168,8 +5169,8 @@ ${userProductInfo.trim()}
             <p className="touch-zoom-hint">👆 Нажмите на фото для увеличения</p>
             <div className="result-actions">
               <button className="download-btn" onClick={handleDownload}>⬇️ Скачать</button>
-              {/* Калибровка и «Переодеть» — только когда есть человек-модель */}
-              {(appMode === 'fashion' || (appMode === 'product' && productWithModel)) && (
+              {/* Калибровка — только когда есть человек-модель И это НЕ уже сохранённая модель */}
+              {(appMode === 'fashion' || (appMode === 'product' && productWithModel)) && !selectedSavedModelId && !(appMode === 'product' && productSavedModelId) && (
                 <button className="save-model-btn" onClick={() => openCalibration('save')}>🎯 Сохранить модель (калибровка)</button>
               )}
               {appMode === 'fashion' ? (
