@@ -344,6 +344,12 @@ export const PRODUCT_MODEL_COMPOSITIONS = [
     prompt: 'close-up portrait of the model with the product positioned near the face or shoulder, beauty commercial framing, soft studio lighting, shallow depth of field'
   },
   {
+    id: 'model_macro',
+    label: 'Макро (крупно)',
+    emoji: '🔍',
+    prompt: 'extreme close-up macro shot of the model interacting with the product, hands and product details in sharp focus, face not visible or softly blurred in background, shallow depth of field, visible material texture'
+  },
+  {
     id: 'model_fullbody',
     label: 'Полный рост',
     emoji: '🧍',

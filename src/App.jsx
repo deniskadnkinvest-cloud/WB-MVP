@@ -4019,7 +4019,7 @@ ${userProductInfo.trim()}
       {/* 3. ПОЗА ИЛИ КОМПОЗИЦИЯ */}
       {appMode !== 'quick' && (appMode === 'product' ? (
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.45,duration:0.5,ease:[0.16,1,0.3,1]}}>
-          <div className="section-title"><span className="icon">📐</span> Композиция кадра</div>
+          <div className="section-title"><span className="icon">📐</span> {productWithModel ? 'Композиция кадра с моделью' : 'Композиция кадра'}</div>
           <div className="preset-grid">
             {(productWithModel ? PRODUCT_MODEL_COMPOSITIONS : PRODUCT_COMPOSITIONS).map(p => {
               const isActive = selectedProductCompositions.some(c => c.id === p.id) && !customPoseText;
@@ -4162,14 +4162,17 @@ ${userProductInfo.trim()}
 
       {/* 5. ФОН / ЛОКАЦИЯ */}
       {appMode !== 'quick' && <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.75,duration:0.5,ease:[0.16,1,0.3,1]}}>
-        <div className="section-title"><span className="icon">🎨</span> {appMode === 'product' ? 'Сцена / Окружение' : 'Фон / Локация'}</div>
+        <div className="section-title"><span className="icon">🎨</span> {appMode === 'product' && productWithModel ? 'Спецэффекты' : appMode === 'product' ? 'Сцена / Окружение' : 'Фон / Локация'}</div>
+        {/* Табы пресеты/локации — скрываем когда модель включена (сцены не нужны) */}
+        {!(appMode === 'product' && productWithModel) && (
         <div className="tabs-row">
           <button className={`tab-btn ${bgTab==='presets'?'active':''}`} onClick={()=>{setBgTab('presets');setSelectedLocId(null);}}>🎨 Пресеты</button>
           <button className={`tab-btn ${bgTab==='my_locations'?'active':''}`} onClick={()=>setBgTab('my_locations')}>📍 Мои локации{myLocations.length>0?` (${myLocations.length})`:''}</button>
         </div>
-        {bgTab === 'presets' ? (
+        )}
+        {(appMode === 'product' && productWithModel) || bgTab === 'presets' ? (
           <>
-            {appMode === 'product' ? (
+            {appMode === 'product' && !productWithModel ? (
               <>
                 {!customProductBg && !selectedLocId && selectedProductBgs.length > 1 && (
                   <div style={{ fontSize: '0.72rem', color: 'var(--gold)', marginBottom: 8, fontWeight: 600, letterSpacing: '0.03em' }}>
@@ -4254,6 +4257,51 @@ ${userProductInfo.trim()}
                     </div>
                   ))}
                   {/* Add custom variant */}
+                  <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('product_effect'); setNewChipText(''); }}>
+                    <span className="emoji">➕</span><span className="label">Свой вариант</span>
+                  </div>
+                </div>
+              </>
+            ) : appMode === 'product' && productWithModel ? (
+              /* Если модель включена — показываем ТОЛЬКО спецэффекты, без сцен */
+              <>
+                <div className="section-subtitle-small" style={{marginTop: 4, marginBottom: 8, fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px', opacity: selectedProductEffects.some(s => s.id === 'none') ? 0.6 : 1}}>
+                  <span>✨</span> Добавить спецэффект
+                </div>
+                <div className="preset-grid" style={{opacity: selectedProductEffects.some(s => s.id === 'none') ? 0.6 : 1, filter: selectedProductEffects.some(s => s.id === 'none') ? 'grayscale(0.8)' : 'none'}}>
+                  {PRODUCT_EFFECTS.filter(e => e.id !== 'custom').map(e => {
+                    const isActive = selectedProductEffects.some(s => s.id === e.id);
+                    return (
+                      <div key={e.id} className={`preset-card ${isActive ? 'active' : ''}`}
+                        onClick={() => {
+                          if (e.id === 'none') {
+                            setSelectedProductEffects([e]);
+                          } else {
+                            setSelectedProductEffects(prev => {
+                              const filtered = prev.filter(s => s.id !== 'none');
+                              if (filtered.some(s => s.id === e.id)) {
+                                if (filtered.length <= 1) {
+                                  return [PRODUCT_EFFECTS.find(x => x.id === 'none')];
+                                }
+                                return filtered.filter(s => s.id !== e.id);
+                              }
+                              return [...filtered, e];
+                            });
+                          }
+                        }}>
+                        <span className="emoji">{e.emoji}</span><span className="label">{e.label}</span>
+                      </div>
+                    );
+                  })}
+                  {customProductEffectChips.map(chip => (
+                    <div key={chip.id} className="preset-card active custom-chip-card">
+                      <span className="emoji">{chip.emoji}</span><span className="label">{chip.label}</span>
+                      <div className="chip-actions">
+                        <button className="chip-action-btn edit-btn" onClick={e => { e.stopPropagation(); openEditChipModal('product_effect', chip); }}>✏️</button>
+                        <button className="chip-action-btn delete-btn" onClick={e => { e.stopPropagation(); removeCustomChip('product_effect', chip.id); }}>✕</button>
+                      </div>
+                    </div>
+                  ))}
                   <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('product_effect'); setNewChipText(''); }}>
                     <span className="emoji">➕</span><span className="label">Свой вариант</span>
                   </div>
