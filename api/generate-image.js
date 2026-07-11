@@ -1,4 +1,4 @@
-﻿import { alertOnError } from './_admin-alerts.js';
+import { alertOnError } from './_admin-alerts.js';
 import sharp from 'sharp';
 import { query as _dbQuery } from './_db.js';
 import jwt from 'jsonwebtoken';
@@ -1405,9 +1405,12 @@ TASK: ${withHumanModel ? '1:1 Product-to-Scene integration with a living human m
 
 <product_identity_lock>
 CRITICAL PROTOCOL: The input image is the ABSOLUTE TRUTH ("Sacred Blueprint").
-- PRESERVE 1:1: Exact physical geometry, silhouette, scale, and physical proportions.
-- PRESERVE 1:1: Brand colors, label layout, typography, barcode, and logo placement.
-- PRODUCT DESCRIPTION: ${productPrompt}
+- THE UPLOADED PRODUCT PHOTO IS THE #1 SOURCE OF TRUTH. If the text description conflicts with the photo, the PHOTO ALWAYS WINS.
+- PRESERVE 1:1: Exact physical geometry, silhouette, scale, and physical proportions FROM THE PHOTO.
+- PRESERVE 1:1: Brand colors, label layout, typography, barcode, and logo placement FROM THE PHOTO.
+- DO NOT REPLACE the product in the photo with a different product. If the photo shows a CHAIR, generate a CHAIR — NOT a bottle, cosmetic, or any other item.
+- The text description below is only a STYLING HINT for lighting and materials — it does NOT override what is visible in the uploaded photo.
+- PRODUCT DESCRIPTION (styling hint only): ${productPrompt}
 </product_identity_lock>
 
 ${withHumanModel ? `<image_roles>
