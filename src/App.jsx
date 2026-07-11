@@ -686,6 +686,11 @@ function App() {
       .then((models) => {
 
         setMyModels(models || []);
+        // Автовыбор вкладки «Мои Модели» если есть сохранённые модели
+        if (models && models.length > 0) {
+          setModelTab('my_models');
+          setProductModelTab('my_models');
+        }
       })
       .catch((err) => console.error('Ошибка загрузки моделей:', err));
 
@@ -1422,13 +1427,16 @@ function App() {
               console.error('Task failed:', data.error || data.details);
             }
           } catch (taskErr) {
-            if (taskErr.name === 'AbortError') {
-              // Client stopped waiting, but the server keeps generating — the frame lands in history.
-              // Not a failure: the credit is committed on server success (or auto-refunded on failure).
+            // AbortError = client stopped waiting (timeout)
+            // TypeError "Load failed" / "Failed to fetch" = iOS/Android killed WebView in background
+            // In both cases the server KEEPS generating — the result lands in «Мои работы»
+            const isBackgroundDrop = taskErr.name === 'AbortError' || 
+              (taskErr instanceof TypeError && /load failed|failed to fetch|network|cancelled/i.test(taskErr.message));
+            if (isBackgroundDrop) {
               results.push({ success: false, background: true, error: 'still generating', task });
-              setStatusText('⏳ Часть кадров ещё генерируется в фоне — они появятся в разделе «Мои работы».');
+              setStatusText('⏳ Генерация продолжается на сервере — результат появится в разделе «Мои работы». Можете свернуть приложение.');
               setStatusType('info');
-              console.warn('Task still generating in background (client timeout)');
+              console.warn('Task still generating in background (connection dropped):', taskErr.message);
             } else {
               failedCount++;
               results.push({ success: false, error: taskErr.message, task });
@@ -2533,6 +2541,9 @@ ${userProductInfo.trim()}
         }
         setStatusText('⛔ Генерация отменена');
         setStatusType('error');
+      } else if (err instanceof TypeError && /load failed|failed to fetch|network|cancelled/i.test(err.message)) {
+        setStatusText('⏳ Генерация продолжается на сервере — результат появится в «Мои работы».');
+        setStatusType('info');
       } else {
         setStatusText(`⚠️ Ошибка: ${err.message}`);
         setStatusType('error');
@@ -2843,16 +2854,21 @@ ${userProductInfo.trim()}
             return { success: false, error: errorText };
           }
         } catch (frameErr) {
+          const isBackgroundDrop = frameErr.name === 'AbortError' ||
+            (frameErr instanceof TypeError && /load failed|failed to fetch|network|cancelled/i.test(frameErr.message));
           const errorText = frameErr.name === 'AbortError'
             ? 'Превышен таймаут ожидания кадра'
+            : isBackgroundDrop ? 'Генерация продолжается на сервере'
             : frameErr.message;
-          console.warn(`Кадр ${idx + 1} ошибка:`, errorText);
-          setPhotoshootStatus(prev => ({ ...prev, [slotIdx]: 'error' }));
-          setPhotoshootErrors(prev => ({ ...prev, [slotIdx]: errorText }));
-          setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = null; return n; });
-          failedCount += 1;
+          console.warn(`Кадр ${idx + 1} ${isBackgroundDrop ? 'в фоне' : 'ошибка'}:`, errorText);
+          setPhotoshootStatus(prev => ({ ...prev, [slotIdx]: isBackgroundDrop ? 'pending' : 'error' }));
+          if (!isBackgroundDrop) {
+            setPhotoshootErrors(prev => ({ ...prev, [slotIdx]: errorText }));
+            setPhotoshootImages(prev => { const n = [...prev]; n[slotIdx] = null; return n; });
+            failedCount += 1;
+          }
           updateProgress();
-          return { success: false, error: errorText };
+          return { success: isBackgroundDrop, background: isBackgroundDrop, error: errorText };
         }
       });
 
@@ -4547,7 +4563,7 @@ ${userProductInfo.trim()}
           )}
         </div>
 
-        <div className="status-bar">{statusText && <p className={`status-text ${statusType}`}>{statusText}</p>}</div>
+        <div className="status-bar">{statusText && <p className={`status-text ${statusType}${statusType === 'success' && imageHistory.length > 0 ? ' clickable' : ''}`} onClick={() => { if (statusType === 'success' && imageHistory.length > 0 && !generatedImage) { const lastImg = imageHistory[imageHistory.length - 1]; setGeneratedImage(lastImg.image); setHistoryIndex(imageHistory.length - 1); } }} style={statusType === 'success' && imageHistory.length > 0 && !generatedImage ? {cursor:'pointer', textDecoration:'underline', textDecorationStyle:'dotted'} : {}}>{statusText}{statusType === 'success' && imageHistory.length > 0 && !generatedImage ? ' 👆 (нажмите, чтобы открыть)' : ''}</p>}</div>
       </motion.div>}
 
       {/* ═══ STATUS BAR for quick mode ═══ */}
