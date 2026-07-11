@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MODEL_PRESETS, POSE_PRESETS, BACKGROUND_PRESETS, ASPECT_RATIOS, CAMERA_ANGLES, getModelDetails, PRODUCT_CATEGORIES, PRODUCT_COMPOSITIONS, PRODUCT_BACKGROUNDS, PRODUCT_EFFECTS } from './data/presets';
+import { MODEL_PRESETS, POSE_PRESETS, BACKGROUND_PRESETS, ASPECT_RATIOS, CAMERA_ANGLES, getModelDetails, PRODUCT_CATEGORIES, PRODUCT_COMPOSITIONS, PRODUCT_MODEL_COMPOSITIONS, PRODUCT_BACKGROUNDS, PRODUCT_EFFECTS } from './data/presets';
 import { runBatchQueue, MAX_BATCH_SIZE, BATCH_CONFIRM_THRESHOLD, BATCH_CONCURRENCY } from './utils/batchQueue';
 // Card prompts now live on the backend only (generate-image.js)
 import ModelCalibrationWizard from './components/ModelCalibrationWizard';
@@ -384,8 +384,8 @@ function App() {
     if (appMode === 'quick') return 1;
 
     if (appMode === 'product') {
-      const compCount = customPoseText.trim() ? 1 : (selectedProductCompositions.length + customProductCompositionChips.length);
-      const bgCount = (customProductBg.trim() || selectedLocId) ? 1 : (selectedProductBgs.length + customProductBgChips.length);
+      const compCount = customPoseText.trim() ? 1 : Math.max(1, selectedProductCompositions.length + customProductCompositionChips.length);
+      const bgCount = (customProductBg.trim() || selectedLocId) ? 1 : Math.max(1, selectedProductBgs.length + customProductBgChips.length);
       const effectCount = customProductEffectText.trim() ? 1 : (selectedProductEffects.length + customProductEffectChips.length);
       const ratioCount = selectedRatios.length;
       return compCount * bgCount * effectCount * ratioCount * variantCount;
@@ -1211,11 +1211,11 @@ function App() {
           // Композиции
           const compsToUse = customPoseText.trim()
             ? [{ id: 'custom', prompt: customPoseText.trim(), label: 'Своя композиция' }]
-            : [...selectedProductCompositions, ...customProductCompositionChips.map(c => ({ id: c.id, prompt: c.prompt, label: c.label }))];
+            : [...(selectedProductCompositions.length ? selectedProductCompositions : [productWithModel ? PRODUCT_MODEL_COMPOSITIONS[0] : PRODUCT_COMPOSITIONS[0]]), ...customProductCompositionChips.map(c => ({ id: c.id, prompt: c.prompt, label: c.label }))];
           // Фоны
           const bgsToUse = (customProductBg.trim() || selectedLocId) 
             ? [{ id: selectedLocId || 'custom', prompt: customProductBg.trim(), isLoc: !!selectedLocId }]
-            : [...selectedProductBgs, ...customProductBgChips.map(c => ({ id: c.id, prompt: c.prompt, label: c.label }))];
+            : [...(selectedProductBgs.length ? selectedProductBgs : [PRODUCT_BACKGROUNDS[0]]), ...customProductBgChips.map(c => ({ id: c.id, prompt: c.prompt, label: c.label }))];
           // Спецэффекты
           const effectsToUse = customProductEffectText.trim()
             ? [{ id: 'custom', prompt: customProductEffectText.trim(), label: 'Свой эффект' }]
@@ -1885,8 +1885,8 @@ function App() {
       if (appMode === 'product') {
         // Товарный режим
         modelPrompt = customProductPrompt.trim() || selectedProductCategory.defaultPrompt;
-        posePrompt = customPoseText.trim() || selectedProductCompositions[0].prompt;
-        bgPrompt = customProductBg.trim() || selectedProductBgs[0].prompt;
+        posePrompt = customPoseText.trim() || (selectedProductCompositions[0] || (productWithModel ? PRODUCT_MODEL_COMPOSITIONS[0] : PRODUCT_COMPOSITIONS[0])).prompt;
+        bgPrompt = customProductBg.trim() || (selectedProductBgs[0] || PRODUCT_BACKGROUNDS[0]).prompt;
         
         if (selectedProductEffect && selectedProductEffect.id !== 'none') {
           const effectPrompt = selectedProductEffect.id === 'custom'
@@ -3730,7 +3730,7 @@ ${userProductInfo.trim()}
                 initial={{opacity:0, scale:0.9}}
                 animate={{opacity:1, scale:1}}
                 className="remove-model-btn" 
-                onClick={() => setProductWithModel(false)}
+                onClick={() => { setProductWithModel(false); setSelectedProductCompositions([PRODUCT_COMPOSITIONS[0]]); }}
               >
                 ✕ Исключить модель
               </motion.button>
@@ -3741,7 +3741,7 @@ ${userProductInfo.trim()}
               <motion.div 
                 key="add-card"
                 className="add-model-card"
-                onClick={() => setProductWithModel(true)}
+                onClick={() => { setProductWithModel(true); setSelectedProductCompositions([PRODUCT_MODEL_COMPOSITIONS[0]]); }}
                 whileHover={{ scale: 1.012, y: -2 }}
                 whileTap={{ scale: 0.988 }}
                 initial={{ opacity: 0, y: 10 }}
@@ -4021,7 +4021,7 @@ ${userProductInfo.trim()}
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.45,duration:0.5,ease:[0.16,1,0.3,1]}}>
           <div className="section-title"><span className="icon">📐</span> Композиция кадра</div>
           <div className="preset-grid">
-            {PRODUCT_COMPOSITIONS.map(p => {
+            {(productWithModel ? PRODUCT_MODEL_COMPOSITIONS : PRODUCT_COMPOSITIONS).map(p => {
               const isActive = selectedProductCompositions.some(c => c.id === p.id) && !customPoseText;
               return (
                 <div key={p.id} className={`preset-card ${isActive ? 'active' : ''}`}
@@ -4029,7 +4029,7 @@ ${userProductInfo.trim()}
                     setCustomPoseText('');
                     setSelectedProductCompositions(prev => {
                       if (prev.some(c => c.id === p.id)) {
-                        if (prev.length <= 1) return prev;
+                        if (prev.length <= 1) return [];
                         return prev.filter(c => c.id !== p.id);
                       }
                       return [...prev, p];
@@ -4187,7 +4187,7 @@ ${userProductInfo.trim()}
                           } else {
                             setSelectedProductBgs(prev => {
                               if (prev.some(s => s.id === b.id)) {
-                                if (prev.length <= 1) return prev;
+                                if (prev.length <= 1) return [];
                                 return prev.filter(s => s.id !== b.id);
                               }
                               return [...prev, b];
@@ -5139,7 +5139,7 @@ ${userProductInfo.trim()}
               </p>
 
               {/* Calibration prompt — только если есть человек-модель */}
-              {(appMode === 'fashion' || (appMode === 'product' && productWithModel)) && !selectedSavedModelId && !(appMode === 'product' && !productWithModel) && (
+              {(appMode === 'fashion' || (appMode === 'product' && productWithModel)) && !selectedSavedModelId && !(appMode === 'product' && !productWithModel) && !(appMode === 'product' && productSavedModelId) && (
                 <div className="calibration-prompt">
                   <p className="calibration-prompt-text">💡 Для максимальной консистентности лица рекомендуем сначала <strong>откалибровать модель</strong></p>
                   <button className="calib-prompt-btn" onClick={() => openCalibration('photoshoot')}>

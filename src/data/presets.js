@@ -318,6 +318,39 @@ export const PRODUCT_COMPOSITIONS = [
   }
 ];
 
+export const PRODUCT_MODEL_COMPOSITIONS = [
+  {
+    id: 'model_holding',
+    label: 'Товар в руке',
+    emoji: '🫱',
+    prompt: 'model holding the product at face/chest level with a natural organic grip, product is the focal point, cinematic shallow depth of field, commercial studio lighting'
+  },
+  {
+    id: 'model_using',
+    label: 'Использование',
+    emoji: '✨',
+    prompt: 'model actively using the product (applying, spraying, pressing, drinking, demonstrating), natural authentic interaction, candid commercial feel, lifestyle studio lighting'
+  },
+  {
+    id: 'model_lifestyle',
+    label: 'Лайфстайл',
+    emoji: '🏡',
+    prompt: 'model in a natural everyday environment with the product organically integrated into the scene, warm lifestyle photography, editorial commercial aesthetic'
+  },
+  {
+    id: 'model_portrait',
+    label: 'Портрет с товаром',
+    emoji: '📸',
+    prompt: 'close-up portrait of the model with the product positioned near the face or shoulder, beauty commercial framing, soft studio lighting, shallow depth of field'
+  },
+  {
+    id: 'model_fullbody',
+    label: 'Полный рост',
+    emoji: '🧍',
+    prompt: 'full-body shot of the model standing with the product in hand or prominently displayed, full-length commercial framing, clean editorial composition'
+  }
+];
+
 export const PRODUCT_BACKGROUNDS = [
   {
     id: 'clean_beauty',
