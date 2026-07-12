@@ -2,12 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Table, Tag, Input, Button, Drawer, Card, Descriptions, Select,
   InputNumber, Space, message, Spin, Typography, Divider, Empty, Badge,
-  Form, Timeline, Statistic, Row, Col,
+  Form, Timeline, Statistic, Row, Col, Dropdown, Modal,
 } from 'antd';
 import {
   SearchOutlined, UserOutlined, ReloadOutlined, GiftOutlined,
   PlusOutlined, StopOutlined, CheckCircleOutlined, CloseCircleOutlined,
-  ThunderboltOutlined,
+  ThunderboltOutlined, DownOutlined,
 } from '@ant-design/icons';
 import { useAdmin } from '../AdminApp';
 
@@ -117,7 +117,7 @@ function UserDetailDrawer({ open, onClose, userId, authHeaders, onRefreshList })
           <Card size="small" title="Информация">
             <Descriptions column={1} size="small">
               <Descriptions.Item label="UID">
-                <Text code copyable>{userData.user?.uid || '—'}</Text>
+                <Text code copyable>{userData.uid || '—'}</Text>
               </Descriptions.Item>
               {sub.telegramId && (
                 <Descriptions.Item label="Telegram ID">
@@ -271,7 +271,9 @@ function UserDetailDrawer({ open, onClose, userId, authHeaders, onRefreshList })
                     <div key={i}>
                       <Space>
                         <Tag color={PLAN_COLORS[p.planId] || 'default'}>{PLAN_LABELS[p.planId] || p.planId || '—'}</Tag>
-                        {p.amount && <Text strong>{p.amount} ⭐</Text>}
+                        {p.isGranted
+                          ? (p.credits > 0 && <Text strong style={{ color: '#faad14' }}>+{p.credits} кадров</Text>)
+                          : (p.rub > 0 && <Text strong style={{ color: '#52c41a' }}>{p.rub} ₽</Text>)}
                         {p.isGranted && <Tag color="gold">Админ</Tag>}
                       </Space>
                       <div>
@@ -324,6 +326,42 @@ export default function UsersPage() {
   const openUser = (uid) => {
     setSelectedUserId(uid);
     setDrawerOpen(true);
+  };
+
+  // ── Быстрая выдача тарифа прямо из строки таблицы ──
+  const GRANT_MENU_ITEMS = [
+    { key: 'trial', label: '🎯 Старт — 10 кадров' },
+    { key: 'base', label: '⚡ Про — 100 кадров' },
+    { key: 'pro', label: '🚀 Бизнес — 350 кадров' },
+    { type: 'divider' },
+    { key: 'disable', label: '⛔ Отключить тариф', danger: true },
+  ];
+
+  const quickAction = (record, plan) => {
+    const isDisable = plan === 'disable';
+    Modal.confirm({
+      title: isDisable ? 'Отключить тариф?' : `Выдать тариф «${PLAN_LABELS[plan]}»?`,
+      content: <span>Пользователь: <b>{record.displayName || record.firstName || record.uid}</b></span>,
+      okText: isDisable ? 'Отключить' : 'Выдать',
+      okButtonProps: isDisable ? { danger: true } : { type: 'primary' },
+      cancelText: 'Отмена',
+      onOk: async () => {
+        try {
+          const res = await fetch('/api/admin/user-control', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders },
+            body: JSON.stringify(
+              isDisable
+                ? { action: 'disable-plan', identifier: record.uid, note: 'quick action (админка)' }
+                : { action: 'set-plan', identifier: record.uid, plan, note: 'quick grant (админка)' }
+            ),
+          });
+          const json = await res.json();
+          if (json.ok) { message.success(isDisable ? 'Тариф отключён' : `Выдан тариф «${PLAN_LABELS[plan]}»`); loadUsers(); }
+          else message.error(json.error || 'Ошибка');
+        } catch { message.error('Ошибка соединения'); }
+      },
+    });
   };
 
   const handleSearch = (value) => {
@@ -402,11 +440,17 @@ export default function UsersPage() {
     {
       title: '',
       key: 'action',
-      width: 80,
+      width: 180,
       render: (_, record) => (
-        <Button type="link" size="small" onClick={(e) => { e.stopPropagation(); openUser(record.uid); }}>
-          Открыть
-        </Button>
+        <Space size={4} onClick={(e) => e.stopPropagation()}>
+          <Dropdown
+            trigger={['click']}
+            menu={{ items: GRANT_MENU_ITEMS, onClick: ({ key }) => quickAction(record, key) }}
+          >
+            <Button size="small" icon={<GiftOutlined />}>Выдать <DownOutlined /></Button>
+          </Dropdown>
+          <Button type="link" size="small" onClick={() => openUser(record.uid)}>Открыть</Button>
+        </Space>
       ),
     },
   ];

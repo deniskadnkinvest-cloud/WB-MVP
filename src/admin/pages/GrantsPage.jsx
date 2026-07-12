@@ -261,7 +261,8 @@ export default function GrantsPage() {
                       <div key={i}>
                         <Space>
                           <Tag color={PLAN_COLORS[p.planId] || 'default'}>{PLAN_LABELS[p.planId] || p.planId || '—'}</Tag>
-                          {p.amount && <Text strong>+{p.amount} кадров</Text>}
+                          {p.credits > 0 && <Text strong style={{ color: '#faad14' }}>+{p.credits} кадров</Text>}
+                          {!p.isGranted && p.rub > 0 && <Text type="secondary" style={{ fontSize: '11px' }}>({p.rub} ₽)</Text>}
                         </Space>
                         <div>
                           <Text type="secondary" style={{ fontSize: '11px' }}>

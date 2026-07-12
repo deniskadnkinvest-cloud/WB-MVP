@@ -182,76 +182,6 @@ export const processSku = inngest.createFunction(
   }
 );
 
-export const broadcastSend = inngest.createFunction(
-  {
-    id: 'broadcast-send',
-    name: 'Telegram Broadcast Sender',
-    triggers: [{ event: 'broadcast/send' }],
-    concurrency: { limit: 1 },
-    retries: 1,
-  },
-  async ({ event, step }) => {
-    const { broadcastId, text, imageUrl, buttonText, buttonUrl, userIds = [] } = event.data || {};
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    const replyMarkup = buttonText && buttonUrl
-      ? JSON.stringify({ inline_keyboard: [[{ text: buttonText, url: buttonUrl }]] })
-      : undefined;
-
-    if (!botToken) {
-      return { broadcastId, sentCount: 0, failedCount: userIds.length, error: 'TELEGRAM_BOT_TOKEN is not configured' };
-    }
-
-    let sentCount = 0;
-    let failedCount = 0;
-    const batches = [];
-    for (let i = 0; i < userIds.length; i += 30) batches.push(userIds.slice(i, i + 30));
-
-    for (let batchIdx = 0; batchIdx < batches.length; batchIdx += 1) {
-      const batchResult = await step.run(`send-batch-${batchIdx}`, async () => {
-        let batchSent = 0;
-        let batchFailed = 0;
-
-        for (const chatId of batches[batchIdx]) {
-          try {
-            const endpoint = imageUrl ? 'sendPhoto' : 'sendMessage';
-            const body = imageUrl
-              ? { chat_id: chatId, photo: imageUrl, caption: text, parse_mode: 'HTML', ...(replyMarkup && { reply_markup: replyMarkup }) }
-              : { chat_id: chatId, text, parse_mode: 'HTML', ...(replyMarkup && { reply_markup: replyMarkup }) };
-
-            const resp = await fetch(`https://api.telegram.org/bot${botToken}/${endpoint}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-            });
-
-            if (resp.ok) batchSent += 1;
-            else batchFailed += 1;
-          } catch {
-            batchFailed += 1;
-          }
-
-          await new Promise(resolve => setTimeout(resolve, 33));
-        }
-
-        return { batchSent, batchFailed };
-      });
-
-      sentCount += batchResult.batchSent;
-      failedCount += batchResult.batchFailed;
-      if (batchIdx < batches.length - 1) await step.sleep(`batch-cooldown-${batchIdx}`, '1s');
-    }
-
-    await query(
-      `INSERT INTO stats_kv (key, value)
-       VALUES ($1, $2), ($3, $4)
-       ON CONFLICT (key) DO UPDATE SET value = stats_kv.value + EXCLUDED.value`,
-      ['broadcastSent', sentCount, 'broadcastFailed', failedCount]
-    );
-
-    return { broadcastId, sentCount, failedCount };
-  }
-);
-
 export const subscriptionAutoRenew = inngest.createFunction(
   {
     id: 'subscription-auto-renew',
@@ -383,4 +313,4 @@ export const subscriptionAutoRenew = inngest.createFunction(
   }
 );
 
-export const functions = [catalogStarted, processSku, broadcastSend, subscriptionAutoRenew];
+export const functions = [catalogStarted, processSku, subscriptionAutoRenew];

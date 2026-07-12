@@ -69,7 +69,9 @@ export default function Broadcasts() {
       });
       const data = await res.json();
       if (data.ok) setPreview(data);
-      else setErrorMsg(data.error);
+      else setErrorMsg(data.error || 'Не удалось посчитать аудиторию');
+    } catch {
+      setErrorMsg('Ошибка соединения с сервером');
     } finally {
       setDryRunning(false);
     }
@@ -106,6 +108,8 @@ export default function Broadcasts() {
       } else {
         setErrorMsg(data.error || 'Неизвестная ошибка');
       }
+    } catch {
+      setErrorMsg('Ошибка соединения с сервером');
     } finally {
       setSending(false);
     }
@@ -116,7 +120,10 @@ export default function Broadcasts() {
     try {
       const res = await fetch('/api/admin/broadcasts', { headers: authHeaders });
       const data = await res.json();
-      if (data.ok) setHistory(data.broadcasts);
+      if (data.ok) setHistory(data.broadcasts || []);
+      else setErrorMsg(data.error || 'Не удалось загрузить историю рассылок');
+    } catch {
+      setErrorMsg('Ошибка соединения с сервером');
     } finally {
       setHistoryLoading(false);
     }

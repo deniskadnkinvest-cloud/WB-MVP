@@ -147,6 +147,9 @@ async function getPayments(userId) {
   return result.rows.map(p => ({
     planId: p.plan_id,
     method: p.method,
+    credits: p.credits_amount || 0,
+    rub: parseFloat(p.amount || 0) || 0,
+    // legacy-поле: оставляем для обратной совместимости
     amount: p.credits_amount || parseFloat(p.amount || 0),
     date: p.created_at?.toISOString(),
     note: p.note || (p.metadata?.note) || '',
@@ -161,26 +164,59 @@ async function getPayments(userId) {
  */
 async function getGenerationSummary(userId) {
   try {
-    const result = await pgQuery(
-      `SELECT 
-         COUNT(*) as total,
-         COUNT(*) FILTER (WHERE status = 'success' OR status IS NULL) as success,
-         COUNT(*) FILTER (WHERE status = 'error') as failed,
-         MAX(created_at) as last_at
-       FROM generations WHERE user_id = $1`,
-      [userId]
-    );
-    const row = result.rows[0] || {};
+    const [agg, byTypeRes] = await Promise.all([
+      pgQuery(
+        `SELECT
+           COUNT(*) as total,
+           COUNT(*) FILTER (WHERE status = 'success' OR status IS NULL) as success,
+           COUNT(*) FILTER (WHERE status = 'error') as failed,
+           COALESCE(AVG(duration_ms) FILTER (WHERE duration_ms > 0), 0)::int as avg_ms,
+           MAX(created_at) as last_at
+         FROM generations WHERE user_id = $1`,
+        [userId]
+      ),
+      pgQuery(
+        `SELECT COALESCE(type, 'unknown') as type, COUNT(*)::int as count
+         FROM generations WHERE user_id = $1 GROUP BY COALESCE(type, 'unknown')`,
+        [userId]
+      ),
+    ]);
+    const row = agg.rows[0] || {};
+    const byType = {};
+    for (const r of byTypeRes.rows) byType[r.type] = r.count;
     return {
       total: parseInt(row.total) || 0,
       success: parseInt(row.success) || 0,
       failed: parseInt(row.failed) || 0,
       lastAt: row.last_at?.toISOString() || null,
-      avgDurationMs: 0,
+      avgDurationMs: parseInt(row.avg_ms) || 0,
+      byType,
     };
   } catch {
     // РўР°Р±Р»РёС†Р° generations РјРѕР¶РµС‚ РЅРµ СЃСѓС‰РµСЃС‚РІРѕРІР°С‚СЊ
-    return { total: 0, success: 0, failed: 0, lastAt: null, avgDurationMs: 0 };
+    return { total: 0, success: 0, failed: 0, lastAt: null, avgDurationMs: 0, byType: {} };
+  }
+}
+
+/**
+ * Последние генерации пользователя (для дровера в админке).
+ */
+async function getRecentGenerations(userId, limit = 15) {
+  try {
+    const { rows } = await pgQuery(
+      `SELECT type, status, duration_ms, created_at, metadata
+       FROM generations WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2`,
+      [userId, limit]
+    );
+    return rows.map(r => ({
+      type: r.type,
+      success: r.status !== 'error',
+      error: r.status === 'error' ? String(r.metadata?.error || '').slice(0, 200) : null,
+      durationMs: r.duration_ms || 0,
+      createdAt: r.created_at?.toISOString() || null,
+    }));
+  } catch {
+    return [];
   }
 }
 
@@ -209,10 +245,11 @@ async function lookupUser(identifier) {
     };
   }
 
-  const [sub, payments, genSummary] = await Promise.all([
+  const [sub, payments, genSummary, generations] = await Promise.all([
     getSubscription(user.id),
     getPayments(user.id),
     getGenerationSummary(user.id),
+    getRecentGenerations(user.id),
   ]);
 
   return {
@@ -228,6 +265,7 @@ async function lookupUser(identifier) {
       },
       payments,
       generationSummary: genSummary,
+      generations,
     },
   };
 }
