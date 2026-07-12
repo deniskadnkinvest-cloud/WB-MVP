@@ -325,7 +325,7 @@ function App() {
     else if (section === 'bg') { setCustomBgChips(prev => [...prev, chip]); setCustomBgText(''); }
     else if (section === 'product_composition') { setCustomProductCompositionChips(prev => [...prev, chip]); setCustomPoseText(''); }
     else if (section === 'product_bg') { setCustomProductBgChips(prev => [...prev, chip]); setCustomProductBg(''); }
-    else if (section === 'product_effect') { setCustomProductEffectChips(prev => [...prev, chip]); setCustomProductEffectText(''); }
+    else if (section === 'product_effect') { setCustomProductEffectChips(prev => [...prev, chip]); setCustomProductEffectText(''); setSelectedProductEffects(prev => prev.filter(s => s.id !== 'none')); }
     setNewChipText('');
     setAddingCustom(null);
   };

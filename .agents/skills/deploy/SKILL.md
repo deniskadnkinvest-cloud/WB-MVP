@@ -94,6 +94,10 @@ docker logs vton-mvp --tail 50
 
 # 7. Проверить здоровье
 curl -s https://seller-studio-ai.ru/api/auth-ping
+
+# 8. Синхронизация с GitHub (ОБЯЗАТЕЛЬНОЕ ПРАВИЛО)
+# Каждый раз, когда заливаешь код через scp — сразу же делай commit и push!
+git add . && git commit -m "deploy: manual update via scp" && git push
 ```
 
 ### Альтернативный быстрый деплой (без пересборки)
