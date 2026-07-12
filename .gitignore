@@ -18,3 +18,4 @@ dist-ssr
 .vercel
 .env*
 scratch/secrets/
+.backups/
