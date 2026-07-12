@@ -1,4 +1,4 @@
-﻿import React, { Component, StrictMode } from 'react'
+import React, { Component, StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import TelegramInit from './components/TelegramInit'
@@ -6,7 +6,9 @@ import TelegramInit from './components/TelegramInit'
 // Р РѕСѓС‚РёРЅРі: РµСЃР»Рё URL СЃРѕРґРµСЂР¶РёС‚ ?mode=admin РёР»Рё #/admin вЂ” СЂРµРЅРґРµСЂРёРј Р°РґРјРёРЅРєСѓ
 const isAdmin = new URLSearchParams(window.location.search).get('mode') === 'admin'
   || window.location.hash === '#/admin'
-  || window.location.hash.startsWith('#/admin/');
+  || window.location.hash.startsWith('#/admin/')
+  || window.location.pathname === '/admin'
+  || window.location.pathname === '/admin/';
 const isOffer = window.location.pathname === '/offer' || window.location.pathname === '/offer/';
 
 const root = createRoot(document.getElementById('root'));
