@@ -51,6 +51,21 @@ async function fetchStats() {
     GROUP BY COALESCE(type, 'unknown')
   `);
 
+  // Реальные авто-подписки (честный MRR): активные, с автопродлением И сохранённой картой.
+  // Отсекает гранты админа и легаси-импорт (у них нет payment_method / auto_renew).
+  const { rows: mrrRows } = await query(`
+    SELECT COALESCE(plan_name, 'none') AS plan, COUNT(*)::int AS n
+    FROM subscriptions
+    WHERE status = 'active' AND auto_renew = true AND yookassa_payment_method_id IS NOT NULL
+      AND plan_name IN ('base', 'pro')
+    GROUP BY plan_name
+  `);
+
+  // «Живые» пользователи — сделали хотя бы одну генерацию (реально пользовались продуктом)
+  const { rows: liveRows } = await query(
+    `SELECT COUNT(DISTINCT user_id)::int AS n FROM generations WHERE user_id IS NOT NULL`
+  );
+
   // ═══ Платежи / выручка (ЮKassa, ₽) + гранты админа ═══
   const { rows: payAgg } = await query(`
     SELECT
@@ -152,10 +167,11 @@ async function fetchStats() {
   }
 
   // ═══ Производные метрики ═══
-  const mrr = Math.round(
-    (planCounts.base || 0) * PLAN_MONTHLY_PRICE.base +
-    (planCounts.pro || 0) * PLAN_MONTHLY_PRICE.pro
-  );
+  const realSub = { base: 0, pro: 0 };
+  for (const r of mrrRows) if (r.plan in realSub) realSub[r.plan] = r.n;
+  const mrr = Math.round(realSub.base * PLAN_MONTHLY_PRICE.base + realSub.pro * PLAN_MONTHLY_PRICE.pro);
+  const realSubscribers = realSub.base + realSub.pro;
+  const liveUsers = liveRows[0]?.n || 0;
   const payingUsers = pay.paying_users || 0;
   const revenueTotal = Math.round(pay.revenue_total || 0);
   const arppu = payingUsers > 0 ? Math.round(revenueTotal / payingUsers) : 0;
@@ -168,7 +184,9 @@ async function fetchStats() {
   const result = {
     // Пользователи
     totalUsers,
+    liveUsers,
     activeUsers,
+    realSubscribers,
     payingUsers,
     newUsersToday,
     newUsersWeek,

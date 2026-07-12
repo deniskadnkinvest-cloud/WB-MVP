@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Table, Tag, Input, Button, Drawer, Card, Descriptions, Select,
   InputNumber, Space, message, Spin, Typography, Divider, Empty, Badge,
-  Form, Timeline, Statistic, Row, Col, Dropdown, Modal,
+  Form, Timeline, Statistic, Row, Col, Dropdown, Modal, Segmented,
 } from 'antd';
 import {
   SearchOutlined, UserOutlined, ReloadOutlined, GiftOutlined,
@@ -16,6 +16,23 @@ const { Search } = Input;
 
 const PLAN_LABELS = { none: 'Нет тарифа', trial: 'Старт', base: 'Про', pro: 'Бизнес' };
 const PLAN_COLORS = { none: 'default', trial: 'orange', base: 'cyan', pro: 'purple' };
+
+// Классификация аккаунтов: отделяем живых от легаси-импорта и тестовых
+const USER_KINDS = {
+  active:  { label: '🟢 Активный', color: 'green' },
+  dormant: { label: 'Без генераций', color: 'default' },
+  legacy:  { label: '👻 Легаси', color: 'gold' },
+  test:    { label: '🧪 Тест', color: 'geekblue' },
+};
+function classifyUser(u) {
+  const tg = String(u.telegramId || '');
+  const email = String(u.email || '');
+  const gens = u.generationCount || 0;
+  if (/^(777000|99001)/.test(tg)) return 'test';
+  if (email.includes('@legacy.user') || /^[A-Za-z0-9_]{20,}$/.test(tg)) return 'legacy';
+  if (gens > 0) return 'active';
+  return 'dormant';
+}
 
 const TYPE_LABELS = {
   fashion: 'Одежда', product: 'Товары', quick: 'Быстрая',
@@ -302,6 +319,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [searchVal, setSearchVal] = useState('');
   const [quickId, setQuickId] = useState('');
+  const [kindFilter, setKindFilter] = useState('all');
 
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -376,7 +394,16 @@ export default function UsersPage() {
     setSearchVal(v);
   };
 
+  const kindCounts = users.reduce((acc, u) => { const k = classifyUser(u); acc[k] = (acc[k] || 0) + 1; return acc; }, {});
+  const liveCount = (kindCounts.active || 0) + (kindCounts.dormant || 0);
+
   const filtered = users.filter(u => {
+    if (kindFilter !== 'all') {
+      const kind = classifyUser(u);
+      if (kindFilter === 'live' && !(kind === 'active' || kind === 'dormant')) return false;
+      if (kindFilter === 'legacy' && kind !== 'legacy') return false;
+      if (kindFilter === 'test' && kind !== 'test') return false;
+    }
     if (!searchVal) return true;
     const term = searchVal.toLowerCase();
     return (
@@ -404,6 +431,15 @@ export default function UsersPage() {
             <Text type="secondary" style={{ fontSize: '11px', fontFamily: 'monospace' }}>{id}</Text>
           </div>
         );
+      },
+    },
+    {
+      title: 'Тип',
+      key: 'kind',
+      width: 130,
+      render: (_, record) => {
+        const meta = USER_KINDS[classifyUser(record)] || USER_KINDS.dormant;
+        return <Tag color={meta.color}>{meta.label}</Tag>;
       },
     },
     {
@@ -459,7 +495,7 @@ export default function UsersPage() {
     <div style={{ maxWidth: '900px', margin: '0 auto' }}>
 
       {/* Search + Actions */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
         <Search
           placeholder="Фильтр по таблице..."
           allowClear
@@ -469,6 +505,19 @@ export default function UsersPage() {
         />
         <Button icon={<ReloadOutlined />} onClick={loadUsers} loading={loading}>Обновить</Button>
       </div>
+
+      {/* Фильтр по типу аккаунта */}
+      <Segmented
+        value={kindFilter}
+        onChange={setKindFilter}
+        style={{ marginBottom: '16px' }}
+        options={[
+          { label: `Все · ${users.length}`, value: 'all' },
+          { label: `🟢 Живые · ${liveCount}`, value: 'live' },
+          { label: `👻 Легаси · ${kindCounts.legacy || 0}`, value: 'legacy' },
+          { label: `🧪 Тест · ${kindCounts.test || 0}`, value: 'test' },
+        ]}
+      />
 
       {/* Users Table */}
       <Table

@@ -133,7 +133,7 @@ export default function SummaryPage() {
   }
 
   const {
-    totalUsers = 0, activeUsers = 0, payingUsers = 0,
+    totalUsers = 0, liveUsers = 0, activeUsers = 0, realSubscribers = 0, payingUsers = 0,
     newUsersToday = 0, newUsersWeek = 0,
     generationsTotal = 0, generationsToday = 0, generationsWeek = 0, successRate = 100,
     revenueToday = 0, revenueWeek = 0, revenueMonth = 0, revenueTotal = 0,
@@ -174,7 +174,7 @@ export default function SummaryPage() {
         <Col xs={12} md={6}>
           <Card size="small" style={{ background: 'linear-gradient(135deg, rgba(250,173,20,0.12), rgba(250,173,20,0.02))', border: '1px solid rgba(250,173,20,0.25)' }}>
             <Statistic title={<span><CrownOutlined /> MRR (регулярный доход)</span>} value={mrr} suffix="₽" valueStyle={{ color: '#faad14', fontWeight: 700 }} />
-            <Text type="secondary" style={{ fontSize: 11 }}>активные подписки × цена/мес</Text>
+            <Text type="secondary" style={{ fontSize: 11 }}>реальных авто-подписок: {realSubscribers}</Text>
           </Card>
         </Col>
         <Col xs={12} md={6}>
@@ -201,7 +201,7 @@ export default function SummaryPage() {
       <Row gutter={[12, 12]} style={{ marginTop: 12 }}>
         <Col xs={12} md={6}>
           <Card size="small">
-            <Statistic title={<span><TeamOutlined /> Пользователи</span>} value={totalUsers} />
+            <Statistic title={<span><TeamOutlined /> Пользователи</span>} value={totalUsers} suffix={<span style={{ fontSize: 13, color: '#52c41a' }}>· {liveUsers} живых</span>} />
             <Text type="secondary" style={{ fontSize: 11 }}>+{newUsersToday} сегодня · +{newUsersWeek} за неделю</Text>
           </Card>
         </Col>
