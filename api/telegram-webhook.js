@@ -1,5 +1,11 @@
 import fetch from 'node-fetch';
 
+// Список разрешённых Telegram ID для /admin
+const getAdminIds = () => {
+  const raw = process.env.ADMIN_TELEGRAM_IDS || '';
+  return raw.split(',').map(s => s.trim()).filter(Boolean).map(Number);
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).end();
@@ -13,8 +19,10 @@ export default async function handler(req, res) {
 
     const { message } = update;
     const chatId = message.chat.id;
+    const userId = message.from?.id;
     const text = message.text.trim();
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const adminKey = process.env.ADMIN_ACCESS_KEY;
 
     if (!botToken) {
       console.error('[TG Webhook] Missing TELEGRAM_BOT_TOKEN');
@@ -22,6 +30,25 @@ export default async function handler(req, res) {
     }
 
     if (text === '/admin') {
+      // Проверяем, что пользователь — админ
+      const adminIds = getAdminIds();
+      if (!adminIds.includes(Number(userId))) {
+        await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: chatId,
+            text: '⛔ У вас нет доступа к панели администратора.'
+          })
+        });
+        return res.status(200).json({ ok: true });
+      }
+
+      // Формируем URL с ключом доступа (Telegram Desktop не передаёт initData)
+      const adminUrl = adminKey
+        ? `https://seller-studio-ai.ru/admin?key=${encodeURIComponent(adminKey)}`
+        : 'https://seller-studio-ai.ru/admin';
+
       await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -30,7 +57,7 @@ export default async function handler(req, res) {
           text: '🔐 Панель управления Seller Studio',
           reply_markup: {
             inline_keyboard: [
-              [{ text: '🛠 Открыть Админку', web_app: { url: 'https://seller-studio-ai.ru/admin' } }]
+              [{ text: '🛠 Открыть Админку', web_app: { url: adminUrl } }]
             ]
           }
         })
@@ -41,10 +68,10 @@ export default async function handler(req, res) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chatId,
-          text: 'Добро пожаловать в Seller Studio! Запустите приложение ниже:',
+          text: 'Добро пожаловать в Seller Studio! 🚀\nЗапустите приложение ниже:',
           reply_markup: {
             inline_keyboard: [
-              [{ text: '🚀 Открыть приложение', web_app: { url: 'https://seller-studio-ai.ru' } }]
+              [{ text: '📸 Открыть Студию', web_app: { url: 'https://seller-studio-ai.ru' } }]
             ]
           }
         })
@@ -54,6 +81,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   } catch (error) {
     console.error('[TG Webhook] Error:', error);
-    return res.status(200).json({ ok: true }); // Always return 200 to Telegram
+    return res.status(200).json({ ok: true });
   }
 }
