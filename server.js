@@ -140,6 +140,11 @@ app.post('/api/verify-otp', async (req, res) => {
   return verifyOtpHandler(req, res);
 });
 
+import telegramWebhookHandler from './api/telegram-webhook.js';
+app.post('/api/telegram-webhook', async (req, res) => {
+  return telegramWebhookHandler(req, res);
+});
+
 app.post('/api/create-tg-session', async (req, res) => {
   return createTgSessionHandler(req, res);
 });
