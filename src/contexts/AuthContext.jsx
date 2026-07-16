@@ -152,7 +152,7 @@ const checkPrivateBrowsing = async () => {
 // ═══════════════════════════════════════════
 //  HUMAN-FRIENDLY ERROR MESSAGES (Russian)
 // ═══════════════════════════════════════════
-export const firebaseErrorToRussian = (error) => {
+export const authErrorToRussian = (error) => {
   const code = error?.code || '';
   const msg = error?.message || '';
 
@@ -296,7 +296,7 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  // ═══ Internal Telegram login (no dependency on Firebase) ═══
+  // ═══ Internal Telegram login ═══
   const signInWithTelegramAccountInternal = async () => {
     const initData = getTelegramInitData();
     if (!initData) {
@@ -358,7 +358,7 @@ export function AuthProvider({ children }) {
   };
 
   // ═══════════════════════════════════════════
-  //  PASSWORD RESET (disabled — no Firebase Auth)
+  //  PASSWORD RESET (not supported by the current OTP auth flow)
   // ═══════════════════════════════════════════
   const resetPassword = async (email) => {
     throw new Error('Сброс пароля больше не поддерживается. Используйте вход по коду (OTP).');
@@ -518,7 +518,7 @@ export function AuthProvider({ children }) {
     return { user: formattedUserData };
   };
 
-  // Upgrade anonymous user to email account (disabled without Firebase)
+  // Anonymous-account upgrade is not supported by the current auth flow.
   const upgradeGuestToEmail = async (email, password) => {
     // В новой системе гость просто вводит OTP код
     throw new Error('Используйте вход по коду (OTP) для создания аккаунта.');

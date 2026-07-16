@@ -1,20 +1,22 @@
 ﻿// Shared PostgreSQL pool used by API modules.
 // Keep this module small: it is loaded by auth, billing, admin, and generation routes.
 
+import 'dotenv/config';
 import pg from 'pg';
+import { requireEnv } from './_env.js';
 
 const { Pool } = pg;
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://vton_user:VtonStrongPass2026!@10.8.0.1:5432/vton_mvp',
+  connectionString: requireEnv('DATABASE_URL'),
   ssl: false,
-  max: 30, // РЎР»РµРіРєР° СѓРІРµР»РёС‡РёРј РјР°РєСЃРёРјСѓРј
-  idleTimeoutMillis: 5000, // РЈР±РёРІР°РµРј РєРѕРЅРЅРµРєС‚С‹ С‡РµСЂРµР· 5 СЃРµРєСѓРЅРґ РїСЂРѕСЃС‚РѕСЏ, С‡С‚РѕР±С‹ РЅРµ РёСЃРїРѕР»СЊР·РѕРІР°С‚СЊ РїСЂРѕС‚СѓС…С€РёРµ
+  max: 30,
+  idleTimeoutMillis: 5000,
   connectionTimeoutMillis: 15000,
   query_timeout: 10000,
   statement_timeout: 10000,
   keepAlive: true,
-  keepAliveInitialDelayMillis: 5000, // РџРёРЅРіСѓРµРј TCP РєР°Р¶РґС‹Рµ 5 СЃРµРєСѓРЅРґ, С‡С‚РѕР±С‹ WireGuard РЅРµ СѓР±РёРІР°Р» СЃС‚РµР№С‚
+  keepAliveInitialDelayMillis: 5000,
 });
 
 pool.on('error', (err) => {
@@ -26,7 +28,9 @@ pool.on('error', (err) => {
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 function isReadOnlySql(text = '') {
-  return /^\s*(SELECT|SHOW|WITH)\b/i.test(String(text));
+  // A WITH query may contain data-changing CTEs, so only retry statements
+  // whose leading verb is unambiguously read-only.
+  return /^\s*(SELECT|SHOW)\b/i.test(String(text));
 }
 
 function isRetryableConnectionError(err) {
@@ -74,7 +78,7 @@ async function query(text, params, options = {}) {
   }
 
   if (isRetryableConnectionError(lastError)) {
-    lastError.message = 'РЎРµСЂРІРёСЃ РІСЂРµРјРµРЅРЅРѕ РЅРµРґРѕСЃС‚СѓРїРµРЅ. РџРѕРІС‚РѕСЂРёС‚Рµ РїРѕРїС‹С‚РєСѓ.';
+    lastError.message = 'Сервис временно недоступен. Повторите попытку.';
   }
 
   throw lastError;

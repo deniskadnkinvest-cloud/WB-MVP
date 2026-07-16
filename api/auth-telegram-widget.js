@@ -1,8 +1,7 @@
 ﻿import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { isRetryableConnectionError, query } from './_db.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
+import { getJwtSecret } from './_env.js';
 
 /**
  * Верификация данных от Telegram Login Widget
@@ -119,7 +118,7 @@ export default async function handler(req, res) {
         telegramId,
         dbUserId: user.id,
       },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: '30d' }
     );
 

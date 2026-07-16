@@ -1,7 +1,7 @@
 // POST /api/admin/user-control
 // Admin operations for looking up users, setting plans, and adding credits.
-// РРЎРўРћР§РќРРљ РРЎРўРРќР«: PostgreSQL (Р¤Р—-152 compliant, СЂРѕСЃСЃРёР№СЃРєРёР№ С…РѕСЃС‚РёРЅРі)
-// Auth РїРѕР»РЅРѕСЃС‚СЊСЋ СѓРґР°Р»С‘РЅ. Р’СЃРµ РѕРїРµСЂР°С†РёРё РёРґСѓС‚ С‡РµСЂРµР· _db.js в†’ PostgreSQL.
+// ИСТОЧНИК ИСТИНЫ: PostgreSQL (ФЗ-152 compliant, российский хостинг)
+// Auth полностью удалён. Все операции идут через _db.js → PostgreSQL.
 
 import { checkAdminAuth } from './verify.js';
 import { query as pgQuery } from '../_db.js';
@@ -21,28 +21,28 @@ function buildExpiresAt(plan) {
   return expiresAt;
 }
 
-// в•ђв•ђв•ђ PostgreSQL Helpers в•ђв•ђв•ђ
+// ═══ PostgreSQL Helpers ═══
 
 /**
- * РќР°Р№С‚Рё РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РІ PostgreSQL.
- * РЎС‚СЂР°С‚РµРіРёРё РїРѕРёСЃРєР°:
- *   1. telegram_id С‚РѕС‡РЅРѕРµ СЃРѕРІРїР°РґРµРЅРёРµ
- *   2. Р•СЃР»Рё С„РѕСЂРјР°С‚ tg_{id} в†’ РёС‰РµРј РїРѕ С‡РёСЃС‚РѕРјСѓ id
- *   3. Р•СЃР»Рё С‡РёСЃР»РѕРІРѕР№ в†’ РёС‰РµРј РїРѕ telegram_id = С‡РёСЃР»Рѕ
- *   4. РџРѕ email
+ * Найти пользователя в PostgreSQL.
+ * Стратегии поиска:
+ *   1. telegram_id точное совпадение
+ *   2. Если формат tg_{id} → ищем по чистому id
+ *   3. Если числовой → ищем по telegram_id = число
+ *   4. По email
  */
 async function findUser(identifier) {
   const clean = String(identifier || '').trim();
   if (!clean) return null;
 
-  // 1. РџСЂСЏРјРѕР№ РїРѕРёСЃРє
+  // 1. Прямой поиск
   let result = await pgQuery(
     `SELECT id, telegram_id, email FROM users WHERE telegram_id = $1 LIMIT 1`,
     [clean]
   );
   if (result.rows.length > 0) return result.rows[0];
 
-  // 2. Р•СЃР»Рё tg_{id} С„РѕСЂРјР°С‚ вЂ” РёС‰РµРј РїРѕ С‡РёСЃС‚РѕРјСѓ id
+  // 2. Если tg_{id} формат — ищем по чистому id
   if (clean.startsWith('tg_')) {
     const rawId = clean.slice(3);
     result = await pgQuery(
@@ -52,9 +52,9 @@ async function findUser(identifier) {
     if (result.rows.length > 0) return result.rows[0];
   }
 
-  // 3. Р§РёСЃР»РѕРІРѕР№ вЂ” telegram ID
+  // 3. Числовой — telegram ID
   if (/^\d+$/.test(clean)) {
-    // РўР°РєР¶Рµ РёС‰РµРј СЃ tg_ РїСЂРµС„РёРєСЃРѕРј РЅР° РІСЃСЏРєРёР№ СЃР»СѓС‡Р°Р№
+    // Также ищем с tg_ префиксом на всякий случай
     result = await pgQuery(
       `SELECT id, telegram_id, email FROM users WHERE telegram_id = $1 OR telegram_id = $2 LIMIT 1`,
       [clean, `tg_${clean}`]
@@ -62,7 +62,7 @@ async function findUser(identifier) {
     if (result.rows.length > 0) return result.rows[0];
   }
 
-  // 4. РџРѕ email
+  // 4. По email
   if (clean.includes('@')) {
     result = await pgQuery(
       `SELECT id, telegram_id, email FROM users WHERE email = $1 LIMIT 1`,
@@ -75,17 +75,17 @@ async function findUser(identifier) {
 }
 
 /**
- * РќР°Р№С‚Рё РёР»Рё СЃРѕР·РґР°С‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ.
+ * Найти или создать пользователя.
  */
 async function findOrCreateUser(identifier) {
   const clean = String(identifier || '').trim();
   if (!clean) throw new Error('identifier required');
 
-  // РЎРЅР°С‡Р°Р»Р° РёС‰РµРј СЃСѓС‰РµСЃС‚РІСѓСЋС‰РµРіРѕ
+  // Сначала ищем существующего
   const existing = await findUser(clean);
   if (existing) return existing;
 
-  // Р•СЃР»Рё РЅРµ РЅР°С€Р»Рё вЂ” СЃРѕР·РґР°С‘Рј
+  // Если не нашли — создаём
   const telegramId = /^\d+$/.test(clean) ? clean : (clean.startsWith('tg_') ? clean.slice(3) : clean);
   const email = clean.includes('@') ? clean.toLowerCase() : `tg_${telegramId}@telegram.user`;
 
@@ -101,7 +101,7 @@ async function findOrCreateUser(identifier) {
 }
 
 /**
- * РџРѕР»СѓС‡РёС‚СЊ РїРѕРґРїРёСЃРєСѓ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РёР· PostgreSQL.
+ * Получить подписку пользователя из PostgreSQL.
  */
 async function getSubscription(userId) {
   const result = await pgQuery(
@@ -137,7 +137,7 @@ async function getSubscription(userId) {
 }
 
 /**
- * РџРѕР»СѓС‡РёС‚СЊ РёСЃС‚РѕСЂРёСЋ РїР»Р°С‚РµР¶РµР№.
+ * Получить историю платежей.
  */
 async function getPayments(userId) {
   const result = await pgQuery(
@@ -160,7 +160,7 @@ async function getPayments(userId) {
 }
 
 /**
- * РџРѕР»СѓС‡РёС‚СЊ СЃРІРѕРґРєСѓ РїРѕ РіРµРЅРµСЂР°С†РёСЏРј РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ.
+ * Получить сводку по генерациям пользователя.
  */
 async function getGenerationSummary(userId) {
   try {
@@ -193,7 +193,7 @@ async function getGenerationSummary(userId) {
       byType,
     };
   } catch {
-    // РўР°Р±Р»РёС†Р° generations РјРѕР¶РµС‚ РЅРµ СЃСѓС‰РµСЃС‚РІРѕРІР°С‚СЊ
+    // Таблица generations может не существовать
     return { total: 0, success: 0, failed: 0, lastAt: null, avgDurationMs: 0, byType: {} };
   }
 }
@@ -221,7 +221,7 @@ async function getRecentGenerations(userId, limit = 15) {
 }
 
 /**
- * РџРѕР»РЅС‹Р№ lookup РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ вЂ” РїСЂРѕС„РёР»СЊ + РїРѕРґРїРёСЃРєР° + РїР»Р°С‚РµР¶Рё + РіРµРЅРµСЂР°С†РёРё.
+ * Полный lookup пользователя — профиль + подписка + платежи + генерации.
  */
 async function lookupUser(identifier) {
   const user = await findUser(identifier);
@@ -271,7 +271,7 @@ async function lookupUser(identifier) {
 }
 
 /**
- * Р—Р°РїРёСЃР°С‚СЊ РїР»Р°С‚С‘Р¶/СЃРѕР±С‹С‚РёРµ РІ С‚Р°Р±Р»РёС†Сѓ payments.
+ * Записать платёж/событие в таблицу payments.
  */
 async function recordPayment(userId, { planId, method, credits, note, grantedBy, grantedByName, identifier }) {
   try {
@@ -286,7 +286,7 @@ async function recordPayment(userId, { planId, method, credits, note, grantedBy,
 }
 
 /**
- * Upsert РїРѕРґРїРёСЃРєРё РІ PostgreSQL.
+ * Upsert подписки в PostgreSQL.
  */
 async function upsertSubscription(userId, { plan, credits, creditsTotal, expiresAt, status, grantedByAdmin }) {
   await pgQuery(
@@ -297,10 +297,10 @@ async function upsertSubscription(userId, { plan, credits, creditsTotal, expires
        expires_at = $5, status = $6, granted_by_admin = $7`,
     [userId, plan, credits, creditsTotal || credits, expiresAt, status || 'active', grantedByAdmin || false]
   );
-  console.log(`[admin/user-control] вњ… PostgreSQL: user_id=${userId}, plan=${plan}, credits=${credits}`);
+  console.log(`[admin/user-control] ✅ PostgreSQL: user_id=${userId}, plan=${plan}, credits=${credits}`);
 }
 
-// в•ђв•ђв•ђ MAIN HANDLER в•ђв•ђв•ђ
+// ═══ MAIN HANDLER ═══
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -315,25 +315,24 @@ export default async function handler(req, res) {
   const { action = 'lookup', identifier, plan = 'trial', credits, note = '' } = req.body || {};
 
   try {
-    // в•ђв•ђв•ђ LOOKUP в•ђв•ђв•ђ
+    // ═══ LOOKUP ═══
     if (action === 'lookup') {
       const data = await lookupUser(identifier);
       return res.status(200).json({ ok: true, ...data });
     }
 
-    // Р”Р»СЏ РѕСЃС‚Р°Р»СЊРЅС‹С… РґРµР№СЃС‚РІРёР№ РЅР°Рј РЅСѓР¶РµРЅ РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ
+    // Для остальных действий нам нужен пользователь
     const user = await findOrCreateUser(identifier);
     const userId = user.id;
-    const now = new Date().toISOString();
 
-    // в•ђв•ђв•ђ ADD CREDITS в•ђв•ђв•ђ
+    // ═══ ADD CREDITS ═══
     if (action === 'add-credits') {
       const amount = parseInt(credits, 10);
       if (!amount || amount < 1 || amount > 10000) {
         return res.status(400).json({ ok: false, error: 'credits must be 1..10000' });
       }
 
-      // РџРѕР»СѓС‡Р°РµРј С‚РµРєСѓС‰СѓСЋ РїРѕРґРїРёСЃРєСѓ
+      // Получаем текущую подписку
       const currentSub = await getSubscription(userId);
       const preservedPlan = currentSub.plan && currentSub.plan !== 'none' ? currentSub.plan : 'trial';
       const newCredits = (currentSub.credits || 0) + amount;
@@ -358,13 +357,13 @@ export default async function handler(req, res) {
         identifier,
       });
 
-      console.log(`вњ… [admin/user-control] +${amount} РєСЂРµРґРёС‚РѕРІ в†’ user_id=${userId} (${identifier}). Р’С‹РґР°Р»: ${auth.user?.firstName || 'Admin'}`);
+      console.log(`✅ [admin/user-control] +${amount} кредитов → user_id=${userId} (${identifier}). Выдал: ${auth.user?.firstName || 'Admin'}`);
 
       const result = await lookupUser(identifier);
       return res.status(200).json({ ok: true, action, ...result });
     }
 
-    // в•ђв•ђв•ђ SET PLAN в•ђв•ђв•ђ
+    // ═══ SET PLAN ═══
     if (action === 'set-plan') {
       const amount = plan === 'custom' ? parseInt(credits, 10) : PLAN_CREDITS[plan];
       if (!amount || amount < 1 || amount > 10000) {
@@ -393,13 +392,13 @@ export default async function handler(req, res) {
         identifier,
       });
 
-      console.log(`вњ… [admin/user-control] Р’С‹РґР°РЅ РїР»Р°РЅ ${effectivePlan} (${amount} РєСЂРµРґРёС‚РѕРІ) в†’ user_id=${userId} (${identifier}). Р’С‹РґР°Р»: ${auth.user?.firstName || 'Admin'}`);
+      console.log(`✅ [admin/user-control] Выдан план ${effectivePlan} (${amount} кредитов) → user_id=${userId} (${identifier}). Выдал: ${auth.user?.firstName || 'Admin'}`);
 
       const result = await lookupUser(identifier);
       return res.status(200).json({ ok: true, action, ...result });
     }
 
-    // в•ђв•ђв•ђ DISABLE PLAN в•ђв•ђв•ђ
+    // ═══ DISABLE PLAN ═══
     if (action === 'disable-plan') {
       await upsertSubscription(userId, {
         plan: 'none',
@@ -420,7 +419,7 @@ export default async function handler(req, res) {
         identifier,
       });
 
-      console.log(`рџљ« [admin/user-control] РћС‚РєР»СЋС‡С‘РЅ РїР»Р°РЅ в†’ user_id=${userId} (${identifier}). РћС‚РєР»СЋС‡РёР»: ${auth.user?.firstName || 'Admin'}`);
+      console.log(`🚫 [admin/user-control] Отключён план → user_id=${userId} (${identifier}). Отключил: ${auth.user?.firstName || 'Admin'}`);
 
       const result = await lookupUser(identifier);
       return res.status(200).json({ ok: true, action, ...result });

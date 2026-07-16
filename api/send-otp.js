@@ -107,9 +107,9 @@ export default async function handler(req, res) {
     };
 
     if (isLocal) {
-      console.log(`вњ‰пёЏ [LOCAL] OTP Code generated for ${email} (expires at ${expiresAt.toISOString()})`);
+      console.log(`✉️ [LOCAL] OTP Code generated for ${email} (expires at ${expiresAt.toISOString()})`);
     } else {
-      console.log(`вњ‰пёЏ OTP Code generated for ${email} (expires at ${expiresAt.toISOString()})`);
+      console.log(`✉️ OTP Code generated for ${email} (expires at ${expiresAt.toISOString()})`);
     }
 
     // 3. Send email via Resend API or SMTP (or fallback to console log for local dev)
@@ -145,7 +145,7 @@ export default async function handler(req, res) {
 
         if (response.ok) {
           emailSent = true;
-          console.log(`вњ… Email sent via Resend API to ${email} from ${fromEmail}`);
+          console.log(`✅ Email sent via Resend API to ${email} from ${fromEmail}`);
         } else {
           const errText = await response.text();
           let errData;
@@ -155,11 +155,11 @@ export default async function handler(req, res) {
             errData = { message: errText };
           }
           sendError = `Resend API error: ${JSON.stringify(errData)}`;
-          console.error(`вќЊ Resend API sending failed from ${fromEmail}:`, errData);
+          console.error(`❌ Resend API sending failed from ${fromEmail}:`, errData);
         }
       } catch (err) {
         sendError = err.message;
-        console.error('вќЊ Resend API request failed:', err);
+        console.error('❌ Resend API request failed:', err);
       }
     }
 
@@ -194,10 +194,10 @@ export default async function handler(req, res) {
 
         await transporter.sendMail(mailOptions);
         emailSent = true;
-        console.log(`вњ… Email sent via SMTP to ${email}`);
+        console.log(`✅ Email sent via SMTP to ${email}`);
       } catch (err) {
         sendError = err.message;
-        console.error('вќЊ SMTP sending failed:', err);
+        console.error('❌ SMTP sending failed:', err);
       }
     }
 
@@ -249,22 +249,22 @@ export default async function handler(req, res) {
         
         if (tgResponse.ok) {
           sentToTelegram = true;
-          console.log(`вњ… OTP Code sent to Telegram Chat (${targetChatId}) for ${email}`);
+          console.log(`✅ OTP Code sent to Telegram Chat (${targetChatId}) for ${email}`);
         } else {
           const tgErrorText = await tgResponse.text();
           sendError = `Telegram API Error for chat ${targetChatId}: ${tgErrorText}`;
-          console.error(`вќЊ Failed to send OTP to Telegram Chat (${targetChatId}):`, tgErrorText);
+          console.error(`❌ Failed to send OTP to Telegram Chat (${targetChatId}):`, tgErrorText);
         }
       } catch (tgErr) {
         sendError = `Telegram fetch error: ${tgErr.message}`;
-        console.error(`вќЊ Telegram send error:`, tgErr.message);
+        console.error(`❌ Telegram send error:`, tgErr.message);
       }
     }
 
     // D. LOCAL DEBUG FALLBACK
     // If no provider configured and we are running locally, success is returned and code is logged
     if (!emailSent && isLocal) {
-      console.log(`вљ пёЏ [LOCAL DEV FALLBACK] No email providers set. OTP Code for ${email} is: ${code}`);
+      console.log(`⚠️ [LOCAL DEV FALLBACK] No email providers set. OTP Code for ${email} is: ${code}`);
       await saveOtpCode();
       return res.status(200).json({
         success: true,

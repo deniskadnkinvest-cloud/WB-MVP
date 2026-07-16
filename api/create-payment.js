@@ -1,15 +1,14 @@
-// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+// ═══════════════════════════════════════════════════════════════
 // POST /api/create-payment
-// РЎРѕР·РґР°С‘С‚ РїР»Р°С‚РµР¶ РІ Р®Kassa РґР»СЏ РїРѕРєСѓРїРєРё С‚Р°СЂРёС„Р°
+// Создаёт платеж в ЮKassa для покупки тарифа
 // Body: { planId: 'trial' | 'base' | 'pro', uid: string, email?: string }
 // Returns: { ok: true, invoiceLink: string } (confirmation_url)
-// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+// ═══════════════════════════════════════════════════════════════
 
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { alertOnError } from './_admin-alerts.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
+import { getJwtSecret } from './_env.js';
 
 // Цены тарифов в рублях (согласно финансовому плану)
 const PLAN_CONFIG = {
@@ -89,8 +88,8 @@ const PLAN_CONFIG = {
 };
 
 export default async function handler(req, res) {
-  // Р§РёС‚Р°РµРј env-РїРµСЂРµРјРµРЅРЅС‹Рµ РІРЅСѓС‚СЂРё handler (РЅРµ РЅР° СѓСЂРѕРІРЅРµ РјРѕРґСѓР»СЏ),
-  // С‡С‚РѕР±С‹ РіР°СЂР°РЅС‚РёСЂРѕРІР°С‚СЊ Р·Р°РіСЂСѓР·РєСѓ РїРѕСЃР»Рµ dotenv.config() РІ server.js
+  // Читаем env-переменные внутри handler (не на уровне модуля),
+  // чтобы гарантировать загрузку после dotenv.config() в server.js
   const YOOKASSA_SHOP_ID = process.env.YOOKASSA_SHOP_ID;
   const YOOKASSA_SECRET_KEY = process.env.YOOKASSA_SECRET_KEY;
   const VITE_APP_URL = process.env.VITE_APP_URL || 'https://seller-studio-ai.ru';
@@ -125,12 +124,12 @@ export default async function handler(req, res) {
 
   let payerEmail = email || 'customer@seller-studio-ai.ru';
   try {
-    // Р’РµСЂРёС„РёРєР°С†РёСЏ JWT (Р·Р°РјРµРЅР° internal JWT)
-    const decoded = jwt.verify(idToken, JWT_SECRET);
+    // Верификация JWT (замена internal JWT)
+    const decoded = jwt.verify(idToken, getJwtSecret());
     if (decoded.uid !== uid) {
       return res.status(403).json({ ok: false, error: 'Forbidden' });
     }
-    // Р•СЃР»Рё РІ С‚РѕРєРµРЅРµ РµСЃС‚СЊ email вЂ” РёСЃРїРѕР»СЊР·СѓРµРј РµРіРѕ
+    // Если в токене есть email — используем его
     payerEmail = decoded.email || payerEmail;
   } catch (err) {
     console.error('create-payment auth error:', err.message);
@@ -146,7 +145,7 @@ export default async function handler(req, res) {
     const idempotencyKey = crypto.randomUUID();
     const ykAuthHeader = 'Basic ' + Buffer.from(`${YOOKASSA_SHOP_ID}:${YOOKASSA_SECRET_KEY}`).toString('base64');
 
-    // Р”РµР»Р°РµРј Р·Р°РїСЂРѕСЃ Рє API Р®Kassa РґР»СЏ СЃРѕР·РґР°РЅРёСЏ РїР»Р°С‚РµР¶Р°
+    // Делаем запрос к API ЮKassa для создания платежа
     const ykRes = await fetch('https://api.yookassa.ru/v3/payments', {
       method: 'POST',
       headers: {
@@ -159,7 +158,7 @@ export default async function handler(req, res) {
           value: plan.priceRub.toFixed(2),
           currency: 'RUB',
         },
-        capture: true, // РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРѕРµ СЃРїРёСЃР°РЅРёРµ РґРµРЅРµРі РїРѕСЃР»Рµ СѓСЃРїРµС€РЅРѕР№ Р°РІС‚РѕСЂРёР·Р°С†РёРё РєР°СЂС‚С‹
+        capture: true, // Автоматическое списание денег после успешной авторизации карты
         save_payment_method: planId === 'base' || planId === 'pro', // Сохраняем карту только для автопродления подписок Про (base) и Бизнес (pro)
         confirmation: {
           type: 'redirect',
@@ -169,8 +168,8 @@ export default async function handler(req, res) {
         metadata: {
           uid: uid,
           planId: planId,
-          // Р•СЃР»Рё UID РЅР°С‡РёРЅР°РµС‚СЃСЏ СЃ tg_ вЂ” СЌС‚Рѕ Telegram-РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ, РїРµСЂРµРґР°С‘Рј telegramId
-          // С‡С‚РѕР±С‹ РІРµР±С…СѓРє РјРѕРі Р·Р°РїРёСЃР°С‚СЊ РїРѕРґРїРёСЃРєСѓ РЅР° РїСЂР°РІРёР»СЊРЅС‹Р№ СЃС‚Р°Р±РёР»СЊРЅС‹Р№ UID
+          // Если UID начинается с tg_ — это Telegram-пользователь, передаём telegramId
+          // чтобы вебхук мог записать подписку на правильный стабильный UID
           ...(uid.startsWith('tg_') ? { telegramId: uid.slice(3) } : {}),
         },
         receipt: {
@@ -185,7 +184,7 @@ export default async function handler(req, res) {
                 value: plan.priceRub.toFixed(2),
                 currency: 'RUB',
               },
-              vat_code: '1', // 1 = Р‘РµР· РќР”РЎ (РґР»СЏ РРџ РЅР° РЈРЎРќ / РїР°С‚РµРЅС‚Рµ)
+              vat_code: '1', // 1 = Без НДС (для ИП на УСН / патенте)
               payment_mode: 'full_payment',
               payment_subject: 'service',
             }
@@ -208,7 +207,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // Р’РѕР·РІСЂР°С‰Р°РµРј confirmation_url РїРѕРґ РєР»СЋС‡РѕРј invoiceLink РґР»СЏ СЃРѕРІРјРµСЃС‚РёРјРѕСЃС‚Рё СЃ С„СЂРѕРЅС‚РѕРј
+    // Возвращаем confirmation_url под ключом invoiceLink для совместимости с фронтом
     return res.status(200).json({
       ok: true,
       invoiceLink: ykData.confirmation.confirmation_url,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAuth, firebaseErrorToRussian } from '../contexts/AuthContext';
+import { useAuth, authErrorToRussian } from '../contexts/AuthContext';
 import { FaVk, FaTelegramPlane, FaYandex } from 'react-icons/fa';
 import './LoginPage.css';
 
@@ -199,7 +199,7 @@ export default function LoginPage() {
   const handleTelegramLogin = async () => {
     setError(''); setLoading(true);
     try { await signInWithTelegramAccount(); }
-    catch (err) { setError(firebaseErrorToRussian(err)); }
+    catch (err) { setError(authErrorToRussian(err)); }
     finally { setLoading(false); }
   };
 
@@ -209,14 +209,14 @@ export default function LoginPage() {
       await signInWithTelegramWidget(user); 
       setSuccess('Успешный вход!');
     }
-    catch (err) { setError(firebaseErrorToRussian(err)); }
+    catch (err) { setError(authErrorToRussian(err)); }
     finally { setLoading(false); }
   };
 
   const handleGuest = async () => {
     setError(''); setLoading(true);
     try { await signInAsGuest(); }
-    catch (err) { setError(firebaseErrorToRussian(err)); }
+    catch (err) { setError(authErrorToRussian(err)); }
     finally { setLoading(false); }
   };
 

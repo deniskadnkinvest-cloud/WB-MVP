@@ -1,7 +1,6 @@
 ﻿import { query } from './_db.js';
 import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
+import { getJwtSecret } from './_env.js';
 
 export default async function handler(req, res) {
   // CORS headers
@@ -44,7 +43,7 @@ export default async function handler(req, res) {
     // 1. Verify the ID token (which is our JWT)
     let decodedToken;
     try {
-      decodedToken = jwt.verify(idToken, JWT_SECRET);
+      decodedToken = jwt.verify(idToken, getJwtSecret());
     } catch (err) {
       return res.status(401).json({ error: 'Invalid token' });
     }

@@ -5,6 +5,7 @@ import { mapParameters } from './steps/mapper.js';
 import { generateWithKie } from './steps/generate.js';
 import { scoreQuality } from './steps/quality.js';
 import { query } from '../_db.js';
+import { requireEnv } from '../_env.js';
 
 const PLAN_CONFIG = {
   base: {
@@ -189,7 +190,7 @@ export const subscriptionAutoRenew = inngest.createFunction(
     triggers: [{ cron: '0 3 * * *' }],
   },
   async ({ step }) => {
-    const shopId = process.env.YOOKASSA_SHOP_ID || '1373290';
+    const shopId = requireEnv('YOOKASSA_SHOP_ID');
     const secretKey = process.env.YOOKASSA_SECRET_KEY;
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
 

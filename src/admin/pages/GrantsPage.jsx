@@ -100,7 +100,7 @@ export default function GrantsPage() {
         <Space.Compact style={{ width: '100%' }}>
           <Input
             prefix={<UserOutlined />}
-            placeholder="Введи Telegram ID, Email или Firebase UID"
+            placeholder="Введи Telegram ID, Email или внутренний UID"
             size="large"
             value={identifier}
             onChange={e => setIdentifier(e.target.value)}

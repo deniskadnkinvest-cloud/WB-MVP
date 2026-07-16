@@ -1,5 +1,5 @@
 // src/lib/subscriptionService.js
-// Замена Firestore SDK — подписки через PostgreSQL API
+// Подписки через серверный PostgreSQL API
 // PLANS, DEFAULT_SUB и чистые функции (checkFeature, canGenerate, getPlanDetails) — без изменений
 // Вся сложная логика (миграция TG ID, pending_grants, expiration check) теперь на сервере
 
@@ -125,63 +125,6 @@ export const getSubscription = async (uid, email = null, telegramId = null) => {
     console.error('[SubscriptionService] Ошибка получения подписки:', err);
     return { ...DEFAULT_SUB };
   }
-};
-
-// ═══════════════════════════════════════════
-//  ACTIVATE PLAN (after payment)
-// ═══════════════════════════════════════════
-
-/**
- * Активировать план после оплаты.
- * @param {string} uid
- * @param {string} planId
- * @param {Object} paymentInfo
- * @returns {Promise<{plan: string, credits: number}>}
- */
-export const activatePlan = async (uid, planId, paymentInfo = {}) => {
-  const plan = PLANS[planId];
-  if (!plan) throw new Error(`Unknown plan: ${planId}`);
-
-  const res = await apiFetch('/api/subscription', {
-    method: 'POST',
-    body: JSON.stringify({ uid, planId, paymentInfo }),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || 'Ошибка активации плана');
-  }
-
-  const json = await res.json();
-  return json.data || { plan: planId, credits: plan.credits };
-};
-
-// ═══════════════════════════════════════════
-//  USE CREDIT (deduct per generation)
-// ═══════════════════════════════════════════
-
-/**
- * Списать кредиты за генерацию.
- * Проверка баланса и плана теперь выполняется на сервере.
- *
- * @param {string} uid
- * @param {number} amount — количество кредитов (default 1)
- * @returns {Promise<{creditsRemaining: number}>}
- */
-export const consumeCredit = async (uid, amount = 1) => {
-  const res = await apiFetch('/api/consume-credit', {
-    method: 'POST',
-    body: JSON.stringify({ uid, amount }),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    // Сервер возвращает 'NO_PLAN' или 'NO_CREDITS' — пробрасываем как Error
-    throw new Error(err.error || 'Ошибка списания кредитов');
-  }
-
-  const json = await res.json();
-  return json.data || { creditsRemaining: 0 };
 };
 
 // ═══════════════════════════════════════════

@@ -17,6 +17,7 @@ const c = {
 };
 
 const spring = { type: 'spring', stiffness: 400, damping: 25, mass: 0.5 };
+const createRequestKey = (prefix) => `${prefix}-${Date.now()}-${globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)}`;
 
 const QUICK_PICKS = [
   // 4 Стандартные, но качественные
@@ -54,7 +55,7 @@ function compressImage(file, maxSize = 1200, quality = 0.85) {
   });
 }
 
-export default function PersonaWizard({ onClose, onSave, getAuthToken, credits, editModel = null, existingModels = [] }) {
+export default function PersonaWizard({ onClose, onSave, onCreditsChanged, getAuthToken, credits, editModel = null, existingModels = [] }) {
   const isEditing = !!editModel;
   const initialCompCards = isEditing
     ? [{ imageBase64: null, imageUrl: editModel.compCardUrl || editModel.fullbodyUrl || editModel.imageUrls?.[0] }]
@@ -70,6 +71,7 @@ export default function PersonaWizard({ onClose, onSave, getAuthToken, credits, 
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const generationLockRef = useRef(false);
   const [conflictModal, setConflictModal] = useState(null); // null | { name, onOverwrite, onSaveCopy }
   const [dragOver, setDragOver] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -82,7 +84,7 @@ export default function PersonaWizard({ onClose, onSave, getAuthToken, credits, 
     return () => clearInterval(interval);
   }, [isGenerating]);
 
-  const canGenerate = modelName.trim().length > 0 && description.trim().length > 10;
+  const canGenerate = modelName.trim().length > 0 && description.trim().length > 10 && credits >= 3;
 
   const buildAuthHeaders = useCallback(async () => {
     const token = await getAuthToken?.();
@@ -112,7 +114,8 @@ export default function PersonaWizard({ onClose, onSave, getAuthToken, credits, 
 
   // ── Generate persona comp card ──
   const handleGenerate = useCallback(async () => {
-    if (!canGenerate) return;
+    if (!canGenerate || generationLockRef.current) return;
+    generationLockRef.current = true;
     setIsGenerating(true);
     setError('');
     try {
@@ -130,10 +133,12 @@ export default function PersonaWizard({ onClose, onSave, getAuthToken, credits, 
           photos: photoPayload,
           personaDescription: description.trim(),
           modelName: modelName.trim(),
+          idempotencyKey: createRequestKey('persona-create'),
         }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Ошибка генерации персонажа');
+      await onCreditsChanged?.(json);
 
       setCompCards(prev => [...prev, { imageBase64: json.imageBase64, imageUrl: json.imageUrl }]);
       setActiveCompIdx(prev => compCards.length);
@@ -142,11 +147,18 @@ export default function PersonaWizard({ onClose, onSave, getAuthToken, credits, 
       setError(err.message);
     } finally {
       setIsGenerating(false);
+      generationLockRef.current = false;
     }
-  }, [canGenerate, description, modelName, refPhotos, buildAuthHeaders, compCards.length]);
+  }, [canGenerate, description, modelName, refPhotos, buildAuthHeaders, compCards.length, onCreditsChanged]);
 
   // ── Regenerate ──
   const handleRegenerate = useCallback(async () => {
+    if (credits < 3) {
+      setError('Для нового варианта нужно 3 кредита.');
+      return;
+    }
+    if (generationLockRef.current) return;
+    generationLockRef.current = true;
     setIsGenerating(true);
     setError('');
     try {
@@ -163,18 +175,21 @@ export default function PersonaWizard({ onClose, onSave, getAuthToken, credits, 
           photos: photoPayload,
           personaDescription: description.trim(),
           modelName: modelName.trim(),
+          idempotencyKey: createRequestKey('persona-regenerate'),
         }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Ошибка');
+      await onCreditsChanged?.(json);
 
       setCompCards(prev => { const next = [...prev, { imageBase64: json.imageBase64, imageUrl: json.imageUrl }]; setActiveCompIdx(next.length - 1); return next; });
     } catch (err) {
       setError(err.message);
     } finally {
       setIsGenerating(false);
+      generationLockRef.current = false;
     }
-  }, [description, modelName, refPhotos, buildAuthHeaders]);
+  }, [credits, description, modelName, refPhotos, buildAuthHeaders, onCreditsChanged]);
 
   // ── Save logic with conflict resolution ──
   const performSave = useCallback(async (saveName, overwrite, modelId) => {
@@ -204,8 +219,14 @@ export default function PersonaWizard({ onClose, onSave, getAuthToken, credits, 
   // ── Apply specific text modification to character card (1 credit) ──
   const handleApplyModification = useCallback(async () => {
     if (!modifierText.trim()) return;
+    if (credits < 1) {
+      setError('Для изменения карточки нужен 1 кредит.');
+      return;
+    }
+    if (generationLockRef.current) return;
     const current = compCards[activeCompIdx];
     if (!current) return;
+    generationLockRef.current = true;
     setIsGenerating(true);
     setError('');
     try {
@@ -219,10 +240,12 @@ export default function PersonaWizard({ onClose, onSave, getAuthToken, credits, 
             ? { sourceImageBase64: current.imageBase64 }
             : { sourceImageUrl: current.imageUrl }),
           editInstruction: modifierText.trim(),
+          idempotencyKey: createRequestKey('persona-edit'),
         }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Ошибка редактирования');
+      await onCreditsChanged?.(json);
 
       setCompCards(prev => {
         const next = [...prev, { imageBase64: json.imageBase64, imageUrl: json.imageUrl }];
@@ -234,8 +257,9 @@ export default function PersonaWizard({ onClose, onSave, getAuthToken, credits, 
       setError(err.message);
     } finally {
       setIsGenerating(false);
+      generationLockRef.current = false;
     }
-  }, [modifierText, compCards, activeCompIdx, buildAuthHeaders]);
+  }, [credits, modifierText, compCards, activeCompIdx, buildAuthHeaders, onCreditsChanged]);
 
   const handleSave = useCallback(async () => {
     const saveName = modelName.trim();
@@ -270,24 +294,10 @@ export default function PersonaWizard({ onClose, onSave, getAuthToken, credits, 
       return;
     }
 
-    // Если имя не изменилось и мы редактируем существующую модель
+    // Обычное сохранение редактора должно обновлять текущую модель без
+    // дополнительного модального окна и без создания дубликата.
     if (isEditing && editModel && saveName.toLowerCase() === editModel.name.trim().toLowerCase()) {
-      setConflictModal({
-        name: editModel.name,
-        onOverwrite: () => {
-          performSave(saveName, true, editModel.id);
-        },
-        onSaveCopy: () => {
-          let finalName = saveName;
-          let counter = 2;
-          const namesList = existingModels.map(m => m.name.toLowerCase());
-          while (namesList.includes(finalName.toLowerCase())) {
-            finalName = `${saveName} ${counter}`;
-            counter++;
-          }
-          performSave(finalName, false, undefined);
-        }
-      });
+      await performSave(saveName, true, editModel.id);
       return;
     }
 
@@ -442,10 +452,12 @@ export default function PersonaWizard({ onClose, onSave, getAuthToken, credits, 
                   <span>Введите имя персонажа</span>
                 ) : description.trim().length <= 10 ? (
                   <span>Опишите персонажа подробнее</span>
+                ) : credits < 3 ? (
+                  <span>Нужно 3 кредита</span>
                 ) : (
                   <span>🧑‍🎨 Создать карточку персонажа</span>
                 )}
-                <span style={{ position: 'absolute', top: 6, right: 16, fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>1 ГЕНЕРАЦИЯ</span>
+                <span style={{ position: 'absolute', top: 6, right: 16, fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>3 КРЕДИТА</span>
               </button>
             </motion.div>
           )}
@@ -525,6 +537,7 @@ export default function PersonaWizard({ onClose, onSave, getAuthToken, credits, 
                     style={{ padding: '10px 16px', borderRadius: 10, background: modifierText.trim() ? 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)' : 'rgba(255,255,255,0.06)', border: 'none', color: modifierText.trim() ? '#fff' : c.text3, fontSize: 13, fontWeight: 700, cursor: modifierText.trim() && !isGenerating && !isSaving ? 'pointer' : 'not-allowed', position: 'relative' }}
                   >
                     {isGenerating ? '⏳' : 'Применить'}
+                    {!isGenerating && <span style={{ display: 'block', fontSize: 9, opacity: 0.65 }}>1 кредит</span>}
                   </button>
                 </div>
               </div>
@@ -547,10 +560,10 @@ export default function PersonaWizard({ onClose, onSave, getAuthToken, credits, 
                   {isSaving ? '⏳ Сохраняем...' : '💾 Сохранить'}
                 </button>
                 {!isEditing && (
-                  <button onClick={handleRegenerate} disabled={isGenerating}
-                    style={{ width: '100%', padding: '14px 12px', borderRadius: 14, background: c.violetDim, border: `1px solid ${c.violet}30`, color: c.violet, fontSize: 13, fontWeight: 700, cursor: isGenerating ? 'wait' : 'pointer', position: 'relative', boxSizing: 'border-box' }}>
+                  <button onClick={handleRegenerate} disabled={isGenerating || credits < 3}
+                    style={{ width: '100%', padding: '14px 12px', borderRadius: 14, background: c.violetDim, border: `1px solid ${c.violet}30`, color: c.violet, fontSize: 13, fontWeight: 700, cursor: isGenerating ? 'wait' : credits < 3 ? 'not-allowed' : 'pointer', opacity: credits < 3 ? 0.55 : 1, position: 'relative', boxSizing: 'border-box' }}>
                     🔄 Ещё вариант
-                    <span style={{ display: 'block', fontSize: 9, color: c.text3, marginTop: 2 }}>1 генерация</span>
+                    <span style={{ display: 'block', fontSize: 9, color: c.text3, marginTop: 2 }}>3 кредита</span>
                   </button>
                 )}
               </div>

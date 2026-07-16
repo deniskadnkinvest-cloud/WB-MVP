@@ -9,7 +9,8 @@ import cancelSubscriptionHandler from '../api/cancel-subscription.js';
 // Mock environment variables for testing
 process.env.YOOKASSA_SHOP_ID = '1373290';
 process.env.YOOKASSA_SECRET_KEY = 'test_secret_key_mock';
-const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
+process.env.JWT_SECRET ||= 'test-only-jwt-secret-at-least-32-characters';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // -------------------------------------------------------------
 // 1. MOCKING DB POOL & CLIENT

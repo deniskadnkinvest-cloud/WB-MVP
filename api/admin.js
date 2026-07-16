@@ -1,6 +1,6 @@
-// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
-// Р•РґРёРЅС‹Р№ РјР°СЂС€СЂСѓС‚РёР·Р°С‚РѕСЂ РґР»СЏ РІСЃРµС… СЌРЅРґРїРѕРёРЅС‚РѕРІ /api/admin/*
-// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+// ═══════════════════════════════════════════════════════════════
+// Единый маршрутизатор для всех эндпоинтов /api/admin/*
+// ═══════════════════════════════════════════════════════════════
 
 import verifyHandler from './_admin/verify.js';
 import statsHandler from './_admin/stats.js';
@@ -16,10 +16,10 @@ import broadcastHandler from './_admin/broadcast.js';
 import broadcastsHandler from './_admin/broadcasts.js';
 
 export default async function handler(req, res) {
-  // Р Р°Р·Р±РёСЂР°РµРј URL-РїСѓС‚СЊ (РЅР°РїСЂРёРјРµСЂ, "/api/admin/verify?key=..." -> "/api/admin/verify")
+  // Разбираем URL-путь (например, "/api/admin/verify?key=..." -> "/api/admin/verify")
   const urlPath = req.url.split('?')[0];
   
-  // Р’С‹С‡Р»РµРЅСЏРµРј РґРµР№СЃС‚РІРёРµ (action): /api/admin/verify -> "verify"
+  // Вычленяем действие (action): /api/admin/verify -> "verify"
   const action = urlPath.replace(/^\/api\/admin\/?/, '').split('/')[0];
 
   console.log(`[admin-router] Routing request for action: "${action}" (Method: ${req.method})`);
@@ -51,7 +51,7 @@ export default async function handler(req, res) {
     case 'grant-access':
       return forceGrantHandler(req, res);
     default:
-      // Fallback РЅР° РІРµСЂРёС„РёРєР°С†РёСЋ, РµСЃР»Рё СЌС‚Рѕ РєРѕСЂРЅРµРІРѕР№ POST-Р·Р°РїСЂРѕСЃ
+      // Fallback на верификацию, если это корневой POST-запрос
       if (action === '' && req.method === 'POST') {
         return verifyHandler(req, res);
       }

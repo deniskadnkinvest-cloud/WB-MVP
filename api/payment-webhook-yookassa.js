@@ -1,8 +1,8 @@
-// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+// ═══════════════════════════════════════════════════════════════
 // POST /api/payment-webhook-yookassa
-// РџСЂРёРЅРёРјР°РµС‚ РІРµР±С…СѓРєРё РѕС‚ Р®Kassa РѕР± СѓСЃРїРµС€РЅРѕР№ РѕРїР»Р°С‚Рµ С‚Р°СЂРёС„Р°
-// Р˜СЃРїРѕР»СЊР·СѓРµС‚ PostgreSQL РІРјРµСЃС‚Рѕ Auth PostgreSQL
-// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+// Принимает вебхуки от ЮKassa об успешной оплате тарифа
+// PostgreSQL является единственным источником истины для платежей и тарифов.
+// ═══════════════════════════════════════════════════════════════
 
 import { pool } from './_db.js';
 import { alertOnPayment, alertOnError } from './_admin-alerts.js';
@@ -61,12 +61,12 @@ export default async function handler(req, res) {
   let { uid, planId } = metadata;
   const telegramId = metadata.telegramId;
 
-  // Р•СЃР»Рё РІ metadata РµСЃС‚СЊ telegramId вЂ” РёСЃРїРѕР»СЊР·СѓРµРј СЃС‚Р°Р±РёР»СЊРЅС‹Р№ UID tg_{telegramId}
-  // Р­С‚Рѕ РіР°СЂР°РЅС‚РёСЂСѓРµС‚ Р·Р°РїРёСЃСЊ РїРѕРґРїРёСЃРєРё РЅР° РїСЂР°РІРёР»СЊРЅС‹Р№ РїСѓС‚СЊ, РґР°Р¶Рµ РµСЃР»Рё uid РІ metadata СЃС‚Р°СЂС‹Р№
+  // Если в metadata есть telegramId — используем стабильный UID tg_{telegramId}
+  // Это гарантирует запись подписки на правильный путь, даже если uid в metadata старый
   if (telegramId) {
     const stableUid = `tg_${telegramId}`;
     if (uid !== stableUid) {
-      console.log(`[Yookassa webhook] Resolving UID: ${uid} в†’ ${stableUid} (via telegramId)`);
+      console.log(`[Yookassa webhook] Resolving UID: ${uid} → ${stableUid} (via telegramId)`);
       uid = stableUid;
     }
   }
@@ -91,7 +91,7 @@ export default async function handler(req, res) {
     expiresAt.setMonth(expiresAt.getMonth() + 1);
   }
 
-  // РР·РІР»РµРєР°РµРј telegramId РёР· UID (С„РѕСЂРјР°С‚: tg_{telegramId})
+  // Извлекаем telegramId из UID (формат: tg_{telegramId})
   const resolvedTelegramId = telegramId || (uid.startsWith('tg_') ? uid.slice(3) : null);
   if (!resolvedTelegramId) {
     console.error('[Yookassa webhook] Cannot resolve telegramId from UID:', uid);
@@ -104,13 +104,13 @@ export default async function handler(req, res) {
     ? object.payment_method.id
     : null;
 
-  // РСЃРїРѕР»СЊР·СѓРµРј С‚СЂР°РЅР·Р°РєС†РёСЋ PostgreSQL РґР»СЏ Р°С‚РѕРјР°СЂРЅРѕСЃС‚Рё
+  // Используем транзакцию PostgreSQL для атомарности
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
 
-    // 1. РќР°С…РѕРґРёРј РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РїРѕ telegram_id (РёР»Рё СЃРѕР·РґР°С‘Рј РµСЃР»Рё РЅРµС‚)
+    // 1. Находим пользователя по telegram_id (или создаём если нет)
     const { rows: userRows } = await client.query(
       `INSERT INTO users (telegram_id, email, role)
        VALUES ($1, $2, 'user')
@@ -120,7 +120,7 @@ export default async function handler(req, res) {
     );
     const userId = userRows[0].id;
 
-    // 2. в•ђв•ђв•ђ IDEMPOTENCY: РџСЂРѕРІРµСЂСЏРµРј, РЅРµ РѕР±СЂР°Р±РѕС‚Р°РЅ Р»Рё СѓР¶Рµ СЌС‚РѕС‚ РїР»Р°С‚С‘Р¶ в•ђв•ђв•ђ
+    // 2. ═══ IDEMPOTENCY: Проверяем, не обработан ли уже этот платёж ═══
     const { rows: existingPayments } = await client.query(
       `SELECT id FROM payments WHERE yookassa_payment_id = $1`,
       [paymentId]
@@ -132,7 +132,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, message: 'already processed' });
     }
 
-    // 3. РћР±РЅРѕРІР»СЏРµРј/СЃРѕР·РґР°С‘Рј РїРѕРґРїРёСЃРєСѓ
+    // 3. Обновляем/создаём подписку
     if (isTopUp) {
       const { rows: subRows } = await client.query(
         `SELECT id FROM subscriptions WHERE user_id = $1`,
@@ -179,7 +179,7 @@ export default async function handler(req, res) {
       );
     }
 
-    // 4. Р—Р°РїРёСЃС‹РІР°РµРј РїР»Р°С‚С‘Р¶ РІ С‚Р°Р±Р»РёС†Сѓ payments
+    // 4. Записываем платёж в таблицу payments
     await client.query(
       `INSERT INTO payments (user_id, plan_id, method, yookassa_payment_id, amount, credits_amount, currency, paid_at)
        VALUES ($1, $2, 'yookassa', $3, $4, $5, 'RUB', $6)`,
@@ -195,9 +195,9 @@ export default async function handler(req, res) {
 
     await client.query('COMMIT');
 
-    console.log(`[Yookassa webhook] вњ… Plan activated: ${planId} for user ${uid}, credits: ${credits}`);
+    console.log(`[Yookassa webhook] ✅ Plan activated: ${planId} for user ${uid}, credits: ${credits}`);
 
-    // РћС‚РїСЂР°РІР»СЏРµРј СѓРІРµРґРѕРјР»РµРЅРёРµ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂСѓ
+    // Отправляем уведомление администратору
     alertOnPayment(planId, uid, parseFloat(object.amount.value)).catch(() => {});
 
     return res.status(200).json({ ok: true });

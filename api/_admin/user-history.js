@@ -1,15 +1,14 @@
 // GET /api/admin/user-history — история генераций текущего пользователя
 import jwt from 'jsonwebtoken';
 import { query } from '../_db.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
+import { getJwtSecret } from '../_env.js';
 
 function verifyToken(req) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   if (!token) return null;
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, getJwtSecret());
   } catch {
     return null;
   }

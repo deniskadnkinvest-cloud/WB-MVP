@@ -102,8 +102,10 @@ test.describe('VTON Studio - Product Mode E2E Tests', () => {
     const categoryCards = page.locator('.preset-grid').first().locator('.preset-card');
     await expect(categoryCards).not.toHaveCount(0);
     
-    // Check that we have a custom product prompt input
-    await expect(page.locator('input.custom-variant-input').first()).toBeVisible();
+    // The custom product prompt is intentionally shown only for "Другое".
+    await expect(page.getByPlaceholder('Опишите ваш товар: «набор кистей для макияжа в чехле»')).toHaveCount(0);
+    await page.locator('.preset-card:has-text("Другое")').click();
+    await expect(page.getByPlaceholder('Опишите ваш товар: «набор кистей для макияжа в чехле»')).toBeVisible();
   });
 
   test('should allow selecting product categories and updating prompt', async ({ page }) => {

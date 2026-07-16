@@ -16,7 +16,7 @@ import MyHistoryPage from './components/MyHistoryPage';
 import { useAuth } from './contexts/AuthContext';
 import { getModels, saveModel, updateModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt, patchLocation } from './lib/userDataService';
 import { uploadBase64Image, compressImage, uploadImage, deleteImage, downloadStoragePathAsBase64 } from './lib/storageService';
-import { getSubscription, checkFeature, canGenerate, activatePlan, TRIAL_MODEL_LIMIT_MSG } from './lib/subscriptionService';
+import { getSubscription, checkFeature, canGenerate, TRIAL_MODEL_LIMIT_MSG } from './lib/subscriptionService';
 // CardLayerStudio removed — replaced by text-based card editing
 import './App.css';
 
@@ -285,7 +285,7 @@ function App() {
   const [imageFiles, setImageFiles] = useState([]);
   const [garmentUrls, setGarmentUrls] = useState(() => {
     return readStoredJson('vton_garmentUrls', []);
-  }); // Firebase Storage URLs (lightweight)
+  }); // Object-storage URLs (lightweight)
   const [previewUrls, setPreviewUrls] = useState(() => {
     return readStoredJson('vton_garmentUrls', []);
   });
@@ -501,6 +501,7 @@ function App() {
     return readStoredJson('vton_quickResults', {});
   });
   const abortControllerRef = useRef(null);
+  const paidActionLocksRef = useRef(new Set());
   const [isGalleryGenerating, setIsGalleryGenerating] = useState(false);
   const [isAbGenerating, setIsAbGenerating] = useState(false);
   const [confirmModal, setConfirmModal] = useState(null); // null | { type, cost, onConfirm }
@@ -693,7 +694,7 @@ function App() {
     backBtn.hide();
   }, [isTelegram, lightboxSrc, confirmModal, showBatchConfirm, showCardCountModal, showCardExamples, editingPhotoIdx, showSaveModelModal, showLocModal, showModelModifier, showLocModifier, modelPreviewSrc, showLoraModal, showCalibWizard, showPersonaWizard, showProductModelDetails, showDetails, showPricing, showHistory, generatedImage, photoshootImages]);
 
-  // Load user data from Firestore (skip for guest users in embedded mode)
+  // Load persisted user data (skip for guest users in embedded mode)
   useEffect(() => {
     if (!user || user.isGuest || (user.isAnonymous && !user.isTelegramUser)) return;
     
@@ -727,12 +728,11 @@ function App() {
           loc => !loc.imageBase64 && loc.storagePaths && loc.storagePaths.length > 0
         );
         if (needsMigration.length > 0) {
-          console.log(`🔄 Migrating ${needsMigration.length} legacy location(s) via Firebase SDK...`);
+          console.log(`🔄 Migrating ${needsMigration.length} legacy location(s) to object storage...`);
           const uid = user.uid;
           for (const loc of needsMigration) {
             try {
-              // Use Firebase Storage SDK (auth-aware) — bypasses CORS and Storage Rules
-              // Strategy 1: Firebase SDK getBytes (auth-aware, bypasses CORS)
+              // First try the authenticated storage helper, then the API proxy.
               let b64arr = [];
               if (loc.storagePaths && loc.storagePaths.length > 0) {
                 b64arr = await Promise.all(
@@ -790,7 +790,7 @@ function App() {
       });
   }, [user]);
 
-  // Обновляет баланс кредитов после генерации — переполучает подписку из Firestore
+  // Обновляет баланс кредитов после генерации через серверный API подписки
   const refreshCreditsFromResponse = async (_responseData) => {
     if (!user?.uid) return;
     try {
@@ -944,7 +944,7 @@ function App() {
     reader.readAsDataURL(file);
   });
 
-  // Multi-file upload — try Firebase Storage first, fall back to base64
+  // Multi-file upload — try object storage first, then fall back to base64.
   const handleFilesChange = useCallback(async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -962,7 +962,7 @@ function App() {
       const newUrls = await Promise.all(filesToUpload.map(async (f) => {
         const compressed = await compressImage(f, 1200);
         try {
-          // Try Firebase Storage first
+          // Try object storage first.
           const { url } = await uploadImage(user?.uid || 'anonymous', compressed, 'garments');
           return url;
         } catch (storageErr) {
@@ -1090,7 +1090,7 @@ function App() {
     return parts.length ? `, ${parts.join(', ')}` : '';
   };
 
-  // ═══ AUTH FETCH: добавляет Firebase ID Token ко всем API-запросам ═══
+  // ═══ AUTH FETCH: добавляет внутренний JWT ко всем API-запросам ═══
   const authFetch = async (url, options = {}) => {
     const token = user ? await user.getIdToken() : null;
     return fetch(url, {
@@ -1230,6 +1230,8 @@ function App() {
     }
 
     const runBatchGeneration = async () => {
+      if (paidActionLocksRef.current.has('batch')) return;
+      paidActionLocksRef.current.add('batch');
       setIsProcessing(true); setGeneratedImage(null); setStatusText('');
       setBatchStartLen(imageHistory.length);
       setProcessingMsg('Подготавливаем исходники...');
@@ -1519,6 +1521,7 @@ function App() {
         clearInterval(iv);
       } finally {
         setIsProcessing(false);
+        paidActionLocksRef.current.delete('batch');
       }
     };
 
@@ -1534,7 +1537,7 @@ function App() {
     setLocPreviews(arr.map(f => URL.createObjectURL(f)));
   };
 
-  // Конвертация URL → base64 на клиенте (обходим проблемы Firebase Storage Rules)
+  // Конвертация URL → base64 на клиенте для устойчивой работы с legacy URL.
   const urlToBase64Client = async (url) => {
     try {
       const resp = await fetch(url);
@@ -1559,10 +1562,10 @@ function App() {
     const loc = myLocations.find(l => l.id === locId);
     if (!loc) return;
 
-    // Сначала пробуем использовать готовый imageBase64 (из Firestore)
+    // Сначала пробуем использовать готовый imageBase64 из сохранённой локации
     if (loc.imageBase64 && loc.imageBase64.length > 0) {
       setLocBase64Cache(prev => ({ ...prev, [locId]: loc.imageBase64 }));
-      console.log(`📍 Pre-fetched ${loc.imageBase64.length} loc images as base64 directly from Firestore for loc ${locId}`);
+      console.log(`📍 Pre-fetched ${loc.imageBase64.length} saved location images for loc ${locId}`);
       return;
     }
 
@@ -1601,7 +1604,7 @@ function App() {
         console.warn('Storage upload failed, proceeding with base64 only:', err);
       }
 
-      // Сохраняем inline base64 для надёжности (обход проблем Firebase Storage Rules/CORS)
+      // Сохраняем inline base64 для надёжного отображения при сетевых сбоях.
       const imageBase64 = await Promise.all(locFiles.map(async (f) => {
         const compressed = await compressImage(f, 500); // 500px — достаточно для AI-reference
         return new Promise((resolve) => {
@@ -1643,7 +1646,7 @@ function App() {
     if (selectedLocId === id) setSelectedLocId(null);
   };
 
-  // LoRA model save (Firebase)
+  // LoRA model save
   const saveLoraModel = async (photosOverride) => {
     if (!loraName.trim() || !user) return;
     setIsSaving(true);
@@ -1705,7 +1708,7 @@ function App() {
     setShowLoraModal(true);
   };
 
-  // Save generated model (Firebase)
+  // Save generated model
   const saveGenModel = async () => {
     if (!saveModelName.trim() || !generatedImage || !user) return;
     setIsSaving(true);
@@ -1769,28 +1772,65 @@ function App() {
 
 
   // Save persona model (from PersonaWizard comp card)
-  const savePersonaModel = async ({ name, type, compCardBase64, compCardUrl, sourcePhotos }) => {
+  const savePersonaModel = async ({
+    name,
+    compCardBase64,
+    compCardUrl,
+    sourcePhotos = [],
+    description = '',
+    overwrite = false,
+    existingModelId,
+  }) => {
     if (!user) throw new Error('Не авторизован');
     setIsSaving(true);
     try {
-      const compUpload = await uploadBase64Image(user.uid, compCardBase64, 'models');
-      const sourceUploads = await Promise.all(
-        sourcePhotos.map(async (base64) => uploadBase64Image(user.uid, base64, 'models'))
+      const existingModel = existingModelId
+        ? myModels.find(model => model.id === existingModelId)
+        : null;
+      const uploadOrReuse = async (value) => {
+        if (!value || typeof value !== 'string') return null;
+        if (value.startsWith('data:')) {
+          return uploadBase64Image(user.uid, value, 'models');
+        }
+        return { url: value, path: null };
+      };
+
+      const compUpload = await uploadOrReuse(
+        compCardBase64
+          || compCardUrl
+          || existingModel?.compCardUrl
+          || existingModel?.imageUrls?.[0]
       );
-      await saveModel(user.uid, {
+      if (!compUpload?.url) throw new Error('Не найдена карточка персонажа');
+
+      const sourceUploads = await Promise.all(
+        sourcePhotos.map(uploadOrReuse)
+      );
+      const validSourceUploads = sourceUploads.filter(Boolean);
+      const newStoragePaths = [compUpload.path, ...validSourceUploads.map(upload => upload.path)].filter(Boolean);
+      const storagePaths = overwrite
+        ? [...new Set([...(existingModel?.storagePaths || []), ...newStoragePaths])]
+        : newStoragePaths;
+      const payload = {
         name,
         type: 'persona',
-        modelType: 'persona',  // ← маркер для VTON pipeline
-        // imageUrls = только comp card (1 файл) — именно он уйдёт в GPT Image 2 как референс
+        modelType: 'persona',
         imageUrls: [compUpload.url],
-        sourcePhotoUrls: sourceUploads.map(u => u.url),
-        storagePaths: [compUpload.path, ...sourceUploads.map(u => u.path)],
+        sourcePhotoUrls: validSourceUploads.map(upload => upload.url),
+        storagePaths,
         compCardUrl: compUpload.url,
-        prompt: '',
-      });
+        description,
+        prompt: description,
+      };
+
+      if (overwrite && existingModelId) {
+        await updateModel(user.uid, existingModelId, payload);
+      } else {
+        await saveModel(user.uid, payload);
+      }
       const models = await getModels(user.uid);
       setMyModels(models);
-      setStatusText('\u2705 Персонаж сохранён!');
+      setStatusText(overwrite ? '✅ Персонаж обновлён!' : '✅ Персонаж сохранён!');
       setStatusType('success');
     } catch (err) {
       console.error('Ошибка сохранения персонажа:', err);
@@ -1912,7 +1952,7 @@ function App() {
     finally { setIsSaving(false); }
   };
 
-  // Save location modifier to Firestore
+  // Save location modifier through the persistence API
   const saveLocMod = async () => {
     if (!user || !selectedLocId || !locModifier.trim()) return;
     const loc = myLocations.find(l => l.id === selectedLocId);
@@ -2140,6 +2180,8 @@ function App() {
       setStatusText(`⚡ Для ${count} карточек нужно ${totalCredits} кредитов`); setStatusType('error');
       return;
     }
+    if (paidActionLocksRef.current.has('card-design')) return;
+    paidActionLocksRef.current.add('card-design');
 
     setIsCardGenerating(true);
     setCardResult(null);
@@ -2184,7 +2226,9 @@ function App() {
       const results = settled.map(r => r.status === 'fulfilled' ? r.value : { success: false, error: r.reason?.message || 'Ошибка генерации' });
       clearInterval(iv);
       
-      const successCards = results.filter(d => d.success).map(d => d.imageUrl);
+      const successCards = results
+        .filter(data => data.success && (data.imageUrl || data.imageBase64))
+        .map(data => data.imageUrl || data.imageBase64);
       
       if (successCards.length > 0) {
         // Кредиты уже списаны бэкендом — обновляем баланс из ответа
@@ -2204,6 +2248,7 @@ function App() {
       setStatusType('error');
     } finally {
       setIsCardGenerating(false);
+      paidActionLocksRef.current.delete('card-design');
     }
   };
 
@@ -2224,6 +2269,8 @@ function App() {
       setStatusText(`⚡ Для генерации галереи нужно ${creditsNeeded} кредита`); setStatusType('error');
       return;
     }
+    if (paidActionLocksRef.current.has('gallery')) return;
+    paidActionLocksRef.current.add('gallery');
     
     setIsGalleryGenerating(true);
     setIsProcessing(true);
@@ -2237,13 +2284,14 @@ function App() {
     try {
       const isFashion = appMode === 'fashion';
 
-      // Слайд 2: Крупный план
-      setStatusText('🔍 Шаг 1/3: Генерируем крупный план деталей...');
+      // Все три независимых слайда запускаются одновременно. Время сборки
+      // галереи теперь равно самой долгой генерации, а не сумме трёх.
+      setStatusText('⚡ Параллельно создаём детали, инфографику и lifestyle...');
       const detailPose = isFashion
         ? 'extreme close-up macro, focusing on fabric texture, stitching details, seams, organic texture'
         : 'extreme close-up macro, focusing on product details, premium material texture, high-end commercial shot';
 
-      const respDetail = await authFetch('/api/generate-image', {
+      const detailRequest = authFetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2256,14 +2304,9 @@ function App() {
           garmentImageUrls: garmentUrls,
           idempotencyKey: createIdempotencyKey('gallery-detail'),
         }),
-      });
-      const dataDetail = await safeParseJSON(respDetail);
-      if (!dataDetail.success) throw new Error(dataDetail.error || 'Не удалось создать крупный план');
-      const imgDetail = dataDetail.imageBase64 || dataDetail.imageUrl;
-      gallerySlides.push(imgDetail);
+      }).then(safeParseJSON);
 
       // Слайд 3: Размеры (Инфографика)
-      setStatusText('📐 Шаг 2/3: Достраиваем инфографику с размерами...');
       const infoText = isFashion
         ? (userProductInfo && userProductInfo.trim()
             ? `ИНФОРМАЦИЯ О ТОВАРЕ:
@@ -2290,7 +2333,7 @@ ${userProductInfo.trim()}
 Глубина: 10 см
 Премиальные материалы, максимальное удобство.`);
       
-      const respSize = await authFetch('/api/generate-image', {
+      const sizeRequest = authFetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2301,15 +2344,9 @@ ${userProductInfo.trim()}
           garmentImageUrls: garmentUrls,
           idempotencyKey: createIdempotencyKey('gallery-size'),
         }),
-      });
-      const dataSize = await safeParseJSON(respSize);
-      if (!dataSize.success) throw new Error(dataSize.error || 'Не удалось создать инфографику размеров');
-      const imgSize = dataSize.imageBase64 || dataSize.imageUrl;
-      gallerySlides.push(imgSize);
+      }).then(safeParseJSON);
 
       // Слайд 4: Lifestyle
-      setStatusText(isFashion ? '🌳 Шаг 3/3: Генерируем фото модели на улице (Lifestyle)...' : '🏠 Шаг 3/3: Генерируем фото в интерьере (Lifestyle)...');
-      
       let slide4Payload = {};
       if (isFashion) {
         slide4Payload = {
@@ -2350,20 +2387,49 @@ ${userProductInfo.trim()}
         };
       }
 
-      const respLife = await authFetch('/api/generate-image', {
+      const lifeRequest = authFetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(slide4Payload),
-      });
-      const dataLife = await safeParseJSON(respLife);
-      if (!dataLife.success) throw new Error(dataLife.error || 'Не удалось создать lifestyle фото');
-      const imgLife = dataLife.imageBase64 || dataLife.imageUrl;
-      gallerySlides.push(imgLife);
+      }).then(safeParseJSON);
+
+      const slideRequests = [
+        { label: 'крупный план', request: detailRequest },
+        { label: 'инфографика', request: sizeRequest },
+        { label: 'lifestyle', request: lifeRequest },
+      ];
+      const settled = await Promise.allSettled(slideRequests.map(async ({ label, request }) => {
+        const data = await request;
+        if (!data.success) throw new Error(data.error || `Не удалось создать ${label}`);
+        const image = data.imageBase64 || data.imageUrl;
+        if (!image) throw new Error(`Слайд «${label}» вернулся без изображения`);
+        return { label, image };
+      }));
+
+      const successfulSlides = settled
+        .filter(result => result.status === 'fulfilled')
+        .map(result => result.value);
+      const failedSlides = settled
+        .map((result, index) => result.status === 'rejected'
+          ? `${slideRequests[index].label}: ${result.reason?.message || 'ошибка'}`
+          : null)
+        .filter(Boolean);
+
+      if (successfulSlides.length === 0) {
+        throw new Error(failedSlides.join('; ') || 'Не удалось создать слайды');
+      }
+
+      gallerySlides.push(...successfulSlides.map(slide => slide.image));
 
       setQuickResults(prev => ({ ...prev, gallery: gallerySlides }));
-      refreshCreditsFromResponse(dataLife);
-      setStatusText('✅ Галерея из 4-х слайдов успешно собрана!');
-      setStatusType('success');
+      await refreshCreditsFromResponse();
+      if (failedSlides.length === 0) {
+        setStatusText('✅ Галерея из 4-х слайдов успешно собрана!');
+        setStatusType('success');
+      } else {
+        setStatusText(`⚠️ Готово ${gallerySlides.length} из 4 слайдов. Не удалось: ${failedSlides.join('; ')}`);
+        setStatusType('error');
+      }
     } catch (err) {
       console.error('Gallery generation error:', err);
       setStatusText(`⚠️ Ошибка при генерации галереи: ${err.message}`);
@@ -2371,6 +2437,7 @@ ${userProductInfo.trim()}
     } finally {
       setIsGalleryGenerating(false);
       setIsProcessing(false);
+      paidActionLocksRef.current.delete('gallery');
     }
   };
 
@@ -2391,6 +2458,8 @@ ${userProductInfo.trim()}
       setStatusText(`⚡ Для запуска A/B теста нужно ${creditsNeeded} кредита`); setStatusType('error');
       return;
     }
+    if (paidActionLocksRef.current.has('ab-test')) return;
+    paidActionLocksRef.current.add('ab-test');
 
     setIsAbGenerating(true);
     setIsProcessing(true);
@@ -2398,50 +2467,54 @@ ${userProductInfo.trim()}
     setStatusText('⚖️ Запускаем A/B Тестирование (2 обложки)...');
 
     try {
-      // Вариант A (Natural)
-      setStatusText('⚖️ Шаг 1/2: Генерируем светлый вариант (Natural)...');
+      setStatusText('⚡ Параллельно создаём варианты A и B...');
       const seedA = Math.floor(Math.random() * 1000000);
-      const respA = await authFetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.uid,
-          isQuickCard: true,
-          quickCardStyle: 'natural',
-          userProductInfo: userProductInfo.trim() || '',
-          garmentImageUrls: garmentUrls,
-          biometricSeed: seedA,
-          idempotencyKey: createIdempotencyKey('ab-a'),
-        }),
-      });
-      const dataA = await safeParseJSON(respA);
-      if (!dataA.success) throw new Error(dataA.error || 'Не удалось создать вариант А');
-      const imgA = dataA.imageBase64 || dataA.imageUrl;
-
-      // Вариант B (Epic)
-      setStatusText('⚖️ Шаг 2/2: Генерируем тёмный вариант (Epic)...');
       const seedB = Math.floor(Math.random() * 1000000) + 7; // Другой сид для уникальности
-      const respB = await authFetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: user.uid,
-          isQuickCard: true,
-          quickCardStyle: 'epic',
-          userProductInfo: userProductInfo.trim() || '',
-          garmentImageUrls: garmentUrls,
-          biometricSeed: seedB,
-          idempotencyKey: createIdempotencyKey('ab-b'),
-        }),
-      });
-      const dataB = await safeParseJSON(respB);
-      if (!dataB.success) throw new Error(dataB.error || 'Не удалось создать вариант B');
-      const imgB = dataB.imageBase64 || dataB.imageUrl;
+      const requestVariant = async (label, style, biometricSeed) => {
+        const response = await authFetch('/api/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.uid,
+            isQuickCard: true,
+            quickCardStyle: style,
+            userProductInfo: userProductInfo.trim() || '',
+            garmentImageUrls: garmentUrls,
+            biometricSeed,
+            idempotencyKey: createIdempotencyKey(`ab-${label.toLowerCase()}`),
+          }),
+        });
+        const data = await safeParseJSON(response);
+        if (!data.success) throw new Error(data.error || `Не удалось создать вариант ${label}`);
+        const image = data.imageBase64 || data.imageUrl;
+        if (!image) throw new Error(`Вариант ${label} вернулся без изображения`);
+        return { label, image };
+      };
 
-      setQuickResults(prev => ({ ...prev, abTest: [imgA, imgB] }));
-      refreshCreditsFromResponse(dataB);
-      setStatusText('✅ Альтернативные обложки для A/B Теста готовы!');
-      setStatusType('success');
+      const settled = await Promise.allSettled([
+        requestVariant('A', 'natural', seedA),
+        requestVariant('B', 'epic', seedB),
+      ]);
+      const variants = settled
+        .filter(result => result.status === 'fulfilled')
+        .map(result => result.value);
+      const failedVariants = settled
+        .filter(result => result.status === 'rejected')
+        .map(result => result.reason?.message || 'Ошибка генерации');
+
+      if (variants.length === 0) {
+        throw new Error(failedVariants.join('; ') || 'Не удалось создать варианты');
+      }
+
+      setQuickResults(prev => ({ ...prev, abTest: variants.map(variant => variant.image) }));
+      await refreshCreditsFromResponse();
+      if (failedVariants.length === 0) {
+        setStatusText('✅ Альтернативные обложки для A/B Теста готовы!');
+        setStatusType('success');
+      } else {
+        setStatusText(`⚠️ Готов только вариант ${variants[0].label}. Второй кредит возвращён: ${failedVariants[0]}`);
+        setStatusType('error');
+      }
     } catch (err) {
       console.error('A/B test generation error:', err);
       setStatusText(`⚠️ Ошибка при A/B тестировании: ${err.message}`);
@@ -2449,6 +2522,7 @@ ${userProductInfo.trim()}
     } finally {
       setIsAbGenerating(false);
       setIsProcessing(false);
+      paidActionLocksRef.current.delete('ab-test');
     }
   };
 
@@ -2484,6 +2558,8 @@ ${userProductInfo.trim()}
       setStatusText(`⚡ Недостаточно кредитов: нужно ${creditsNeeded}, доступно ${creditsAvailable}`); setStatusType('error');
       return;
     }
+    if (paidActionLocksRef.current.has('quick-generate')) return;
+    paidActionLocksRef.current.add('quick-generate');
 
     // Save current result to cache before clearing
     if (quickCardImage) {
@@ -2668,6 +2744,7 @@ ${userProductInfo.trim()}
       clearTimeout(timeoutId);
       setIsProcessing(false);
       abortControllerRef.current = null;
+      paidActionLocksRef.current.delete('quick-generate');
     }
   };
 
@@ -2717,64 +2794,6 @@ ${userProductInfo.trim()}
     }
   };
 
-
-  // Auto-Catalog integration
-  const handleAutoCatalog = async () => {
-    if (!garmentUrls.length) {
-      setStatusText('Сначала загрузите фото одежды'); setStatusType('error');
-      return;
-    }
-    
-    // ═══ SUBSCRIPTION CHECK (requires 3 credits) ═══
-    const creditsAvailable = subscription?.credits || 0;
-    if (creditsAvailable < 3 && !subscription?.local) {
-      setShowPricing(true);
-      setStatusText('⚡ Для автокаталога требуется минимум 3 кредита'); setStatusType('error');
-      return;
-    }
-    if (subscription?.local && (subscription.credits || 0) < 3) {
-      setStatusText('⚡ Для автокаталога требуется минимум 3 кредита'); setStatusType('error');
-      return;
-    }
-
-    setStatusText('Отправка батча в Auto-Catalog...'); setStatusType('');
-    
-    // Transform uploaded garment URLs into SKU items
-    const items = garmentUrls.map((url, i) => ({
-      skuId: `SKU-${Date.now()}-${i}`,
-      name: `Товар ${i + 1}`,
-      imageUrl: url
-    }));
-
-    try {
-      // NOTE: We point to the standalone auto-catalog server (port 3002)
-      // In production this would be unified into the main API server
-      const resp = await fetch('/api/auto-catalog/start', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items,
-          sellerId: user?.uid || 'test_seller_001',
-          vibe: customBgText.trim() || selectedBgs[0].prompt
-        })
-      });
-      const data = await safeParseJSON(resp);
-      if (data.success) {
-        // Списание 3 кредитов (локальный сервер — используем оптимистичное списание)
-        setSubscription(prev => ({ ...prev, credits: Math.max(0, (prev.credits || 0) - 3) }));
-
-        setStatusText(`✅ Auto-Catalog запущен! Батч отправлен на фоновую обработку.`);
-        setStatusType('success');
-      } else {
-        setStatusText(`❌ Ошибка: ${data.error}`);
-        setStatusType('error');
-      }
-    } catch (err) {
-      setStatusText(`❌ Ошибка сети: ${err.message}. Убедитесь что сервер на порту 3002 запущен.`);
-      setStatusType('error');
-    }
-  };
-
   // Photoshoot mode: 5 parallel generations
   const PHOTOSHOOT_ANGLES = [
     { pose: 'close-up portrait shot, looking directly at camera, confident expression', camera: 'close-up portrait' },
@@ -2815,6 +2834,8 @@ ${userProductInfo.trim()}
       setStatusType('error');
       return;
     }
+    if (paidActionLocksRef.current.has('photoshoot')) return;
+    paidActionLocksRef.current.add('photoshoot');
 
     setIsPhotoshooting(true);
     
@@ -2997,13 +3018,16 @@ ${userProductInfo.trim()}
       });
 
       const results = await Promise.allSettled(promises);
-      successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+      successCount = results.filter(r => r.status === 'fulfilled' && r.value.success && !r.value.background).length;
       const lastWithCredits = [...results].reverse().find(r => r.status === 'fulfilled' && r.value?.creditsRemaining != null);
       if (lastWithCredits) refreshCreditsFromResponse(lastWithCredits.value);
       setStatusText(successCount > 0 ? `🎉 Фотосессия: ${successCount} кадров готово!` : 'Упс! Не удалось сгенерировать кадры. Попробуйте снова.');
       setStatusType(successCount > 0 ? 'success' : 'error');
     } catch (err) { setStatusText(`Ошибка фотосессии: ${err.message}`); setStatusType('error'); }
-    finally { setIsPhotoshooting(false); }
+    finally {
+      setIsPhotoshooting(false);
+      paidActionLocksRef.current.delete('photoshoot');
+    }
   };
 
   // ═══ PER-PHOTO EDITOR ═══
@@ -3025,7 +3049,7 @@ ${userProductInfo.trim()}
     setEditingPhotos(prev => new Set(prev).add(idx));
 
     try {
-      // Upload source image to Firebase Storage to avoid body size limits
+      // Upload source image to object storage to avoid body size limits.
       const { url: sourceUrl } = await uploadBase64Image(user?.uid || 'anonymous', currentImg, 'edits');
       const resp = await authFetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -4401,7 +4425,7 @@ ${userProductInfo.trim()}
                   ))}
                   {/* Add custom variant */}
                   <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('product_effect'); setNewChipText(''); }}>
-                    <span className="emoji">➕</span><span className="label">Свой вариант</span>
+                    <span className="emoji">➕</span><span className="label">Свой эффект</span>
                   </div>
                 </div>
               </>
@@ -4446,7 +4470,7 @@ ${userProductInfo.trim()}
                     </div>
                   ))}
                   <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('product_effect'); setNewChipText(''); }}>
-                    <span className="emoji">➕</span><span className="label">Свой вариант</span>
+                    <span className="emoji">➕</span><span className="label">Свой эффект</span>
                   </div>
                 </div>
               </>
@@ -4575,7 +4599,7 @@ ${userProductInfo.trim()}
                   ))}
                   {/* Add custom variant */}
                   <div className="preset-card add-custom-card" onClick={() => { setCustomChipModalSection('product_effect'); setNewChipText(''); }}>
-                    <span className="emoji">➕</span><span className="label">Свой вариант</span>
+                    <span className="emoji">➕</span><span className="label">Свой эффект</span>
                   </div>
                 </div>
               </>
@@ -4674,12 +4698,6 @@ ${userProductInfo.trim()}
                 ? '☁️ Загрузка в облако...' 
                 : `✨ Сгенерировать ${totalShots > 1 ? totalShots + ' кадр' + (totalShots < 5 ? 'а' : 'ов') : 'студийный кадр'}`}
             </button>
-            <button
-              className="auto-catalog-mini-btn"
-              onClick={handleAutoCatalog}
-              disabled={!garmentUrls.length||isProcessing||isUploading}
-              title="Отправить в Auto-Catalog (Batch)"
-            >🏭</button>
           </div>
           {totalShots > 20 && (
             <div style={{color:'var(--gold)',fontSize:'0.75rem',textAlign:'center',fontWeight:500}}>
@@ -4967,7 +4985,7 @@ ${userProductInfo.trim()}
                     👁️ Просмотр
                   </button>
                   <button 
-                    onClick={() => triggerConfirm('gallery', 5, handleGenerateGallery)}
+                    onClick={() => triggerConfirm('gallery', 4, handleGenerateGallery)}
                     style={{background: 'rgba(255,215,0,0.08)', color: '#ffd700', border: '1px solid rgba(255,215,0,0.3)', padding: '12px 16px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'}}
                     onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.18)'}}
                     onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.08)'}}
@@ -4978,13 +4996,13 @@ ${userProductInfo.trim()}
                 </div>
               ) : (
                 <button 
-                  onClick={() => triggerConfirm('gallery', 5, handleGenerateGallery)}
+                  onClick={() => triggerConfirm('gallery', 4, handleGenerateGallery)}
                   disabled={isGalleryGenerating}
                   style={{width: '100%', background: 'rgba(255,215,0,0.1)', color: '#ffd700', border: '1px solid rgba(255,215,0,0.3)', padding: '12px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', marginTop: 'auto'}}
                   onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.2)'}}
                   onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,215,0,0.1)'}}
                 >
-                  {isGalleryGenerating ? '⏳ Создаём...' : <>Создать за 5 кр. <span style={{textDecoration: 'line-through', opacity: 0.5, fontSize: 11, marginLeft: 6, fontWeight: 400}}>8 кр.</span></>}
+                  {isGalleryGenerating ? '⏳ Создаём...' : <>Создать за 4 кр. <span style={{textDecoration: 'line-through', opacity: 0.5, fontSize: 11, marginLeft: 6, fontWeight: 400}}>8 кр.</span></>}
                 </button>
               )}
             </div>
@@ -5062,7 +5080,7 @@ ${userProductInfo.trim()}
                     ⚖️ Сравнить
                   </button>
                   <button 
-                    onClick={() => triggerConfirm('ab', 2, handleGenerateABTest)}
+                    onClick={() => triggerConfirm('ab', 4, handleGenerateABTest)}
                     style={{background: 'rgba(255,255,255,0.03)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', padding: '12px 16px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'}}
                     onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}}
                     onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}}
@@ -5073,13 +5091,13 @@ ${userProductInfo.trim()}
                 </div>
               ) : (
                 <button 
-                  onClick={() => triggerConfirm('ab', 2, handleGenerateABTest)}
+                  onClick={() => triggerConfirm('ab', 4, handleGenerateABTest)}
                   disabled={isAbGenerating}
                   style={{width: '100%', background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)', padding: '12px', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', marginTop: 'auto'}}
                   onMouseEnter={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.18)'}}
                   onMouseLeave={e => {e.currentTarget.style.background = 'rgba(255,255,255,0.08)'}}
                 >
-                  {isAbGenerating ? '⏳ Создаём...' : 'Создать за 2 кр.'}
+                  {isAbGenerating ? '⏳ Создаём...' : 'Создать за 4 кр.'}
                 </button>
               )}
             </div>
@@ -5538,6 +5556,7 @@ ${userProductInfo.trim()}
             existingModels={myModels}
             onClose={() => { setShowPersonaWizard(false); setPersonaToEdit(null); }}
             onSave={savePersonaModel}
+            onCreditsChanged={refreshCreditsFromResponse}
             getAuthToken={async () => {
               const token = await user?.getIdToken?.();
               if (!token) throw new Error('Сессия истекла. Перезайдите в аккаунт.');

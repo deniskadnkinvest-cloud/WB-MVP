@@ -3,7 +3,6 @@
 //  Переиспользует логику из generate-image.js
 // ═══════════════════════════════════════════════════════════════
 
-const KIE_API_KEY_RAW = process.env.KIE_API_KEY;
 const TASK_URL = 'https://api.kie.ai/api/v1/jobs/createTask';
 const GET_TASK_URL = 'https://api.kie.ai/api/v1/jobs/recordInfo?taskId=';
 const FILE_UPLOAD_URL = 'https://kieai.redpandaai.co/api/file-base64-upload';

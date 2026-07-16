@@ -8,7 +8,6 @@
 import crypto from 'crypto';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const ADMIN_ACCESS_KEY = process.env.ADMIN_ACCESS_KEY;
 
 // Список разрешённых Telegram ID (числовые, через запятую)
 const getAdminIds = () => {

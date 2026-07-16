@@ -1,20 +1,19 @@
-// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+// ═══════════════════════════════════════════════════════════════
 // API endpoint: /api/user-data
 // CRUD operations for user models, locations, and generations
-// Replaces direct Firestore calls from frontend
-// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+// Server-side persistence API for the frontend
+// ═══════════════════════════════════════════════════════════════
 
 import jwt from 'jsonwebtoken';
 import { query } from './_db.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
+import { getJwtSecret } from './_env.js';
 
 function verifyToken(req) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   if (!token) return null;
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, getJwtSecret());
   } catch {
     return null;
   }
@@ -93,6 +92,29 @@ async function resolveUserIdentity(uid, email, dbUserId) {
   };
 }
 
+async function getActivePlan(userId) {
+  if (!userId) return 'none';
+  const result = await query(
+    `SELECT plan_name
+     FROM subscriptions
+     WHERE user_id = $1
+       AND status = 'active'
+       AND plan_name IN ('trial', 'base', 'pro')
+       AND (expires_at IS NULL OR expires_at > NOW() OR granted_by_admin IS TRUE)
+     LIMIT 1`,
+    [userId]
+  );
+  return result.rows[0]?.plan_name || 'none';
+}
+
+function featureDenied(res, message) {
+  return res.status(403).json({
+    ok: false,
+    code: 'FEATURE_NOT_AVAILABLE',
+    error: message,
+  });
+}
+
 export default async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -110,7 +132,7 @@ export default async function handler(req, res) {
   try {
     const identity = await resolveUserIdentity(uid, decoded.email, decoded.dbUserId);
 
-    // в•ђв•ђв•ђ GET вЂ” Fetch data в•ђв•ђв•ђ
+    // ═══ GET — Fetch data ═══
     if (req.method === 'GET') {
       const { type, limit: limitStr } = req.query;
       const maxResults = parseInt(limitStr) || 50;
@@ -163,12 +185,16 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: 'Unknown type' });
     }
 
-    // в•ђв•ђв•ђ POST вЂ” Create data в•ђв•ђв•ђ
+    // ═══ POST — Create data ═══
     if (req.method === 'POST') {
       const { type, ...data } = req.body || {};
 
       if (type === 'model') {
         if (!identity.dbId) return res.status(404).json({ ok: false, error: 'User not found' });
+        const plan = await getActivePlan(identity.dbId);
+        if (!['trial', 'base', 'pro'].includes(plan)) {
+          return featureDenied(res, 'Сохранение своей модели доступно после подключения тарифа.');
+        }
         const modelSubType = data.model_type || data.type || 'unknown';
         // Remove temporary model_type if present to keep metadata clean
         delete data.model_type;
@@ -186,11 +212,15 @@ export default async function handler(req, res) {
 
       if (type === 'location') {
         if (!identity.dbId) return res.status(404).json({ ok: false, error: 'User not found' });
+        const plan = await getActivePlan(identity.dbId);
+        if (!['base', 'pro'].includes(plan)) {
+          return featureDenied(res, 'Свои локации доступны на тарифах Про и Gold Seller.');
+        }
         const result = await query(
           `INSERT INTO locations (user_id, name, image_url, metadata)
            VALUES ($1, $2, $3, $4)
            RETURNING *`,
-          [identity.dbId, data.title || 'Р‘РµР· РЅР°Р·РІР°РЅРёСЏ', data.imageUrls?.[0] || data.thumbnail || '', JSON.stringify(data)]
+          [identity.dbId, data.title || 'Без названия', data.imageUrls?.[0] || data.thumbnail || '', JSON.stringify(data)]
         );
         return res.json({ ok: true, data: rowToLocation(result.rows[0]) });
       }
@@ -198,7 +228,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: 'Unknown type' });
     }
 
-    // в•ђв•ђв•ђ PATCH вЂ” Update data в•ђв•ђв•ђ
+    // ═══ PATCH — Update data ═══
     if (req.method === 'PATCH') {
       const { type, id, ...fields } = req.body || {};
 
@@ -251,7 +281,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ ok: false, error: 'Unknown type or missing id' });
     }
 
-    // в•ђв•ђв•ђ DELETE вЂ” Delete data в•ђв•ђв•ђ
+    // ═══ DELETE — Delete data ═══
     if (req.method === 'DELETE') {
       const { type, id } = req.query;
 
@@ -279,11 +309,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   } catch (err) {
     console.error('[user-data] Error:', err);
-    return res.status(500).json({ ok: false, error: err.message });
+    return res.status(500).json({ ok: false, error: 'Не удалось обработать данные пользователя.' });
   }
 }
 
-// в•ђв•ђв•ђ Row в†’ Frontend-compatible object mappers в•ђв•ђв•ђ
+// ═══ Row → Frontend-compatible object mappers ═══
 
 import { getPublicUrl } from './_s3.js';
 
@@ -299,7 +329,7 @@ function rewriteS3Url(url) {
 
 // ВАЖНО: во всех мапперах spread метаданных идёт ПЕРВЫМ, а канонические поля
 // (id из PostgreSQL и т.д.) — ПОСЛЕ него. У legacy-записей metadata содержит
-// старый Firestore-id ("38E6D7..."), и при обратном порядке он перезаписывал
+// старый строковый id ("38E6D7..."), и при обратном порядке он перезаписывал
 // числовой PG-id → PATCH/DELETE по такому id падали, а UI работал с фантомом.
 function rowToGeneration(row) {
   const meta = row.metadata || {};

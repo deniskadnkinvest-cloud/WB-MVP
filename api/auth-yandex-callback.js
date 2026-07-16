@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { query } from './_db.js';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
+import { getJwtSecret } from './_env.js';
 
 export default async function handler(req, res) {
   const { code, error } = req.query;
@@ -105,7 +104,7 @@ export default async function handler(req, res) {
         telegramId: stableUid, // Для обратной совместимости во фронтенде
         dbUserId: dbUser.id,
       },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: '30d' }
     );
 

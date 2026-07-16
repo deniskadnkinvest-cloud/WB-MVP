@@ -16,7 +16,6 @@ RUN npm install --omit=dev
 
 # Копируем исходники бэкенда
 COPY server.js .
-COPY server-autocatalog.js .
 COPY api ./api
 COPY src/data ./src/data
 

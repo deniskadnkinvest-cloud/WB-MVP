@@ -10,7 +10,6 @@ import createPaymentHandler from './api/create-payment.js';
 import paymentWebhookYookassaHandler from './api/payment-webhook-yookassa.js';
 import cancelSubscriptionHandler from './api/cancel-subscription.js';
 import subscriptionHandler from './api/subscription.js';
-import consumeCreditHandler from './api/consume-credit.js';
 import adminHandler from './api/admin.js';
 import sendOtpHandler from './api/send-otp.js';
 import verifyOtpHandler from './api/verify-otp.js';
@@ -20,6 +19,10 @@ import authTelegramHandler from './api/auth-telegram.js';
 import authTelegramWidgetHandler from './api/auth-telegram-widget.js';
 import uploadHandler from './api/upload.js';
 import userDataHandler from './api/user-data.js';
+import {
+  ensureCreditReservationsSchema,
+  recoverOrphanedCreditReservations,
+} from './api/_billing-reservations.js';
 
 import authVkHandler from './api/auth-vk.js';
 import authYandexHandler from './api/auth-yandex.js';
@@ -95,19 +98,30 @@ app.get('/api/auth-ping', (req, res) => {
   res.json({ ok: true });
 });
 
-import { getPoolStats, query as dbQuery } from './api/_db.js';
+import { getPoolStats, pool, query as dbQuery } from './api/_db.js';
 app.get('/api/pool-stats', (req, res) => {
   res.json(getPoolStats());
 });
 
-// Идемпотентная миграция: счётчик генераций с собственной моделью
-// (лимит тарифа Тест-драйв — 1 генерация со своей моделью)
-dbQuery(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS model_gens_used INT NOT NULL DEFAULT 0`)
-  .then(() => console.log('[migrate] subscriptions.model_gens_used ready'))
-  .catch((err) => console.error('[migrate] model_gens_used failed:', err.message));
+let shuttingDown = false;
+let activeGenerationRequests = 0;
 
-app.post('/api/generate-image', async (req, res) => {
-  return generateImageHandler(req, res);
+app.post('/api/generate-image', async (req, res, next) => {
+  if (shuttingDown) {
+    return res.status(503).json({
+      success: false,
+      error: 'Сервис обновляется. Повторите генерацию через минуту.',
+    });
+  }
+
+  activeGenerationRequests += 1;
+  try {
+    await generateImageHandler(req, res);
+  } catch (error) {
+    next(error);
+  } finally {
+    activeGenerationRequests = Math.max(0, activeGenerationRequests - 1);
+  }
 });
 
 app.post('/api/create-payment', async (req, res) => {
@@ -121,14 +135,6 @@ app.post('/api/cancel-subscription', async (req, res) => {
 // ═══ ПОДПИСКИ (PostgreSQL — источник истины) ═══
 app.get('/api/subscription', async (req, res) => {
   return subscriptionHandler(req, res);
-});
-
-app.post('/api/subscription', async (req, res) => {
-  return subscriptionHandler(req, res);
-});
-
-app.post('/api/consume-credit', async (req, res) => {
-  return consumeCreditHandler(req, res);
 });
 
 app.post('/api/payment-webhook-yookassa', async (req, res) => {
@@ -238,13 +244,67 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
-const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`\n🔥 PAN.X VTON Backend (KIE.ai) → http://localhost:${PORT}`);
-  console.log(`   Inngest Endpoint: http://localhost:${PORT}/api/inngest`);
-  console.log(`   Admin Panel APIs: http://localhost:${PORT}/api/admin/*`);
-  console.log('   Подключена ЮKassa: /api/create-payment & /api/payment-webhook-yookassa');
-  console.log('   Ожидаю запросы от фронтенда...\n');
-});
+let server = null;
 
-// KIE.ai может обрабатывать задачи до 4-5 минут — ставим таймаут 10 минут
-server.setTimeout(10 * 60 * 1000); // 10 минут
+async function startServer() {
+  await dbQuery(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS model_gens_used INT NOT NULL DEFAULT 0`);
+  console.log('[migrate] subscriptions.model_gens_used ready');
+  await ensureCreditReservationsSchema();
+  const recovered = await recoverOrphanedCreditReservations();
+  if (recovered > 0) {
+    console.warn(`[billing] Recovered credits for ${recovered} interrupted generation user(s)`);
+  }
+
+  server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n🔥 PAN.X VTON Backend (KIE.ai) → http://localhost:${PORT}`);
+    console.log(`   Inngest Endpoint: http://localhost:${PORT}/api/inngest`);
+    console.log(`   Admin Panel APIs: http://localhost:${PORT}/api/admin/*`);
+    console.log('   Подключена ЮKassa: /api/create-payment & /api/payment-webhook-yookassa');
+    console.log('   Ожидаю запросы от фронтенда...\n');
+  });
+
+  // KIE.ai может обрабатывать задачи до 4-5 минут — ставим таймаут 10 минут.
+  server.setTimeout(10 * 60 * 1000);
+}
+
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[shutdown] ${signal}: waiting for ${activeGenerationRequests} generation request(s)`);
+
+  const shutdownDeadline = Date.now() + 10 * 60 * 1000;
+  const forceTimer = setTimeout(() => {
+    console.error('[shutdown] Grace period expired; unfinished reservations will be recovered on restart');
+    server?.closeAllConnections?.();
+  }, 10 * 60 * 1000);
+  forceTimer.unref();
+
+  if (server) {
+    await new Promise(resolve => {
+      server.close(resolve);
+      server.closeIdleConnections?.();
+    });
+  }
+
+  while (activeGenerationRequests > 0 && Date.now() < shutdownDeadline) {
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  clearTimeout(forceTimer);
+  await pool.end();
+  console.log('[shutdown] Complete');
+}
+
+process.once('SIGTERM', () => shutdown('SIGTERM').catch(error => {
+  console.error('[shutdown] SIGTERM failed:', error.message);
+  process.exitCode = 1;
+}));
+process.once('SIGINT', () => shutdown('SIGINT').catch(error => {
+  console.error('[shutdown] SIGINT failed:', error.message);
+  process.exitCode = 1;
+}));
+
+startServer().catch(async error => {
+  console.error('[startup] Failed:', error.message);
+  await pool.end().catch(() => {});
+  process.exitCode = 1;
+});

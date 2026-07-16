@@ -1,20 +1,19 @@
-﻿// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
-// /api/upload вЂ” Р—Р°РіСЂСѓР·РєР°/СЃРєР°С‡РёРІР°РЅРёРµ/СѓРґР°Р»РµРЅРёРµ С„Р°Р№Р»РѕРІ (Р·Р°РјРµРЅР° Auth Storage)
-// РСЃРїРѕР»СЊР·СѓРµС‚ MinIO (S3-СЃРѕРІРјРµСЃС‚РёРјРѕРµ С…СЂР°РЅРёР»РёС‰Рµ РЅР° РЅР°С€РµРј СЃРµСЂРІРµСЂРµ)
-// в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ
+// ═══════════════════════════════════════════════════════════════
+// /api/upload — Загрузка/скачивание/удаление файлов (замена Auth Storage)
+// Использует MinIO (S3-совместимое хранилище на нашем сервере)
+// ═══════════════════════════════════════════════════════════════
 
 import jwt from 'jsonwebtoken';
 import { uploadFile, deleteFile, s3, S3_BUCKET } from './_s3.js';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'vton-secret-2026';
+import { getJwtSecret } from './_env.js';
 
 function verifyToken(req) {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
   if (!token) return null;
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, getJwtSecret());
   } catch {
     return null;
   }
@@ -35,7 +34,7 @@ export default async function handler(req, res) {
   const uid = decoded.uid;
 
   try {
-    // в•ђв•ђв•ђ POST вЂ” Р—Р°РіСЂСѓР·РёС‚СЊ С„Р°Р№Р» в•ђв•ђв•ђ
+    // ═══ POST — Загрузить файл ═══
     if (req.method === 'POST') {
       const { base64, folder = 'models', filename: customFilename } = req.body || {};
 
@@ -43,7 +42,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ ok: false, error: 'base64 data is required' });
       }
 
-      // Р”РµРєРѕРґРёСЂСѓРµРј base64
+      // Декодируем base64
       let buffer;
       let contentType = 'image/jpeg';
 
@@ -69,7 +68,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // в•ђв•ђв•ђ GET вЂ” РЎРєР°С‡Р°С‚СЊ С„Р°Р№Р» РєР°Рє base64 в•ђв•ђв•ђ
+    // ═══ GET — Скачать файл как base64 ═══
     if (req.method === 'GET') {
       const { path: filePath, url: remoteUrl } = req.query;
 
@@ -130,7 +129,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // в•ђв•ђв•ђ DELETE вЂ” РЈРґР°Р»РёС‚СЊ С„Р°Р№Р» в•ђв•ђв•ђ
+    // ═══ DELETE — Удалить файл ═══
     if (req.method === 'DELETE') {
       const { path: filePath } = req.query;
 

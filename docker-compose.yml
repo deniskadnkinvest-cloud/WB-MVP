@@ -3,6 +3,7 @@ services:
     build: .
     container_name: vton-mvp
     restart: always
+    stop_grace_period: 11m
     environment:
       - NODE_ENV=production
       - PORT=3001

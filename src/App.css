@@ -1,16 +1,16 @@
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
-/*  SELLER STUDIO вЂ” FASHION TERMINAL          */
+/* ═══════════════════════════════════════════ */
+/*  SELLER STUDIO — FASHION TERMINAL          */
 /*  Cinematic В· Editorial В· Alive             */
-/* в•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђв•ђ */
+/* ═══════════════════════════════════════════ */
 
-/* в•ђв•ђв•ђ LAYOUT в•ђв•ђв•ђ */
+/* ═══ LAYOUT ═══ */
 .app-wrapper {
   max-width: 880px;
   margin: 0 auto;
   padding: 0 24px 100px;
 }
 
-/* в•ђв•ђв•ђ HEADER в•ђв•ђв•ђ */
+/* ═══ HEADER ═══ */
 .app-header {
   text-align: center;
   padding: 60px 0 40px;
@@ -78,7 +78,7 @@
   color: var(--gold-light);
 }
 
-/* в•ђв•ђв•ђ SECTIONS в•ђв•ђв•ђ */
+/* ═══ SECTIONS ═══ */
 .section {
   background: var(--bg-card);
   backdrop-filter: blur(20px);
@@ -116,7 +116,7 @@
   font-size: 1.2rem;
 }
 
-/* в•ђв•ђв•ђ TABS в•ђв•ђв•ђ */
+/* ═══ TABS ═══ */
 .tabs-row {
   display: flex;
   gap: 2px;
@@ -154,7 +154,7 @@
   box-shadow: 0 4px 20px rgba(212, 168, 67, 0.3);
 }
 
-/* в•ђв•ђв•ђ PRESET GRID в•ђв•ђв•ђ */
+/* ═══ PRESET GRID ═══ */
 .preset-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -275,7 +275,7 @@
   background: rgba(248,113,113,0.35);
 }
 
-/* в•ђв•ђв•ђ UPLOAD ZONE в•ђв•ђв•ђ */
+/* ═══ UPLOAD ZONE ═══ */
 .upload-zone {
   border: 2px dashed rgba(212, 168, 67, 0.15);
   border-radius: var(--r-xl);
@@ -340,7 +340,7 @@
   display: none;
 }
 
-/* в•ђв•ђв•ђ PREVIEW GRID в•ђв•ђв•ђ */
+/* ═══ PREVIEW GRID ═══ */
 .preview-grid {
   display: flex;
   gap: 16px;
@@ -381,7 +381,7 @@
   background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
 }
 
-/* в•ђв•ђв•ђ CUSTOM INPUT / TEXTAREA в•ђв•ђв•ђ */
+/* ═══ CUSTOM INPUT / TEXTAREA ═══ */
 .garment-input-row {
   display: flex;
   gap: 10px;
@@ -466,7 +466,7 @@
   margin-top: 4px;
 }
 
-/* в•ђв•ђв•ђ TOOLTIP HINT в•ђв•ђв•ђ */
+/* ═══ TOOLTIP HINT ═══ */
 .tooltip-hint {
   display: flex;
   align-items: center;
@@ -481,7 +481,7 @@
   font-weight: 500;
 }
 
-/* в•ђв•ђв•ђ GENERATE BUTTON в•ђв•ђв•ђ */
+/* ═══ GENERATE BUTTON ═══ */
 .generate-section {
   text-align: center;
   padding: 24px 0;
@@ -547,41 +547,7 @@
   animation: none;
 }
 
-/* ═══ AUTO-CATALOG MINI BUTTON ═══ */
-.auto-catalog-mini-btn {
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: linear-gradient(135deg, #18181b, #27272a);
-  color: #fafafa;
-  font-size: 1.2rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  flex-shrink: 0;
-}
-
-.auto-catalog-mini-btn:hover:not(:disabled) {
-  border-color: rgba(255, 255, 255, 0.25);
-  background: linear-gradient(135deg, #27272a, #3f3f46);
-  transform: scale(1.05);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-}
-
-.auto-catalog-mini-btn:active:not(:disabled) {
-  transform: scale(0.95);
-}
-
-.auto-catalog-mini-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-/* в•ђв•ђв•ђ STATUS BAR в•ђв•ђв•ђ */
+/* ═══ STATUS BAR ═══ */
 .status-bar {
   text-align: center;
   margin-top: 14px;
@@ -613,7 +579,7 @@
   50% { opacity: 0.5; }
 }
 
-/* в•ђв•ђв•ђ RESULT в•ђв•ђв•ђ */
+/* ═══ RESULT ═══ */
 .result-section {
   text-align: center;
   margin-top: 12px;
@@ -647,7 +613,7 @@
   max-height: 600px;
 }
 
-/* в•ђв•ђв•ђ HISTORY NAVIGATION ARROWS в•ђв•ђв•ђ */
+/* ═══ HISTORY NAVIGATION ARROWS ═══ */
 .history-nav-btn {
   position: absolute;
   top: 50%;
@@ -708,7 +674,7 @@
   flex-wrap: wrap;
 }
 
-/* в•ђв•ђв•ђ REDRESS BUTTON вЂ” Glass SaaS в•ђв•ђв•ђ */
+/* ═══ REDRESS BUTTON — Glass SaaS ═══ */
 .redress-btn {
   display: inline-flex;
   align-items: center;
@@ -739,7 +705,7 @@
   cursor: not-allowed;
 }
 
-/* в•ђв•ђв•ђ DOWNLOAD BUTTON вЂ” Glass SaaS в•ђв•ђв•ђ */
+/* ═══ DOWNLOAD BUTTON — Glass SaaS ═══ */
 .download-btn {
   display: inline-flex;
   align-items: center;
@@ -764,7 +730,7 @@
   box-shadow: 0 4px 24px rgba(212, 168, 67, 0.15), inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
-/* в•ђв•ђв•ђ SAVE MODEL BUTTON вЂ” Glass SaaS в•ђв•ђв•ђ */
+/* ═══ SAVE MODEL BUTTON — Glass SaaS ═══ */
 .save-model-btn {
   display: inline-flex;
   align-items: center;
@@ -789,7 +755,7 @@
   box-shadow: 0 4px 24px rgba(107, 163, 255, 0.15), inset 0 1px 0 rgba(255,255,255,0.05);
 }
 
-/* в•ђв•ђв•ђ MODEL AVATARS в•ђв•ђв•ђ */
+/* ═══ MODEL AVATARS ═══ */
 .model-avatar-grid {
   display: flex;
   gap: 14px;
@@ -894,7 +860,7 @@
   animation: pulse 2s ease-in-out infinite;
 }
 
-/* в•ђв•ђв•ђ LOCATION CARDS в•ђв•ђв•ђ */
+/* ═══ LOCATION CARDS ═══ */
 .location-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -992,7 +958,7 @@
   font-size: 1.5rem;
 }
 
-/* в•ђв•ђв•ђ MODAL OVERLAY в•ђв•ђв•ђ */
+/* ═══ MODAL OVERLAY ═══ */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -1099,7 +1065,7 @@
   background: rgba(255,255,255,0.06);
 }
 
-/* в•ђв•ђв•ђ DROP ZONE (in modal) в•ђв•ђв•ђ */
+/* ═══ DROP ZONE (in modal) ═══ */
 .drop-zone {
   border: 2px dashed rgba(212, 168, 67, 0.15);
   border-radius: var(--r-md);
@@ -1142,7 +1108,7 @@
   border: 1px solid var(--border-subtle);
 }
 
-/* в•ђв•ђв•ђ PROCESSING OVERLAY в•ђв•ђв•ђ */
+/* ═══ PROCESSING OVERLAY ═══ */
 .processing-overlay {
   position: fixed;
   inset: 0;
@@ -1251,7 +1217,7 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
-/* в•ђв•ђв•ђ EMPTY STATE в•ђв•ђв•ђ */
+/* ═══ EMPTY STATE ═══ */
 .empty-state {
   text-align: center;
   padding: 20px 10px;
@@ -1259,7 +1225,7 @@
   font-size: 0.8rem;
 }
 
-/* в•ђв•ђв•ђ GENDER TOGGLE в•ђв•ђв•ђ */
+/* ═══ GENDER TOGGLE ═══ */
 .gender-toggle-wrap {
   display: flex;
   align-items: center;
@@ -1311,7 +1277,7 @@
   transform: translateX(24px);
 }
 
-/* в•ђв•ђв•ђ DETAIL PANEL в•ђв•ђв•ђ */
+/* ═══ DETAIL PANEL ═══ */
 .detail-panel {
   margin-top: 14px;
   padding: 16px;
@@ -1403,7 +1369,7 @@
   color: var(--gold-light);
 }
 
-/* в•ђв•ђв•ђ MULTI-PREVIEW GRID в•ђв•ђв•ђ */
+/* ═══ MULTI-PREVIEW GRID ═══ */
 .multi-preview-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
@@ -1488,7 +1454,7 @@
   font-size: 1.5rem;
 }
 
-/* в•ђв•ђв•ђ CUSTOM VARIANT INPUT в•ђв•ђв•ђ */
+/* ═══ CUSTOM VARIANT INPUT ═══ */
 .custom-variant-row {
   margin-top: 12px;
 }
@@ -1637,7 +1603,7 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* в•ђв•ђв•ђ LORA PHOTO LABELS в•ђв•ђв•ђ */
+/* ═══ LORA PHOTO LABELS ═══ */
 .lora-photo-slots {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1721,7 +1687,7 @@
   line-height: 1.5;
 }
 
-/* в•ђв•ђв•ђ MODIFIER BLOCKS в•ђв•ђв•ђ */
+/* ═══ MODIFIER BLOCKS ═══ */
 .modifier-block {
   margin-top: 10px;
 }
@@ -1800,7 +1766,7 @@
   cursor: not-allowed;
 }
 
-/* в•ђв•ђв•ђ SHOT MODIFIER (post-gen editing) в•ђв•ђв•ђ */
+/* ═══ SHOT MODIFIER (post-gen editing) ═══ */
 .shot-modifier-block {
   margin-top: 18px;
   padding-top: 16px;
@@ -1839,7 +1805,7 @@
   cursor: not-allowed;
 }
 
-/* в•ђв•ђв•ђ PHOTOSHOOT в•ђв•ђв•ђ */
+/* ═══ PHOTOSHOOT ═══ */
 .photoshoot-block {
   margin-top: 18px;
   padding-top: 16px;
@@ -1987,7 +1953,7 @@
   opacity: 1;
 }
 
-/* в•ђв•ђв•ђ EDIT MINI BTN (per photo) в•ђв•ђв•ђ */
+/* ═══ EDIT MINI BTN (per photo) ═══ */
 .edit-mini-btn {
   position: absolute;
   bottom: 6px;
@@ -2010,13 +1976,13 @@
   border-color: var(--gold);
 }
 
-/* в•ђв•ђв•ђ EDITED PHOTO INDICATOR в•ђв•ђв•ђ */
+/* ═══ EDITED PHOTO INDICATOR ═══ */
 .photoshoot-item--edited {
   border: 2px solid var(--gold) !important;
   box-shadow: 0 0 12px rgba(212, 175, 55, 0.3);
 }
 
-/* в•ђв•ђв•ђ PROCESSING PHOTO (background edit in progress) в•ђв•ђв•ђ */
+/* ═══ PROCESSING PHOTO (background edit in progress) ═══ */
 .photoshoot-item--processing {
   border: 2px solid var(--gold) !important;
   animation: pulse-editing 1.5s ease-in-out infinite;
@@ -2061,7 +2027,7 @@
   z-index: 3;
 }
 
-/* в•ђв•ђв•ђ PHOTO HISTORY NAV (per-photo в—Ђв–¶) в•ђв•ђв•ђ */
+/* ═══ PHOTO HISTORY NAV (per-photo ◀▶) ═══ */
 .photo-history-nav {
   position: absolute;
   bottom: 36px;
@@ -2114,7 +2080,7 @@
   font-weight: 600;
 }
 
-/* в•ђв•ђв•ђ DOWNLOAD MENU в•ђв•ђв•ђ */
+/* ═══ DOWNLOAD MENU ═══ */
 .download-mini-wrapper {
   position: absolute;
   bottom: 6px;
@@ -2156,7 +2122,7 @@
   border-top: 1px solid var(--border-subtle);
 }
 
-/* в•ђв•ђв•ђ PHOTO EDITOR MODAL в•ђв•ђв•ђ */
+/* ═══ PHOTO EDITOR MODAL ═══ */
 .photo-editor-overlay {
   position: fixed;
   inset: 0;
@@ -2313,14 +2279,14 @@
   transform: none;
 }
 
-/* в•ђв•ђв•ђ DRAG & DROP в•ђв•ђв•ђ */
+/* ═══ DRAG & DROP ═══ */
 .upload-zone.dragging {
   border-color: var(--gold) !important;
   background: rgba(212, 175, 55, 0.08) !important;
   box-shadow: 0 0 20px rgba(212, 175, 55, 0.2);
 }
 
-/* в•ђв•ђв•ђ TATTOO WARNING в•ђв•ђв•ђ */
+/* ═══ TATTOO WARNING ═══ */
 .tattoo-warning {
   background: rgba(245, 158, 11, 0.1);
   border: 1px solid rgba(245, 158, 11, 0.3);
@@ -2332,7 +2298,7 @@
   margin-top: 6px;
 }
 
-/* в•ђв•ђв•ђ MODEL PREVIEW в•ђв•ђв•ђ */
+/* ═══ MODEL PREVIEW ═══ */
 .model-preview-block {
   margin-top: 10px;
   display: flex;
@@ -2350,7 +2316,7 @@
   cursor: pointer;
 }
 
-/* в•ђв•ђв•ђ LIGHTBOX в•ђв•ђв•ђ */
+/* ═══ LIGHTBOX ═══ */
 .lightbox-overlay {
   position: fixed;
   inset: 0;
@@ -2432,7 +2398,7 @@
   font-weight: 600;
 }
 
-/* в•ђв•ђв•ђ CALIBRATION PROMPT в•ђв•ђв•ђ */
+/* ═══ CALIBRATION PROMPT ═══ */
 .calibration-prompt {
   padding: 12px 16px;
   background: rgba(212, 175, 55, 0.06);
@@ -2472,7 +2438,7 @@
   transform: translateY(-1px);
 }
 
-/* в•ђв•ђв•ђ MOBILE TOUCH HINT в•ђв•ђв•ђ */
+/* ═══ MOBILE TOUCH HINT ═══ */
 .touch-zoom-hint {
   display: none;
   text-align: center;
@@ -2488,7 +2454,7 @@
   }
 }
 
-/* в•ђв•ђв•ђ TERMINAL OF MAGIC в•ђв•ђв•ђ */
+/* ═══ TERMINAL OF MAGIC ═══ */
 .terminal-magic {
   position: relative;
   overflow: hidden;
@@ -2609,7 +2575,7 @@
   50% { opacity: 0; }
 }
 
-/* в•ђв•ђв•ђ BEAUTY MODE TOGGLE в•ђв•ђв•ђ */
+/* ═══ BEAUTY MODE TOGGLE ═══ */
 .beauty-toggle {
   display: flex;
   align-items: center;

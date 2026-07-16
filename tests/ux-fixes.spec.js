@@ -35,7 +35,7 @@ test.describe('Product-mode UX fixes', () => {
     await page.locator('.section-title:has-text("Сцена")').scrollIntoViewIfNeeded();
     await page.locator('.add-custom-card:has-text("Свой вариант")').first().click();
 
-    const sceneInput = page.locator('input[placeholder*="Локация с нуля"]');
+    const sceneInput = page.locator('.modal-input');
     await expect(sceneInput).toBeVisible();
     await sceneInput.click();
     // type text WITH spaces, one key at a time (this is what the trim() bug broke)
@@ -43,6 +43,8 @@ test.describe('Product-mode UX fixes', () => {
 
     // the spaces must survive — before the fix the value collapsed to "столиздубаретро"
     await expect(sceneInput).toHaveValue('стол из дуба ретро');
+    await page.locator('.modal-btn-primary', { hasText: 'Добавить' }).click();
+    await expect(page.locator('.preset-card', { hasText: 'стол из дуба ретро' })).toBeVisible();
   });
 
   test('BUG B: a product effect is selectable', async ({ page }) => {

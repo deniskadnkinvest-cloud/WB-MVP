@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import TelegramInit from './components/TelegramInit'
 
-// Р РѕСѓС‚РёРЅРі: РµСЃР»Рё URL СЃРѕРґРµСЂР¶РёС‚ ?mode=admin РёР»Рё #/admin вЂ” СЂРµРЅРґРµСЂРёРј Р°РґРјРёРЅРєСѓ
+// Роутинг: если URL содержит ?mode=admin или #/admin — рендерим админку
 const isAdmin = new URLSearchParams(window.location.search).get('mode') === 'admin'
   || window.location.hash === '#/admin'
   || window.location.hash.startsWith('#/admin/')
@@ -34,14 +34,14 @@ class GlobalErrorBoundary extends Component {
           fontFamily: 'monospace', textAlign: 'left', overflow: 'auto'
         }}>
           <div style={{ maxWidth: 800, width: '100%' }}>
-            <h1 style={{ color: '#ff4d4f', fontSize: 24, marginBottom: 16 }}>РљСЂРёС‚РёС‡РµСЃРєР°СЏ РѕС€РёР±РєР° (React)</h1>
-            <p style={{ marginBottom: 16 }}>РЎРґРµР»Р°Р№С‚Рµ СЃРєСЂРёРЅС€РѕС‚ СЌС‚РѕР№ РѕС€РёР±РєРё Рё РѕС‚РїСЂР°РІСЊС‚Рµ СЂР°Р·СЂР°Р±РѕС‚С‡РёРєСѓ:</p>
+            <h1 style={{ color: '#ff4d4f', fontSize: 24, marginBottom: 16 }}>Критическая ошибка (React)</h1>
+            <p style={{ marginBottom: 16 }}>Сделайте скриншот этой ошибки и отправьте разработчику:</p>
             <div style={{ background: '#1f2937', padding: 16, borderRadius: 8, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: 13 }}>
               <strong style={{color: '#ff7875'}}>{this.state.error && this.state.error.toString()}</strong>
               <br/><br/>
               {this.state.errorInfo && this.state.errorInfo.componentStack}
             </div>
-            <button onClick={() => window.location.reload()} style={{ marginTop: 24, padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}>РџРµСЂРµР·Р°РіСЂСѓР·РёС‚СЊ</button>
+            <button onClick={() => window.location.reload()} style={{ marginTop: 24, padding: '10px 20px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Перезагрузить</button>
           </div>
         </div>
       );
@@ -69,11 +69,11 @@ const renderBootstrapError = (error) => {
       textAlign: 'center',
     }}>
       <div>
-        <h1 style={{ margin: '0 0 12px', fontSize: 28 }}>РЎРµР»Р»РµСЂ-РЎС‚СѓРґРёСЏ</h1>
+        <h1 style={{ margin: '0 0 12px', fontSize: 28 }}>Селлер-Студия</h1>
         <p style={{ margin: 0, opacity: 0.75 }}>
           {isAuthConfigError
-            ? 'РћС€РёР±РєР° РєРѕРЅС„РёРіСѓСЂР°С†РёРё Р°РІС‚РѕСЂРёР·Р°С†РёРё. РџСЂРѕРІРµСЂСЊС‚Рµ Auth web-РїРµСЂРµРјРµРЅРЅС‹Рµ РѕРєСЂСѓР¶РµРЅРёСЏ.'
-            : 'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РїСЂРёР»РѕР¶РµРЅРёРµ. РћР±РЅРѕРІРёС‚Рµ СЃС‚СЂР°РЅРёС†Сѓ.'}
+            ? 'Ошибка конфигурации авторизации. Проверьте Auth web-переменные окружения.'
+            : 'Не удалось загрузить приложение. Обновите страницу.'}
         </p>
       </div>
     </div>

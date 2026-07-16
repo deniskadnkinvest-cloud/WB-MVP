@@ -1,44 +1,44 @@
-﻿// в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
-// _admin-alerts.js вЂ” РЈС‚РёР»РёС‚Р° РґР»СЏ Telegram-Р°Р»РµСЂС‚РѕРІ РІ Р°РґРјРёРЅСЃРєРёР№ С‡Р°С‚
-// Р‘РµР·РѕРїР°СЃРЅР°СЏ РѕР±С‘СЂС‚РєР°: РЅРёРєРѕРіРґР° РЅРµ Р±СЂРѕСЃР°РµС‚ РёСЃРєР»СЋС‡РµРЅРёР№, РЅРµ Р»РѕРјР°РµС‚ РѕСЃРЅРѕРІРЅРѕР№ С„Р»РѕСѓ
-// в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+// ─────────────────────────────────────────────────────────
+// _admin-alerts.js — Утилита для Telegram-алертов в админский чат
+// Безопасная обёртка: никогда не бросает исключений, не ломает основной флоу
+// ─────────────────────────────────────────────────────────
 
-/** Р­РјРѕРґР·Рё Рё РјРµС‚РєРё РїРѕ СѓСЂРѕРІРЅСЋ Р°Р»РµСЂС‚Р° */
+/** Эмодзи и метки по уровню алерта */
 const LEVEL_CONFIG = {
-  critical: { emoji: 'рџљЁ', label: 'CRITICAL' },
-  warning:  { emoji: 'вљ пёЏ', label: 'WARNING' },
-  info:     { emoji: 'в„№пёЏ', label: 'INFO' },
-  payment:  { emoji: 'рџ’°', label: 'PAYMENT' },
+  critical: { emoji: '🚨', label: 'CRITICAL' },
+  warning:  { emoji: '⚠️', label: 'WARNING' },
+  info:     { emoji: 'ℹ️', label: 'INFO' },
+  payment:  { emoji: '💰', label: 'PAYMENT' },
 };
 
 /**
- * Р¤РѕСЂРјР°С‚РёСЂСѓРµС‚ timestamp РІ С‡РёС‚Р°РµРјС‹Р№ РІРёРґ (UTC)
- * @returns {string} вЂ” СЃС‚СЂРѕРєР° РІРёРґР° "2026-06-04 19:06:26 UTC"
+ * Форматирует timestamp в читаемый вид (UTC)
+ * @returns {string} — строка вида "2026-06-04 19:06:26 UTC"
  */
 function formatTimestamp() {
   return new Date().toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC');
 }
 
 /**
- * РћС‚РїСЂР°РІР»СЏРµС‚ Р°Р»РµСЂС‚-СЃРѕРѕР±С‰РµРЅРёРµ РІ Telegram Р°РґРјРёРЅСЃРєРёР№ С‡Р°С‚.
- * РўРёС…Рѕ РїСЂРѕРїСѓСЃРєР°РµС‚, РµСЃР»Рё env vars РЅРµ Р·Р°РґР°РЅС‹ РёР»Рё РїСЂРѕРёР·РѕС€Р»Р° РѕС€РёР±РєР°.
+ * Отправляет алерт-сообщение в Telegram админский чат.
+ * Тихо пропускает, если env vars не заданы или произошла ошибка.
  *
- * @param {string} message вЂ” С‚РµРєСЃС‚ СЃРѕРѕР±С‰РµРЅРёСЏ (РїРѕРґРґРµСЂР¶РёРІР°РµС‚ HTML-СЂР°Р·РјРµС‚РєСѓ)
- * @param {'critical'|'warning'|'info'|'payment'} level вЂ” СѓСЂРѕРІРµРЅСЊ Р°Р»РµСЂС‚Р°
+ * @param {string} message — текст сообщения (поддерживает HTML-разметку)
+ * @param {'critical'|'warning'|'info'|'payment'} level — уровень алерта
  */
 export async function sendAdminAlert(message, level = 'warning') {
   try {
-    // РџРѕ СѓРјРѕР»С‡Р°РЅРёСЋ РёСЃРїРѕР»СЊР·СѓРµРј РѕСЃРЅРѕРІРЅРѕР№ Р±РѕС‚ Рё РѕСЃРЅРѕРІРЅРѕР№ С‡Р°С‚
+    // По умолчанию используем основной бот и основной чат
     let botToken = process.env.TELEGRAM_BOT_TOKEN;
     let chatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
 
-    // Р•СЃР»Рё СЌС‚Рѕ РѕРїР»Р°С‚Р° Рё Р·Р°РґР°РЅС‹ СЃРїРµС†РёР°Р»СЊРЅС‹Рµ РїРµСЂРµРјРµРЅРЅС‹Рµ РґР»СЏ РѕРїР»Р°С‚ вЂ” РёСЃРїРѕР»СЊР·СѓРµРј РёС…
+    // Если это оплата и заданы специальные переменные для оплат — используем их
     if (level === 'payment') {
       botToken = process.env.TELEGRAM_PAYMENTS_BOT_TOKEN || botToken;
       chatId = process.env.TELEGRAM_PAYMENTS_CHAT_ID || chatId;
     }
 
-    // Р•СЃР»Рё РїРµСЂРµРјРµРЅРЅС‹Рµ РѕРєСЂСѓР¶РµРЅРёСЏ РЅРµ Р·Р°РґР°РЅС‹ вЂ” С‚РёС…Рѕ РІС‹С…РѕРґРёРј
+    // Если переменные окружения не заданы — тихо выходим
     if (!botToken || !chatId) return;
 
     const config = LEVEL_CONFIG[level] || LEVEL_CONFIG.warning;
@@ -49,7 +49,7 @@ export async function sendAdminAlert(message, level = 'warning') {
       ``,
       message,
       ``,
-      `<i>рџ•ђ ${timestamp}</i>`,
+      `<i>🕐 ${timestamp}</i>`,
     ].join('\n');
 
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
@@ -65,23 +65,23 @@ export async function sendAdminAlert(message, level = 'warning') {
       }),
     });
   } catch {
-    // Р“Р»РѕС‚Р°РµРј РѕС€РёР±РєСѓ вЂ” Р°Р»РµСЂС‚С‹ РЅРµ РґРѕР»Р¶РЅС‹ Р»РѕРјР°С‚СЊ РѕСЃРЅРѕРІРЅРѕР№ С„Р»РѕСѓ
+    // Глотаем ошибку — алерты не должны ломать основной флоу
   }
 }
 
 /**
- * РљР»Р°СЃСЃРёС„РёС†РёСЂСѓРµС‚ РѕС€РёР±РєСѓ Рё РѕС‚РїСЂР°РІР»СЏРµС‚ Р°Р»РµСЂС‚ СЃ РєРѕРЅС‚РµРєСЃС‚РѕРј.
- * РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРё РѕРїСЂРµРґРµР»СЏРµС‚ СѓСЂРѕРІРµРЅСЊ РїРѕ HTTP-СЃС‚Р°С‚СѓСЃСѓ.
+ * Классифицирует ошибку и отправляет алерт с контекстом.
+ * Автоматически определяет уровень по HTTP-статусу.
  *
- * @param {Error|object} error вЂ” РѕР±СЉРµРєС‚ РѕС€РёР±РєРё
- * @param {string} context вЂ” РєРѕРЅС‚РµРєСЃС‚, РіРґРµ РїСЂРѕРёР·РѕС€Р»Р° РѕС€РёР±РєР° (РЅР°РїСЂ. "VTON generation")
+ * @param {Error|object} error — объект ошибки
+ * @param {string} context — контекст, где произошла ошибка (напр. "VTON generation")
  */
 export async function alertOnError(error, context = 'unknown') {
   try {
     const status = error?.status || error?.statusCode || error?.response?.status || null;
     const errorMessage = error?.message || String(error);
 
-    // РљР»Р°СЃСЃРёС„РёРєР°С†РёСЏ РѕС€РёР±РєРё РїРѕ СЃС‚Р°С‚СѓСЃСѓ
+    // Классификация ошибки по статусу
     let level = 'warning';
     let category = 'UNKNOWN ERROR';
 
@@ -108,47 +108,47 @@ export async function alertOnError(error, context = 'unknown') {
     const text = [
       `<b>${category}</b>`,
       ``,
-      `<b>РљРѕРЅС‚РµРєСЃС‚:</b> ${escapeHtml(context)}`,
-      `<b>РћС€РёР±РєР°:</b> <code>${escapeHtml(truncate(errorMessage, 500))}</code>`,
-      status ? `<b>РЎС‚Р°С‚СѓСЃ:</b> ${status}` : null,
+      `<b>Контекст:</b> ${escapeHtml(context)}`,
+      `<b>Ошибка:</b> <code>${escapeHtml(truncate(errorMessage, 500))}</code>`,
+      status ? `<b>Статус:</b> ${status}` : null,
     ]
       .filter(Boolean)
       .join('\n');
 
     await sendAdminAlert(text, level);
   } catch {
-    // Р“Р»РѕС‚Р°РµРј вЂ” Р±РµР·РѕРїР°СЃРЅРѕСЃС‚СЊ РїСЂРµР¶РґРµ РІСЃРµРіРѕ
+    // Глотаем — безопасность прежде всего
   }
 }
 
 /**
- * РћС‚РїСЂР°РІР»СЏРµС‚ РєСЂР°СЃРёРІРѕРµ СѓРІРµРґРѕРјР»РµРЅРёРµ РѕР± СѓСЃРїРµС€РЅРѕР№ РѕРїР»Р°С‚Рµ.
+ * Отправляет красивое уведомление об успешной оплате.
  *
- * @param {string} planId вЂ” РёРґРµРЅС‚РёС„РёРєР°С‚РѕСЂ С‚Р°СЂРёС„РЅРѕРіРѕ РїР»Р°РЅР°
- * @param {string} uid вЂ” UID РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
- * @param {number|string} amount вЂ” СЃСѓРјРјР° РѕРїР»Р°С‚С‹
+ * @param {string} planId — идентификатор тарифного плана
+ * @param {string} uid — UID пользователя
+ * @param {number|string} amount — сумма оплаты
  */
 export async function alertOnPayment(planId, uid, amount) {
   try {
     const text = [
-      `<b>РќРѕРІР°СЏ РѕРїР»Р°С‚Р°!</b>`,
+      `<b>Новая оплата!</b>`,
       ``,
-      `рџ’Ћ <b>РўР°СЂРёС„:</b> ${escapeHtml(String(planId))}`,
-      `рџ‘¤ <b>UID:</b> <code>${escapeHtml(String(uid))}</code>`,
-      `рџ’µ <b>РЎСѓРјРјР°:</b> ${escapeHtml(String(amount))} в‚Ѕ`,
+      `💎 <b>Тариф:</b> ${escapeHtml(String(planId))}`,
+      `👤 <b>UID:</b> <code>${escapeHtml(String(uid))}</code>`,
+      `💵 <b>Сумма:</b> ${escapeHtml(String(amount))} ₽`,
     ].join('\n');
 
     await sendAdminAlert(text, 'payment');
   } catch {
-    // Р“Р»РѕС‚Р°РµРј вЂ” Р±РµР·РѕРїР°СЃРЅРѕСЃС‚СЊ РїСЂРµР¶РґРµ РІСЃРµРіРѕ
+    // Глотаем — безопасность прежде всего
   }
 }
 
-// в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
-// Р’СЃРїРѕРјРѕРіР°С‚РµР»СЊРЅС‹Рµ С„СѓРЅРєС†РёРё
-// в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+// ─────────────────────────────────────────────────────────
+// Вспомогательные функции
+// ─────────────────────────────────────────────────────────
 
-/** Р­РєСЂР°РЅРёСЂСѓРµС‚ СЃРїРµС†СЃРёРјРІРѕР»С‹ HTML РґР»СЏ Р±РµР·РѕРїР°СЃРЅРѕР№ РІСЃС‚Р°РІРєРё РІ Telegram */
+/** Экранирует спецсимволы HTML для безопасной вставки в Telegram */
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;')
@@ -156,8 +156,8 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;');
 }
 
-/** РћР±СЂРµР·Р°РµС‚ СЃС‚СЂРѕРєСѓ РґРѕ maxLen СЃРёРјРІРѕР»РѕРІ */
+/** Обрезает строку до maxLen символов */
 function truncate(str, maxLen = 500) {
   const s = String(str);
-  return s.length > maxLen ? s.slice(0, maxLen) + 'вЂ¦' : s;
+  return s.length > maxLen ? s.slice(0, maxLen) + '…' : s;
 }

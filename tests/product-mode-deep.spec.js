@@ -187,7 +187,15 @@ test.describe('📦 Product Mode — Deep Chaos QA Level 3', () => {
     for (const e of effects) {
       const card = page.locator('.preset-card', { hasText: e }).first();
       if (!(await card.isVisible().catch(() => false))) { efOk = false; console.log(`❌ ${e}`); }
-      else { await card.click(); await page.waitForTimeout(200); console.log(`✅ ${e}`); }
+      else {
+        await card.click();
+        if (e === 'Свой эффект') {
+          await expect(page.locator('.modal-title')).toContainText('Свой вариант эффекта');
+          await page.locator('.modal-btn-cancel').click();
+        }
+        await page.waitForTimeout(200);
+        console.log(`✅ ${e}`);
+      }
     }
     await page.screenshot({ path: `${SCREENSHOT_DIR}/10_effects.png`, fullPage: false });
     

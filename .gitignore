@@ -15,7 +15,6 @@ dist-ssr
 *.sln
 *.sw?
 
-.vercel
 .env*
 scratch/secrets/
 .backups/

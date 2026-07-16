@@ -61,8 +61,8 @@ NEVER confuse these roles. NEVER take a person's identity from GARMENT or LOCATI
 // Жёсткий Identity Lock. refRangeText — человекочитаемая ссылка на
 // эталонные изображения из манифеста (например "IMAGES 3-4").
 export function buildIdentityLock({ refRangeText = 'the IDENTITY REFERENCE image(s)', editRequested = false } = {}) {
-  return `<IDENTITY_LOCK priority="ABSOLUTE_MAXIMUM">
-THIS IS THE SINGLE HIGHEST-PRIORITY RULE OF THE ENTIRE REQUEST. IT OVERRIDES EVERY OTHER INSTRUCTION IN THIS PROMPT, INCLUDING ANY EDIT REQUEST, POSE CHANGE, EXPRESSION CHANGE, BODY CHANGE, OR SCENE CHANGE.
+  return `<IDENTITY_LOCK priority="ABSOLUTE_MAXIMUM_FOR_BIOMETRIC_IDENTITY">
+THIS IS THE HIGHEST-PRIORITY RULE FOR BIOMETRIC IDENTITY ONLY. It overrides another instruction only when that instruction would accidentally replace the person. It MUST NOT cancel or weaken the requested edit, pose, expression, body silhouette, clothing, or scene change.
 
 The person shown in ${refRangeText} is a REAL, SPECIFIC human being. The output MUST show THE EXACT SAME PERSON — instantly recognizable, as if photographed at another moment of the same photoshoot.
 
@@ -70,14 +70,14 @@ IMMUTABLE — copy 1:1 from ${refRangeText}, NEVER redesign, NEVER "improve", NE
 - Facial bone structure: skull shape, face oval, cheekbones, jawline, chin shape, forehead
 - Eyes: exact shape, size, spacing, color, eyelid crease. Eyebrows: exact shape, thickness, position
 - Nose: bridge width, tip shape, nostril shape. Lips: fullness, width, cupid's bow
-- Skin: exact tone, undertone and complexion. Every mole, freckle and birthmark stays in place
-- Hair: EXACT color from root to tip, length, texture (straight/wavy/curly), parting, hairline
+- Skin: exact tone, undertone and complexion. Every mole, freckle and birthmark stays in place unless the requested edit explicitly targets that exact property
+- Hair: exact color, length, texture, parting and hairline by default; if the requested edit explicitly targets hair, change ONLY the requested hair property
 - Apparent age, apparent ethnicity, overall head-to-body proportions
 
-MUTABLE — only when the pose/edit/scene text explicitly asks: facial EXPRESSION (smile, gaze), head angle, body pose, hand placement, framing, lighting, background, clothing state.
+MUTABLE — when the pose/edit/scene text asks: facial EXPRESSION (smile, gaze), head angle, body pose or silhouette, hand placement, framing, lighting, background, clothing state, and explicitly requested non-biometric appearance changes.
 An expression change (e.g. a soft smile) moves the facial muscles of THE SAME FACE. It NEVER changes bone structure, feature shapes, hair color or skin tone. "Add a smile" = the SAME woman smiling, NOT a new prettier woman.
 ${editRequested ? `
-CONFLICT RULE FOR THE REQUESTED EDIT: the edit below may change pose, expression, hands, framing or scene — it may NEVER change who the person is. If the edit cannot be fulfilled without altering the identity, KEEP THE IDENTITY and fulfill the edit only as far as identity allows.` : ''}
+CONFLICT RULE FOR THE REQUESTED EDIT: perform the edit fully while keeping the same facial identity. If one small part would require replacing the person's biometric face, preserve the face and limit only that conflicting part.` : ''}
 
 SELF-CHECK BEFORE OUTPUT: mentally place the output face side-by-side with ${refRangeText}. If a stranger would not instantly say "same person", the render is WRONG — redo the face strictly from the reference.
 </IDENTITY_LOCK>`;
@@ -88,7 +88,7 @@ SELF-CHECK BEFORE OUTPUT: mentally place the output face side-by-side with ${ref
 // ============================================================
 const PROMPTS_EN = {
 
-  SKIN_REALISM_PROMPT: `SKIN & FACE REALISM DIRECTIVE (MANDATORY — HIGHEST PRIORITY):
+  SKIN_REALISM_PROMPT: `SKIN & FACE REALISM DIRECTIVE (MANDATORY — AFTER IDENTITY AND THE REQUESTED EDIT):
 RAW UNRETOUCHED PHOTOGRAPHY MODE. ZERO skin smoothing. ZERO beauty filters. ZERO frequency separation. ZERO airbrushing.
 The skin MUST show real biological texture as captured by a 100mm macro lens at f/2.8:
 - Visible individual pores at pixel level, natural sebum micro-shine on T-zone
@@ -136,8 +136,8 @@ You are receiving an existing photograph. Your ONLY job is to apply ONE specific
 
 EDIT REQUESTED: "{editInstruction}"
 
-RULE #1 — IDENTITY IS ABSOLUTELY LOCKED (overrides everything, including the edit):
-The person in the photo must remain THE EXACT SAME PERSON. Facial bone structure, face oval, eye/nose/lip shapes, skin tone, moles and freckles, hair color/length/texture, apparent age — all copied 1:1 from the input photo. Even if the edit changes their expression, pose or hands, it is the SAME face performing it. If the output face would not be instantly recognized as the same person — the edit FAILED.
+RULE #1 — FACIAL IDENTITY IS ABSOLUTELY LOCKED (but the requested edit is still mandatory):
+The person in the photo must remain THE EXACT SAME PERSON. Facial bone structure, face oval, eye/nose/lip shapes, skin tone, moles, freckles and apparent age are copied 1:1 from the input photo. Hair color/length/texture also stays identical unless the request explicitly targets that exact hair property. Even if the edit changes expression, pose, hair or hands, it is the SAME face performing it. If the output face would not be instantly recognized as the same person — the edit FAILED.
 
 RULE #2 — SURGICAL SCOPE:
 - Change ONLY what the edit explicitly asks, plus its natural physical consequences (fabric follows a moved hand, a smile creases the same cheeks).
@@ -1184,7 +1184,7 @@ Under Frame 4: Полный рост`,
 // ============================================================
 const PROMPTS_RU = {
 
-  SKIN_REALISM_PROMPT: `ДИРЕКТИВА РЕАЛИЗМА КОЖИ И ЛИЦА (ОБЯЗАТЕЛЬНО — ВЫСШИЙ ПРИОРИТЕТ):
+  SKIN_REALISM_PROMPT: `ДИРЕКТИВА РЕАЛИЗМА КОЖИ И ЛИЦА (ОБЯЗАТЕЛЬНО — ПОСЛЕ ИДЕНТИЧНОСТИ И ЗАПРОШЕННОГО ИЗМЕНЕНИЯ):
 РЕЖИМ СЪЁМКИ БЕЗ ОБРАБОТКИ. НОЛЬ сглаживания кожи. НОЛЬ бьюти-фильтров. НОЛЬ частотного разделения. НОЛЬ айрбрашинга.
 Кожа ОБЯЗАНА показывать настоящую биологическую текстуру как при съёмке объективом 100mm f/2.8:
 - Видимые поры на уровне пикселей, естественный сальный блеск в T-зоне
@@ -1232,8 +1232,8 @@ const PROMPTS_RU = {
 
 ЗАПРОС: "{editInstruction}"
 
-ПРАВИЛО №1 — ИДЕНТИЧНОСТЬ ЖЁСТКО ЗАБЛОКИРОВАНА (важнее всего, включая сам запрос):
-Человек на фото остаётся ТЕМ ЖЕ САМЫМ ЧЕЛОВЕКОМ. Костная структура лица, овал, форма глаз/носа/губ, тон кожи, родинки и веснушки, цвет/длина/текстура волос, возраст — копируются 1:1 с входного фото. Даже если правка меняет выражение лица, позу или руки — это ТО ЖЕ лицо. Если человека на выходе нельзя мгновенно узнать — правка ПРОВАЛЕНА.
+ПРАВИЛО №1 — ИДЕНТИЧНОСТЬ ЛИЦА ЖЁСТКО ЗАБЛОКИРОВАНА (но сам запрос обязателен к выполнению):
+Человек на фото остаётся ТЕМ ЖЕ САМЫМ ЧЕЛОВЕКОМ. Костная структура лица, овал, форма глаз/носа/губ, тон кожи, родинки, веснушки и возраст копируются 1:1 с входного фото. Цвет/длина/текстура волос тоже сохраняются, кроме случая, когда запрос явно меняет именно это свойство волос. Даже если правка меняет выражение лица, позу, волосы или руки — это ТО ЖЕ лицо. Если человека на выходе нельзя мгновенно узнать — правка ПРОВАЛЕНА.
 
 ПРАВИЛО №2 — ХИРУРГИЧЕСКАЯ ТОЧНОСТЬ:
 - Менять ТОЛЬКО то, что явно запрошено, плюс естественные физические следствия (ткань следует за рукой, улыбка создаёт складки на тех же щеках).
