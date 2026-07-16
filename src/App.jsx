@@ -1423,7 +1423,9 @@ function App() {
                 const label = appMode === 'product'
                   ? `🎨 ${task.comp.label || 'Кадр'} (${task.variantIndex})`
                   : `🎨 ${task.pose.label || 'Поза'} (${task.variantIndex})`;
-                const h = [...prev, { image: img, label }];
+                // seed сохраняем: при перегенерации кадра он переиспользуется,
+                // чтобы не выдать модели приказ «создай новое уникальное лицо»
+                const h = [...prev, { image: img, label, seed: task.seed }];
                 setHistoryIndex(h.length - 1);
                 return h;
               });
@@ -1969,14 +1971,50 @@ function App() {
       }
 
       setProcessingMsg('🚀 Отправляем в Nano Banano 2...');
-      // ═══ STATELESS REGENERATION ═══
-      // NEVER send the generated photo back as reference — it creates "Visual Attention Sink"
-      // where Gemini locks onto the photorealistic result and refuses to change body geometry.
-      // Instead, we re-send ONLY the original garment photos + text edit instruction.
-      // Gemini will regenerate the body from scratch with new metrics.
+      // ═══ IDENTITY-LOCKED REGENERATION ═══
+      // Текущий кадр уходит на бэк как identityLockImage — эталон ЛИЦА.
+      // Бэкенд копирует с него лицо/волосы/тон кожи 1:1 (IDENTITY_LOCK),
+      // а поза/фон/правка остаются свободными — «attention sink» по телу
+      // не возникает, т.к. промпт явно ограничивает референс идентичностью.
+      // Для пресет-моделей это ЕДИНСТВЕННЫЙ якорь лица: без него каждая
+      // перегенерация выдавала нового человека (см. баг «блондинка вместо
+      // брюнетки»). Сохранённые референсы уходят дополнительно.
       const editRefImages = modelRefImages ? [...modelRefImages] : [];
 
-      const biometricSeed = Math.random().toString(36).substring(2, 10).toUpperCase();
+      const currentEntry = imageHistory[historyIndex];
+      const currentShot = currentEntry?.image || generatedImage;
+      let identityLockImage = null;
+      if (currentShot) {
+        if (currentShot.startsWith('data:')) {
+          // Заливаем в Storage, чтобы не раздувать тело запроса base64-ом
+          try {
+            const { url } = await uploadBase64Image(user?.uid || 'anonymous', currentShot, 'edits');
+            identityLockImage = url;
+          } catch (upErr) {
+            console.warn('IdentityLock upload failed, sending base64 directly', upErr);
+            identityLockImage = currentShot;
+          }
+        } else {
+          identityLockImage = currentShot;
+        }
+      }
+
+      // Переиспользуем seed исходного кадра — новый случайный seed приказывал
+      // модели «создать уникальное лицо, которого ещё не было»
+      const biometricSeed = currentEntry?.seed || undefined;
+
+      // Product-режим: параметры human-модели обязаны уходить и при
+      // перегенерации, иначе бэкенд теряет модель-человека из кадра
+      let regenHumanPrompt;
+      let regenHumanRefs = null;
+      if (appMode === 'product' && productWithModel) {
+        regenHumanPrompt = customProductModelPrompt.trim() || (productModelPreset.prompt + buildDetailString(productModelDetails));
+        if (productSavedModelId) {
+          const sm = myModels.find(m => m.id === productSavedModelId);
+          if (sm) { regenHumanPrompt = sm.prompt || regenHumanPrompt; regenHumanRefs = sm.imageUrls || []; }
+        }
+      }
+
       const resp = await authFetch('/api/generate-image', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1986,9 +2024,13 @@ function App() {
           aspectRatio: selectedRatios[0].id, modelReferenceImages: editRefImages.length > 0 ? editRefImages : null,
           locationImages: locImages,
           editInstruction: mod,
+          identityLockImage,
           attributes: appMode === 'product' ? productModelDetails : modelDetails, isBeautyMode, biometricSeed,
           isProductMode: appMode === 'product',
           categoryId: appMode === 'product' ? selectedProductCategory.id : undefined,
+          withHumanModel: appMode === 'product' ? productWithModel : undefined,
+          humanModelPrompt: regenHumanPrompt || undefined,
+          humanModelRefImages: regenHumanRefs && regenHumanRefs.length > 0 ? regenHumanRefs : undefined,
           idempotencyKey: createIdempotencyKey('regenerate'),
         }),
       });
@@ -2001,7 +2043,8 @@ function App() {
         const newImg = data.imageUrl || data.imageBase64;
         setGeneratedImage(newImg);
         const editLabel = shotModifier.trim() || 'Перегенерация';
-        setImageHistory(prev => { const h = [...prev, { image: newImg, label: editLabel }]; setHistoryIndex(h.length - 1); return h; });
+        // seed наследуется от исходного кадра — цепочка правок держит одно лицо
+        setImageHistory(prev => { const h = [...prev, { image: newImg, label: editLabel, seed: biometricSeed }]; setHistoryIndex(h.length - 1); return h; });
         setStatusText('Кадр обновлён!');
         setStatusType('success');
       } else {

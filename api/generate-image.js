@@ -2,7 +2,7 @@ import { alertOnError } from './_admin-alerts.js';
 import sharp from 'sharp';
 import { query as _dbQuery } from './_db.js';
 import jwt from 'jsonwebtoken';
-import { getPromptLang, PROMPTS } from './_prompts.js';
+import { getPromptLang, PROMPTS, buildImageManifest, buildIdentityLock } from './_prompts.js';
 
 // Safety wrapper: if _db.js fails to load, provide clear error instead of "ReferenceError: _db is not defined"
 const query = (...args) => {
@@ -1094,9 +1094,25 @@ function buildAttributeDirectives(attributes, gender) {
 function enhanceBodyMetrics(preset, editCmd) {
   let enhanced = preset || '';
   if (editCmd && editCmd.trim()) {
-    enhanced += `\nСЂСџвЂќТ‘ PRIORITY EDIT OVERRIDE: "${editCmd.trim()}". Apply this transformation flawlessly.`;
+    enhanced += `\nREQUESTED ADJUSTMENT: "${editCmd.trim()}". Apply this change visibly. It may alter pose, expression, framing or scene — it must NEVER alter the person's facial features, face shape, skin tone or hair.`;
   }
   return enhanced;
+}
+
+// Отдельный блок правки кадра. Правка больше НЕ вклеивается в профиль
+// актёра (там она перекрывала идентичность) — теперь это самостоятельная
+// директива, явно подчинённая IDENTITY_LOCK.
+function buildEditDirective(editCmd, hasIdentityAnchor) {
+  if (!editCmd || !editCmd.trim()) return '';
+  return `<EDIT_DIRECTIVE>
+USER'S REQUESTED CHANGE (must be clearly visible in the output): "${editCmd.trim()}"
+SCOPE RULES:
+1. Apply the requested change exactly, plus only its natural physical consequences (fabric follows a moved hand, a smile creases the same cheeks, shadows follow a new light).
+2. Everything NOT covered by the change keeps following the SCHEMA parameters of this request.
+3. ${hasIdentityAnchor
+    ? 'This directive is SUBORDINATE to IDENTITY_LOCK: the change may alter expression, pose, hands, framing or scene — it may NEVER alter the person\'s facial features, face oval, skin tone, hair color/length/texture or apparent age. "A soft smile" = the SAME face smiling, not a different or prettier face.'
+    : 'The change may alter expression, pose, hands, framing or scene — it must NEVER contradict the ACTOR_PROFILE traits (hair color, ethnicity, age, body metrics) unless it explicitly asks to.'}
+</EDIT_DIRECTIVE>`;
 }
 // РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’РІвЂўС’
 // GARMENT SANITIZER РІР‚вЂќ destroys facial data with solid black box
@@ -1290,7 +1306,10 @@ function buildProductPrompt({
   withHumanModel = false,
   humanModelPrompt = '',
   isBeautyMode = false,
-  attributes = null
+  attributes = null,
+  imageManifest = '',
+  humanIdentityLock = '',
+  editDirective = ''
 }) {
   const category = CATEGORY_CONFIGS[categoryId] || CATEGORY_CONFIGS.default;
   const gender = detectGender(humanModelPrompt);
@@ -1357,7 +1376,9 @@ CRITICAL DUAL-SUBJECT PROTOCOL:
 This shot contains TWO subjects: the PRODUCT and a LIVING HUMAN MODEL.
 
 HUMAN MODEL PROFILE: "${humanModelPrompt}"
-- Generate a photorealistic living human model matching the profile above.
+${humanIdentityLock
+    ? `- The model's IDENTITY (face, hair, skin tone) is ALREADY FIXED by IDENTITY_LOCK and the HUMAN IDENTITY REFERENCE images. Render THAT exact person. The text profile above only fills in details not visible in the references.`
+    : '- Generate a photorealistic living human model matching the profile above.'}
 - The model must naturally interact with the product: holding it, demonstrating it, using it, or presenting it.
 - The PRODUCT remains the HERO РІР‚вЂќ the model is the SUPPORTING ACTOR. The product must be clearly visible, unobstructed, and prominently featured.
 - Do NOT let the model's hands, arms, or body obscure the product label, brand, or key visual features.
@@ -1402,7 +1423,9 @@ INTERACTION STYLE:
 ROLE: Elite Commercial Product Photographer, Master CGI Compositor & Material Specialist.
 TASK: ${withHumanModel ? '1:1 Product-to-Scene integration with a living human model demonstrating the product.' : '1:1 Product-to-Scene integration with photorealistic rendering.'}
 </system_directive>
-
+${imageManifest}
+${humanIdentityLock}
+${editDirective}
 <product_identity_lock>
 CRITICAL PROTOCOL: The input image is the ABSOLUTE TRUTH ("Sacred Blueprint").
 - THE UPLOADED PRODUCT PHOTO IS THE #1 SOURCE OF TRUTH. If the text description conflicts with the photo, the PHOTO ALWAYS WINS.
@@ -2903,6 +2926,7 @@ IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation
       sourceImageBase64,
       sourceImageUrl,
       editInstruction,
+      identityLockImage,
       attributes,
       isBeautyMode = false,
       biometricSeed,
@@ -2945,21 +2969,23 @@ IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation
 
         console.log(`РІСљРЏРїС‘РЏ Source image: ${sourceData.mimeType}, ${Math.round(sourceData.base64str.length / 1024)}KB base64`);
 
-        const editPrompt = `PHOTO EDITING MODE РІР‚вЂќ NON-DESTRUCTIVE RETOUCHING.
+        const editPrompt = `PHOTO EDITING MODE - NON-DESTRUCTIVE RETOUCHING.
 
-You are receiving an existing photograph. Your ONLY job is to make ONE specific modification to it.
+You are receiving an existing photograph. Your ONLY job is to apply ONE specific modification to it.
 
 EDIT REQUESTED: "${editInstruction}"
 
-ABSOLUTE REQUIREMENTS:
-- DO NOT regenerate, recreate, or reimagine this image.
-- DO NOT change the person's identity, face shape, body shape, skin color, hair, clothing, or pose.
-- DO NOT change the background, lighting, camera angle, or composition.
-- DO NOT add or remove anything that was NOT explicitly requested.
-- The output image MUST be visually identical to the input image in every way EXCEPT for the specific edit requested.
-- Treat this as Photoshop-level retouching: precise, surgical, minimal.
-- If asked to "add a smile": change ONLY the mouth area. Everything else stays pixel-identical.
-- If asked to "remove tattoo": blend ONLY the tattoo area with surrounding skin. Nothing else changes.
+RULE #1 - IDENTITY IS ABSOLUTELY LOCKED (overrides everything, including the edit):
+The person in the photo must remain THE EXACT SAME PERSON. Facial bone structure, face oval, eye/nose/lip shapes, skin tone, moles and freckles, hair color/length/texture, apparent age - all copied 1:1 from the input photo. Even if the edit changes their expression, pose or hands, it is the SAME face performing it. If the output face would not be instantly recognized as the same person - the edit FAILED.
+
+RULE #2 - SURGICAL SCOPE:
+- Change ONLY what the edit explicitly asks, plus its natural physical consequences (fabric follows a moved hand, a smile creases the same cheeks).
+- Everything NOT touched by the edit stays visually identical to the input: garment design and color, background, lighting, camera angle, framing, composition.
+- DO NOT regenerate, recreate, or reimagine the photo. Treat this as Photoshop-level retouching: precise, surgical, minimal.
+- DO NOT add or remove anything that was not requested.
+- If asked to "add a smile": the mouth and eye area of the SAME face change naturally. Everything else stays identical.
+- If asked to change the pose or hands: move ONLY the requested body parts; face, hair, garment identity and background stay identical.
+- If asked to "remove tattoo": blend ONLY the tattoo area with the surrounding skin.
 
 Return ONLY the edited photograph.`;
 
@@ -3017,13 +3043,16 @@ The output MUST be a visually distinct photograph from the other frames in this 
 Do NOT reuse the same body silhouette, crop, leg position, arm position, facial expression, or camera distance from any previous frame.
 The target pose and camera below are mandatory and override any reference-image composition.
 </PHOTOSHOOT_FRAME_DIRECTIVE>`
-      : biometricSeed
+      : (biometricSeed && !editInstruction)
         ? `<VARIATION_DIRECTIVE>
 Unique generation id: ${biometricSeed}. Produce a fresh composition for this exact request. Do not duplicate another returned frame from the same batch.
 </VARIATION_DIRECTIVE>`
         : '';
 
-    const enhancedActorProfile = enhanceBodyMetrics(modelPreset, editInstruction);
+    // Fashion-поток: правка уходит в отдельный <EDIT_DIRECTIVE> (см. ниже),
+    // в профиль актёра она больше не вклеивается — там она перекрывала
+    // идентичность. Калибровка по-прежнему получает правку в профиле.
+    const enhancedActorProfile = enhanceBodyMetrics(modelPreset, isCalibration ? editInstruction : '');
 
 
 
@@ -3263,25 +3292,14 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
       console.log(`СЂСџвЂњВ¦ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product Mode: category=${categoryId}, images=${garmentImages.length}, withModel=${withHumanModel}`);
       
       const effectPrompt = customPoseText || '';
-      const productPromptText = buildProductPrompt({
-        categoryId,
-        productPrompt: modelPreset,
-        compositionPrompt: posePreset,
-        compositionId,
-        cameraAngle,
-        bgPrompt: backgroundPreset,
-        effectPrompt,
-        aspectRatio,
-        withHumanModel,
-        humanModelPrompt,
-        isBeautyMode,
-        attributes
-      });
 
+      // Промпт собирается НИЖЕ, после загрузки всех групп изображений:
+      // манифест и Identity Lock человека-модели требуют знать их количество.
       let imageInputs = [];
       for (const img of garmentImages.slice(0, 9)) {
         imageInputs.push(img.startsWith('data:') ? img : `data:image/jpeg;base64,${extractBase64(img).base64str}`);
       }
+      const productCount = imageInputs.length;
 
       // Р В Р ВµРЎвЂћР ВµРЎР‚Р ВµР Р…РЎРѓРЎвЂ№ Р СР С•Р Т‘Р ВµР В»Р С‘-РЎвЂЎР ВµР В»Р С•Р Р†Р ВµР С”Р В°
       if (withHumanModel && humanModelRefImages && Array.isArray(humanModelRefImages) && humanModelRefImages.length > 0) {
@@ -3294,6 +3312,16 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
           }
         }
       }
+      // Якорь идентичности: текущий кадр при перегенерации с правкой
+      if (withHumanModel && identityLockImage && typeof identityLockImage === 'string') {
+        if (identityLockImage.startsWith('data:')) { imageInputs.push(identityLockImage); }
+        else if (identityLockImage.startsWith('http')) {
+          const result = await downloadToBase64(identityLockImage);
+          if (result) imageInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
+          else console.error(`[IdentityLock][Product] FAILED to load identity anchor: ${identityLockImage.substring(0, 80)}`);
+        }
+      }
+      const humanCount = imageInputs.length - productCount;
 
       // Р СџР С•Р Т‘Р Т‘Р ВµРЎР‚Р В¶Р С”Р В° Р В»Р С•Р С”Р В°РЎвЂ Р С‘Р в„– Р Т‘Р В»РЎРЏ РЎвЂљР С•Р Р†Р В°РЎР‚Р С•Р Р†
       if (locationImages && Array.isArray(locationImages) && locationImages.length > 0) {
@@ -3314,6 +3342,41 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
       }
 
       console.log(`РІРЏС– [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product Mode РІвЂ вЂ™ KIE.ai (gpt-image-2), ${imageInputs.length} image(s), model=${withHumanModel}...`);
+      const locCount = imageInputs.length - productCount - humanCount;
+      const productManifest = buildImageManifest([
+        { role: 'PRODUCT REFERENCE', count: productCount, note: 'the product itself - the Sacred Blueprint to preserve 1:1' },
+        { role: 'HUMAN IDENTITY REFERENCE', count: humanCount, note: 'THE exact person who must appear as the model: face, hair, skin. Governed by IDENTITY_LOCK' },
+        { role: 'LOCATION REFERENCE', count: locCount, note: 'the background/environment only. Never take people or products from these' },
+      ]);
+      const humanRangeText = humanCount === 1
+        ? `IMAGE ${productCount + 1}`
+        : `IMAGES ${productCount + 1}-${productCount + humanCount}`;
+      const humanIdentityLock = (withHumanModel && humanCount > 0)
+        ? buildIdentityLock({ refRangeText: `the HUMAN IDENTITY REFERENCE (${humanRangeText})`, editRequested: !!editInstruction })
+        : '';
+      const productEditDirective = buildEditDirective(editInstruction, withHumanModel && humanCount > 0);
+      if (withHumanModel) {
+        console.log(`[IdentityLock][Product] humanRefs=${humanModelRefImages?.length || 0}, anchor=${identityLockImage ? 'yes' : 'no'} -> identityInputs=${humanCount}`);
+      }
+
+      const productPromptText = buildProductPrompt({
+        categoryId,
+        productPrompt: modelPreset,
+        compositionPrompt: posePreset,
+        compositionId,
+        cameraAngle,
+        bgPrompt: backgroundPreset,
+        effectPrompt,
+        aspectRatio,
+        withHumanModel,
+        humanModelPrompt,
+        isBeautyMode,
+        attributes,
+        imageManifest: productManifest,
+        humanIdentityLock,
+        editDirective: productEditDirective
+      });
+
       const resultUrl = await executeKieTask(productPromptText, imageInputs, 'gpt-image-2-image-to-image');
       console.log(`РІСљвЂ¦ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product shot ready. Downloading...`);
       const dl = await downloadToBase64(resultUrl);
@@ -3335,9 +3398,6 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
       ? 'MULTIPLE garment assets provided РІР‚вЂќ extract and drape ALL of them simultaneously.'
       : '';
     const hasModelRef = !!(modelReferenceImages && modelReferenceImages.length);
-    const modelInstruction = hasModelRef
-      ? 'CRITICAL: Reference photos of the EXACT person are provided. You MUST replicate their face, skin tone, features, and overall appearance.'
-      : '';
     const poseStr = customPoseText || posePreset;
 
     // РІвЂўС’РІвЂўС’РІвЂўС’ GARMENT SANITIZATION РІР‚вЂќ CRITICAL: must run before SCHEMA pipeline РІвЂўС’РІвЂўС’РІвЂўС’
@@ -3353,18 +3413,83 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
       console.log(`СЂСџВ§в„– [${((Date.now() - startTime) / 1000).toFixed(1)}s] Sanitization complete`);
     }
 
+    // ═══ PRE-RESOLVE IMAGE GROUPS ═══
+    // Роли изображений должны быть известны ДО сборки промпта: манифест
+    // нумерует вложения, а IDENTITY_LOCK ссылается на конкретный диапазон.
+    const garmentInputs = [];
+    for (const img of garmentImages.slice(0, 9)) {
+      garmentInputs.push(img.startsWith('data:') ? img : `data:image/jpeg;base64,${extractBase64(img).base64str}`);
+    }
+
+    const identityInputs = [];
+    if (hasModelRef) {
+      for (const img of modelReferenceImages.slice(0, 5)) {
+        if (!img) continue;
+        if (img.startsWith('data:')) {
+          identityInputs.push(img);
+        } else if (img.startsWith('http')) {
+          const result = await downloadToBase64(img);
+          if (result) identityInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
+        }
+      }
+    }
+    // Якорь идентичности: кадр, который пользователь сейчас редактирует.
+    // Для пресет-моделей (без сохранённых референсов) это ЕДИНСТВЕННЫЙ
+    // источник лица — без него каждая перегенерация выдаёт нового человека.
+    if (identityLockImage && typeof identityLockImage === 'string') {
+      if (identityLockImage.startsWith('data:')) {
+        identityInputs.push(identityLockImage);
+      } else if (identityLockImage.startsWith('http')) {
+        const result = await downloadToBase64(identityLockImage);
+        if (result) identityInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
+        else console.error(`[IdentityLock] FAILED to load identity anchor: ${identityLockImage.substring(0, 80)}`);
+      }
+    }
+    const hasIdentityAnchor = identityInputs.length > 0;
+
+    const locationInputs = [];
+    if (locationImages && Array.isArray(locationImages) && locationImages.length > 0) {
+      console.log(`[Fashion] Loading ${locationImages.length} location image(s)...`);
+      for (const img of locationImages.slice(0, 5)) {
+        if (img.startsWith('data:')) {
+          locationInputs.push(img);
+        } else if (img.startsWith('http')) {
+          const result = await downloadToBase64(img);
+          if (result) locationInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
+          else console.error(`[Fashion] FAILED to load location image: ${img.substring(0, 80)}`);
+        }
+      }
+    }
+
+    console.log(`[IdentityLock] modelRefs=${hasModelRef ? modelReferenceImages.length : 0}, anchor=${identityLockImage ? 'yes' : 'no'} -> identityInputs=${identityInputs.length}, edit=${editInstruction ? 'yes' : 'no'}`);
+
+    const imageManifest = buildImageManifest([
+      { role: 'GARMENT REFERENCE', count: garmentInputs.length, note: 'the clothing/product to transfer. Any person or mannequin visible in them is IRRELEVANT scaffolding' },
+      { role: 'IDENTITY REFERENCE', count: identityInputs.length, note: 'THE exact person to render: face, hair, skin. Governed by IDENTITY_LOCK' },
+      { role: 'LOCATION REFERENCE', count: locationInputs.length, note: 'the background/environment only. Never take people or clothing from these' },
+    ]);
+    const identityRangeText = identityInputs.length === 1
+      ? `IMAGE ${garmentInputs.length + 1}`
+      : `IMAGES ${garmentInputs.length + 1}-${garmentInputs.length + identityInputs.length}`;
+    const identityLock = hasIdentityAnchor
+      ? buildIdentityLock({ refRangeText: `the IDENTITY REFERENCE (${identityRangeText})`, editRequested: !!editInstruction })
+      : '';
+    const editDirective = buildEditDirective(editInstruction, hasIdentityAnchor);
+
     let promptText = `<system_directive>
 ROLE: Elite Commercial Fashion Photographer and CGI Compositing Specialist.
 TASK: Photorealistic Virtual Try-On (VTON) executing a flawless "Mannequin-to-Human" texture transfer.
 METHODOLOGY: Strict adherence to structured SCHEMA parameters.
 </system_directive>
+${imageManifest}
+${identityLock}
+${editDirective}
 ${adaptiveBlock}
 <input_modality_1>
 SOURCE GARMENT REFERENCE:
-Analyze the physical fabric, cut, color, and fit of the clothing in the attached images.
-${hasModelRef ? '' : `
-<IDENTITY_FIREWALL>
-ABSOLUTE PRIORITY РІР‚вЂќ The person wearing the clothing in these reference images is COMPLETELY IRRELEVANT.
+Analyze the physical fabric, cut, color, and fit of the clothing in the GARMENT REFERENCE images.
+<GARMENT_WEARER_FIREWALL>
+ABSOLUTE RULE: the person or mannequin wearing the clothing in the GARMENT REFERENCE images is COMPLETELY IRRELEVANT.
 You MUST NOT extract, copy, reference, or be influenced by:
 - Their face, facial bone structure, or facial features
 - Their skin tone, complexion, or skin texture
@@ -3373,13 +3498,14 @@ You MUST NOT extract, copy, reference, or be influenced by:
 - Their age, ethnicity appearance, or any biometric data
 - Their tattoos, jewelry, or accessories
 
-The wearer in the reference photos is a TRANSPARENT INVISIBLE GHOST РІР‚вЂќ a lifeless plastic display mannequin.
+The wearer in the GARMENT REFERENCE is a TRANSPARENT INVISIBLE GHOST, a lifeless plastic display mannequin.
 You are ONLY looking at the FABRIC draped on this ghost: the color, material, cut, seams, zippers, logos, and construction of the garment itself.
-
-AFTER extracting the garment data, you must COMPLETELY FORGET the ghost. Generate a BRAND NEW person from scratch based ONLY on the text description in ACTOR_PROFILE below.
-The generated person must have a COMPLETELY DIFFERENT face, body, and identity from whoever was in the source photo.
-</IDENTITY_FIREWALL>
-`}WARNING: Treat the entity currently wearing the clothing as an INVISIBLE, IRRELEVANT SCAFFOLD (Plastic Mannequin). Do NOT extract biometrics.
+${hasIdentityAnchor
+    ? `The person's identity comes EXCLUSIVELY from the IDENTITY REFERENCE (${identityRangeText}) as dictated by IDENTITY_LOCK - NEVER from the GARMENT REFERENCE images.`
+    : `AFTER extracting the garment data, you must COMPLETELY FORGET the ghost. Generate a BRAND NEW person from scratch based ONLY on the text description in ACTOR_PROFILE below.
+The generated person must have a COMPLETELY DIFFERENT face, body, and identity from whoever was in the source photo.`}
+</GARMENT_WEARER_FIREWALL>
+WARNING: Treat the entity currently wearing the clothing as an INVISIBLE, IRRELEVANT SCAFFOLD (Plastic Mannequin). Do NOT extract biometrics.
 </input_modality_1>
 
 <phase_1_semantic_masking>
@@ -3390,12 +3516,15 @@ ${multiGarmentNote}
 </phase_1_semantic_masking>
 
 <phase_2_subject_recasting>
-Generate a completely novel, living human actor to wear the isolated garment.
+${hasIdentityAnchor
+    ? `Re-render THE EXACT SAME person shown in the IDENTITY REFERENCE (${identityRangeText}), now wearing the isolated garment. This is the person defined by IDENTITY_LOCK - NOT a new casting. Do NOT invent a new face.`
+    : 'Generate a completely novel, living human actor to wear the isolated garment.'}
 ${genderLock}
-SUBJECT GEOMETRY & TRAITS (CRITICAL): "${enhancedActorProfile}"
-- You MUST enforce a totally new biometric generation matching ONLY the traits above.
-${modelInstruction}
-${bioNoise ? `<BIOMETRIC_SEED>UID-${biometricSeed}. Unique facial micro-features for this generation: ${bioNoise}. Use these to create a DISTINCTLY UNIQUE face that has never been generated before, while still matching the ethnic profile above.</BIOMETRIC_SEED>` : ''}
+SUBJECT GEOMETRY & TRAITS${hasIdentityAnchor ? ' (SECONDARY to the IDENTITY REFERENCE - use only for body/framing details not visible in the reference)' : ' (CRITICAL)'}: "${enhancedActorProfile}"
+${hasIdentityAnchor
+    ? '- The face, hair, and skin tone are already fixed by IDENTITY_LOCK. Do NOT re-randomize or "improve" them. If this text conflicts with the IDENTITY REFERENCE, the reference WINS.'
+    : '- You MUST enforce a totally new biometric generation matching ONLY the traits above.'}
+${(!hasIdentityAnchor && bioNoise) ? `<BIOMETRIC_SEED>UID-${biometricSeed}. Unique facial micro-features for this generation: ${bioNoise}. Use these to create a DISTINCTLY UNIQUE face that has never been generated before, while still matching the ethnic profile above.</BIOMETRIC_SEED>` : ''}
 ${attrDirectives ? `<APPLIED_CHARACTERISTICS>
 ${attrDirectives}
 </APPLIED_CHARACTERISTICS>` : ''}
@@ -3410,41 +3539,15 @@ ${variationDirective}
 </phase_2_subject_recasting>
 `;
 
-    let imageInputs = [];
-    for (const img of garmentImages.slice(0, 9)) {
-       imageInputs.push(img.startsWith('data:') ? img : `data:image/jpeg;base64,${extractBase64(img).base64str}`);
+    const imageInputs = [...garmentInputs, ...identityInputs, ...locationInputs];
+
+    if (identityInputs.length > 0) {
+      promptText += `\n<identity_reference>\nUse the IDENTITY REFERENCE (${identityRangeText}) ONLY for the person's identity: face, skin tone, hair, and recognizability (see IDENTITY_LOCK).\nDo NOT copy the identity reference's pose, crop, background, lighting, garment state, or composition${editInstruction ? ' unless the EDIT_DIRECTIVE explicitly asks for it' : ''}.\nThe TARGET POSE and CAMERA of this request are mandatory.\n</identity_reference>\n`;
     }
 
-    if (modelReferenceImages && Array.isArray(modelReferenceImages) && modelReferenceImages.length > 0) {
-      promptText += `\n<identity_reference>\nACTOR IDENTITY LOCK:\nUse the attached reference photos ONLY for the person's identity: face, skin tone, hair, body proportions, and recognizability.\nDo NOT copy the reference photo's exact pose, crop, background, lighting, leg position, arm position, or full composition.\nThe TARGET POSE and CAMERA in this request are mandatory and must visibly change the shot.\n</identity_reference>\n`;
-      for (const img of modelReferenceImages.slice(0, 5)) {
-        if (!img) continue;
-        if (img.startsWith('data:')) {
-          imageInputs.push(img);
-        } else if (img.startsWith('http')) {
-          const result = await downloadToBase64(img);
-          if (result) imageInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
-        }
-      }
-    }
-
-    if (locationImages && Array.isArray(locationImages) && locationImages.length > 0) {
-      console.log(`СЂСџвЂњРЊ [Fashion] Loading ${locationImages.length} location image(s)...`);
-      promptText += `\n<location_reference>\nUse the attached location images as reference for the background.\n</location_reference>\n`;
-      for (const img of locationImages.slice(0, 5)) {
-        if (img.startsWith('data:')) {
-          imageInputs.push(img);
-        } else if (img.startsWith('http')) {
-          const result = await downloadToBase64(img);
-          if (result) {
-            imageInputs.push(`data:${result.mimeType};base64,${result.base64str}`);
-            console.log(`РІСљвЂ¦ [Fashion] Location image loaded OK`);
-          } else {
-            console.error(`РІСњРЉ [Fashion] FAILED to load location image: ${img.substring(0, 80)}`);
-          }
-        }
-      }
-      console.log(`СЂСџвЂњРЊ [Fashion] After loc load: imageInputs.length=${imageInputs.length}`);
+    if (locationInputs.length > 0) {
+      promptText += `\n<location_reference>\nUse the LOCATION REFERENCE images as reference for the background/environment only.\n</location_reference>\n`;
+      console.log(`[Fashion] After loc load: imageInputs.length=${imageInputs.length}`);
     }
 
     promptText += `<schema_generation_directive>
@@ -3456,7 +3559,8 @@ ${variationDirective}
 <mandatory_constraints>
 1. 100% pixel-perfect fidelity to the original garment's structure, sleeve length, collar type, and exact color.
 2. The garment must stretch, drape, and cast natural micro-shadows realistically over the specific generated body geometry dictated by SUBJECT GEOMETRY.
-3. If an edit override is provided in SUBJECT GEOMETRY, it MUST be applied flawlessly.
+3. If an EDIT_DIRECTIVE is present, its requested change MUST be clearly visible in the output - applied strictly within the limits of IDENTITY_LOCK.
+${hasIdentityAnchor ? '4. The person MUST be instantly recognizable as the person in the IDENTITY REFERENCE. Identity outranks every other constraint in this list.' : ''}
 ${skinPrompt}
 </mandatory_constraints>
 
@@ -3465,13 +3569,14 @@ ${skinPrompt}
 - ZERO INVENTION (BODY): Do NOT add tattoos, piercings, jewelry, watches, bracelets, necklaces, or accessories UNLESS explicitly requested in <APPLIED_CHARACTERISTICS>. If <TATTOO_CONSTRAINT> says NO tattoos РІР‚вЂќ the skin MUST be completely clean.
 - CLOTHING PHYSICS: You MUST physically deform, stretch, and adjust the volume of the original clothing to perfectly match the <BODY_OVERRIDE> target. Do NOT lazily copy the body shape from the source garment image.
 - MODIFICATION EXPOSURE: If <TATTOO> or <PIERCING> dictates mandatory visibility, ensure the model pose naturally exposes those areas (arms, neck, ears) so the ink/metal is clearly seen.
-- IDENTITY LOCK: Do NOT transfer any physical traits, skin tones, or facial structure from the garment reference image to the new actor.
+- GARMENT-WEARER FIREWALL: Do NOT transfer any physical traits, skin tones, or facial structure from the GARMENT REFERENCE images to the actor.
+${hasIdentityAnchor ? `- IDENTITY DRIFT = FAILED RENDER: any change of facial features, face oval, hair color/length/texture, or skin tone relative to the IDENTITY REFERENCE (${identityRangeText}) is a defect. A "similar looking" person is NOT acceptable - it must be THE SAME person.` : ''}
 - BODY TYPE LOCK: Do NOT use average, slim, or athletic body proportions if heavy/obese metrics are requested. Do NOT smooth out requested curves or fat.
 - Do NOT alter the fabric's original pattern, texture scale, color, or cut.
 - OUTPUT FORMAT: Output ONLY pixel data. Do NOT output text. Do NOT describe the image.
 </prohibitions>
 
-<trigger>FINAL EXECUTION: Generate the photorealistic render based strictly on the SCHEMA. Execute now.</trigger>
+<trigger>FINAL EXECUTION: Generate the photorealistic render based strictly on the SCHEMA.${hasIdentityAnchor ? ` FINAL IDENTITY CHECK: before output, verify the face is a 1:1 match with the IDENTITY REFERENCE (${identityRangeText}) - same person, instantly recognizable.` : ''} Execute now.</trigger>
 </schema_generation_directive>`;
 
     console.log(`РІРЏС– [${((Date.now() - startTime) / 1000).toFixed(1)}s] Р С›РЎвЂљР С—РЎР‚Р В°Р Р†Р В»РЎРЏР ВµР С Р В·Р В°Р С—РЎР‚Р С•РЎРѓ Р Р† KIE.ai (gpt-image-2)...`);

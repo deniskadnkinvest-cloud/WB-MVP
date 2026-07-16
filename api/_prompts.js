@@ -30,6 +30,60 @@ export async function getLang() {
 }
 
 // ============================================================
+// IDENTITY LOCK — единый механизм жёсткой блокировки идентичности.
+// Используется ВСЕМИ генерационными потоками (fashion VTON, product
+// с моделью, photo-edit). Всегда на английском: у image-моделей
+// англ. директивы работают стабильнее, и текст не должен зависеть
+// от языка промптов, выбранного в админке.
+// ============================================================
+
+// Манифест ролей приложенных изображений. GPT Image 2 получает все
+// картинки одним списком input_urls — без явной разметки ролей модель
+// путает «эталон лица» с «носителем одежды». groups — массив
+// { role, count, note } в ТОЧНОМ порядке приложения.
+export function buildImageManifest(groups) {
+  const lines = [];
+  let idx = 1;
+  for (const g of groups) {
+    if (!g || !g.count) continue;
+    const range = g.count === 1 ? `IMAGE ${idx}` : `IMAGES ${idx}-${idx + g.count - 1}`;
+    lines.push(`- ${range} = ${g.role}: ${g.note}`);
+    idx += g.count;
+  }
+  if (!lines.length) return '';
+  return `<IMAGE_INPUT_MANIFEST>
+You receive ${idx - 1} attached image(s), in this EXACT order:
+${lines.join('\n')}
+NEVER confuse these roles. NEVER take a person's identity from GARMENT or LOCATION images. NEVER copy clothing from IDENTITY images.
+</IMAGE_INPUT_MANIFEST>`;
+}
+
+// Жёсткий Identity Lock. refRangeText — человекочитаемая ссылка на
+// эталонные изображения из манифеста (например "IMAGES 3-4").
+export function buildIdentityLock({ refRangeText = 'the IDENTITY REFERENCE image(s)', editRequested = false } = {}) {
+  return `<IDENTITY_LOCK priority="ABSOLUTE_MAXIMUM">
+THIS IS THE SINGLE HIGHEST-PRIORITY RULE OF THE ENTIRE REQUEST. IT OVERRIDES EVERY OTHER INSTRUCTION IN THIS PROMPT, INCLUDING ANY EDIT REQUEST, POSE CHANGE, EXPRESSION CHANGE, BODY CHANGE, OR SCENE CHANGE.
+
+The person shown in ${refRangeText} is a REAL, SPECIFIC human being. The output MUST show THE EXACT SAME PERSON — instantly recognizable, as if photographed at another moment of the same photoshoot.
+
+IMMUTABLE — copy 1:1 from ${refRangeText}, NEVER redesign, NEVER "improve", NEVER randomize:
+- Facial bone structure: skull shape, face oval, cheekbones, jawline, chin shape, forehead
+- Eyes: exact shape, size, spacing, color, eyelid crease. Eyebrows: exact shape, thickness, position
+- Nose: bridge width, tip shape, nostril shape. Lips: fullness, width, cupid's bow
+- Skin: exact tone, undertone and complexion. Every mole, freckle and birthmark stays in place
+- Hair: EXACT color from root to tip, length, texture (straight/wavy/curly), parting, hairline
+- Apparent age, apparent ethnicity, overall head-to-body proportions
+
+MUTABLE — only when the pose/edit/scene text explicitly asks: facial EXPRESSION (smile, gaze), head angle, body pose, hand placement, framing, lighting, background, clothing state.
+An expression change (e.g. a soft smile) moves the facial muscles of THE SAME FACE. It NEVER changes bone structure, feature shapes, hair color or skin tone. "Add a smile" = the SAME woman smiling, NOT a new prettier woman.
+${editRequested ? `
+CONFLICT RULE FOR THE REQUESTED EDIT: the edit below may change pose, expression, hands, framing or scene — it may NEVER change who the person is. If the edit cannot be fulfilled without altering the identity, KEEP THE IDENTITY and fulfill the edit only as far as identity allows.` : ''}
+
+SELF-CHECK BEFORE OUTPUT: mentally place the output face side-by-side with ${refRangeText}. If a stranger would not instantly say "same person", the render is WRONG — redo the face strictly from the reference.
+</IDENTITY_LOCK>`;
+}
+
+// ============================================================
 // PROMPTS: English originals
 // ============================================================
 const PROMPTS_EN = {
@@ -78,19 +132,21 @@ IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation
 
   PHOTO_EDIT_PROMPT: `PHOTO EDITING MODE — NON-DESTRUCTIVE RETOUCHING.
 
-You are receiving an existing photograph. Your ONLY job is to make ONE specific modification to it.
+You are receiving an existing photograph. Your ONLY job is to apply ONE specific modification to it.
 
 EDIT REQUESTED: "{editInstruction}"
 
-ABSOLUTE REQUIREMENTS:
-- DO NOT regenerate, recreate, or reimagine this image.
-- DO NOT change the person's identity, face shape, body shape, skin color, hair, clothing, or pose.
-- DO NOT change the background, lighting, camera angle, or composition.
-- DO NOT add or remove anything that was NOT explicitly requested.
-- The output image MUST be visually identical to the input image in every way EXCEPT for the specific edit requested.
-- Treat this as Photoshop-level retouching: precise, surgical, minimal.
-- If asked to "add a smile": change ONLY the mouth area. Everything else stays pixel-identical.
-- If asked to "remove tattoo": blend ONLY the tattoo area with surrounding skin. Nothing else changes.
+RULE #1 — IDENTITY IS ABSOLUTELY LOCKED (overrides everything, including the edit):
+The person in the photo must remain THE EXACT SAME PERSON. Facial bone structure, face oval, eye/nose/lip shapes, skin tone, moles and freckles, hair color/length/texture, apparent age — all copied 1:1 from the input photo. Even if the edit changes their expression, pose or hands, it is the SAME face performing it. If the output face would not be instantly recognized as the same person — the edit FAILED.
+
+RULE #2 — SURGICAL SCOPE:
+- Change ONLY what the edit explicitly asks, plus its natural physical consequences (fabric follows a moved hand, a smile creases the same cheeks).
+- Everything NOT touched by the edit stays visually identical to the input: garment design and color, background, lighting, camera angle, framing, composition.
+- DO NOT regenerate, recreate, or reimagine the photo. Treat this as Photoshop-level retouching: precise, surgical, minimal.
+- DO NOT add or remove anything that was not requested.
+- If asked to "add a smile": the mouth and eye area of the SAME face change naturally. Everything else stays identical.
+- If asked to change the pose or hands: move ONLY the requested body parts; face, hair, garment identity and background stay identical.
+- If asked to "remove tattoo": blend ONLY the tattoo area with the surrounding skin.
 
 Return ONLY the edited photograph.`,
 
@@ -1172,19 +1228,21 @@ const PROMPTS_RU = {
 
   PHOTO_EDIT_PROMPT: `РЕЖИМ РЕДАКТИРОВАНИЯ ФОТО — НЕДЕСТРУКТИВНАЯ РЕТУШЬ.
 
-Ты получаешь фотографию. Твоя ЕДИНСТВЕННАЯ задача — внести ОДНО конкретное изменение.
+Ты получаешь фотографию. Твоя ЕДИНСТВЕННАЯ задача — применить ОДНО конкретное изменение.
 
 ЗАПРОС: "{editInstruction}"
 
-АБСОЛЮТНЫЕ ТРЕБОВАНИЯ:
-- НИКАК не перегенерировать, не воссоздавать, не перевоображать изображение.
-- НИКАК не изменять личность, форму лица, телосложение, цвет кожи, волосы, одежду, позу.
-- НИКАК не изменять фон, освещение, ракурс, композицию.
-- НИКАК не добавлять и не убирать то, что явно не запрошено.
-- Выходное фото должно быть визуально идентично входному во всём, кроме запрошенного изменения.
-- Photoshop-уровень ретуши: точная, хирургическая, минимальная.
-- Если попросили "добавить улыбку": меняешь ТОЛЬКО область рта. Всё остальное без изменений.
-- Если попросили "убрать татуировку": замазываешь ТОЛЬКО область татуировки окружающей кожей.
+ПРАВИЛО №1 — ИДЕНТИЧНОСТЬ ЖЁСТКО ЗАБЛОКИРОВАНА (важнее всего, включая сам запрос):
+Человек на фото остаётся ТЕМ ЖЕ САМЫМ ЧЕЛОВЕКОМ. Костная структура лица, овал, форма глаз/носа/губ, тон кожи, родинки и веснушки, цвет/длина/текстура волос, возраст — копируются 1:1 с входного фото. Даже если правка меняет выражение лица, позу или руки — это ТО ЖЕ лицо. Если человека на выходе нельзя мгновенно узнать — правка ПРОВАЛЕНА.
+
+ПРАВИЛО №2 — ХИРУРГИЧЕСКАЯ ТОЧНОСТЬ:
+- Менять ТОЛЬКО то, что явно запрошено, плюс естественные физические следствия (ткань следует за рукой, улыбка создаёт складки на тех же щеках).
+- Всё, чего правка не касается, остаётся визуально идентичным входному фото: дизайн и цвет одежды, фон, свет, ракурс, кадрирование, композиция.
+- НЕ перегенерировать, не воссоздавать, не перевоображать фото. Photoshop-уровень ретуши: точно, хирургически, минимально.
+- НЕ добавлять и не убирать то, что не запрошено.
+- Попросили "добавить улыбку" — естественно меняется область рта и глаз ТОГО ЖЕ лица. Остальное без изменений.
+- Попросили сменить позу или положение рук — двигаются ТОЛЬКО запрошенные части тела; лицо, волосы, одежда и фон остаются прежними.
+- Попросили "убрать татуировку" — замазываешь ТОЛЬКО область татуировки окружающей кожей.
 
 Верни ТОЛЬКО изменённую фотографию.`,
 
