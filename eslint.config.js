@@ -37,7 +37,6 @@ export default [
     ignores: [
       'node_modules/**',
       'dist/**',
-      '.vercel/**',
       'api/_*.js',   // internal helper files
     ]
   }

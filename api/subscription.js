@@ -165,6 +165,7 @@ export default async function handler(req, res) {
           autoRenew: sub.auto_renew || false,
           yookassaPaymentMethodId: sub.yookassa_payment_method_id || null,
           grantedByAdmin: sub.granted_by_admin || false,
+          modelGensUsed: sub.model_gens_used || 0,
           payments,
         },
       });

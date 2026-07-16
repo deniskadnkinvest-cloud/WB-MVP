@@ -71,9 +71,9 @@ export default async function handler(req, res) {
 
   try {
     let { email, tgInitData } = req.body;
-    const isLocal =
-      process.env.NODE_ENV !== 'production' &&
-      (!process.env.VERCEL || process.env.VERCEL_ENV === 'development');
+    // Debug-режим OTP (код возвращается в ответе, когда почта не настроена) —
+    // строго вне продакшена. Единственный признак — NODE_ENV; на бою всегда 'production'.
+    const isLocal = process.env.NODE_ENV !== 'production';
 
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });

@@ -160,7 +160,7 @@ export default function PricingModal({
               {/* PRO Features - show on all, locked on Trial */}
               <li className="pricing-feature-group">{plan.id === 'trial' ? 'PRO-инструменты' : 'Всё базовое, а также:'}</li>
               <li className={`pricing-feature ${plan.canSaveModels ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
-                <span className="feature-icon">{plan.canSaveModels ? '✅' : '🔒'}</span> <span className="feature-text">Своя AI-модель по вашим фото</span>
+                <span className="feature-icon">{plan.canSaveModels ? '✅' : '🔒'}</span> <span className="feature-text">{plan.modelGensLimit === 1 ? 'Своя AI-модель — 1 пробная генерация' : 'Своя AI-модель по вашим фото, безлимит'}</span>
               </li>
               <li className={`pricing-feature ${plan.canSaveModels ? 'pricing-feature--yes' : 'pricing-feature--no'}`}>
                 <span className="feature-icon">{plan.canSaveModels ? '✅' : '🔒'}</span> <span className="feature-text">Создание уникальных персонажей</span>

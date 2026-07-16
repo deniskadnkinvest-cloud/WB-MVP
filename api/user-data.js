@@ -172,6 +172,9 @@ export default async function handler(req, res) {
         const modelSubType = data.model_type || data.type || 'unknown';
         // Remove temporary model_type if present to keep metadata clean
         delete data.model_type;
+        // id/uid в metadata затеняли PG-id при чтении (см. rowToModel) — не сохраняем
+        delete data.id;
+        delete data.uid;
         const result = await query(
           `INSERT INTO models (user_id, type, image_url, metadata)
            VALUES ($1, $2, $3, $4)
@@ -294,9 +297,14 @@ function rewriteS3Url(url) {
   return url;
 }
 
+// ВАЖНО: во всех мапперах spread метаданных идёт ПЕРВЫМ, а канонические поля
+// (id из PostgreSQL и т.д.) — ПОСЛЕ него. У legacy-записей metadata содержит
+// старый Firestore-id ("38E6D7..."), и при обратном порядке он перезаписывал
+// числовой PG-id → PATCH/DELETE по такому id падали, а UI работал с фантомом.
 function rowToGeneration(row) {
   const meta = row.metadata || {};
   return {
+    ...meta,
     id: row.id,
     userId: row.user_id,
     success: row.status ? ['success', 'completed'].includes(row.status) : row.success !== false,
@@ -305,15 +313,21 @@ function rowToGeneration(row) {
     type: row.type || meta.type,
     durationMs: row.duration_ms || meta.durationMs || 0,
     creditsUsed: row.credits_used || meta.creditsUsed || 0,
-    ...meta,
   };
 }
 
 function rowToModel(row) {
   const meta = row.metadata || {};
   const { imageUrls: metaImageUrls, ...otherMeta } = meta;
-  const imageUrls = (metaImageUrls && metaImageUrls.length > 0) ? metaImageUrls.map(rewriteS3Url) : [rewriteS3Url(row.image_url)];
+  // Пустые строки выбрасываем: [''] считался «есть референсы», а на бэке
+  // генерации фильтровался в ноль → модель без единого рабочего фото
+  const cleanedMetaUrls = (metaImageUrls || []).map(rewriteS3Url).filter(u => typeof u === 'string' && u.trim());
+  const fallbackUrl = rewriteS3Url(row.image_url);
+  const imageUrls = cleanedMetaUrls.length > 0
+    ? cleanedMetaUrls
+    : (typeof fallbackUrl === 'string' && fallbackUrl.trim() ? [fallbackUrl] : []);
   return {
+    ...otherMeta,
     id: row.id,
     type: row.type,
     storagePaths: meta.storagePaths || [],
@@ -324,7 +338,6 @@ function rowToModel(row) {
     compCardUrl: rewriteS3Url(meta.compCardUrl),
     sourcePhotoUrls: (meta.sourcePhotoUrls || []).map(rewriteS3Url),
     createdAt: row.created_at?.toISOString(),
-    ...otherMeta,
     imageUrls,
   };
 }
@@ -334,6 +347,7 @@ function rowToLocation(row) {
   const { imageUrls: metaImageUrls, ...otherMeta } = meta;
   const imageUrls = (metaImageUrls && metaImageUrls.length > 0) ? metaImageUrls.map(rewriteS3Url) : [rewriteS3Url(row.image_url)];
   return {
+    ...otherMeta,
     id: row.id,
     title: row.name,
     storagePaths: meta.storagePaths || [],
@@ -341,7 +355,6 @@ function rowToLocation(row) {
     imageBase64: meta.imageBase64,
     prompt: meta.prompt || '',
     createdAt: row.created_at?.toISOString(),
-    ...otherMeta,
     imageUrls,
   };
 }

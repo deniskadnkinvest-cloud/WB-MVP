@@ -404,7 +404,10 @@ function getGenerationCreditCost(body = {}) {
     return 1;
   }
   if (body?.garmentImageBase64 || body?.garmentImagesBase64?.length || body?.garmentImageUrls?.length) return 1;
-  return 0;
+  
+  // Default cost for any other generation request is 1 credit.
+  // Returning 0 here was causing a paywall bypass vulnerability.
+  return 1;
 }
 
 async function findBillingUser({ uid, email, dbUserId }) {
@@ -545,6 +548,40 @@ async function safeRefundCreditReservation(reservation, reason) {
   } catch (err) {
     console.error(`[Credit Refund Failed] request=${reservation?.requestId || 'unknown'} reason=${reason}:`, err.message);
     return null;
+  }
+}
+
+// ═══ TRIAL: 1 генерация с собственной моделью ═══
+// Счётчик инкрементится при КАЖДОЙ успешной генерации с референсами
+// сохранённой модели (любой тариф — для статистики), лимит применяется
+// только к плану trial.
+async function checkTrialModelLimit(userId) {
+  if (!userId) return null;
+  const result = await query(
+    `SELECT plan_name, COALESCE(model_gens_used, 0) AS used FROM subscriptions WHERE user_id = $1 LIMIT 1`,
+    [userId]
+  );
+  const sub = result.rows[0];
+  if (sub && sub.plan_name === 'trial' && Number(sub.used) >= 1) {
+    return {
+      success: false,
+      isTrialModelLimit: true,
+      error: 'На тарифе Тест-драйв доступна только 1 генерация с собственной моделью. Для безлимитных генераций со своей моделью перейдите на тариф Про ⚡ или Gold Seller 👑'
+    };
+  }
+  return null;
+}
+
+async function incrementModelGensUsed(userId) {
+  if (!userId) return;
+  try {
+    await query(
+      `UPDATE subscriptions SET model_gens_used = COALESCE(model_gens_used, 0) + 1, updated_at = NOW() WHERE user_id = $1`,
+      [userId],
+      { retryUnsafe: true }
+    );
+  } catch (err) {
+    console.error('[TrialModelLimit] increment failed:', err.message);
   }
 }
 
@@ -724,8 +761,18 @@ async function executeKieTask(prompt, imageInputs = [], modelName = "gpt-image-2
   const taskId = data.data.taskId;
   console.log(`РІРЏС– KIE.ai Task created. Model: ${modelName}. TaskID: ${taskId}. Polling...`);
 
-  for (let i = 0; i < 100; i++) {
-    const pollDelayMs = Math.min(12000, i === 0 ? 2000 : 3000 + Math.floor(i / 8) * 1000);
+  // Каденс по фактическому времени, а не по номеру попытки:
+  // быстрые задачи (превью/1K) забираем через ~1.5с после готовности,
+  // длинные (2K с референсами) не долбим чаще необходимого.
+  const pollStart = Date.now();
+  const POLL_HARD_LIMIT_MS = 9.5 * 60 * 1000; // сервер режет коннект на 10 мин
+  for (let i = 0; i < 200; i++) {
+    const elapsedMs = Date.now() - pollStart;
+    if (elapsedMs > POLL_HARD_LIMIT_MS) break;
+    const pollDelayMs = elapsedMs < 10000 ? 1500
+      : elapsedMs < 60000 ? 2500
+      : elapsedMs < 180000 ? 4000
+      : 6000;
     await sleep(pollDelayMs);
     
     const pollController = new AbortController();
@@ -761,7 +808,7 @@ async function executeKieTask(prompt, imageInputs = [], modelName = "gpt-image-2
     } else if (pollData?.data?.state === 'failed' || pollData?.data?.failCode) {
        throw new Error(`Task failed: ${pollData.data.failMsg || pollData.data.failCode || 'Unknown error'}`);
     } else {
-       console.log(`   ...Task ${taskId} state: ${pollData?.data?.state || 'unknown'} (poll ${i+1}/100, nextDelayMs=${pollDelayMs})`);
+       console.log(`   ...Task ${taskId} state: ${pollData?.data?.state || 'unknown'} (poll ${i+1}, elapsed=${Math.round((Date.now() - pollStart) / 1000)}s, nextDelayMs=${pollDelayMs})`);
     }
   }
   
@@ -2909,7 +2956,7 @@ IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation
     }
 
     const {
-      modelPreset = "25-year-old European female, slim build, natural makeup",
+      modelPreset: modelPresetRaw = "25-year-old European female, slim build, natural makeup",
       posePreset = "standing straight, confident posture, facing the camera directly",
       cameraAngle = "full body shot",
       backgroundPreset = "clean minimalist white cyclorama",
@@ -2927,6 +2974,7 @@ IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation
       sourceImageUrl,
       editInstruction,
       identityLockImage,
+      savedModelExpected = false,
       attributes,
       isBeautyMode = false,
       biometricSeed,
@@ -2948,6 +2996,29 @@ IMPORTANT: Return ONLY the JSON, no markdown, no markdown blocks, no explanation
       photoshootFrameIndex,
       photoshootBatchSize,
     } = req.body;
+
+    // Пустая строка обходит default деструктуризации (он срабатывает только на
+    // undefined) — а фронт при сбое подстановки сохранённой модели присылал
+    // modelPreset: '' → пустой ACTOR_PROFILE → произвольный человек в кадре.
+    let modelPreset = (typeof modelPresetRaw === 'string' && modelPresetRaw.trim()) ? modelPresetRaw.trim() : '';
+    if (!modelPreset) {
+      modelPreset = (modelReferenceImages && Array.isArray(modelReferenceImages) && modelReferenceImages.length > 0)
+        ? 'The exact person shown in the identity reference photos: same face, hair color and length, skin tone, and body proportions'
+        : '25-year-old European female, slim build, natural makeup';
+    }
+
+    // ═══ TRIAL: лимит генераций с собственной моделью ═══
+    // Проверка ДО вызова KIE; success:false → перехватчик ответа
+    // автоматически возвращает зарезервированный кредит.
+    const usesOwnModel = (Array.isArray(modelReferenceImages) && modelReferenceImages.filter(Boolean).length > 0)
+      || (Array.isArray(humanModelRefImages) && humanModelRefImages.filter(Boolean).length > 0);
+    if (usesOwnModel && creditReservation?.userId) {
+      const limitHit = await checkTrialModelLimit(creditReservation.userId);
+      if (limitHit) {
+        console.log(`[TrialModelLimit] user=${creditReservation.userId} blocked (limit reached)`);
+        return res.status(200).json(limitHit);
+      }
+    }
 
     // РІвЂўС’РІвЂўС’РІвЂўС’ PHOTO EDIT MODE РІР‚вЂќ precise, non-destructive editing РІвЂўС’РІвЂўС’РІвЂўС’
     // Sends the EXISTING photo + edit instruction to Gemini.
@@ -2989,7 +3060,8 @@ RULE #2 - SURGICAL SCOPE:
 
 Return ONLY the edited photograph.`;
 
-        const resultUrl = await executeKieTask(editPrompt, [`data:${sourceData.mimeType};base64,${sourceData.base64str}`], 'gpt-image-2-image-to-image');
+        // Ретушь готового кадра: 1K деградировала качество исходника — держим 2K
+        const resultUrl = await executeKieTask(editPrompt, [`data:${sourceData.mimeType};base64,${sourceData.base64str}`], 'gpt-image-2-image-to-image', 'auto', '2K');
         console.log(`РІСљвЂ¦ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Photo edit complete. Downloading result...`);
         const dl = await downloadToBase64(resultUrl);
         if (!dl) throw new Error("Failed to download edited image");
@@ -3377,12 +3449,17 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
         editDirective: productEditDirective
       });
 
-      const resultUrl = await executeKieTask(productPromptText, imageInputs, 'gpt-image-2-image-to-image');
+      // С моделью-человеком лицо требует 2K; чистая предметка остаётся на 1K
+      const productResolution = (withHumanModel && humanCount > 0) ? '2K' : '1K';
+      const resultUrl = await executeKieTask(productPromptText, imageInputs, 'gpt-image-2-image-to-image', 'auto', productResolution);
       console.log(`РІСљвЂ¦ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Product shot ready. Downloading...`);
       const dl = await downloadToBase64(resultUrl);
       if (!dl) throw new Error("Failed to download product image from KIE.ai");
 
       const creditsRemainingProd = await getCreditsRemainingForReservation(creditReservation);
+
+      // Успешная генерация с собственной моделью — учитываем в счётчике trial-лимита
+      if (usesOwnModel) incrementModelGensUsed(creditReservation?.userId);
 
       incrementGlobalCounter('generationsProduct').catch(() => {});
       saveGenerationLog({ userId: verifiedUid, success: true, imageUrl: resultUrl, reqBody: req.body, durationMs: Date.now() - startTime }).catch(() => {});
@@ -3446,6 +3523,17 @@ OUTPUT: A clean, high-end marketplace background template with the product integ
       }
     }
     const hasIdentityAnchor = identityInputs.length > 0;
+
+    // Страховка от «случайного человека за кредиты»: фронт заявил сохранённую
+    // модель, но ни один референс не доехал/не скачался — отказываем ДО вызова
+    // KIE. success:false → перехватчик ответа автоматически вернёт кредит.
+    if (savedModelExpected && identityInputs.length === 0) {
+      console.error(`[IdentityLock] savedModelExpected but 0 identity inputs resolved (refs sent: ${modelReferenceImages?.length || 0}) — refusing generation`);
+      return res.status(200).json({
+        success: false,
+        error: 'Фотографии выбранной модели не загрузились — генерация отменена, кредит не списан. Переоткройте приложение и выберите модель заново.'
+      });
+    }
 
     const locationInputs = [];
     if (locationImages && Array.isArray(locationImages) && locationImages.length > 0) {
@@ -3581,12 +3669,18 @@ ${hasIdentityAnchor ? `- IDENTITY DRIFT = FAILED RENDER: any change of facial fe
 
     console.log(`РІРЏС– [${((Date.now() - startTime) / 1000).toFixed(1)}s] Р С›РЎвЂљР С—РЎР‚Р В°Р Р†Р В»РЎРЏР ВµР С Р В·Р В°Р С—РЎР‚Р С•РЎРѓ Р Р† KIE.ai (gpt-image-2)...`);
     
-    const resultUrl = await executeKieTask(promptText, imageInputs, 'gpt-image-2-image-to-image');
+    // 1K давала пиксельные лица. С identity-референсами детализация лица
+    // критична — генерируем в 2K (стоит ~20-30% времени, качество несравнимо)
+    const fashionResolution = hasIdentityAnchor ? '2K' : '1K';
+    const resultUrl = await executeKieTask(promptText, imageInputs, 'gpt-image-2-image-to-image', 'auto', fashionResolution);
     console.log(`РІСљвЂ¦ [${((Date.now() - startTime) / 1000).toFixed(1)}s] Р С™Р В°РЎР‚РЎвЂљР С‘Р Р…Р С”Р В° РЎРѓР С–Р ВµР Р…Р ВµРЎР‚Р С‘РЎР‚Р С•Р Р†Р В°Р Р…Р В°. Downloading result...`);
     const dl = await downloadToBase64(resultUrl);
     if (!dl) throw new Error("Failed to download final generated image from KIE.ai");
 
     const creditsRemainingFashion = await getCreditsRemainingForReservation(creditReservation);
+
+    // Успешная генерация с собственной моделью — учитываем в счётчике trial-лимита
+    if (usesOwnModel) incrementModelGensUsed(creditReservation?.userId);
 
     // РІвЂўС’РІвЂўС’РІвЂўС’ STATS: Р В°РЎвЂљР С•Р СР В°РЎР‚Р Р…Р С• Р С‘Р Р…Р С”РЎР‚Р ВµР СР ВµР Р…РЎвЂљР С‘РЎР‚РЎС“Р ВµР С РЎРѓРЎвЂЎРЎвЂРЎвЂљРЎвЂЎР С‘Р С” Р С–Р ВµР Р…Р ВµРЎР‚Р В°РЎвЂ Р С‘Р в„– РІвЂўС’РІвЂўС’РІвЂўС’
     const mode = req.body?.isCalibration ? 'generationsCalibration' : 'generationsFashion';

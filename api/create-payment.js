@@ -106,7 +106,7 @@ export default async function handler(req, res) {
   }
 
   if (!YOOKASSA_SECRET_KEY) {
-    console.error('[create-payment] YOOKASSA_SECRET_KEY is not configured! Check .env or Vercel env vars.');
+    console.error('[create-payment] YOOKASSA_SECRET_KEY is not configured! Check .env / container env vars.');
     return res.status(500).json({ ok: false, error: 'Yookassa secret key not configured' });
   }
 

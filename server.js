@@ -95,10 +95,16 @@ app.get('/api/auth-ping', (req, res) => {
   res.json({ ok: true });
 });
 
-import { getPoolStats } from './api/_db.js';
+import { getPoolStats, query as dbQuery } from './api/_db.js';
 app.get('/api/pool-stats', (req, res) => {
   res.json(getPoolStats());
 });
+
+// Идемпотентная миграция: счётчик генераций с собственной моделью
+// (лимит тарифа Тест-драйв — 1 генерация со своей моделью)
+dbQuery(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS model_gens_used INT NOT NULL DEFAULT 0`)
+  .then(() => console.log('[migrate] subscriptions.model_gens_used ready'))
+  .catch((err) => console.error('[migrate] model_gens_used failed:', err.message));
 
 app.post('/api/generate-image', async (req, res) => {
   return generateImageHandler(req, res);
@@ -192,6 +198,12 @@ app.get('/api/user-data', async (req, res) => {
 });
 
 app.post('/api/user-data', async (req, res) => {
+  return userDataHandler(req, res);
+});
+
+// PATCH обязан быть зарегистрирован явно: обработчик user-data.js поддерживает
+// PATCH (обновление модели/локации), но без этого роута Express отдавал 404
+app.patch('/api/user-data', async (req, res) => {
   return userDataHandler(req, res);
 });
 

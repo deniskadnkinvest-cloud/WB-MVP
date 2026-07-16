@@ -29,7 +29,10 @@ export const PLANS = {
     credits: 10,
     price: 500,
     period: null, // one-time
-    canSaveModels: false,
+    // Новые правила: на Тест-драйве МОЖНО создать и сохранить свою модель
+    // и сделать с ней 1 генерацию (modelGensLimit). Дальше — апгрейд.
+    canSaveModels: true,
+    modelGensLimit: 1,
     canSaveLocations: false,
     canPhotoshoot: false,
     canUsePresets: true,
@@ -44,6 +47,7 @@ export const PLANS = {
     price: 5000,
     period: 'month',
     canSaveModels: true,
+    modelGensLimit: null, // безлимит
     canSaveLocations: true,
     canPhotoshoot: true,
     canUsePresets: true,
@@ -59,6 +63,7 @@ export const PLANS = {
     price: 14990,
     period: 'month',
     canSaveModels: true,
+    modelGensLimit: null, // безлимит
     canSaveLocations: true,
     canPhotoshoot: true,
     canUsePresets: true,
@@ -66,6 +71,10 @@ export const PLANS = {
     description: 'Эксклюзивные условия для профессиональных брендов',
   },
 };
+
+// Сообщение при исчерпании trial-лимита генераций со своей моделью —
+// единый текст для пре-чека на фронте и обработки ответа бэка
+export const TRIAL_MODEL_LIMIT_MSG = 'На тарифе Тест-драйв доступна только 1 генерация с собственной моделью. Для безлимитных генераций со своей моделью перейдите на тариф Про ⚡ или Gold Seller 👑';
 
 // ═══════════════════════════════════════════
 //  DEFAULT SUBSCRIPTION

@@ -16,14 +16,14 @@ import MyHistoryPage from './components/MyHistoryPage';
 import { useAuth } from './contexts/AuthContext';
 import { getModels, saveModel, updateModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt, patchLocation } from './lib/userDataService';
 import { uploadBase64Image, compressImage, uploadImage, deleteImage, downloadStoragePathAsBase64 } from './lib/storageService';
-import { getSubscription, checkFeature, canGenerate, activatePlan } from './lib/subscriptionService';
+import { getSubscription, checkFeature, canGenerate, activatePlan, TRIAL_MODEL_LIMIT_MSG } from './lib/subscriptionService';
 // CardLayerStudio removed — replaced by text-based card editing
 import './App.css';
 
 const MSGS = ['Анализируем текстуру ткани...','Выставляем студийный свет...','Строим 3D-модель фигуры...','Натягиваем одежду с учетом физики...','Рендерим финальный кадр...'];
 const initDetails = () => { const d={}; Object.keys(getModelDetails('female')).forEach(k=>{d[k]=null;}); return d; };
 
-// Safe JSON parser — handles Vercel timeouts that return HTML instead of JSON
+// Safe JSON parser — handles proxy/server timeouts that return HTML instead of JSON
 const safeParseJSON = async (resp) => {
   // Check HTTP status first
   if (resp.status === 413) {
@@ -34,7 +34,7 @@ const safeParseJSON = async (resp) => {
   try {
     return JSON.parse(text);
   } catch {
-    // Vercel returned HTML error page (timeout/crash)
+    // Server/proxy returned an HTML error page (timeout/crash) instead of JSON
     console.error('⚠️ Non-JSON response from API:', resp.status, text.substring(0, 200));
     if (text.includes('FUNCTION_INVOCATION_TIMEOUT') || text.includes('An error occurred')) {
       return { success: false, error: 'Сервер не успел ответить (таймаут). Попробуйте ещё раз.' };
@@ -122,6 +122,19 @@ const DRAFT_STORAGE_KEYS = [
   'vton_userProductInfo',
   'vton_scrollY',
 ];
+
+// Референсы сохранённой модели с фолбэками: у legacy-моделей imageUrls может
+// быть пустым или содержать пустые строки — тогда берём исходные фото или
+// comp card. Пустой результат = у модели нет ни одного фото (ошибка до запроса).
+function resolveSavedModelRefs(sm) {
+  if (!sm) return [];
+  const clean = (arr) => (arr || []).filter(u => typeof u === 'string' && u.trim() && !u.startsWith('blob:'));
+  const primary = clean(sm.imageUrls);
+  if (primary.length) return primary;
+  const source = clean(sm.sourcePhotoUrls);
+  if (source.length) return source;
+  return clean([sm.compCardUrl, sm.fullbodyUrl]);
+}
 
 function App() {
   const { user, loading, signOut, isEmbedded, isTelegram } = useAuth();
@@ -288,6 +301,9 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showProcessingOverlay, setShowProcessingOverlay] = useState(false);
   const [processingMsg, setProcessingMsg] = useState('');
+  // Индекс imageHistory на старте текущего батча — всё, что появилось после
+  // него, показывается превьюшками прямо в оверлее прогресса (progressive reveal)
+  const [batchStartLen, setBatchStartLen] = useState(0);
   const [statusText, setStatusText] = useState('');
   const [statusType, setStatusType] = useState('');
 
@@ -1198,6 +1214,15 @@ function App() {
       return;
     }
 
+    // Trial: 1 генерация с собственной моделью — пре-чек до списания кредитов
+    // (авторитетная проверка продублирована на бэке)
+    const usesOwnModelNow = appMode === 'product' ? !!productSavedModelId : !!selectedSavedModelId;
+    if (usesOwnModelNow && subscription.plan === 'trial' && (subscription.modelGensUsed || 0) >= 1) {
+      setShowPricing(true);
+      setStatusText(TRIAL_MODEL_LIMIT_MSG); setStatusType('error');
+      return;
+    }
+
     // Если кадров >= 6, запрашиваем подтверждение
     if (totalShots >= 6 && !skipConfirm) {
       triggerConfirm('batch', totalShots, () => handleGenerate(true));
@@ -1206,6 +1231,7 @@ function App() {
 
     const runBatchGeneration = async () => {
       setIsProcessing(true); setGeneratedImage(null); setStatusText('');
+      setBatchStartLen(imageHistory.length);
       setProcessingMsg('Подготавливаем исходники...');
       
       let msgI = 0;
@@ -1299,6 +1325,9 @@ function App() {
           const task = tasks[taskIndex];
           try {
             let body = {};
+            // Флаг «в этом таске участвует собственная модель» — для локального
+            // счётчика trial-лимита после успеха
+            let taskUsesOwnModel = false;
             if (appMode === 'product') {
               let taskBgPrompt = task.bg.prompt;
               if (task.effect.id !== 'none') {
@@ -1325,10 +1354,11 @@ function App() {
                 humanPrompt = customProductModelPrompt.trim() || (productModelPreset.prompt + buildDetailString(productModelDetails));
                 if (productSavedModelId) {
                   const sm = myModels.find(m => m.id === productSavedModelId);
-                  if (sm) {
-                    humanPrompt = sm.prompt || humanPrompt;
-                    modelRefImages = sm.imageUrls || [];
-                  }
+                  if (!sm) throw new Error('Выбранная модель не найдена — обновите страницу и выберите её заново');
+                  modelRefImages = resolveSavedModelRefs(sm);
+                  if (modelRefImages.length === 0) throw new Error(`У модели «${sm.name || 'без имени'}» нет референс-фото — добавьте фотографии в редакторе модели`);
+                  humanPrompt = sm.prompt || humanPrompt;
+                  taskUsesOwnModel = true;
                 }
               }
 
@@ -1358,12 +1388,17 @@ function App() {
               // appMode === 'fashion' (VTON)
               let modelPrompt = task.model.isSaved ? task.model.prompt : (customModelPrompt.trim() || (task.model.prompt + buildDetailString(modelDetailsMap[task.model.id])));
               let modelRefImages = null;
+              const savedModelExpected = !!task.model.isSaved;
               if (task.model.isSaved) {
                 const sm = myModels.find(m => m.id === task.model.id);
-                if (sm) {
-                  modelPrompt = sm.prompt || modelPrompt;
-                  modelRefImages = sm.imageUrls || [];
-                }
+                // Fail fast ДО запроса: раньше при несработавшем поиске модели
+                // уходил пустой modelPreset без референсов → случайный человек
+                // за кредиты пользователя
+                if (!sm) throw new Error('Выбранная модель не найдена — обновите страницу и выберите её заново');
+                modelRefImages = resolveSavedModelRefs(sm);
+                if (modelRefImages.length === 0) throw new Error(`У модели «${sm.name || 'без имени'}» нет референс-фото — откройте её редактирование и добавьте фотографии`);
+                modelPrompt = sm.prompt || modelPrompt;
+                taskUsesOwnModel = true;
               }
               if (modelModifier.trim()) modelPrompt += `. Additionally: ${modelModifier.trim()}`;
 
@@ -1389,6 +1424,7 @@ function App() {
                 sceneId: task.bg.id,
                 aspectRatio: task.ratio.id,
                 modelReferenceImages: modelRefImages,
+                savedModelExpected: savedModelExpected || undefined,
                 locationImages: locImages,
                 customPoseText: customPoseText.trim() || undefined,
                 attributes: modelDetailsMap[task.model.id] || initDetails(),
@@ -1417,6 +1453,10 @@ function App() {
 
             if (data.success) {
               completedCount++;
+              // Локально двигаем счётчик trial-лимита (бэк уже инкрементнул в БД)
+              if (taskUsesOwnModel) {
+                setSubscription(prev => prev ? { ...prev, modelGensUsed: (prev.modelGensUsed || 0) + 1 } : prev);
+              }
               const img = data.imageUrl || data.imageBase64;
               setGeneratedImage(img);
               setImageHistory(prev => {
@@ -1431,6 +1471,12 @@ function App() {
               });
             } else {
               failedCount++;
+              // Лимит trial по собственной модели — сразу показываем пейволл
+              if (data.isTrialModelLimit) {
+                setShowPricing(true);
+                setStatusText(data.error || TRIAL_MODEL_LIMIT_MSG);
+                setStatusType('error');
+              }
               console.error('Task failed:', data.error || data.details);
             }
           } catch (taskErr) {
@@ -1533,6 +1579,13 @@ function App() {
 
   const saveLoc = async () => {
     if (!locName.trim() || locFiles.length < 2 || !user) return;
+    // Свои локации — только на тарифах Про и Gold Seller
+    if (!canUseFeature('canSaveLocations')) {
+      setShowPricing(true);
+      setStatusText('📍 Свои локации доступны на тарифах Про ⚡ и Gold Seller 👑');
+      setStatusType('error');
+      return;
+    }
     setIsSaving(true);
     try {
       let imageUrls = [];
@@ -1889,6 +1942,7 @@ function App() {
     }
 
     setIsProcessing(true);
+    setBatchStartLen(imageHistory.length);
     // DON'T clear generatedImage here — preserve it in case of error
     setStatusText('');
     let msgI = 0;
@@ -1944,7 +1998,7 @@ function App() {
           || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
         if (selectedSavedModelId) {
           const sm = myModels.find(m => m.id === selectedSavedModelId);
-          if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageUrls || []; }
+          if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = resolveSavedModelRefs(sm); }
         }
 
         posePrompt = customPoseText.trim() || selectedPoses[0].prompt;
@@ -2011,7 +2065,7 @@ function App() {
         regenHumanPrompt = customProductModelPrompt.trim() || (productModelPreset.prompt + buildDetailString(productModelDetails));
         if (productSavedModelId) {
           const sm = myModels.find(m => m.id === productSavedModelId);
-          if (sm) { regenHumanPrompt = sm.prompt || regenHumanPrompt; regenHumanRefs = sm.imageUrls || []; }
+          if (sm) { regenHumanPrompt = sm.prompt || regenHumanPrompt; regenHumanRefs = resolveSavedModelRefs(sm); }
         }
       }
 
@@ -2048,6 +2102,8 @@ function App() {
         setStatusText('Кадр обновлён!');
         setStatusType('success');
       } else {
+        // Лимит trial по собственной модели — сразу показываем пейволл
+        if (data.isTrialModelLimit) setShowPricing(true);
         setStatusText(`Ошибка: ${data.details || data.error}`);
         setStatusType('error');
       }
@@ -2692,7 +2748,7 @@ ${userProductInfo.trim()}
 
     try {
       // NOTE: We point to the standalone auto-catalog server (port 3002)
-      // In production this would be unified or routed via Vercel Edge
+      // In production this would be unified into the main API server
       const resp = await fetch('/api/auto-catalog/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2738,6 +2794,14 @@ ${userProductInfo.trim()}
 
   const handlePhotoshoot = async (count = 5) => {
     if (!garmentUrls.length || isPhotoshooting) return;
+
+    // Фотосессия — только на тарифах Про и Gold Seller
+    if (!canUseFeature('canPhotoshoot')) {
+      setShowPricing(true);
+      setStatusText('📸 Фотосессия доступна на тарифах Про ⚡ и Gold Seller 👑');
+      setStatusType('error');
+      return;
+    }
 
     const creditsAvailable = subscription?.credits || 0;
     if (creditsAvailable < count && !subscription?.local) {
@@ -2796,7 +2860,7 @@ ${userProductInfo.trim()}
             const sm = myModels.find(m => m.id === productSavedModelId);
             if (sm) {
               humanModelPrompt = sm.prompt || humanModelPrompt;
-              humanModelRefImages = sm.imageBase64?.length > 0 ? sm.imageBase64 : (sm.imageUrls || []);
+              humanModelRefImages = sm.imageBase64?.length > 0 ? sm.imageBase64 : resolveSavedModelRefs(sm);
               modelRefImages = humanModelRefImages;
             }
           }
@@ -2825,7 +2889,7 @@ ${userProductInfo.trim()}
           || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
         if (selectedSavedModelId) {
           const sm = myModels.find(m => m.id === selectedSavedModelId);
-          if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageBase64?.length > 0 ? sm.imageBase64 : (sm.imageUrls || []); }
+          if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageBase64?.length > 0 ? sm.imageBase64 : resolveSavedModelRefs(sm); }
         }
         if ((!modelRefImages || modelRefImages.length === 0) && generatedImage) {
           modelRefImages = [generatedImage];
@@ -5403,6 +5467,29 @@ ${userProductInfo.trim()}
             <div style={{width:'90%', maxWidth:480}}>
               <TerminalOfMagic isActive={isProcessing} customMessage={processingMsg} />
               <p className="processing-hint" style={{textAlign:'center', marginTop:12}}>Обычно 30с — 2 мин</p>
+              {/* Progressive reveal: готовые кадры текущего батча видны сразу */}
+              {imageHistory.length > batchStartLen && (
+                <div style={{marginTop: 16}}>
+                  <p style={{textAlign:'center', fontSize: 13, color: 'var(--gold, #ffd700)', fontWeight: 600, marginBottom: 8}}>
+                    ✅ Уже готово: {imageHistory.length - batchStartLen} — нажмите, чтобы посмотреть
+                  </p>
+                  <div style={{display:'flex', gap: 8, justifyContent:'center', flexWrap:'wrap'}}>
+                    {imageHistory.slice(batchStartLen).map((h, i) => (
+                      <img
+                        key={batchStartLen + i}
+                        src={h.image}
+                        alt={h.label || `Кадр ${i + 1}`}
+                        onClick={() => {
+                          setGeneratedImage(h.image);
+                          setHistoryIndex(batchStartLen + i);
+                          setShowProcessingOverlay(false);
+                        }}
+                        style={{width: 72, height: 96, objectFit: 'cover', borderRadius: 8, cursor: 'pointer', border: '2px solid rgba(255,215,0,0.5)', boxShadow: '0 2px 8px rgba(0,0,0,0.4)'}}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
               {abortControllerRef.current && (
                 <div className="processing-actions">
                   <button className="processing-cancel-btn" onClick={() => abortControllerRef.current?.abort()}>

@@ -29,19 +29,24 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
 
-  // в•ђв•ђв•ђ SECURITY: Verify request comes from YooKassa IPs в•ђв•ђв•ђ
-  // РџРѕР»РЅС‹Р№ СЃРїРёСЃРѕРє IP: https://yookassa.ru/developers/using-api/webhooks
+  // ═══ SECURITY: Verify request comes from YooKassa IPs ═══
+  // Полный список IP: https://yookassa.ru/developers/using-api/webhooks
   // IPv4: 185.71.76.0/27, 185.71.77.0/27, 77.75.153.0/25, 77.75.154.128/25
   const YOOKASSA_IP_PREFIXES = ['185.71.76.', '185.71.77.', '77.75.153.', '77.75.154.'];
-  const clientIp = (req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || '').split(',')[0].trim();
+  
+  // Extract real IP safely: Traefik appends the real client IP to the END of x-forwarded-for.
+  // Attackers can spoof the beginning of the header, so we MUST take the rightmost IP.
+  const forwardedIps = (req.headers['x-forwarded-for'] || '').split(',').map(ip => ip.trim()).filter(Boolean);
+  const clientIp = forwardedIps.length > 0 ? forwardedIps[forwardedIps.length - 1] : (req.headers['x-real-ip'] || req.socket?.remoteAddress || '');
+  
   if (!YOOKASSA_IP_PREFIXES.some(prefix => clientIp.startsWith(prefix))) {
-    console.warn(`вљ пёЏ [YooKassa Webhook] Rejected non-YooKassa IP: ${clientIp}`);
+    console.warn(`⚠️ [YooKassa Webhook] Rejected non-YooKassa IP: ${clientIp} (X-Forwarded-For: ${req.headers['x-forwarded-for']})`);
     return res.status(403).json({ ok: false, error: 'Forbidden: invalid source IP' });
   }
 
   const { event, object } = req.body || {};
 
-  // Р®Kassa С€Р»С‘С‚ РїРёРЅРі-Р·Р°РїСЂРѕСЃС‹ РґР»СЏ РїСЂРѕРІРµСЂРєРё РІРµР±С…СѓРєР°
+  // ЮKassa шлёт пинг-запросы для проверки вебхука
   if (event === 'ping') {
     return res.status(200).json({ ok: true });
   }
