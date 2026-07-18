@@ -16,7 +16,16 @@ import MyHistoryPage from './components/MyHistoryPage';
 import GenerationTaskCenter from './components/GenerationTaskCenter';
 import { useAuth } from './contexts/AuthContext';
 import { getModels, saveModel, updateModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt, patchLocation, getGenerationTasks } from './lib/userDataService';
-import { GENERATION_JOBS_STORAGE_KEY, ensureGenerationJob, patchGenerationTask, mergeGenerationRecords, markStaleGenerationJobs } from './lib/generationTaskStore';
+import {
+  GENERATION_JOBS_STORAGE_KEY,
+  MAX_CONCURRENT_GENERATIONS,
+  countActiveGenerationTasks,
+  getAvailableGenerationSlots,
+  ensureGenerationJob,
+  patchGenerationTask,
+  mergeGenerationRecords,
+  markStaleGenerationJobs,
+} from './lib/generationTaskStore';
 import { uploadBase64Image, compressImage, uploadImage, deleteImage, downloadStoragePathAsBase64 } from './lib/storageService';
 import { getSubscription, checkFeature, canGenerate, TRIAL_MODEL_LIMIT_MSG } from './lib/subscriptionService';
 // CardLayerStudio removed — replaced by text-based card editing
@@ -207,7 +216,14 @@ function App() {
   const [productModelPreset, setProductModelPreset] = useState(MODEL_PRESETS[0]);
   const [productModelGender, setProductModelGender] = useState('female');
   const [productModelTab, setProductModelTab] = useState('presets'); // 'presets' | 'my_models'
-  const [productSavedModelId, setProductSavedModelId] = useState(null);
+  const [productSavedModelIds, setProductSavedModelIds] = useState([]);
+  const productSavedModelId = productSavedModelIds.at(-1) ?? null;
+  const setProductSavedModelId = (modelId) => setProductSavedModelIds(modelId == null ? [] : [modelId]);
+  const toggleProductSavedModelId = (modelId) => setProductSavedModelIds(prev => (
+    prev.some(id => String(id) === String(modelId))
+      ? prev.filter(id => String(id) !== String(modelId))
+      : [...prev, modelId]
+  ));
   const [customProductModelPrompt, setCustomProductModelPrompt] = useState('');
   const [productModelDetails, setProductModelDetails] = useState(initDetails);
   const [showProductModelDetails, setShowProductModelDetails] = useState(false);
@@ -270,7 +286,14 @@ function App() {
   // Saved models (LoRA)
   const [modelTab, setModelTab] = useState('presets');
   const [myModels, setMyModels] = useState([]);
-  const [selectedSavedModelId, setSelectedSavedModelId] = useState(null);
+  const [selectedSavedModelIds, setSelectedSavedModelIds] = useState([]);
+  const selectedSavedModelId = selectedSavedModelIds.at(-1) ?? null;
+  const setSelectedSavedModelId = (modelId) => setSelectedSavedModelIds(modelId == null ? [] : [modelId]);
+  const toggleSelectedSavedModelId = (modelId) => setSelectedSavedModelIds(prev => (
+    prev.some(id => String(id) === String(modelId))
+      ? prev.filter(id => String(id) !== String(modelId))
+      : [...prev, modelId]
+  ));
   const [showLoraModal, setShowLoraModal] = useState(false);
   const [loraName, setLoraName] = useState('');
   const [loraPhotos, setLoraPhotos] = useState({ front: null, left34: null, right34: null, fullbody: null });
@@ -285,7 +308,7 @@ function App() {
     if (nextTab === 'my_models') {
       setSelectedModels([]);
       setCustomModelPrompt('');
-      setStatusText('⭐ Режим «Мои модели»: пресеты отключены. Выберите сохранённую модель.');
+      setStatusText('Если используете свои модели, выбор моделей из пресетов не доступен');
       setStatusType('info');
     } else {
       setSelectedSavedModelId(null);
@@ -300,7 +323,7 @@ function App() {
     setShowProductModelDetails(false);
     if (nextTab === 'my_models') {
       setCustomProductModelPrompt('');
-      setStatusText('⭐ Для предметной съёмки используются только ваши модели. Пресет отключён.');
+      setStatusText('Если используете свои модели, выбор моделей из пресетов не доступен');
       setStatusType('info');
     } else {
       setProductSavedModelId(null);
@@ -340,10 +363,6 @@ function App() {
   const [processingMsg, setProcessingMsg] = useState('');
   const [statusText, setStatusText] = useState('');
   const [statusType, setStatusType] = useState('');
-
-  useEffect(() => {
-    setShowProcessingOverlay(isProcessing);
-  }, [isProcessing]);
 
   // Extra free-text for preset model
   const [extraModelPrompt, setExtraModelPrompt] = useState('');
@@ -436,11 +455,14 @@ function App() {
       const bgCount = (customProductBg.trim() || selectedLocId) ? 1 : Math.max(1, selectedProductBgs.length + customProductBgChips.length);
       const effectCount = customProductEffectText.trim() ? 1 : (selectedProductEffects.length + customProductEffectChips.length);
       const ratioCount = selectedRatios.length;
-      return compCount * bgCount * effectCount * ratioCount * variantCount;
+      const modelCount = productWithModel && productModelTab === 'my_models'
+        ? productSavedModelIds.length
+        : 1;
+      return compCount * bgCount * effectCount * ratioCount * modelCount * variantCount;
     } else {
       // appMode === 'fashion' (VTON)
       const modelCount = modelTab === 'my_models'
-        ? (selectedSavedModelId ? 1 : 0)
+        ? selectedSavedModelIds.length
         : (customModelPrompt.trim() ? 1 : (selectedModels.length + customModelChips.length));
       const poseCount = customPoseText.trim() ? 1 : (selectedPoses.length + customPoseChips.length);
       const cameraCount = selectedCameras.length;
@@ -457,11 +479,14 @@ function App() {
     selectedProductBgs,
     customProductEffectText,
     selectedProductEffects,
+    productWithModel,
+    productModelTab,
+    productSavedModelIds,
     selectedRatios,
     variantCount,
     customModelPrompt,
     modelTab,
-    selectedSavedModelId,
+    selectedSavedModelIds,
     selectedModels,
     selectedPoses,
     selectedCameras,
@@ -489,7 +514,6 @@ function App() {
 
   // Photoshoot mode
   const [photoshootImages, setPhotoshootImages] = useState(() => readStoredJson('vton_photoshootImages', []));
-  const [isPhotoshooting, setIsPhotoshooting] = useState(false);
   const [photoshootStatus, setPhotoshootStatus] = useState(() => readStoredJson('vton_photoshootStatus', {}));
   const [photoshootErrors, setPhotoshootErrors] = useState(() => readStoredJson('vton_photoshootErrors', {}));
 
@@ -537,12 +561,29 @@ function App() {
   });
   const abortControllerRef = useRef(null);
   const paidActionLocksRef = useRef(new Set());
+  const [activeLaunchKeys, setActiveLaunchKeys] = useState([]);
   const [isGalleryGenerating, setIsGalleryGenerating] = useState(false);
   const [isAbGenerating, setIsAbGenerating] = useState(false);
   const [confirmModal, setConfirmModal] = useState(null); // null | { type, cost, onConfirm }
   const [generationJobs, setGenerationJobs] = useState(() => readStoredJson(GENERATION_JOBS_STORAGE_KEY, []));
   const [activeGenerationJobId, setActiveGenerationJobId] = useState(() => readStoredValue('vton_activeGenerationJobId', null));
   const activeGenerationJob = generationJobs.find(job => String(job.id) === String(activeGenerationJobId)) || generationJobs[0] || null;
+  const activeGenerationCount = countActiveGenerationTasks(generationJobs);
+  const availableGenerationSlots = getAvailableGenerationSlots(generationJobs);
+
+  const setLaunchActive = (launchKey, active) => {
+    setActiveLaunchKeys(prev => active
+      ? (prev.includes(launchKey) ? prev : [...prev, launchKey])
+      : prev.filter(key => key !== launchKey));
+  };
+
+  useEffect(() => {
+    if (isProcessing) {
+      setShowProcessingOverlay(true);
+    } else if (activeGenerationCount === 0) {
+      setShowProcessingOverlay(false);
+    }
+  }, [isProcessing, activeGenerationCount]);
 
   // ═══ LOCALSTORAGE SYNC EFFECTS ═══
   useEffect(() => {
@@ -1396,7 +1437,7 @@ function App() {
     }
   };
 
-  const handleGenerate = async (skipConfirm = false) => {
+  const handleGenerate = async (skipConfirm = false, requestedLimit = null) => {
     if (!garmentUrls.length) return;
 
     if (appMode === 'fashion' && modelTab === 'my_models' && !selectedSavedModelId) {
@@ -1426,14 +1467,25 @@ function App() {
       setStatusText('💫 Генерации закончились! Пополните баланс для продолжения работы'); setStatusType('error');
       return;
     }
-    if ((subscription.credits || 0) < totalShots) {
-      setStatusText(`⚡ Недостаточно кредитов: нужно ${totalShots}, доступно ${subscription.credits || 0}`); setStatusType('error');
+    const requestedShots = Math.min(totalShots, requestedLimit ?? totalShots);
+    const launchCount = Math.min(requestedShots, availableGenerationSlots);
+
+    if (availableGenerationSlots <= 0) {
+      setStatusText(`Одновременно можно создавать до ${MAX_CONCURRENT_GENERATIONS} изображений. Дождитесь завершения текущих генераций.`);
+      setStatusType('error');
       return;
     }
 
-    // Лимит 20 генераций за раз
-    if (totalShots > 20) {
-      setStatusText('⚠️ Превышен лимит: максимум 20 генераций за раз.'); setStatusType('error');
+    if (requestedShots > availableGenerationSlots) {
+      triggerConfirm('limit', launchCount, () => handleGenerate(true, launchCount), {
+        requested: requestedShots,
+        active: activeGenerationCount,
+      });
+      return;
+    }
+
+    if ((subscription.credits || 0) < launchCount) {
+      setStatusText(`⚡ Недостаточно кредитов: нужно ${launchCount}, доступно ${subscription.credits || 0}`); setStatusType('error');
       return;
     }
 
@@ -1449,20 +1501,22 @@ function App() {
     }
 
     // Если кадров >= 6, запрашиваем подтверждение
-    if (totalShots >= 6 && !skipConfirm) {
-      triggerConfirm('batch', totalShots, () => handleGenerate(true));
+    if (launchCount >= 6 && !skipConfirm) {
+      triggerConfirm('batch', launchCount, () => handleGenerate(true, launchCount));
       return;
     }
 
     const runBatchGeneration = async () => {
-      if (paidActionLocksRef.current.has('batch')) return;
-      paidActionLocksRef.current.add('batch');
+      const launchKey = `batch:${appMode}`;
+      if (paidActionLocksRef.current.has(launchKey)) return;
+      paidActionLocksRef.current.add(launchKey);
+      setLaunchActive(launchKey, true);
       setIsProcessing(true); setGeneratedImage(null); setStatusText('');
       setProcessingMsg('Подготавливаем исходники...');
       
       let msgI = 0;
       const iv = setInterval(() => { 
-        if (totalShots === 1) {
+        if (launchCount === 1) {
           setProcessingMsg(msgI < MSGS.length ? MSGS[msgI++] : 'Финальные штрихи...'); 
         }
       }, 8000);
@@ -1486,24 +1540,29 @@ function App() {
             : [...selectedProductEffects.filter(e => e.id !== 'custom'), ...customProductEffectChips.map(c => ({ id: c.id, prompt: c.prompt, label: c.label }))];
           // Форматы
           const ratiosToUse = selectedRatios;
+          const productModelsToUse = productWithModel && productModelTab === 'my_models'
+            ? productSavedModelIds.map(id => ({ id, prompt: '', isSaved: true }))
+            : [{ id: productModelPreset.id, prompt: productModelPreset.prompt, isSaved: false }];
 
-          compsToUse.forEach(comp => {
-            bgsToUse.forEach(bg => {
-              effectsToUse.forEach(effect => {
-                ratiosToUse.forEach(ratio => {
-                  for (let i = 0; i < variantCount; i++) {
-                    const seed = Math.random().toString(36).substring(2, 10).toUpperCase();
-                    tasks.push({ comp, bg, effect, ratio, variantIndex: i + 1, seed });
-                  }
+          for (let i = 0; i < variantCount; i++) {
+            compsToUse.forEach(comp => {
+              bgsToUse.forEach(bg => {
+                effectsToUse.forEach(effect => {
+                  ratiosToUse.forEach(ratio => {
+                    productModelsToUse.forEach(model => {
+                      const seed = Math.random().toString(36).substring(2, 10).toUpperCase();
+                      tasks.push({ model, comp, bg, effect, ratio, variantIndex: i + 1, seed });
+                    });
+                  });
                 });
               });
             });
-          });
+          }
         } else {
           // appMode === 'fashion' (VTON)
           // Модели
           const modelsToUse = modelTab === 'my_models'
-            ? [{ id: selectedSavedModelId, prompt: '', isSaved: true }]
+            ? selectedSavedModelIds.map(id => ({ id, prompt: '', isSaved: true }))
             : (customModelPrompt.trim()
               ? [{ id: 'custom', prompt: customModelPrompt.trim(), isSaved: false }]
               : [...selectedModels, ...customModelChips]);
@@ -1520,22 +1579,24 @@ function App() {
           // Форматы
           const ratiosToUse = selectedRatios;
 
-          modelsToUse.forEach(model => {
+          for (let i = 0; i < variantCount; i++) {
             posesToUse.forEach(pose => {
               camerasToUse.forEach(camera => {
                 bgsToUse.forEach(bg => {
                   ratiosToUse.forEach(ratio => {
-                    for (let i = 0; i < variantCount; i++) {
+                    modelsToUse.forEach(model => {
                       const seed = Math.random().toString(36).substring(2, 10).toUpperCase();
                       tasks.push({ model, pose, camera, bg, ratio, variantIndex: i + 1, seed });
-                    }
+                    });
                   });
                 });
               });
             });
-          });
+          }
         }
 
+        tasks.splice(launchCount);
+        const batchSize = tasks.length;
         const clientBatchId = createClientGenerationId(appMode === 'product' ? 'product-batch' : 'fashion-batch');
         setProcessingMsg('🚀 Запускаем генерации параллельно...');
         let completedCount = 0;
@@ -1543,8 +1604,8 @@ function App() {
         const results = [];
 
         const updateProgressText = () => {
-          if (totalShots > 1) {
-            setProcessingMsg(`📸 Генерация: готово ${completedCount} из ${totalShots} кадров` + 
+          if (batchSize > 1) {
+            setProcessingMsg(`📸 Генерация: готово ${completedCount} из ${batchSize} кадров` +
               (failedCount > 0 ? ` (ошибок: ${failedCount})` : '') + 
               `...\nМожно свернуть окно или закрыть приложение — процесс продолжится.`);
           }
@@ -1581,9 +1642,9 @@ function App() {
               let modelRefImages = null;
               let humanPrompt = undefined;
               if (productWithModel) {
-                humanPrompt = customProductModelPrompt.trim() || (productModelPreset.prompt + buildDetailString(productModelDetails));
-                if (productSavedModelId) {
-                  const sm = myModels.find(m => m.id === productSavedModelId);
+                humanPrompt = customProductModelPrompt.trim() || ((task.model?.prompt || productModelPreset.prompt) + buildDetailString(productModelDetails));
+                if (task.model?.isSaved) {
+                  const sm = myModels.find(m => String(m.id) === String(task.model.id));
                   if (!sm) throw new Error('Выбранная модель не найдена — обновите страницу и выберите её заново');
                   modelRefImages = resolveSavedModelRefs(sm);
                   if (modelRefImages.length === 0) throw new Error(`У модели «${sm.name || 'без имени'}» нет референс-фото — добавьте фотографии в редакторе модели`);
@@ -1768,7 +1829,9 @@ function App() {
         clearInterval(iv);
       } finally {
         setIsProcessing(false);
-        paidActionLocksRef.current.delete('batch');
+        const launchKey = `batch:${appMode}`;
+        paidActionLocksRef.current.delete(launchKey);
+        setLaunchActive(launchKey, false);
       }
     };
 
@@ -2146,8 +2209,8 @@ function App() {
     if (model?.storagePaths) { await Promise.all(model.storagePaths.map(p => deleteImage(p))); }
     await deleteModelDoc(user.uid, id);
     setMyModels(prev => prev.filter(m => m.id !== id));
-    if (selectedSavedModelId === id) setSelectedSavedModelId(null);
-    if (productSavedModelId === id) setProductSavedModelId(null);
+    setSelectedSavedModelIds(prev => prev.filter(modelId => String(modelId) !== String(id)));
+    setProductSavedModelIds(prev => prev.filter(modelId => String(modelId) !== String(id)));
   };
 
   const filteredModels = MODEL_PRESETS.filter(m => m.gender === gender);
@@ -2218,6 +2281,13 @@ function App() {
   // Re-generate with shot modifier (iterative editing)
   const handleRegenerate = async () => {
     if (!shotModifier.trim() || !garmentUrls.length) return;
+    const launchKey = `edit:${appMode}`;
+    if (paidActionLocksRef.current.has(launchKey)) return;
+    if (availableGenerationSlots <= 0) {
+      setStatusText(`Одновременно можно создавать до ${MAX_CONCURRENT_GENERATIONS} изображений. Дождитесь завершения текущих генераций.`);
+      setStatusType('error');
+      return;
+    }
 
     // Разделяем: «нет тарифа» vs «закончились кредиты»
     if (!subscription || subscription.plan === 'none') {
@@ -2231,6 +2301,8 @@ function App() {
       return;
     }
 
+    paidActionLocksRef.current.add(launchKey);
+    setLaunchActive(launchKey, true);
     setIsProcessing(true);
     // DON'T clear generatedImage here — preserve it in case of error
     setStatusText('');
@@ -2408,6 +2480,8 @@ function App() {
     } finally {
       setIsProcessing(false);
       setShotModifier('');
+      paidActionLocksRef.current.delete(launchKey);
+      setLaunchActive(launchKey, false);
     }
   };
 
@@ -2421,6 +2495,18 @@ function App() {
   const startCardGeneration = async (count) => {
     setShowCardCountModal(false);
     if (!generatedImage) return;
+    if (availableGenerationSlots <= 0) {
+      setStatusText(`Одновременно можно создавать до ${MAX_CONCURRENT_GENERATIONS} изображений. Дождитесь завершения текущих генераций.`);
+      setStatusType('error');
+      return;
+    }
+    if (count > availableGenerationSlots) {
+      triggerConfirm('limit', availableGenerationSlots, () => startCardGeneration(availableGenerationSlots), {
+        requested: count,
+        active: activeGenerationCount,
+      });
+      return;
+    }
     
     const totalCredits = count;
     // Credit check
@@ -2521,6 +2607,11 @@ function App() {
     }
     if (subscription?.local && creditsAvailable < creditsNeeded) {
       setStatusText(`⚡ Для генерации галереи нужно ${creditsNeeded} кредита`); setStatusType('error');
+      return;
+    }
+    if (availableGenerationSlots < 3) {
+      setStatusText(`Для галереи нужно 3 свободных места. Сейчас доступно ${availableGenerationSlots} из ${MAX_CONCURRENT_GENERATIONS}.`);
+      setStatusType('error');
       return;
     }
     if (paidActionLocksRef.current.has('gallery')) return;
@@ -2712,6 +2803,11 @@ ${userProductInfo.trim()}
       setStatusText(`⚡ Для запуска A/B теста нужно ${creditsNeeded} кредита`); setStatusType('error');
       return;
     }
+    if (availableGenerationSlots < 2) {
+      setStatusText(`Для A/B-теста нужно 2 свободных места. Сейчас доступно ${availableGenerationSlots} из ${MAX_CONCURRENT_GENERATIONS}.`);
+      setStatusType('error');
+      return;
+    }
     if (paidActionLocksRef.current.has('ab-test')) return;
     paidActionLocksRef.current.add('ab-test');
 
@@ -2780,8 +2876,8 @@ ${userProductInfo.trim()}
     }
   };
 
-  const triggerConfirm = (type, cost, onConfirm) => {
-    setConfirmModal({ type, cost, onConfirm });
+  const triggerConfirm = (type, cost, onConfirm, details = {}) => {
+    setConfirmModal({ type, cost, onConfirm, ...details });
   };
 
   // ═══ QUICK MODE V2 — GPT Image 2 card generation ═══
@@ -2794,8 +2890,14 @@ ${userProductInfo.trim()}
     const isUgcMode = quickMode === 'ugc';
     const isModelMode = quickMode === 'model';
     const requestedQuickMode = quickMode;
+    const launchKey = `quick:${requestedQuickMode}`;
     const creditsNeeded = isCardMode ? 2 : 1;
     const creditsAvailable = subscription?.credits || 0;
+    if (availableGenerationSlots <= 0) {
+      setStatusText(`Одновременно можно создавать до ${MAX_CONCURRENT_GENERATIONS} изображений. Дождитесь завершения текущих генераций.`);
+      setStatusType('error');
+      return;
+    }
     // Разделяем: «нет тарифа» vs «закончились кредиты»
     if (!subscription || subscription.plan === 'none') {
       setShowPricing(true);
@@ -2812,8 +2914,9 @@ ${userProductInfo.trim()}
       setStatusText(`⚡ Недостаточно кредитов: нужно ${creditsNeeded}, доступно ${creditsAvailable}`); setStatusType('error');
       return;
     }
-    if (paidActionLocksRef.current.has('quick-generate')) return;
-    paidActionLocksRef.current.add('quick-generate');
+    if (paidActionLocksRef.current.has(launchKey)) return;
+    paidActionLocksRef.current.add(launchKey);
+    setLaunchActive(launchKey, true);
 
     // Save current result to cache before clearing
     if (quickCardImage) {
@@ -2998,7 +3101,8 @@ ${userProductInfo.trim()}
       clearTimeout(timeoutId);
       setIsProcessing(false);
       abortControllerRef.current = null;
-      paidActionLocksRef.current.delete('quick-generate');
+      paidActionLocksRef.current.delete(launchKey);
+      setLaunchActive(launchKey, false);
     }
   };
 
@@ -3066,7 +3170,9 @@ ${userProductInfo.trim()}
   ];
 
   const handlePhotoshoot = async (count = 5) => {
-    if (!garmentUrls.length || isPhotoshooting) return;
+    if (!garmentUrls.length) return;
+    const launchKey = `photoshoot:${appMode}`;
+    if (paidActionLocksRef.current.has(launchKey)) return;
     if (appMode === 'fashion' && modelTab === 'my_models' && !selectedSavedModelId) {
       setStatusText('Выберите сохранённую модель перед запуском фотосессии.');
       setStatusType('error');
@@ -3086,40 +3192,53 @@ ${userProductInfo.trim()}
       return;
     }
 
-    const creditsAvailable = subscription?.credits || 0;
-    if (creditsAvailable < count && !subscription?.local) {
-      setShowPricing(true);
-      setStatusText(`⚡ Для фотосессии нужно ${count} кредитов, доступно ${creditsAvailable}`);
+    if (availableGenerationSlots <= 0) {
+      setStatusText(`Одновременно можно создавать до ${MAX_CONCURRENT_GENERATIONS} изображений. Дождитесь завершения текущих генераций.`);
       setStatusType('error');
       return;
     }
-    if (subscription?.local && creditsAvailable < count) {
-      setStatusText(`⚡ Для фотосессии нужно ${count} кредитов, доступно ${creditsAvailable}`);
-      setStatusType('error');
+    if (count > availableGenerationSlots) {
+      triggerConfirm('limit', availableGenerationSlots, () => handlePhotoshoot(availableGenerationSlots), {
+        requested: count,
+        active: activeGenerationCount,
+      });
       return;
     }
-    if (paidActionLocksRef.current.has('photoshoot')) return;
-    paidActionLocksRef.current.add('photoshoot');
 
-    setIsPhotoshooting(true);
-    
+    const frameCount = Math.min(count, availableGenerationSlots);
+
+    const creditsAvailable = subscription?.credits || 0;
+    if (creditsAvailable < frameCount && !subscription?.local) {
+      setShowPricing(true);
+      setStatusText(`⚡ Для фотосессии нужно ${frameCount} кредитов, доступно ${creditsAvailable}`);
+      setStatusType('error');
+      return;
+    }
+    if (subscription?.local && creditsAvailable < frameCount) {
+      setStatusText(`⚡ Для фотосессии нужно ${frameCount} кредитов, доступно ${creditsAvailable}`);
+      setStatusType('error');
+      return;
+    }
+    paidActionLocksRef.current.add(launchKey);
+    setLaunchActive(launchKey, true);
+
     const angles = appMode === 'product'
-      ? PRODUCT_PHOTOSHOOT_ANGLES.slice(0, count)
-      : PHOTOSHOOT_ANGLES.slice(0, count);
+      ? PRODUCT_PHOTOSHOOT_ANGLES.slice(0, frameCount)
+      : PHOTOSHOOT_ANGLES.slice(0, frameCount);
 
     const existingCount = photoshootImages.length;
     const queuedStatus = {};
     angles.forEach((_, idx) => {
       queuedStatus[existingCount + idx] = 'queued';
     });
-    setPhotoshootImages(prev => [...prev, ...new Array(count).fill(null)]);
+    setPhotoshootImages(prev => [...prev, ...new Array(frameCount).fill(null)]);
     setPhotoshootStatus(prev => ({ ...prev, ...queuedStatus }));
     setPhotoshootErrors(prev => {
       const next = { ...prev };
       angles.forEach((_, idx) => delete next[existingCount + idx]);
       return next;
     });
-    setStatusText(`📸 Запускаем ${count} кадров параллельно...`);
+    setStatusText(`📸 Запускаем ${frameCount} кадров параллельно...`);
     setStatusType('');
     try {
       let modelPrompt = '';
@@ -3199,8 +3318,8 @@ ${userProductInfo.trim()}
       let failedCount = 0;
       const updateProgress = () => {
         const doneCount = successCount + failedCount;
-        setStatusText(`📸 Фотосессия: готово ${doneCount} из ${count}${failedCount > 0 ? `, ошибок: ${failedCount}` : ''}`);
-        setStatusType(failedCount > 0 && successCount === 0 && doneCount === count ? 'error' : '');
+        setStatusText(`📸 Фотосессия: готово ${doneCount} из ${frameCount}${failedCount > 0 ? `, ошибок: ${failedCount}` : ''}`);
+        setStatusType(failedCount > 0 && successCount === 0 && doneCount === frameCount ? 'error' : '');
       };
 
       const clientBatchId = createClientGenerationId('photoshoot-batch');
@@ -3231,11 +3350,11 @@ ${userProductInfo.trim()}
                 humanModelRefImages: humanModelRefImages || undefined,
                 isPhotoshoot: true,
                 photoshootFrameIndex: idx + 1,
-                photoshootBatchSize: count,
+                photoshootBatchSize: frameCount,
                 clientBatchId,
                 clientTaskId: `${clientBatchId}:${idx + 1}`,
                 clientTaskLabel: `Фотосессия · кадр ${idx + 1}`,
-                clientTaskTotal: count,
+                clientTaskTotal: frameCount,
                 clientJobKind: 'photoshoot',
                 clientJobTitle: appMode === 'product' ? 'Раскадровка товара' : 'Фотосессия',
                 clientResumeMode: appMode,
@@ -3309,8 +3428,8 @@ ${userProductInfo.trim()}
       setStatusType(successCount > 0 ? 'success' : 'error');
     } catch (err) { setStatusText(`Ошибка фотосессии: ${err.message}`); setStatusType('error'); }
     finally {
-      setIsPhotoshooting(false);
-      paidActionLocksRef.current.delete('photoshoot');
+      paidActionLocksRef.current.delete(launchKey);
+      setLaunchActive(launchKey, false);
     }
   };
 
@@ -3712,6 +3831,7 @@ ${userProductInfo.trim()}
               {confirmModal.type === 'gallery' ? '📸 Собрать галерею?' : 
                confirmModal.type === 'ab' ? '⚖️ Запустить A/B Тест?' : 
                confirmModal.type === 'video' ? '🎬 Оживить в Видеообложку?' : 
+               confirmModal.type === 'limit' ? `⚡ Запустить доступные ${confirmModal.cost}?` :
                confirmModal.type === 'batch' ? '📸 Запустить серию генераций?' :
                '📱 Создать фото от покупателей?'}
             </h3>
@@ -3719,12 +3839,13 @@ ${userProductInfo.trim()}
               {confirmModal.type === 'gallery' ? 'ИИ сгенерирует 3 дополнительных слайда воронки (крупный план деталей, размеры и lifestyle-кадр) на основе выбранного кадра.' : 
                confirmModal.type === 'ab' ? 'ИИ создаст 2 альтернативных варианта обложки (светлый и темный стили) для тестирования CTR.' : 
                confirmModal.type === 'video' ? 'ИИ создаст 3D-анимацию и motion-эффекты для видеообложки.' : 
+               confirmModal.type === 'limit' ? `Вы выбрали ${confirmModal.requested} изображений. Одновременно можно создавать до ${MAX_CONCURRENT_GENERATIONS}; сейчас уже выполняется ${confirmModal.active}. Запустим ${confirmModal.cost}, остальные не будут поставлены в очередь.` :
                confirmModal.type === 'batch' ? `ИИ сгенерирует серию из ${confirmModal.cost} кадров на основе ваших настроек мультивыбора. Кадры будут создаваться параллельно.` :
                'ИИ перенесет товар с выбранного кадра в домашнюю реалистичную обстановку.'}
             </p>
 
             {/* Preview of active frame */}
-            {confirmModal.type !== 'batch' && (quickCardImage || generatedImage) && (
+            {!['batch', 'limit'].includes(confirmModal.type) && (quickCardImage || generatedImage) && (
               <div style={{
                 width: 140,
                 aspectRatio: '3/4',
@@ -3760,9 +3881,11 @@ ${userProductInfo.trim()}
             )}
 
             <div style={{ margin: '15px 0 25px 0', textAlign: 'center' }}>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>Стоимость генерации</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>
+                {confirmModal.type === 'limit' ? 'Будет запущено' : 'Стоимость генерации'}
+              </div>
               <div style={{ fontSize: 28, fontWeight: 900, color: '#ffd700', marginTop: 4 }}>
-                {confirmModal.cost} кр.
+                {confirmModal.cost} {confirmModal.type === 'limit' ? 'изобр.' : 'кр.'}
               </div>
             </div>
 
@@ -3808,7 +3931,7 @@ ${userProductInfo.trim()}
                 onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
                 onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
               >
-                Да, создать
+                {confirmModal.type === 'limit' ? `Сгенерировать ${confirmModal.cost}` : 'Да, создать'}
               </button>
             </div>
           </motion.div>
@@ -4045,13 +4168,17 @@ ${userProductInfo.trim()}
                         </>
                       ) : (
                         <>
-                          <div className="model-mode-notice">⭐ Используются только ваши модели. Выбор из пресетов сброшен.</div>
+                          <div className="model-mode-notice">Если используете свои модели, выбор моделей из пресетов не доступен</div>
                           {myModels.length > 0 ? (
                             <>
                               <div className="model-avatar-grid">
                                 {myModels.map(m => (
-                                  <div key={m.id} className={`model-avatar ${productSavedModelId===m.id?'active':''}`}
-                                    onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
+                                  <div key={m.id} className={`model-avatar ${productSavedModelIds.some(id => String(id) === String(m.id))?'active':''}`}
+                                    role="checkbox"
+                                    aria-checked={productSavedModelIds.some(id => String(id) === String(m.id))}
+                                    tabIndex={0}
+                                    onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleProductSavedModelId(m.id); } }}
+                                    onClick={() => { toggleProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
                                     <img src={m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                                     <div className="avatar-name">{m.name}</div>
                                     <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
@@ -4059,6 +4186,11 @@ ${userProductInfo.trim()}
                                   </div>
                                 ))}
                               </div>
+                              {productSavedModelIds.length > 0 && (
+                                <div className="selected-model-indicator">
+                                  ⭐ Выбрано: {productSavedModelIds.map(id => myModels.find(model => String(model.id) === String(id))?.name).filter(Boolean).join(', ')}
+                                </div>
+                              )}
                               {productSavedModelId && (() => {
                                 const sm = myModels.find(m => m.id === productSavedModelId);
                                 if (!sm) return null;
@@ -4142,9 +4274,9 @@ ${userProductInfo.trim()}
             <button
               className="generate-btn quick-generate-btn"
               onClick={handleQuickGenerate}
-              disabled={isProcessing || !garmentUrls.length}
+              disabled={activeLaunchKeys.includes(`quick:${quickMode}`) || availableGenerationSlots <= 0 || !garmentUrls.length}
             >
-              {isProcessing ? '⏳ Генерируем...' : (quickMode === 'card' ? '📋 Создать карточку' : quickMode === 'ugc' ? '📱 Создать фото от покупателя' : quickMode === 'model' ? '👤 Создать карточку с моделью' : '🎨 Создать фото')}
+              {activeLaunchKeys.includes(`quick:${quickMode}`) ? '⏳ Генерируем...' : (quickMode === 'card' ? '📋 Создать карточку' : quickMode === 'ugc' ? '📱 Создать фото от покупателя' : quickMode === 'model' ? '👤 Создать карточку с моделью' : '🎨 Создать фото')}
             </button>
             <span className="quick-credits-hint">{quickMode === 'card' ? '2 кредита' : '1 кредит'}</span>
           </div>
@@ -4291,13 +4423,17 @@ ${userProductInfo.trim()}
                   </>
                 ) : (
                   <>
-                    <div className="model-mode-notice">⭐ Используются только ваши модели. Выбор из пресетов сброшен.</div>
+                    <div className="model-mode-notice">Если используете свои модели, выбор моделей из пресетов не доступен</div>
                     {myModels.length > 0 && (
                       <>
                         <div className="model-avatar-grid">
                         {myModels.map(m => (
-                          <div key={m.id} className={`model-avatar ${productSavedModelId===m.id?'active':''}`}
-                            onClick={() => { setProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
+                          <div key={m.id} className={`model-avatar ${productSavedModelIds.some(id => String(id) === String(m.id))?'active':''}`}
+                            role="checkbox"
+                            aria-checked={productSavedModelIds.some(id => String(id) === String(m.id))}
+                            tabIndex={0}
+                            onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleProductSavedModelId(m.id); } }}
+                            onClick={() => { toggleProductSavedModelId(m.id); setCustomProductModelPrompt(''); setShowProductModelDetails(false); }}>
                             <img src={m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                             <div className="avatar-name">{m.name}</div>
                             <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
@@ -4306,6 +4442,11 @@ ${userProductInfo.trim()}
                           </div>
                         ))}
                       </div>
+                      {productSavedModelIds.length > 0 && (
+                        <div className="selected-model-indicator">
+                          ⭐ Выбрано: {productSavedModelIds.map(id => myModels.find(model => String(model.id) === String(id))?.name).filter(Boolean).join(', ')}
+                        </div>
+                      )}
                       {productSavedModelId && (() => {
                         const sm = myModels.find(m => m.id === productSavedModelId);
                         if (!sm) return null;
@@ -4363,7 +4504,7 @@ ${userProductInfo.trim()}
               {!customModelPrompt && !selectedSavedModelId && (selectedModels.length + customModelChips.length) > 1 && (
                 <div className="multi-select-info">
                   <span className="info-icon">ℹ️</span>
-                  Выбрано {selectedModels.length + customModelChips.length} типов моделей — каждый тип = отдельная генерация. Итого: ×{selectedModels.length + customModelChips.length} к количеству кадров. Максимум 20 за раз.
+                  Выбрано {selectedModels.length + customModelChips.length} типов моделей — каждый тип = отдельная генерация. Итого: ×{selectedModels.length + customModelChips.length} к количеству кадров. Одновременно можно создавать до {MAX_CONCURRENT_GENERATIONS} изображений.
                 </div>
               )}
               <div className={`preset-grid${customModelPrompt && !selectedSavedModelId ? ' dimmed' : ''}`}>
@@ -4445,13 +4586,17 @@ ${userProductInfo.trim()}
             </>
           ) : (
             <>
-              <div className="model-mode-notice">⭐ Используются только ваши модели. Выбор из пресетов сброшен.</div>
+              <div className="model-mode-notice">Если используете свои модели, выбор моделей из пресетов не доступен</div>
               {myModels.length > 0 && (
                 <>
                   <div className="model-avatar-grid">
                     {myModels.map(m => (
-                      <div key={m.id} className={`model-avatar ${selectedSavedModelId===m.id?'active':''}`}
-                        onClick={() => { setSelectedSavedModelId(m.id); setCustomModelPrompt(''); setShowDetails(false); }}>
+                      <div key={m.id} className={`model-avatar ${selectedSavedModelIds.some(id => String(id) === String(m.id))?'active':''}`}
+                        role="checkbox"
+                        aria-checked={selectedSavedModelIds.some(id => String(id) === String(m.id))}
+                        tabIndex={0}
+                        onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggleSelectedSavedModelId(m.id); } }}
+                        onClick={() => { toggleSelectedSavedModelId(m.id); setCustomModelPrompt(''); setShowDetails(false); }}>
                         <img src={m.fullbodyUrl || m.imageUrls?.[0] || ''} alt={m.name} />
                         <div className="avatar-name">{m.name}</div>
                         <button className="zoom-btn" onClick={e => { e.stopPropagation(); setLightboxSrc(m.fullbodyUrl || m.imageUrls?.[0] || ''); }}>🔍</button>
@@ -4459,7 +4604,11 @@ ${userProductInfo.trim()}
                       </div>
                     ))}
                   </div>
-                  {selectedSavedModelId && <div className="selected-model-indicator">⭐ Выбрана: {myModels.find(model => model.id === selectedSavedModelId)?.name || 'ваша модель'}</div>}
+                  {selectedSavedModelIds.length > 0 && (
+                    <div className="selected-model-indicator">
+                      ⭐ Выбрано: {selectedSavedModelIds.map(id => myModels.find(model => String(model.id) === String(id))?.name).filter(Boolean).join(', ')}
+                    </div>
+                  )}
                   {selectedSavedModelId && (() => {
                     const sm = myModels.find(m => m.id === selectedSavedModelId);
                     const isPersona = sm?.modelType === 'persona' || sm?.type === 'persona';
@@ -5028,19 +5177,23 @@ ${userProductInfo.trim()}
               onClick={handleGenerate} 
               onMouseEnter={() => { fetch('/api/generate-image', { method: 'OPTIONS', keepalive: true }).catch(() => {}); }} 
               disabled={
-                !garmentUrls.length || isProcessing || isUploading || totalShots > 20 ||
+                !garmentUrls.length || isUploading || availableGenerationSlots <= 0 || activeLaunchKeys.includes(`batch:${appMode}`) ||
                 (appMode === 'fashion' && modelTab === 'my_models' && !selectedSavedModelId) ||
                 (appMode === 'product' && productWithModel && productModelTab === 'my_models' && !productSavedModelId)
               }
             >
               {isUploading 
                 ? '☁️ Загрузка в облако...' 
-                : `✨ Сгенерировать ${totalShots > 1 ? totalShots + ' кадр' + (totalShots < 5 ? 'а' : 'ов') : 'студийный кадр'}`}
+                : totalShots > availableGenerationSlots && availableGenerationSlots > 0
+                  ? `✨ Сгенерировать ${availableGenerationSlots} из ${totalShots}`
+                  : `✨ Сгенерировать ${totalShots > 1 ? totalShots + ' кадр' + (totalShots < 5 ? 'а' : 'ов') : 'студийный кадр'}`}
             </button>
           </div>
-          {totalShots > 20 && (
+          {totalShots > availableGenerationSlots && (
             <div style={{color:'var(--gold)',fontSize:'0.75rem',textAlign:'center',fontWeight:500}}>
-              ⚠️ Выбрано {totalShots} генераций. Лимит — 20 за один раз. Пожалуйста, снимите выделение с некоторых параметров.
+              {availableGenerationSlots > 0
+                ? `Выбрано ${totalShots} изображений. Сейчас можно запустить ${availableGenerationSlots}: активно ${activeGenerationCount} из ${MAX_CONCURRENT_GENERATIONS}.`
+                : `Лимит занят: активно ${activeGenerationCount} из ${MAX_CONCURRENT_GENERATIONS}. Дождитесь завершения текущих генераций.`}
             </div>
           )}
         </div>
@@ -5639,14 +5792,14 @@ ${userProductInfo.trim()}
                 <button
                   className="redress-btn has-tooltip"
                   onClick={handleGenerate}
-                  disabled={isProcessing}
+                  disabled={activeLaunchKeys.includes(`batch:${appMode}`) || availableGenerationSlots <= 0}
                   data-tooltip="Вернуть одежду в исходный вид"
                 >👗 Переодеть модель</button>
               ) : (
                 <button
                   className="redress-btn has-tooltip"
                   onClick={handleGenerate}
-                  disabled={isProcessing}
+                  disabled={activeLaunchKeys.includes(`batch:${appMode}`) || availableGenerationSlots <= 0}
                   data-tooltip="Перегенерировать с текущими настройками"
                 >🔄 Новый вариант</button>
               )}
@@ -5665,7 +5818,7 @@ ${userProductInfo.trim()}
                   : 'Например: сделать модель выше, изменить цвет волос, добавить очки, убрать тени'
               }
                 value={shotModifier} onChange={e => setShotModifier(e.target.value)} />
-              <button className="modifier-regen-btn" onClick={handleRegenerate} disabled={!shotModifier.trim() || isProcessing}>
+              <button className="modifier-regen-btn" onClick={handleRegenerate} disabled={!shotModifier.trim() || activeLaunchKeys.includes(`edit:${appMode}`) || availableGenerationSlots <= 0}>
                 🔄 Внести изменения
               </button>
             </div>
@@ -5695,11 +5848,11 @@ ${userProductInfo.trim()}
               )}
 
               <div className="photoshoot-choice">
-                <button className="photoshoot-btn photoshoot-btn--3" onClick={() => handlePhotoshoot(3)} disabled={isPhotoshooting || isProcessing}>
-                  {isPhotoshooting ? '⏳ Генерация...' : photoshootImages.filter(Boolean).length > 0 ? `📷 ещё +3` : '📷 3 фото'}
+                <button className="photoshoot-btn photoshoot-btn--3" onClick={() => handlePhotoshoot(3)} disabled={activeLaunchKeys.includes(`photoshoot:${appMode}`) || availableGenerationSlots <= 0}>
+                  {activeLaunchKeys.includes(`photoshoot:${appMode}`) ? '⏳ Генерация...' : photoshootImages.filter(Boolean).length > 0 ? `📷 ещё +3` : '📷 3 фото'}
                 </button>
-                <button className="photoshoot-btn photoshoot-btn--5" onClick={() => handlePhotoshoot(5)} disabled={isPhotoshooting || isProcessing}>
-                  {isPhotoshooting ? '⏳ Генерация...' : photoshootImages.filter(Boolean).length > 0 ? `📸 ещё +5` : '📸 5 фото'}
+                <button className="photoshoot-btn photoshoot-btn--5" onClick={() => handlePhotoshoot(5)} disabled={activeLaunchKeys.includes(`photoshoot:${appMode}`) || availableGenerationSlots <= 0}>
+                  {activeLaunchKeys.includes(`photoshoot:${appMode}`) ? '⏳ Генерация...' : photoshootImages.filter(Boolean).length > 0 ? `📸 ещё +5` : '📸 5 фото'}
                 </button>
               </div>
             </div>
@@ -6068,7 +6221,7 @@ ${userProductInfo.trim()}
                 <input
                   type="number"
                   min="1"
-                  max="20"
+                  max={MAX_CONCURRENT_GENERATIONS}
                   placeholder="Своё количество"
                   className="card-count-input"
                   value={customCardCount}

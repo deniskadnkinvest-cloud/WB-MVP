@@ -50,7 +50,7 @@ export async function runBatchQueue(tasks, executeFn, { concurrency = 3, onProgr
 /**
  * Макс. допустимое количество задач в одном батче
  */
-export const MAX_BATCH_SIZE = 24;
+export const MAX_BATCH_SIZE = 10;
 
 /**
  * Порог, при котором показываем подтверждение пользователю
@@ -60,4 +60,4 @@ export const BATCH_CONFIRM_THRESHOLD = 6;
 /**
  * Макс. параллельных запросов к API
  */
-export const BATCH_CONCURRENCY = 3;
+export const BATCH_CONCURRENCY = 10;

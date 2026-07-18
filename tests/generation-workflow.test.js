@@ -5,11 +5,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   GENERATION_JOB_STALE_MS,
+  MAX_CONCURRENT_GENERATIONS,
+  countActiveGenerationTasks,
+  getAvailableGenerationSlots,
   ensureGenerationJob,
   markStaleGenerationJobs,
   mergeGenerationRecords,
   patchGenerationTask,
 } from '../src/lib/generationTaskStore.js';
+import {
+  MAX_CONCURRENT_USER_GENERATIONS,
+  UserGenerationConcurrencyLimiter,
+} from '../api/_generation-concurrency.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf8');
@@ -119,15 +126,59 @@ test('restored jobs remain ordered newest first', () => {
   assert.deepEqual(restored.map(job => job.id), ['newer', 'older']);
 });
 
+test('the client exposes only the remaining part of the global ten-image capacity', () => {
+  let jobs = [];
+  for (let index = 1; index <= 8; index += 1) {
+    jobs = ensureGenerationJob(jobs, {
+      batchId: index <= 4 ? 'fashion-live' : 'product-live',
+      taskId: `active-${index}`,
+      total: 4,
+      kind: index <= 4 ? 'fashion' : 'product',
+    });
+  }
+
+  assert.equal(MAX_CONCURRENT_GENERATIONS, 10);
+  assert.equal(countActiveGenerationTasks(jobs), 8);
+  assert.equal(getAvailableGenerationSlots(jobs), 2);
+
+  jobs = patchGenerationTask(jobs, 'fashion-live', 'active-1', { status: 'success' });
+  assert.equal(countActiveGenerationTasks(jobs), 7);
+  assert.equal(getAvailableGenerationSlots(jobs), 3);
+});
+
+test('the server enforces ten active generations per user and releases capacity safely', () => {
+  const limiter = new UserGenerationConcurrencyLimiter(MAX_CONCURRENT_USER_GENERATIONS);
+  const slots = Array.from({ length: 10 }, () => limiter.tryAcquire('tg_42'));
+
+  assert.equal(MAX_CONCURRENT_USER_GENERATIONS, 10);
+  assert.equal(slots.every(slot => slot.acquired), true);
+  assert.equal(limiter.getActive('tg_42'), 10);
+  const rejected = limiter.tryAcquire('tg_42');
+  assert.equal(rejected.acquired, false);
+  assert.equal(rejected.active, 10);
+  assert.equal(rejected.available, 0);
+  assert.equal(rejected.maxConcurrent, 10);
+  assert.equal(limiter.tryAcquire('tg_other').acquired, true);
+
+  slots[0].release();
+  slots[0].release();
+  assert.equal(limiter.getActive('tg_42'), 9);
+  assert.equal(limiter.tryAcquire('tg_42').acquired, true);
+});
+
 test('selection, persistence and safe download invariants stay in source', () => {
   const app = read('src/App.jsx');
   const history = read('src/components/MyHistoryPage.jsx');
   const generator = read('api/generate-image.js');
   const userData = read('api/user-data.js');
 
-  assert.match(app, /modelTab === 'my_models'[\s\S]*?selectedSavedModelId/u);
+  assert.match(app, /modelTab === 'my_models'[\s\S]*?selectedSavedModelIds\.map/u);
+  assert.match(app, /toggleSelectedSavedModelId/u);
+  assert.match(app, /toggleProductSavedModelId/u);
   assert.match(app, /setSelectedModels\(\[\]\)/u);
   assert.match(app, /Promise\.allSettled\(tasks\.map/u);
+  assert.match(app, /batch:\$\{appMode\}/u);
+  assert.match(app, /Сгенерировать \$\{confirmModal\.cost\}/u);
   assert.match(app, /GENERATION_JOBS_STORAGE_KEY/u);
   assert.match(app, /downloadImageAsset\(displayImg/u);
   assert.doesNotMatch(history, /window\.open/u);
@@ -135,6 +186,8 @@ test('selection, persistence and safe download invariants stay in source', () =>
   assert.match(generator, /status: 'running'/u);
   assert.match(generator, /metadata ->> 'clientTaskId'/u);
   assert.match(generator, /sourceModelId/u);
+  assert.match(generator, /code: 'GENERATION_LIMIT'/u);
+  assert.match(generator, /userGenerationConcurrencyLimiter\.tryAcquire\(verifiedUid\)/u);
   assert.match(userData, /type === 'generation-tasks'/u);
   assert.match(userData, /DELETE FROM generations WHERE id = \$1 AND user_id = \$2/u);
 });

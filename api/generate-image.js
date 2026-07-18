@@ -10,6 +10,10 @@ import {
   refundCreditReservationPersisted,
   reserveGenerationBalance,
 } from './_billing-reservations.js';
+import {
+  MAX_CONCURRENT_USER_GENERATIONS,
+  userGenerationConcurrencyLimiter,
+} from './_generation-concurrency.js';
 
 // Safety wrapper: if _db.js fails to load, provide clear error instead of "ReferenceError: _db is not defined"
 const query = (...args) => {
@@ -547,7 +551,7 @@ async function getCreditsRemainingForReservation(reservation) {
   return creditsRemaining;
 }
 
-function installGenerationFinalizer({ req, res, getReservation, idempotencyEntry }) {
+function installGenerationFinalizer({ req, res, getReservation, idempotencyEntry, generationSlot }) {
   let statusCode = 200;
   let finalized = false;
   let clientDisconnected = false;
@@ -600,9 +604,10 @@ function installGenerationFinalizer({ req, res, getReservation, idempotencyEntry
         }
       }
 
-      if (idempotencyEntry && !finalized) {
+      if (!finalized) {
         finalized = true;
-        idempotencyEntry.resolve({ statusCode, body: finalBody });
+        generationSlot?.release();
+        idempotencyEntry?.resolve({ statusCode, body: finalBody });
       }
 
       if (res.destroyed || res.writableEnded) return finalBody;
@@ -2426,6 +2431,7 @@ export default async function handler(req, res) {
     const idempotencyKey = normalizeIdempotencyKey(req.body?.idempotencyKey);
     const idempotencyCacheKey = creditCost > 0 && idempotencyKey ? `${verifiedUid}:${idempotencyKey}` : null;
     let idempotencyEntry = null;
+    let generationSlot = null;
 
     if (idempotencyCacheKey) {
       pruneIdempotencyCache();
@@ -2435,15 +2441,32 @@ export default async function handler(req, res) {
         const cached = await existingEntry.promise;
         return res.status(cached.statusCode).json(cached.body);
       }
-      idempotencyEntry = createIdempotencyEntry(idempotencyCacheKey);
     }
 
     if (creditCost > 0) {
+      generationSlot = userGenerationConcurrencyLimiter.tryAcquire(verifiedUid);
+      if (!generationSlot.acquired) {
+        console.warn(`[User Generation Limit] user=${verifiedUid} active=${generationSlot.active}/${MAX_CONCURRENT_USER_GENERATIONS}`);
+        return res.status(429).json({
+          success: false,
+          code: 'GENERATION_LIMIT',
+          error: `Одновременно можно создавать до ${MAX_CONCURRENT_USER_GENERATIONS} изображений. Дождитесь завершения текущих генераций.`,
+          activeGenerations: generationSlot.active,
+          availableGenerations: generationSlot.available,
+          maxConcurrentGenerations: MAX_CONCURRENT_USER_GENERATIONS,
+        });
+      }
+
+      if (idempotencyCacheKey) {
+        idempotencyEntry = createIdempotencyEntry(idempotencyCacheKey);
+      }
+
       installGenerationFinalizer({
         req,
         res,
         getReservation: () => creditReservation,
         idempotencyEntry,
+        generationSlot,
       });
 
       creditReservation = await reserveGenerationCredits({

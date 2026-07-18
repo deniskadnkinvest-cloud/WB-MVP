@@ -1,7 +1,18 @@
 export const GENERATION_JOBS_STORAGE_KEY = 'vton_generationJobs';
 export const GENERATION_JOB_STALE_MS = 15 * 60 * 1000;
+export const MAX_CONCURRENT_GENERATIONS = 10;
 
 const TERMINAL_TASK_STATUSES = new Set(['success', 'error']);
+
+export function countActiveGenerationTasks(jobs = []) {
+  return jobs.reduce((total, job) => total + (job.tasks || []).filter(task => (
+    !TERMINAL_TASK_STATUSES.has(task.status === 'completed' ? 'success' : task.status)
+  )).length, 0);
+}
+
+export function getAvailableGenerationSlots(jobs = []) {
+  return Math.max(0, MAX_CONCURRENT_GENERATIONS - countActiveGenerationTasks(jobs));
+}
 
 const normalizeTask = (task = {}) => ({
   id: String(task.id || task.clientTaskId || ''),

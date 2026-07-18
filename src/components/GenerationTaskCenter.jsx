@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MAX_CONCURRENT_GENERATIONS, countActiveGenerationTasks } from '../lib/generationTaskStore';
 
 const STATUS_COPY = {
   running: { icon: '⏳', label: 'Идёт генерация' },
@@ -14,6 +15,7 @@ export default function GenerationTaskCenter({ jobs, onOpen, onDismiss }) {
 
   const latest = visibleJobs[0];
   const latestCopy = STATUS_COPY[latest.status] || STATUS_COPY.running;
+  const activeTasks = countActiveGenerationTasks(jobs);
 
   return (
     <div className={`generation-task-center ${expanded ? 'expanded' : ''}`}>
@@ -26,7 +28,11 @@ export default function GenerationTaskCenter({ jobs, onOpen, onDismiss }) {
         <span className="generation-task-pill-icon">{latestCopy.icon}</span>
         <span className="generation-task-pill-copy">
           <strong>{latestCopy.label}</strong>
-          <small>{latest.completed}/{latest.total} · нажмите, чтобы вернуться</small>
+          <small>
+            {activeTasks > 0
+              ? `${activeTasks}/${MAX_CONCURRENT_GENERATIONS} активно · нажмите, чтобы вернуться`
+              : `${latest.completed}/${latest.total} · нажмите, чтобы вернуться`}
+          </small>
         </span>
         {visibleJobs.length > 1 && <span className="generation-task-count">{visibleJobs.length}</span>}
       </button>
@@ -34,7 +40,7 @@ export default function GenerationTaskCenter({ jobs, onOpen, onDismiss }) {
       {expanded && (
         <div className="generation-task-list" role="dialog" aria-label="Процессы генерации">
           <div className="generation-task-list-header">
-            <strong>Ваши процессы</strong>
+            <strong>Ваши процессы{activeTasks > 0 ? ` · ${activeTasks}/${MAX_CONCURRENT_GENERATIONS}` : ''}</strong>
             <button onClick={() => setExpanded(false)} aria-label="Свернуть список">✕</button>
           </div>
           {visibleJobs.map(job => {
