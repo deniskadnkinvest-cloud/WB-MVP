@@ -137,7 +137,7 @@ export default async function handler(req, res) {
       const { type, limit: limitStr } = req.query;
       const maxResults = parseInt(limitStr) || 50;
 
-      if (type === 'generations') {
+      if (type === 'generations' || type === 'generation-tasks') {
         const columns = await getGenerationColumns();
         const imageExpression = columns.has('result_url') && columns.has('image_url')
           ? 'COALESCE(result_url, image_url)'
@@ -146,7 +146,9 @@ export default async function handler(req, res) {
             : columns.has('image_url')
               ? 'image_url'
               : 'NULL';
-        const successFilter = columns.has('status')
+        const successFilter = type === 'generation-tasks'
+          ? `TRUE`
+          : columns.has('status')
           ? `(status = 'success' OR status = 'completed' OR status IS NULL)`
           : columns.has('success')
             ? `success IS TRUE`
@@ -303,6 +305,16 @@ export default async function handler(req, res) {
         return res.json({ ok: true });
       }
 
+      if (type === 'generation' && id) {
+        if (!identity.dbId) return res.status(404).json({ ok: false, error: 'User not found' });
+        const result = await query(
+          `DELETE FROM generations WHERE id = $1 AND user_id = $2 RETURNING id`,
+          [id, identity.dbId]
+        );
+        if (!result.rows[0]) return res.status(404).json({ ok: false, error: 'Generation not found' });
+        return res.json({ ok: true });
+      }
+
       return res.status(400).json({ ok: false, error: 'Unknown type or missing id' });
     }
 
@@ -338,6 +350,8 @@ function rowToGeneration(row) {
     id: row.id,
     userId: row.user_id,
     success: row.status ? ['success', 'completed'].includes(row.status) : row.success !== false,
+    status: row.status || (row.success === false ? 'error' : 'success'),
+    error: row.error || meta.error || '',
     createdAt: row.created_at?.toISOString(),
     imageUrl: rewriteS3Url(row.__image_url || row.result_url || row.image_url || meta.imageUrl),
     type: row.type || meta.type,

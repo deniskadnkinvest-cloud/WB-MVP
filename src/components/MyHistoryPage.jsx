@@ -5,6 +5,7 @@ import {
   CAMERA_ANGLES, ASPECT_RATIOS, PRODUCT_CATEGORIES,
   PRODUCT_COMPOSITIONS, PRODUCT_BACKGROUNDS, PRODUCT_EFFECTS
 } from '../data/presets';
+import { deleteGeneration } from '../lib/userDataService';
 
 // Универсальный маппер prompt → label (русское название с эмодзи)
 function findPresetLabel(prompt, presets) {
@@ -66,35 +67,66 @@ function formatDate(createdAt) {
   }
 }
 
-async function downloadImage(url, filename, token) {
+async function getImageFile(url, filename, token) {
+  let resp;
   try {
-    let resp;
-    try {
-      resp = url.startsWith('data:')
-        ? await fetch(url)
-        : await fetch(url, { mode: 'cors', cache: 'no-store' });
-      if (!resp.ok) throw new Error(`download failed: ${resp.status}`);
-    } catch (directErr) {
-      if (url.startsWith('data:')) throw directErr;
-      resp = await fetch(`/api/upload?url=${encodeURIComponent(url)}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!resp.ok) throw directErr;
-    }
-    const blob = await resp.blob();
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename || 'seller-studio-result.jpg';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(a.href), 1500);
-  } catch {
-    window.open(url, '_blank', 'noopener,noreferrer');
+    resp = url.startsWith('data:')
+      ? await fetch(url)
+      : await fetch(url, { mode: 'cors', cache: 'no-store' });
+    if (!resp.ok) throw new Error(`download failed: ${resp.status}`);
+  } catch (directErr) {
+    if (url.startsWith('data:')) throw directErr;
+    resp = await fetch(`/api/upload?url=${encodeURIComponent(url)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!resp.ok) throw directErr;
   }
+  const blob = await resp.blob();
+  return new File([blob], filename || 'seller-studio-result.jpg', { type: blob.type || 'image/jpeg' });
 }
 
-export default function MyHistoryPage({ onClose, onReuseSettings }) {
+async function downloadImage(url, filename, token) {
+  const file = await getImageFile(url, filename, token);
+  const isIos = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (isIos && navigator.canShare?.({ files: [file] })) {
+    await navigator.share({ files: [file], title: 'Seller Studio' });
+    return 'Открылось системное меню — выберите «Сохранить изображение».';
+  }
+  const telegram = window.Telegram?.WebApp;
+  if (telegram?.downloadFile && !url.startsWith('data:')) {
+    telegram.downloadFile({ url, file_name: file.name });
+    return 'Файл передан в загрузки.';
+  }
+  const objectUrl = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = objectUrl;
+  a.download = file.name;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+  return 'Скачивание началось.';
+}
+
+async function shareImage(url, filename, token) {
+  const file = await getImageFile(url, filename, token);
+  if (navigator.canShare?.({ files: [file] })) {
+    await navigator.share({ files: [file], title: 'Seller Studio' });
+    return 'Меню «Поделиться» открыто.';
+  }
+  if (navigator.share) {
+    await navigator.share({ title: 'Seller Studio', url });
+    return 'Меню «Поделиться» открыто.';
+  }
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(url);
+    return 'Ссылка на работу скопирована.';
+  }
+  throw new Error('sharing unavailable');
+}
+
+export default function MyHistoryPage({ onClose, onReuseSettings, onEditFrame, onStartPhotoshoot }) {
   const { user } = useAuth();
   const [generations, setGenerations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -102,6 +134,10 @@ export default function MyHistoryPage({ onClose, onReuseSettings }) {
   const [filter, setFilter] = useState('all');
   const [lightbox, setLightbox] = useState(null); // { url, idx }
   const [downloading, setDownloading] = useState(null);
+  const [sharing, setSharing] = useState(null);
+  const [deleting, setDeleting] = useState(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [actionStatus, setActionStatus] = useState(null);
   const lightboxRef = useRef(null);
 
   const loadHistory = useCallback(async (typeFilter) => {
@@ -153,9 +189,45 @@ export default function MyHistoryPage({ onClose, onReuseSettings }) {
   const handleDownload = async (e, gen, idx) => {
     e.stopPropagation();
     setDownloading(idx);
-    const token = await user?.getIdToken?.();
-    await downloadImage(gen.imageUrl, `seller-studio-${gen.type}-${idx + 1}.jpg`, token);
-    setDownloading(null);
+    setActionStatus(null);
+    try {
+      const token = await user?.getIdToken?.();
+      const message = await downloadImage(gen.imageUrl, `seller-studio-${gen.type}-${idx + 1}.jpg`, token);
+      setActionStatus({ type: 'success', message });
+    } catch (err) {
+      if (err?.name !== 'AbortError') setActionStatus({ type: 'error', message: 'Не удалось скачать файл. Попробуйте «Поделиться».' });
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const handleShare = async (gen, idx) => {
+    setSharing(idx);
+    setActionStatus(null);
+    try {
+      const token = await user?.getIdToken?.();
+      const message = await shareImage(gen.imageUrl, `seller-studio-${gen.type}-${idx + 1}.jpg`, token);
+      setActionStatus({ type: 'success', message });
+    } catch (err) {
+      if (err?.name !== 'AbortError') setActionStatus({ type: 'error', message: 'На этом устройстве не удалось открыть меню. Ссылка не потеряна — работа остаётся здесь.' });
+    } finally {
+      setSharing(null);
+    }
+  };
+
+  const handleDelete = async (gen) => {
+    setDeleting(gen.id);
+    setActionStatus(null);
+    try {
+      await deleteGeneration(user?.uid, gen.id);
+      setGenerations(prev => prev.filter(item => item.id !== gen.id));
+      setLightbox(null);
+      setDeleteConfirmId(null);
+    } catch {
+      setActionStatus({ type: 'error', message: 'Не удалось удалить работу. Попробуйте ещё раз.' });
+    } finally {
+      setDeleting(null);
+    }
   };
 
   return (
@@ -230,11 +302,10 @@ export default function MyHistoryPage({ onClose, onReuseSettings }) {
                     <div className="history-card-overlay">
                       <button
                         className="history-card-download"
-                        onClick={(e) => handleDownload(e, gen, idx)}
-                        disabled={downloading === idx}
-                        title="Скачать"
+                        onClick={(e) => { e.stopPropagation(); setLightbox(idx); setActionStatus(null); }}
+                        title="Открыть действия"
                       >
-                        {downloading === idx ? '⏳' : '⬇️'}
+                        •••
                       </button>
                     </div>
                   </div>
@@ -411,6 +482,43 @@ export default function MyHistoryPage({ onClose, onReuseSettings }) {
                     </div>
                   </div>
                 )}
+                <div className="history-work-actions">
+                  {onStartPhotoshoot && (isFashion || isProductWithModel) && (
+                    <button onClick={() => onStartPhotoshoot(gen)}>📸 Фотосессия</button>
+                  )}
+                  {onEditFrame && (
+                    <button onClick={() => onEditFrame(gen)}>✏️ Изменить кадр</button>
+                  )}
+                  <button
+                    onClick={(e) => handleDownload(e, gen, lightbox)}
+                    disabled={downloading === lightbox}
+                  >{downloading === lightbox ? '⏳ Скачиваем...' : '⬇️ Скачать'}</button>
+                  <button onClick={() => handleShare(gen, lightbox)} disabled={sharing === lightbox}>
+                    {sharing === lightbox ? '⏳ Открываем...' : '↗️ Поделиться'}
+                  </button>
+                  {onReuseSettings && (
+                    <button
+                      onClick={() => onReuseSettings(gen)}
+                      title="Применить эти настройки"
+                    >
+                      🪄 Повторить
+                    </button>
+                  )}
+                  <button className="history-work-delete" onClick={() => setDeleteConfirmId(gen.id)}>🗑️ Удалить</button>
+                </div>
+                {actionStatus && <div className={`history-action-status ${actionStatus.type}`}>{actionStatus.message}</div>}
+                {deleteConfirmId === gen.id && (
+                  <div className="history-delete-confirm">
+                    <strong>Удалить эту работу?</strong>
+                    <span>Она исчезнет из раздела «Мои работы».</span>
+                    <div>
+                      <button onClick={() => setDeleteConfirmId(null)}>Отмена</button>
+                      <button className="danger" onClick={() => handleDelete(gen)} disabled={deleting === gen.id}>
+                        {deleting === gen.id ? 'Удаляем...' : 'Удалить'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="history-lightbox-controls">
                 <button
@@ -426,26 +534,7 @@ export default function MyHistoryPage({ onClose, onReuseSettings }) {
                   disabled={lightbox >= generations.length - 1}
                   onClick={() => setLightbox(lightbox + 1)}
                 >→</button>
-                <button
-                  className="history-lb-download"
-                  onClick={async () => {
-                    const token = await user?.getIdToken?.();
-                    await downloadImage(gen.imageUrl, `seller-studio-${gen.type}-${lightbox + 1}.jpg`, token);
-                  }}
-                  title="Скачать оригинал"
-                >
-                  ⬇️ Скачать
-                </button>
-                {onReuseSettings && (
-                  <button
-                    className="history-lb-download history-lb-reuse"
-                    onClick={() => onReuseSettings(gen)}
-                    title="Применить эти настройки"
-                  >
-                    🪄 Повторить настройки
-                  </button>
-                )}
-                <button className="history-lb-close" onClick={() => setLightbox(null)}>✕</button>
+                <button className="history-lb-close" onClick={() => setLightbox(null)} aria-label="Закрыть просмотр">✕</button>
               </div>
             </div>
           </div>

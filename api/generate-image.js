@@ -93,7 +93,7 @@ function shouldInsertGenerationId(columns) {
 }
 
 // Записывает подробный лог генерации в PostgreSQL
-async function saveGenerationLog({ userId, success, imageUrl, error, reqBody, durationMs }) {
+async function saveGenerationLog({ userId, success, imageUrl, error, reqBody, durationMs, status: requestedStatus }) {
   try {
     const generationId = `gen_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     const columns = await getGenerationColumns();
@@ -106,6 +106,7 @@ async function saveGenerationLog({ userId, success, imageUrl, error, reqBody, du
       return;
     }
 
+    const status = requestedStatus || (success ? 'success' : 'error');
     const metadata = {
       type,
       aspectRatio: reqBody?.aspectRatio || '3:4',
@@ -128,14 +129,26 @@ async function saveGenerationLog({ userId, success, imageUrl, error, reqBody, du
       isPhotoshoot: Boolean(reqBody?.isPhotoshoot),
       photoshootFrameIndex: reqBody?.photoshootFrameIndex || null,
       photoshootBatchSize: reqBody?.photoshootBatchSize || null,
+      clientBatchId: reqBody?.clientBatchId || null,
+      clientTaskId: reqBody?.clientTaskId || null,
+      clientTaskLabel: reqBody?.clientTaskLabel || '',
+      clientTaskTotal: Number(reqBody?.clientTaskTotal) || 1,
+      clientJobKind: reqBody?.clientJobKind || '',
+      clientJobTitle: reqBody?.clientJobTitle || '',
+      clientResumeMode: reqBody?.clientResumeMode || '',
+      clientQuickMode: reqBody?.clientQuickMode || '',
+      clientSourceImage: reqBody?.clientSourceImage || '',
+      sourceModelId: reqBody?.sourceModelId ?? null,
+      sourceModelName: reqBody?.sourceModelName || '',
+      sourceModelType: reqBody?.sourceModelType || '',
     };
 
     const userValue = await resolveGenerationUserId(userId, columns);
     const valuesByColumn = {
       id: generationId,
       user_id: userValue,
-      success: Boolean(success),
-      status: success ? 'success' : 'error',
+      success: status === 'success',
+      status,
       duration_ms: durationMs || 0,
       credits_used: getGenerationCreditCost(reqBody),
       type,
@@ -208,15 +221,32 @@ async function saveGenerationLog({ userId, success, imageUrl, error, reqBody, du
       return;
     }
 
-    const placeholders = insertColumns.map((_, idx) => `$${idx + 1}`).join(', ');
-    const values = insertColumns.map(column => valuesByColumn[column]);
+    let existingId = null;
+    if (metadata.clientTaskId && userValue != null && columns.has('metadata') && columns.has('id')) {
+      const existing = await query(
+        `SELECT id FROM generations
+         WHERE user_id = $1 AND metadata ->> 'clientTaskId' = $2
+         ORDER BY created_at DESC LIMIT 1`,
+        [userValue, metadata.clientTaskId]
+      );
+      existingId = existing.rows[0]?.id ?? null;
+    }
 
-    await query(`
-      INSERT INTO generations (${insertColumns.join(', ')})
-      VALUES (${placeholders})
-    `, values);
+    if (existingId != null) {
+      const updateColumns = insertColumns.filter(column => !['id', 'user_id', 'created_at'].includes(column));
+      const values = updateColumns.map(column => valuesByColumn[column]);
+      const assignments = updateColumns.map((column, idx) => `${column} = $${idx + 1}`).join(', ');
+      await query(`UPDATE generations SET ${assignments} WHERE id = $${values.length + 1}`, [...values, existingId]);
+    } else {
+      const placeholders = insertColumns.map((_, idx) => `$${idx + 1}`).join(', ');
+      const values = insertColumns.map(column => valuesByColumn[column]);
+      await query(`
+        INSERT INTO generations (${insertColumns.join(', ')})
+        VALUES (${placeholders})
+      `, values);
+    }
 
-    console.log(`📊 [stats] Logged generation ${generationId} for user ${userId || 'anonymous'} (${success ? 'success' : 'failed'})`);
+    console.log(`📊 [stats] Logged generation ${generationId} for user ${userId || 'anonymous'} (${status})`);
   } catch (e) {
     console.warn('[stats log] Failed to write generation log:', e.message);
   }
@@ -2431,6 +2461,18 @@ export default async function handler(req, res) {
       }
     }
 
+    // A durable running row lets the client restore this exact task after the
+    // Mini App is minimized or fully closed. The same row is updated on finish.
+    if (req.body?.clientTaskId) {
+      await saveGenerationLog({
+        userId: verifiedUid,
+        success: null,
+        reqBody: req.body,
+        durationMs: 0,
+        status: 'running',
+      });
+    }
+
     // ═══ DETECT ALL ELEMENTS (Gemini Vision — bounding boxes) ═══
     if (req.body?.action === 'detect-elements') {
       const { imageBase64 } = req.body;
@@ -2672,7 +2714,7 @@ OUTPUT: One single 4K image. Casting card with exactly 4 frames. Masterpiece cin
         const creditsRemaining = await getCreditsRemainingForReservation(creditReservation);
 
         incrementGlobalCounter('generationsPersona').catch(() => {});
-        saveGenerationLog({ userId: verifiedUid, success: true, imageUrl: resultUrl, reqBody: { action: 'create-persona', photoCount: photoKeys.length }, durationMs: Date.now() - startTime }).catch(() => {});
+        saveGenerationLog({ userId: verifiedUid, success: true, imageUrl: resultUrl, reqBody: { ...req.body, action: 'create-persona', photoCount: photoKeys.length }, durationMs: Date.now() - startTime }).catch(() => {});
 
         return res.status(200).json({ success: true, imageBase64: `data:${dl.mimeType};base64,${dl.base64str}`, imageUrl: resultUrl, creditsRemaining, _debug: { promptKey: 'CREATE_PERSONA_PROMPT', promptLang: _promptLang, model: 'gpt-image-2-image-to-image via KIE.ai', ratio: '16:9' } });
       } catch (err) {

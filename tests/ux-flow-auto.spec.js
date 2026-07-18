@@ -114,26 +114,31 @@ test.describe('Seller Studio UX flow auto audit', () => {
     await expect(page.locator('.multi-preview-item')).toHaveCount(0);
   });
 
-  test('quick generation can be cancelled without a runtime error', async ({ page }) => {
+  test('quick generation can be minimized without cancelling the server task', async ({ page }) => {
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));
     await mockSignedInUser(page);
     await page.route('**/api/generate-image', async route => {
-      await new Promise(resolve => setTimeout(resolve, 10000));
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: false }) }).catch(() => {});
+      await new Promise(resolve => setTimeout(resolve, 2500));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, imageBase64: `data:image/png;base64,${MOCK_PNG_BASE64}` }),
+      }).catch(() => {});
     });
     await page.goto(BASE_URL);
     await uploadQuickProduct(page);
 
     await page.getByRole('button', { name: '🎨 Создать фото' }).click();
-    const cancelButton = page.getByRole('button', { name: 'Остановить генерацию' });
-    await expect(cancelButton).toBeVisible();
+    const minimizeButton = page.getByRole('button', { name: 'Свернуть — процесс продолжится' });
+    await expect(minimizeButton).toBeVisible();
     await page.screenshot({ path: `${SHOT_DIR}/after-processing-overlay.png`, fullPage: false });
-    await cancelButton.click();
+    await minimizeButton.click();
 
-    await expect(page.getByText('⛔ Генерация отменена')).toBeVisible();
     await expect(page.locator('.processing-overlay')).toHaveCount(0);
-    await page.screenshot({ path: `${SHOT_DIR}/after-cancel.png`, fullPage: false });
+    await expect(page.locator('.generation-task-pill')).toBeVisible();
+    await expect(page.getByRole('button', { name: '← Новая генерация' })).toBeVisible({ timeout: 6000 });
+    await page.screenshot({ path: `${SHOT_DIR}/after-background-complete.png`, fullPage: false });
     expect(pageErrors).toEqual([]);
   });
 
@@ -152,7 +157,7 @@ test.describe('Seller Studio UX flow auto audit', () => {
 
     const generateButton = page.locator('.quick-generate-btn');
     await generateButton.click();
-    await page.getByRole('button', { name: 'Скрыть, но продолжить' }).click();
+    await page.getByRole('button', { name: 'Свернуть — процесс продолжится' }).click();
 
     await expect(generateButton).toBeDisabled({ timeout: 2000 });
     await expect(page.locator('.processing-overlay')).toHaveCount(0);

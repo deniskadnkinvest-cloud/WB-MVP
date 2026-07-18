@@ -12,7 +12,7 @@
     "dev:server": "node server.js",
     "lint": "eslint api src server.js",
     "lint:fix": "eslint api src server.js --fix",
-    "test": "node --test tests/revenue.test.js tests/prelaunch-hardening.test.js",
+    "test": "node --test tests/revenue.test.js tests/prelaunch-hardening.test.js tests/generation-workflow.test.js",
     "test:hardening": "node --test tests/prelaunch-hardening.test.js",
     "test:revenue": "node tests/revenue.test.js",
     "build": "vite build",

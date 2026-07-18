@@ -13,8 +13,10 @@ import LoginPage from './components/LoginPage';
 import PricingModal from './components/PricingModal';
 import SubscriptionBadge from './components/SubscriptionBadge';
 import MyHistoryPage from './components/MyHistoryPage';
+import GenerationTaskCenter from './components/GenerationTaskCenter';
 import { useAuth } from './contexts/AuthContext';
-import { getModels, saveModel, updateModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt, patchLocation } from './lib/userDataService';
+import { getModels, saveModel, updateModel, deleteModelDoc, updateModelPrompt, getLocations, saveLocation, deleteLocationDoc, updateLocationPrompt, patchLocation, getGenerationTasks } from './lib/userDataService';
+import { GENERATION_JOBS_STORAGE_KEY, ensureGenerationJob, patchGenerationTask, mergeGenerationRecords, markStaleGenerationJobs } from './lib/generationTaskStore';
 import { uploadBase64Image, compressImage, uploadImage, deleteImage, downloadStoragePathAsBase64 } from './lib/storageService';
 import { getSubscription, checkFeature, canGenerate, TRIAL_MODEL_LIMIT_MSG } from './lib/subscriptionService';
 // CardLayerStudio removed — replaced by text-based card editing
@@ -135,6 +137,11 @@ function resolveSavedModelRefs(sm) {
   if (source.length) return source;
   return clean([sm.compCardUrl, sm.fullbodyUrl]);
 }
+
+const createClientGenerationId = (prefix = 'generation') => {
+  const randomPart = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
+  return `${prefix}:${Date.now()}:${randomPart}`;
+};
 
 function App() {
   const { user, loading, signOut, isEmbedded, isTelegram } = useAuth();
@@ -272,6 +279,36 @@ function App() {
   const [saveModelName, setSaveModelName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  const switchFashionModelTab = (nextTab) => {
+    setModelTab(nextTab);
+    setShowDetails(false);
+    if (nextTab === 'my_models') {
+      setSelectedModels([]);
+      setCustomModelPrompt('');
+      setStatusText('⭐ Режим «Мои модели»: пресеты отключены. Выберите сохранённую модель.');
+      setStatusType('info');
+    } else {
+      setSelectedSavedModelId(null);
+      setSelectedModels(prev => prev.length > 0 ? prev : [MODEL_PRESETS[0]]);
+      setStatusText('🎭 Режим пресетов включён. Сохранённая модель отключена.');
+      setStatusType('info');
+    }
+  };
+
+  const switchProductModelTab = (nextTab) => {
+    setProductModelTab(nextTab);
+    setShowProductModelDetails(false);
+    if (nextTab === 'my_models') {
+      setCustomProductModelPrompt('');
+      setStatusText('⭐ Для предметной съёмки используются только ваши модели. Пресет отключён.');
+      setStatusType('info');
+    } else {
+      setProductSavedModelId(null);
+      setStatusText('🎭 Для предметной съёмки снова используется модель из пресетов.');
+      setStatusType('info');
+    }
+  };
+
   // Calibration wizard
   const [showCalibWizard, setShowCalibWizard] = useState(false);
   const [calibPurpose, setCalibPurpose] = useState('save'); // 'save' | 'photoshoot'
@@ -301,9 +338,6 @@ function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showProcessingOverlay, setShowProcessingOverlay] = useState(false);
   const [processingMsg, setProcessingMsg] = useState('');
-  // Индекс imageHistory на старте текущего батча — всё, что появилось после
-  // него, показывается превьюшками прямо в оверлее прогресса (progressive reveal)
-  const [batchStartLen, setBatchStartLen] = useState(0);
   const [statusText, setStatusText] = useState('');
   const [statusType, setStatusType] = useState('');
 
@@ -320,8 +354,6 @@ function App() {
   // Variant count (how many generations user wants)
   const [variantCount, setVariantCount] = useState(2);
 
-  // Batch queue progress
-  const [batchProgress, setBatchProgress] = useState({ completed: 0, total: 0, running: 0 });
   const [showBatchConfirm, setShowBatchConfirm] = useState(false);
   const [pendingBatchTasks, setPendingBatchTasks] = useState(null);
 
@@ -393,7 +425,7 @@ function App() {
   };
 
   // Is multi-model selected? (for showing Импровизация pose)
-  const isMultiModel = !customModelPrompt && !selectedSavedModelId && (selectedModels.length + customModelChips.length) > 1;
+  const isMultiModel = modelTab === 'presets' && !customModelPrompt && (selectedModels.length + customModelChips.length) > 1;
 
   // ═══ TOTAL SHOTS CALCULATION ═══
   const totalShots = React.useMemo(() => {
@@ -407,7 +439,9 @@ function App() {
       return compCount * bgCount * effectCount * ratioCount * variantCount;
     } else {
       // appMode === 'fashion' (VTON)
-      const modelCount = (customModelPrompt.trim() || selectedSavedModelId) ? 1 : (selectedModels.length + customModelChips.length);
+      const modelCount = modelTab === 'my_models'
+        ? (selectedSavedModelId ? 1 : 0)
+        : (customModelPrompt.trim() ? 1 : (selectedModels.length + customModelChips.length));
       const poseCount = customPoseText.trim() ? 1 : (selectedPoses.length + customPoseChips.length);
       const cameraCount = selectedCameras.length;
       const bgCount = (customBgText.trim() || selectedLocId) ? 1 : (selectedBgs.length + customBgChips.length);
@@ -426,6 +460,7 @@ function App() {
     selectedRatios,
     variantCount,
     customModelPrompt,
+    modelTab,
     selectedSavedModelId,
     selectedModels,
     selectedPoses,
@@ -505,6 +540,9 @@ function App() {
   const [isGalleryGenerating, setIsGalleryGenerating] = useState(false);
   const [isAbGenerating, setIsAbGenerating] = useState(false);
   const [confirmModal, setConfirmModal] = useState(null); // null | { type, cost, onConfirm }
+  const [generationJobs, setGenerationJobs] = useState(() => readStoredJson(GENERATION_JOBS_STORAGE_KEY, []));
+  const [activeGenerationJobId, setActiveGenerationJobId] = useState(() => readStoredValue('vton_activeGenerationJobId', null));
+  const activeGenerationJob = generationJobs.find(job => String(job.id) === String(activeGenerationJobId)) || generationJobs[0] || null;
 
   // ═══ LOCALSTORAGE SYNC EFFECTS ═══
   useEffect(() => {
@@ -607,6 +645,39 @@ function App() {
   }, [photoViewIdx]);
 
   useEffect(() => {
+    writeStoredJson(GENERATION_JOBS_STORAGE_KEY, generationJobs);
+  }, [generationJobs]);
+
+  useEffect(() => {
+    if (activeGenerationJobId) writeStoredValue('vton_activeGenerationJobId', String(activeGenerationJobId));
+    else removeStoredValue('vton_activeGenerationJobId');
+  }, [activeGenerationJobId]);
+
+  useEffect(() => {
+    if (!user || isGuestUser) return undefined;
+    let cancelled = false;
+
+    const reconcileGenerationJobs = async () => {
+      try {
+        const records = await getGenerationTasks(user.uid, 100);
+        if (!cancelled) {
+          setGenerationJobs(prev => markStaleGenerationJobs(mergeGenerationRecords(prev, records)));
+        }
+      } catch (err) {
+        console.warn('[generation-jobs] Status refresh failed:', err?.message || err);
+        if (!cancelled) setGenerationJobs(prev => markStaleGenerationJobs(prev));
+      }
+    };
+
+    reconcileGenerationJobs();
+    const intervalId = setInterval(reconcileGenerationJobs, 8000);
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [user, isGuestUser]);
+
+  useEffect(() => {
     const savedScrollY = readStoredNumber('vton_scrollY', 0);
     if (savedScrollY > 0 && (generatedImage || photoshootImages.length > 0 || garmentUrls.length > 0)) {
       requestAnimationFrame(() => window.scrollTo({ top: savedScrollY, behavior: 'auto' }));
@@ -679,6 +750,7 @@ function App() {
       [showProductModelDetails, () => setShowProductModelDetails(false)],
       [showDetails, () => setShowDetails(false)],
       [showPricing, () => setShowPricing(false)],
+      [showProcessingOverlay, () => setShowProcessingOverlay(false)],
       [showHistory, () => setShowHistory(false)],
       // base: return from a result back to the studio (results persist in history)
       [!!generatedImage || photoshootImages.length > 0, () => { setGeneratedImage(null); setPhotoshootImages([]); }],
@@ -692,7 +764,7 @@ function App() {
       return () => backBtn.offClick(handler);
     }
     backBtn.hide();
-  }, [isTelegram, lightboxSrc, confirmModal, showBatchConfirm, showCardCountModal, showCardExamples, editingPhotoIdx, showSaveModelModal, showLocModal, showModelModifier, showLocModifier, modelPreviewSrc, showLoraModal, showCalibWizard, showPersonaWizard, showProductModelDetails, showDetails, showPricing, showHistory, generatedImage, photoshootImages]);
+  }, [isTelegram, lightboxSrc, confirmModal, showBatchConfirm, showCardCountModal, showCardExamples, editingPhotoIdx, showSaveModelModal, showLocModal, showModelModifier, showLocModifier, modelPreviewSrc, showLoraModal, showCalibWizard, showPersonaWizard, showProductModelDetails, showDetails, showPricing, showProcessingOverlay, showHistory, generatedImage, photoshootImages]);
 
   // Load persisted user data (skip for guest users in embedded mode)
   useEffect(() => {
@@ -703,11 +775,6 @@ function App() {
       .then((models) => {
 
         setMyModels(models || []);
-        // Автовыбор вкладки «Мои Модели» если есть сохранённые модели
-        if (models && models.length > 0) {
-          setModelTab('my_models');
-          setProductModelTab('my_models');
-        }
       })
       .catch((err) => console.error('Ошибка загрузки моделей:', err));
 
@@ -1090,24 +1157,119 @@ function App() {
     return parts.length ? `, ${parts.join(', ')}` : '';
   };
 
+  const getGenerationJobPresentation = (body = {}) => {
+    if (body.isPhotoshoot) return { kind: 'photoshoot', title: 'Фотосессия', resumeMode: body.isProductMode ? 'product' : 'fashion' };
+    if (body.isQuickCard) return { kind: 'quick-card', title: 'Карточка товара', resumeMode: 'quick', quickMode: 'card' };
+    if (body.isUgcMode) return { kind: 'quick-ugc', title: 'Фото от покупателя', resumeMode: 'quick', quickMode: 'ugc' };
+    if (body.isModelCard) return { kind: 'quick-model', title: 'Карточка с моделью', resumeMode: 'quick', quickMode: 'model' };
+    if (body.isPhotoEdit || body.action === 'edit-card') return { kind: 'edit', title: 'Изменение кадра', resumeMode: appMode };
+    if (body.isProductMode) return { kind: 'product', title: 'Предметная съёмка', resumeMode: 'product' };
+    return { kind: 'fashion', title: 'Виртуальная примерка', resumeMode: 'fashion' };
+  };
+
+  const prepareTrackedGenerationRequest = (url, options) => {
+    if (url !== '/api/generate-image' || options.method !== 'POST' || typeof options.body !== 'string') {
+      return { options, tracking: null };
+    }
+
+    let body;
+    try {
+      body = JSON.parse(options.body);
+    } catch {
+      return { options, tracking: null };
+    }
+
+    // Read-only analysis calls are short helpers, not user-visible generation processes.
+    if (['detect-elements', 'analyze-edit-intent', 'generate-card-text'].includes(body.action)) {
+      return { options, tracking: null };
+    }
+
+    const presentation = getGenerationJobPresentation(body);
+    const batchId = body.clientBatchId || createClientGenerationId(presentation.kind);
+    const taskId = body.clientTaskId || createClientGenerationId('task');
+    const taskTotal = Number(body.clientTaskTotal) || 1;
+    const taskLabel = body.clientTaskLabel || (taskTotal > 1 ? `Кадр ${taskTotal}` : presentation.title);
+    const hasModelRefs = [...(body.modelReferenceImages || []), ...(body.humanModelRefImages || [])].filter(Boolean).length > 0;
+    const selectedSourceModelId = body.sourceModelId ?? (hasModelRefs
+      ? (body.withHumanModel ? productSavedModelId : selectedSavedModelId)
+      : null);
+    const selectedSourceModel = myModels.find(model => String(model.id) === String(selectedSourceModelId));
+    const resumableSourceImage = typeof generatedImage === 'string' && !generatedImage.startsWith('data:')
+      ? generatedImage
+      : '';
+    const trackedBody = {
+      ...body,
+      clientBatchId: batchId,
+      clientTaskId: taskId,
+      clientTaskLabel: taskLabel,
+      clientTaskTotal: taskTotal,
+      clientJobKind: body.clientJobKind || presentation.kind,
+      clientJobTitle: body.clientJobTitle || presentation.title,
+      clientResumeMode: body.clientResumeMode || presentation.resumeMode,
+      clientQuickMode: body.clientQuickMode || presentation.quickMode || '',
+      clientSourceImage: body.clientSourceImage || resumableSourceImage,
+      sourceModelId: selectedSourceModelId ?? null,
+      sourceModelName: body.sourceModelName || selectedSourceModel?.name || '',
+      sourceModelType: body.sourceModelType || selectedSourceModel?.modelType || selectedSourceModel?.type || '',
+    };
+
+    setGenerationJobs(prev => ensureGenerationJob(prev, {
+      batchId,
+      taskId,
+      taskLabel,
+      total: taskTotal,
+      kind: trackedBody.clientJobKind,
+      title: trackedBody.clientJobTitle,
+      resumeContext: {
+        appMode: trackedBody.clientResumeMode,
+        quickMode: trackedBody.clientQuickMode,
+        sourceImage: trackedBody.clientSourceImage,
+      },
+    }));
+    setActiveGenerationJobId(batchId);
+    setShowProcessingOverlay(true);
+
+    return {
+      options: { ...options, body: JSON.stringify(trackedBody) },
+      tracking: { batchId, taskId },
+    };
+  };
+
   // ═══ AUTH FETCH: добавляет внутренний JWT ко всем API-запросам ═══
   const authFetch = async (url, options = {}) => {
+    const prepared = prepareTrackedGenerationRequest(url, options);
     const token = user ? await user.getIdToken() : null;
-    return fetch(url, {
-      ...options,
+    const response = await fetch(url, {
+      ...prepared.options,
       headers: {
-        ...options.headers,
+        ...prepared.options.headers,
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
     });
+    if (prepared.tracking) {
+      response.clone().json().then(data => {
+        setGenerationJobs(prev => patchGenerationTask(
+          prev,
+          prepared.tracking.batchId,
+          prepared.tracking.taskId,
+          {
+            status: data?.success ? 'success' : 'error',
+            imageUrl: data?.imageUrl || null,
+            error: data?.success ? '' : (data?.error || 'Генерация не завершилась'),
+          }
+        ));
+      }).catch(() => {
+        // The request can outlive the WebView. Polling will reconcile it from the server row.
+      });
+    }
+    return response;
   };
 
   // 5 min — aligned with server-side KIE polling so slow frames finish client-side and are shown,
   // instead of the client abandoning them at 3 min (server keeps going → charged but only in history).
   const GENERATION_REQUEST_TIMEOUT_MS = 300000;
   const createIdempotencyKey = (prefix = 'gen') => {
-    const randomPart = globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2);
-    return `${prefix}:${Date.now()}:${randomPart}`;
+    return createClientGenerationId(prefix);
   };
 
   const appendUniqueImageHistory = (image, label) => {
@@ -1122,6 +1284,27 @@ function App() {
       setHistoryIndex(history.length - 1);
       return history;
     });
+  };
+
+  const openGenerationJob = (job) => {
+    setActiveGenerationJobId(job.id);
+    setShowProcessingOverlay(true);
+    const completedImages = (job.tasks || []).filter(task => task.imageUrl).map(task => ({ image: task.imageUrl, label: task.label }));
+    const lastImage = completedImages[completedImages.length - 1]?.image;
+    const resumeMode = job.resumeContext?.appMode;
+    if (resumeMode) setAppMode(resumeMode);
+    if (job.resumeContext?.quickMode) setQuickMode(job.resumeContext.quickMode);
+    if (job.kind === 'quick-card' && lastImage) setQuickCardImage(lastImage);
+    else if (job.kind === 'photoshoot' && completedImages.length > 0) setPhotoshootImages(completedImages.map(item => item.image));
+    else if (lastImage) {
+      completedImages.forEach(item => appendUniqueImageHistory(item.image, item.label));
+      setGeneratedImage(lastImage);
+    }
+  };
+
+  const dismissGenerationJob = (jobId) => {
+    setGenerationJobs(prev => prev.map(job => String(job.id) === String(jobId) ? { ...job, dismissed: true } : job));
+    if (String(activeGenerationJobId) === String(jobId)) setActiveGenerationJobId(null);
   };
 
   const getDownloadBlob = async (src) => {
@@ -1178,19 +1361,59 @@ function App() {
       triggerBrowserDownload(blob, filename);
     } catch (err) {
       console.warn('Download failed:', err.message);
-      if (!src.startsWith('data:')) {
-        const tg = isTelegram ? window.Telegram?.WebApp : null;
-        if (tg?.openLink) { tg.openLink(src); return; }
-        window.open(src, '_blank', 'noopener,noreferrer');
+      setStatusText('Не получилось скачать файл. Откройте «Мои работы» и выберите «Поделиться» — изображение останется внутри приложения.');
+      setStatusType('error');
+    }
+  };
+
+  const downloadImageAssets = async (sources, filenamePrefix = 'SellerStudio') => {
+    const uniqueSources = [...new Set((sources || []).filter(Boolean))];
+    if (uniqueSources.length === 0) return;
+    try {
+      const files = await Promise.all(uniqueSources.map(async (src, index) => {
+        const blob = await getDownloadBlob(src);
+        return new File([blob], `${filenamePrefix}_v${index + 1}_${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
+      }));
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      if (isMobile && navigator.canShare?.({ files })) {
+        try {
+          await navigator.share({ files, title: 'Seller Studio' });
+          return;
+        } catch (shareErr) {
+          if (shareErr?.name === 'AbortError') return;
+        }
+      }
+      const tg = isTelegram ? window.Telegram?.WebApp : null;
+      if (tg?.downloadFile && uniqueSources.every(src => !src.startsWith('data:'))) {
+        uniqueSources.forEach((src, index) => tg.downloadFile({ url: src, file_name: files[index].name }));
         return;
       }
-      setStatusText('Не получилось скачать файл. Нажмите на фото и сохраните его из просмотра.');
+      files.forEach((file, index) => setTimeout(() => triggerBrowserDownload(file, file.name), index * 180));
+    } catch (err) {
+      console.warn('Batch download failed:', err.message);
+      setStatusText('Не получилось скачать все версии. Откройте нужную версию и скачайте её отдельно.');
       setStatusType('error');
     }
   };
 
   const handleGenerate = async (skipConfirm = false) => {
     if (!garmentUrls.length) return;
+
+    if (appMode === 'fashion' && modelTab === 'my_models' && !selectedSavedModelId) {
+      setStatusText('Выберите сохранённую модель в разделе «Мои модели». Пресеты в этом режиме не используются.');
+      setStatusType('error');
+      return;
+    }
+    if (appMode === 'fashion' && modelTab === 'presets' && !customModelPrompt.trim() && selectedModels.length + customModelChips.length === 0) {
+      setStatusText('Выберите хотя бы одну модель из пресетов.');
+      setStatusType('error');
+      return;
+    }
+    if (appMode === 'product' && productWithModel && productModelTab === 'my_models' && !productSavedModelId) {
+      setStatusText('Выберите сохранённую модель для предметной съёмки.');
+      setStatusType('error');
+      return;
+    }
 
     // Разделяем: «нет тарифа» vs «закончились кредиты»
     if (!subscription || subscription.plan === 'none') {
@@ -1216,7 +1439,9 @@ function App() {
 
     // Trial: 1 генерация с собственной моделью — пре-чек до списания кредитов
     // (авторитетная проверка продублирована на бэке)
-    const usesOwnModelNow = appMode === 'product' ? !!productSavedModelId : !!selectedSavedModelId;
+    const usesOwnModelNow = appMode === 'product'
+      ? productModelTab === 'my_models' && !!productSavedModelId
+      : modelTab === 'my_models' && !!selectedSavedModelId;
     if (usesOwnModelNow && subscription.plan === 'trial' && (subscription.modelGensUsed || 0) >= 1) {
       setShowPricing(true);
       setStatusText(TRIAL_MODEL_LIMIT_MSG); setStatusType('error');
@@ -1233,7 +1458,6 @@ function App() {
       if (paidActionLocksRef.current.has('batch')) return;
       paidActionLocksRef.current.add('batch');
       setIsProcessing(true); setGeneratedImage(null); setStatusText('');
-      setBatchStartLen(imageHistory.length);
       setProcessingMsg('Подготавливаем исходники...');
       
       let msgI = 0;
@@ -1278,9 +1502,11 @@ function App() {
         } else {
           // appMode === 'fashion' (VTON)
           // Модели
-          const modelsToUse = (customModelPrompt.trim() || selectedSavedModelId)
-            ? [{ id: selectedSavedModelId || 'custom', prompt: customModelPrompt.trim(), isSaved: !!selectedSavedModelId }]
-            : [...selectedModels, ...customModelChips];
+          const modelsToUse = modelTab === 'my_models'
+            ? [{ id: selectedSavedModelId, prompt: '', isSaved: true }]
+            : (customModelPrompt.trim()
+              ? [{ id: 'custom', prompt: customModelPrompt.trim(), isSaved: false }]
+              : [...selectedModels, ...customModelChips]);
           // Позы
           const posesToUse = customPoseText.trim()
             ? [{ id: 'custom', prompt: customPoseText.trim(), label: 'Своя поза' }]
@@ -1310,7 +1536,8 @@ function App() {
           });
         }
 
-        setProcessingMsg('🚀 Запускаем генерации...');
+        const clientBatchId = createClientGenerationId(appMode === 'product' ? 'product-batch' : 'fashion-batch');
+        setProcessingMsg('🚀 Запускаем генерации параллельно...');
         let completedCount = 0;
         let failedCount = 0;
         const results = [];
@@ -1319,7 +1546,7 @@ function App() {
           if (totalShots > 1) {
             setProcessingMsg(`📸 Генерация: готово ${completedCount} из ${totalShots} кадров` + 
               (failedCount > 0 ? ` (ошибок: ${failedCount})` : '') + 
-              `...\nПожалуйста, не закрывайте вкладку.`);
+              `...\nМожно свернуть окно или закрыть приложение — процесс продолжится.`);
           }
         };
 
@@ -1330,6 +1557,7 @@ function App() {
             // Флаг «в этом таске участвует собственная модель» — для локального
             // счётчика trial-лимита после успеха
             let taskUsesOwnModel = false;
+            let sourceModelMeta = null;
             if (appMode === 'product') {
               let taskBgPrompt = task.bg.prompt;
               if (task.effect.id !== 'none') {
@@ -1361,6 +1589,7 @@ function App() {
                   if (modelRefImages.length === 0) throw new Error(`У модели «${sm.name || 'без имени'}» нет референс-фото — добавьте фотографии в редакторе модели`);
                   humanPrompt = sm.prompt || humanPrompt;
                   taskUsesOwnModel = true;
+                  sourceModelMeta = sm;
                 }
               }
 
@@ -1401,6 +1630,7 @@ function App() {
                 if (modelRefImages.length === 0) throw new Error(`У модели «${sm.name || 'без имени'}» нет референс-фото — откройте её редактирование и добавьте фотографии`);
                 modelPrompt = sm.prompt || modelPrompt;
                 taskUsesOwnModel = true;
+                sourceModelMeta = sm;
               }
               if (modelModifier.trim()) modelPrompt += `. Additionally: ${modelModifier.trim()}`;
 
@@ -1436,6 +1666,23 @@ function App() {
                 idempotencyKey: createIdempotencyKey('batch')
               };
             }
+
+            const taskLabel = appMode === 'product'
+              ? `${task.comp?.label || 'Кадр'} · вариант ${task.variantIndex}`
+              : `${task.pose?.label || 'Кадр'} · вариант ${task.variantIndex}`;
+            body = {
+              ...body,
+              clientBatchId,
+              clientTaskId: `${clientBatchId}:${taskIndex + 1}`,
+              clientTaskLabel: taskLabel,
+              clientTaskTotal: tasks.length,
+              clientJobKind: appMode,
+              clientJobTitle: appMode === 'product' ? 'Предметная съёмка' : 'Виртуальная примерка',
+              clientResumeMode: appMode,
+              sourceModelId: sourceModelMeta?.id ?? null,
+              sourceModelName: sourceModelMeta?.name || '',
+              sourceModelType: sourceModelMeta?.modelType || sourceModelMeta?.type || '',
+            };
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), GENERATION_REQUEST_TIMEOUT_MS);
@@ -1489,7 +1736,7 @@ function App() {
               (taskErr instanceof TypeError && /load failed|failed to fetch|network|cancelled/i.test(taskErr.message));
             if (isBackgroundDrop) {
               results.push({ success: false, background: true, error: 'still generating', task });
-              setStatusText('⏳ Генерация продолжается на сервере — результат появится в разделе «Мои работы». Можете свернуть приложение.');
+              setStatusText('⏳ Генерация продолжается на сервере. Вернуться к ней можно через плашку «Генерации», результат также появится в «Моих работах».');
               setStatusType('info');
               console.warn('Task still generating in background (connection dropped):', taskErr.message);
             } else {
@@ -1714,9 +1961,10 @@ function App() {
     setIsSaving(true);
     try {
       const { url, path } = await uploadBase64Image(user.uid, generatedImage, 'models');
+      const fallbackPreset = selectedModels[0] || MODEL_PRESETS[0];
       const mp = customModelPrompt.trim()
         || (customModelChips.length > 0 ? customModelChips[0].prompt : null)
-        || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
+        || (fallbackPreset.prompt + buildDetailString(modelDetailsMap[fallbackPreset.id]));
       await saveModel(user.uid, { name: saveModelName.trim(), type: 'generated', imageUrls: [url], storagePaths: [path], prompt: mp });
       const models = await getModels(user.uid);
       setMyModels(models);
@@ -1852,7 +2100,7 @@ function App() {
       if (customProductModelPrompt?.trim()) return customProductModelPrompt.trim();
       if (productSavedModelId) {
         const sm = myModels.find(m => m.id === productSavedModelId);
-        if (sm?.prompt) return sm.prompt;
+        if (sm) return sm.prompt || 'the exact person shown in the identity reference images';
       }
       // Include detail panel settings (hair color, build, emotion, etc.)
       const basePrompt = productModelPreset?.prompt || MODEL_PRESETS[0].prompt;
@@ -1862,10 +2110,11 @@ function App() {
     if (customModelPrompt.trim()) return customModelPrompt.trim();
     if (selectedSavedModelId) {
       const sm = myModels.find(m => m.id === selectedSavedModelId);
-      if (sm?.prompt) return sm.prompt;
+      if (sm) return sm.prompt || 'the exact person shown in the identity reference images';
     }
     if (customModelChips.length > 0) return customModelChips[0].prompt;
-    return selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]);
+    const fallbackPreset = selectedModels[0] || MODEL_PRESETS[0];
+    return fallbackPreset.prompt + buildDetailString(modelDetailsMap[fallbackPreset.id]);
   };
 
   // Get current model ref images for calibration
@@ -1898,6 +2147,7 @@ function App() {
     await deleteModelDoc(user.uid, id);
     setMyModels(prev => prev.filter(m => m.id !== id));
     if (selectedSavedModelId === id) setSelectedSavedModelId(null);
+    if (productSavedModelId === id) setProductSavedModelId(null);
   };
 
   const filteredModels = MODEL_PRESETS.filter(m => m.gender === gender);
@@ -1982,7 +2232,6 @@ function App() {
     }
 
     setIsProcessing(true);
-    setBatchStartLen(imageHistory.length);
     // DON'T clear generatedImage here — preserve it in case of error
     setStatusText('');
     let msgI = 0;
@@ -2033,12 +2282,17 @@ function App() {
         }
       } else {
         // Режим одежды (VTON)
-        modelPrompt = customModelPrompt.trim()
-          || (customModelChips.length > 0 ? customModelChips[0].prompt : null)
-          || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
-        if (selectedSavedModelId) {
+        if (modelTab === 'my_models' && selectedSavedModelId) {
           const sm = myModels.find(m => m.id === selectedSavedModelId);
-          if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = resolveSavedModelRefs(sm); }
+          if (!sm) throw new Error('Выбранная модель не найдена. Выберите её заново.');
+          modelPrompt = sm.prompt || 'the exact person shown in the identity reference images';
+          modelRefImages = resolveSavedModelRefs(sm);
+          if (modelRefImages.length === 0) throw new Error(`У модели «${sm.name || 'без имени'}» нет референс-фото.`);
+        } else {
+          const fallbackPreset = selectedModels[0] || MODEL_PRESETS[0];
+          modelPrompt = customModelPrompt.trim()
+            || (customModelChips.length > 0 ? customModelChips[0].prompt : null)
+            || (fallbackPreset.prompt + buildDetailString(modelDetailsMap[fallbackPreset.id]));
         }
 
         posePrompt = customPoseText.trim() || selectedPoses[0].prompt;
@@ -2813,6 +3067,16 @@ ${userProductInfo.trim()}
 
   const handlePhotoshoot = async (count = 5) => {
     if (!garmentUrls.length || isPhotoshooting) return;
+    if (appMode === 'fashion' && modelTab === 'my_models' && !selectedSavedModelId) {
+      setStatusText('Выберите сохранённую модель перед запуском фотосессии.');
+      setStatusType('error');
+      return;
+    }
+    if (appMode === 'product' && productWithModel && productModelTab === 'my_models' && !productSavedModelId) {
+      setStatusText('Выберите сохранённую модель перед запуском раскадровки.');
+      setStatusType('error');
+      return;
+    }
 
     // Фотосессия — только на тарифах Про и Gold Seller
     if (!canUseFeature('canPhotoshoot')) {
@@ -2864,6 +3128,7 @@ ${userProductInfo.trim()}
       let locImages = null;
       let humanModelPrompt = null;
       let humanModelRefImages = null;
+      let sourceModelMeta = null;
 
       if (appMode === 'product') {
         modelPrompt = customProductPrompt.trim() || selectedProductCategory.defaultPrompt;
@@ -2883,6 +3148,7 @@ ${userProductInfo.trim()}
               humanModelPrompt = sm.prompt || humanModelPrompt;
               humanModelRefImages = sm.imageBase64?.length > 0 ? sm.imageBase64 : resolveSavedModelRefs(sm);
               modelRefImages = humanModelRefImages;
+              sourceModelMeta = sm;
             }
           }
           if ((!humanModelRefImages || humanModelRefImages.length === 0) && generatedImage) {
@@ -2905,12 +3171,18 @@ ${userProductInfo.trim()}
           }
         }
       } else {
-        modelPrompt = customModelPrompt.trim()
-          || (customModelChips.length > 0 ? customModelChips[0].prompt : null)
-          || (selectedModels[0].prompt + buildDetailString(modelDetailsMap[selectedModels[0]?.id]));
-        if (selectedSavedModelId) {
+        if (modelTab === 'my_models' && selectedSavedModelId) {
           const sm = myModels.find(m => m.id === selectedSavedModelId);
-          if (sm) { modelPrompt = sm.prompt || modelPrompt; modelRefImages = sm.imageBase64?.length > 0 ? sm.imageBase64 : resolveSavedModelRefs(sm); }
+          if (!sm) throw new Error('Выбранная модель не найдена. Обновите страницу и выберите её заново.');
+          modelPrompt = sm.prompt || 'the exact person shown in the identity reference images';
+          modelRefImages = sm.imageBase64?.length > 0 ? sm.imageBase64 : resolveSavedModelRefs(sm);
+          if (modelRefImages.length === 0) throw new Error(`У модели «${sm.name || 'без имени'}» нет референс-фото.`);
+          sourceModelMeta = sm;
+        } else {
+          const fallbackPreset = selectedModels[0] || MODEL_PRESETS[0];
+          modelPrompt = customModelPrompt.trim()
+            || (customModelChips.length > 0 ? customModelChips[0].prompt : null)
+            || (fallbackPreset.prompt + buildDetailString(modelDetailsMap[fallbackPreset.id]));
         }
         if ((!modelRefImages || modelRefImages.length === 0) && generatedImage) {
           modelRefImages = [generatedImage];
@@ -2931,6 +3203,7 @@ ${userProductInfo.trim()}
         setStatusType(failedCount > 0 && successCount === 0 && doneCount === count ? 'error' : '');
       };
 
+      const clientBatchId = createClientGenerationId('photoshoot-batch');
       const promises = angles.map(async (angle, idx) => {
         const slotIdx = existingCount + idx;
         try {
@@ -2959,6 +3232,17 @@ ${userProductInfo.trim()}
                 isPhotoshoot: true,
                 photoshootFrameIndex: idx + 1,
                 photoshootBatchSize: count,
+                clientBatchId,
+                clientTaskId: `${clientBatchId}:${idx + 1}`,
+                clientTaskLabel: `Фотосессия · кадр ${idx + 1}`,
+                clientTaskTotal: count,
+                clientJobKind: 'photoshoot',
+                clientJobTitle: appMode === 'product' ? 'Раскадровка товара' : 'Фотосессия',
+                clientResumeMode: appMode,
+                clientSourceImage: typeof generatedImage === 'string' && !generatedImage.startsWith('data:') ? generatedImage : '',
+                sourceModelId: sourceModelMeta?.id ?? null,
+                sourceModelName: sourceModelMeta?.name || '',
+                sourceModelType: sourceModelMeta?.modelType || sourceModelMeta?.type || '',
                 idempotencyKey: createIdempotencyKey('photoshoot'),
               }),
             });
@@ -3127,6 +3411,11 @@ ${userProductInfo.trim()}
   const handleReuseSettings = (gen) => {
     // Mode
     setAppMode(gen.type === 'product' ? 'product' : 'fashion');
+
+    if (Array.isArray(gen.garmentUrls) && gen.garmentUrls.length > 0) {
+      setGarmentUrls(gen.garmentUrls);
+      setPreviewUrls(gen.garmentUrls);
+    }
     
     // Formats
     if (gen.aspectRatio) {
@@ -3139,6 +3428,15 @@ ${userProductInfo.trim()}
     }
 
     if (gen.type === 'product') {
+      const savedSourceModel = myModels.find(model => String(model.id) === String(gen.sourceModelId));
+      if (savedSourceModel && gen.withHumanModel) {
+        setProductModelTab('my_models');
+        setProductSavedModelId(savedSourceModel.id);
+        setCustomProductModelPrompt('');
+      } else {
+        setProductModelTab('presets');
+        setProductSavedModelId(null);
+      }
       if (gen.categoryId) {
         const cat = PRODUCT_CATEGORIES.find(c => c.id === gen.categoryId);
         if (cat) setSelectedProductCategory(cat);
@@ -3155,8 +3453,16 @@ ${userProductInfo.trim()}
       }
       if (gen.withHumanModel !== undefined) setProductWithModel(gen.withHumanModel);
     } else {
+      const savedSourceModel = myModels.find(model => String(model.id) === String(gen.sourceModelId));
       let targetModelId = MODEL_PRESETS[0].id;
-      if (gen.modelPreset) {
+      if (savedSourceModel) {
+        setModelTab('my_models');
+        setSelectedSavedModelId(savedSourceModel.id);
+        setSelectedModels([]);
+        setCustomModelPrompt('');
+      } else if (gen.modelPreset) {
+        setModelTab('presets');
+        setSelectedSavedModelId(null);
         const m = MODEL_PRESETS.find(p => p.prompt === gen.modelPreset || p.id === gen.modelPreset);
         if (m) { 
           setSelectedModels([m]); 
@@ -3199,6 +3505,24 @@ ${userProductInfo.trim()}
     setShowHistory(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setStatusText('✅ Настройки генерации успешно загружены!');
+    setStatusType('success');
+  };
+
+  const openHistoryResult = (gen, intent) => {
+    handleReuseSettings(gen);
+    if (gen.imageUrl) {
+      appendUniqueImageHistory(gen.imageUrl, 'Из «Моих работ»');
+      setGeneratedImage(gen.imageUrl);
+    }
+    setTimeout(() => {
+      document.querySelector('.result-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (intent === 'edit') document.querySelector('.shot-modifier-block textarea')?.focus();
+    }, 100);
+    if (intent === 'photoshoot') {
+      setStatusText('📸 Работа открыта. Выберите 3 или 5 кадров — сохранённая модель уже подключена, повторная калибровка не нужна.');
+    } else {
+      setStatusText('✏️ Кадр открыт в редакторе. Опишите нужное изменение ниже изображения.');
+    }
     setStatusType('success');
   };
 
@@ -3492,7 +3816,15 @@ ${userProductInfo.trim()}
       )}
 
       {/* ═══ МОИ РАБОТЫ ═══ */}
-      {showHistory && <MyHistoryPage onClose={() => setShowHistory(false)} onReuseSettings={handleReuseSettings} />}
+      {showHistory && (
+        <MyHistoryPage
+          onClose={() => setShowHistory(false)}
+          onReuseSettings={handleReuseSettings}
+          onEditFrame={(gen) => openHistoryResult(gen, 'edit')}
+          onStartPhotoshoot={(gen) => openHistoryResult(gen, 'photoshoot')}
+        />
+      )}
+      <GenerationTaskCenter jobs={generationJobs} onOpen={openGenerationJob} onDismiss={dismissGenerationJob} />
 
       {/* ═══ QUICK MODE PANEL ═══ */}
       {appMode === 'quick' && !generatedImage && (
@@ -3689,8 +4021,8 @@ ${userProductInfo.trim()}
                       style={{overflow:'hidden', marginTop: 16, marginBottom: 16, background: 'rgba(255,255,255,0.02)', padding: 16, borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)'}}
                     >
                       <div className="tabs-row" style={{marginBottom: 16}}>
-                        <button className={`tab-btn ${productModelTab==='presets'?'active':''}`} onClick={()=>{setProductModelTab('presets');setProductSavedModelId(null);}}>🎭 Пресеты</button>
-                        <button className={`tab-btn ${productModelTab==='my_models'?'active':''}`} onClick={()=>setProductModelTab('my_models')}>⭐ Мои Модели{myModels.length>0?` (${myModels.length})`:''}</button>
+                        <button className={`tab-btn ${productModelTab==='presets'?'active':''}`} onClick={()=>switchProductModelTab('presets')}>🎭 Пресеты</button>
+                        <button className={`tab-btn ${productModelTab==='my_models'?'active':''}`} onClick={()=>switchProductModelTab('my_models')}>⭐ Мои Модели{myModels.length>0?` (${myModels.length})`:''}</button>
                       </div>
                       {productModelTab === 'presets' ? (
                         <>
@@ -3713,6 +4045,7 @@ ${userProductInfo.trim()}
                         </>
                       ) : (
                         <>
+                          <div className="model-mode-notice">⭐ Используются только ваши модели. Выбор из пресетов сброшен.</div>
                           {myModels.length > 0 ? (
                             <>
                               <div className="model-avatar-grid">
@@ -3934,8 +4267,8 @@ ${userProductInfo.trim()}
                 style={{overflow:'hidden'}}
               >
                 <div className="tabs-row" style={{marginTop:8}}>
-                  <button className={`tab-btn ${productModelTab==='presets'?'active':''}`} onClick={()=>{setProductModelTab('presets');setProductSavedModelId(null);}}>🎭 Пресеты</button>
-                  <button className={`tab-btn ${productModelTab==='my_models'?'active':''}`} onClick={()=>setProductModelTab('my_models')}>⭐ Мои Модели{myModels.length>0?` (${myModels.length})`:''}</button>
+                  <button className={`tab-btn ${productModelTab==='presets'?'active':''}`} onClick={()=>switchProductModelTab('presets')}>🎭 Пресеты</button>
+                  <button className={`tab-btn ${productModelTab==='my_models'?'active':''}`} onClick={()=>switchProductModelTab('my_models')}>⭐ Мои Модели{myModels.length>0?` (${myModels.length})`:''}</button>
                 </div>
                 {productModelTab === 'presets' ? (
                   <>
@@ -3958,6 +4291,7 @@ ${userProductInfo.trim()}
                   </>
                 ) : (
                   <>
+                    <div className="model-mode-notice">⭐ Используются только ваши модели. Выбор из пресетов сброшен.</div>
                     {myModels.length > 0 && (
                       <>
                         <div className="model-avatar-grid">
@@ -4019,8 +4353,8 @@ ${userProductInfo.trim()}
         <motion.div className="section" initial={{opacity:0,y:30,scale:0.98}} animate={{opacity:1,y:0,scale:1}} transition={{delay:0.3,duration:0.5,ease:[0.16,1,0.3,1]}}>
           <div className="section-title"><span className="icon">👤</span> Кастинг-Рум — выбор модели</div>
           <div className="tabs-row">
-            <button className={`tab-btn ${modelTab==='presets'?'active':''}`} onClick={()=>{setModelTab('presets');setSelectedSavedModelId(null);}}>🎭 Пресеты</button>
-            <button className={`tab-btn ${modelTab==='my_models'?'active':''}`} onClick={()=>setModelTab('my_models')}>⭐ Мои Модели{myModels.length>0?` (${myModels.length})`:''}</button>
+            <button className={`tab-btn ${modelTab==='presets'?'active':''}`} onClick={()=>switchFashionModelTab('presets')}>🎭 Пресеты</button>
+            <button className={`tab-btn ${modelTab==='my_models'?'active':''}`} onClick={()=>switchFashionModelTab('my_models')}>⭐ Мои Модели{myModels.length>0?` (${myModels.length})`:''}</button>
           </div>
           {modelTab === 'presets' ? (
             <>
@@ -4111,6 +4445,7 @@ ${userProductInfo.trim()}
             </>
           ) : (
             <>
+              <div className="model-mode-notice">⭐ Используются только ваши модели. Выбор из пресетов сброшен.</div>
               {myModels.length > 0 && (
                 <>
                   <div className="model-avatar-grid">
@@ -4124,7 +4459,7 @@ ${userProductInfo.trim()}
                       </div>
                     ))}
                   </div>
-                  {selectedSavedModelId && <div className="selected-model-indicator">⭐ Ваша модель выбрана</div>}
+                  {selectedSavedModelId && <div className="selected-model-indicator">⭐ Выбрана: {myModels.find(model => model.id === selectedSavedModelId)?.name || 'ваша модель'}</div>}
                   {selectedSavedModelId && (() => {
                     const sm = myModels.find(m => m.id === selectedSavedModelId);
                     const isPersona = sm?.modelType === 'persona' || sm?.type === 'persona';
@@ -4692,7 +5027,11 @@ ${userProductInfo.trim()}
               style={{flex:1}} 
               onClick={handleGenerate} 
               onMouseEnter={() => { fetch('/api/generate-image', { method: 'OPTIONS', keepalive: true }).catch(() => {}); }} 
-              disabled={!garmentUrls.length||isProcessing||isUploading||totalShots > 20}
+              disabled={
+                !garmentUrls.length || isProcessing || isUploading || totalShots > 20 ||
+                (appMode === 'fashion' && modelTab === 'my_models' && !selectedSavedModelId) ||
+                (appMode === 'product' && productWithModel && productModelTab === 'my_models' && !productSavedModelId)
+              }
             >
               {isUploading 
                 ? '☁️ Загрузка в облако...' 
@@ -4715,12 +5054,10 @@ ${userProductInfo.trim()}
           <p className={`status-text ${statusType}`}>{statusText}</p>
           {isProcessing && (
             <button
-              onClick={() => abortControllerRef.current?.abort()}
-              style={{marginTop: 8, background: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.4)', padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'}}
-              onMouseEnter={e => {e.currentTarget.style.background = 'rgba(239,68,68,0.3)'}}
-              onMouseLeave={e => {e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}}
+              onClick={() => setShowProcessingOverlay(false)}
+              style={{marginTop: 8, background: 'rgba(212,168,67,0.12)', color: '#f7df9a', border: '1px solid rgba(212,168,67,0.35)', padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'}}
             >
-              ✕ Отменить генерацию
+              Свернуть — генерация продолжится
             </button>
           )}
         </div>
@@ -5422,23 +5759,19 @@ ${userProductInfo.trim()}
                               if (hasEdits) {
                                 setDownloadMenuIdx(downloadMenuIdx === i ? null : i);
                               } else {
-                                const a = document.createElement('a'); a.href = displayImg; a.download = `SellerStudio_${i+1}_${Date.now()}.jpg`; a.click();
+                                downloadImageAsset(displayImg, `SellerStudio_${i+1}_${Date.now()}.jpg`);
                               }
                             }}>⬇️</button>
                             {downloadMenuIdx === i && hasEdits && (
                               <div className="download-menu">
                                 <button onClick={(e) => {
                                   e.stopPropagation();
-                                  const a = document.createElement('a'); a.href = versions[versions.length - 1]; a.download = `SellerStudio_${i+1}_latest_${Date.now()}.jpg`; a.click();
+                                  downloadImageAsset(versions[versions.length - 1], `SellerStudio_${i+1}_latest_${Date.now()}.jpg`);
                                   setDownloadMenuIdx(null);
                                 }}>📸 Последнюю версию</button>
                                 <button onClick={(e) => {
                                   e.stopPropagation();
-                                  versions.forEach((v, vi) => {
-                                    setTimeout(() => {
-                                      const a = document.createElement('a'); a.href = v; a.download = `SellerStudio_${i+1}_v${vi+1}_${Date.now()}.jpg`; a.click();
-                                    }, vi * 300);
-                                  });
+                                  downloadImageAssets(versions, `SellerStudio_${i+1}`);
                                   setDownloadMenuIdx(null);
                                 }}>📦 Все версии ({versions.length})</button>
                               </div>
@@ -5479,45 +5812,54 @@ ${userProductInfo.trim()}
 
       {/* OVERLAYS */}
       <AnimatePresence>
-        {isProcessing && showProcessingOverlay && (
+        {showProcessingOverlay && activeGenerationJob && (
           <motion.div className="processing-overlay" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
             <button className="processing-close-btn" onClick={() => setShowProcessingOverlay(false)} title="Скрыть прогресс">✕</button>
-            <div style={{width:'90%', maxWidth:480}}>
-              <TerminalOfMagic isActive={isProcessing} customMessage={processingMsg} />
-              <p className="processing-hint" style={{textAlign:'center', marginTop:12}}>Обычно 30с — 2 мин</p>
-              {/* Progressive reveal: готовые кадры текущего батча видны сразу */}
-              {imageHistory.length > batchStartLen && (
-                <div style={{marginTop: 16}}>
-                  <p style={{textAlign:'center', fontSize: 13, color: 'var(--gold, #ffd700)', fontWeight: 600, marginBottom: 8}}>
-                    ✅ Уже готово: {imageHistory.length - batchStartLen} — нажмите, чтобы посмотреть
-                  </p>
-                  <div style={{display:'flex', gap: 8, justifyContent:'center', flexWrap:'wrap'}}>
-                    {imageHistory.slice(batchStartLen).map((h, i) => (
-                      <img
-                        key={batchStartLen + i}
-                        src={h.image}
-                        alt={h.label || `Кадр ${i + 1}`}
-                        onClick={() => {
-                          setGeneratedImage(h.image);
-                          setHistoryIndex(batchStartLen + i);
-                          setShowProcessingOverlay(false);
-                        }}
-                        style={{width: 72, height: 96, objectFit: 'cover', borderRadius: 8, cursor: 'pointer', border: '2px solid rgba(255,215,0,0.5)', boxShadow: '0 2px 8px rgba(0,0,0,0.4)'}}
-                      />
-                    ))}
-                  </div>
+            <div className={`generation-progress-card status-${activeGenerationJob.status}`}>
+              <TerminalOfMagic
+                isActive={activeGenerationJob.status === 'running'}
+                customMessage={activeGenerationJob.status === 'running'
+                  ? (processingMsg || `Готово ${activeGenerationJob.completed} из ${activeGenerationJob.total}`)
+                  : activeGenerationJob.status === 'success'
+                    ? '✅ Все изображения готовы'
+                    : activeGenerationJob.status === 'partial'
+                      ? '⚠️ Часть изображений готова'
+                      : '❌ Генерация завершилась с ошибкой'}
+              />
+              <p className="processing-hint">{activeGenerationJob.title} · {activeGenerationJob.completed}/{activeGenerationJob.total}</p>
+              {activeGenerationJob.status === 'running' && (
+                <div className="generation-background-hint">
+                  Можно свернуть это окно или закрыть приложение — генерация продолжится. Вернуться сюда можно через плашку «Генерации».
                 </div>
               )}
-              {abortControllerRef.current && (
-                <div className="processing-actions">
-                  <button className="processing-cancel-btn" onClick={() => abortControllerRef.current?.abort()}>
-                    Остановить генерацию
+              <div className="generation-progress-grid">
+                {(activeGenerationJob.tasks || []).map((task, index) => (
+                  <button
+                    key={task.id}
+                    className={`generation-progress-item status-${task.status}`}
+                    onClick={() => {
+                      if (!task.imageUrl) return;
+                      openGenerationJob(activeGenerationJob);
+                      setGeneratedImage(task.imageUrl);
+                      setShowProcessingOverlay(false);
+                    }}
+                    disabled={!task.imageUrl}
+                  >
+                    {task.imageUrl ? <img src={task.imageUrl} alt={task.label || `Кадр ${index + 1}`} /> : <span className="generation-progress-placeholder">{task.status === 'error' ? '!' : '⏳'}</span>}
+                    <small>{task.label || `Кадр ${index + 1}`}</small>
                   </button>
-                  <button className="processing-hide-btn" onClick={() => setShowProcessingOverlay(false)}>
-                    Скрыть, но продолжить
-                  </button>
+                ))}
+              </div>
+              {(activeGenerationJob.tasks || []).some(task => task.error) && (
+                <div className="generation-progress-errors">
+                  {(activeGenerationJob.tasks || []).filter(task => task.error).map(task => <p key={task.id}>{task.label}: {task.error}</p>)}
                 </div>
               )}
+              <div className="processing-actions">
+                <button className="processing-hide-btn" onClick={() => setShowProcessingOverlay(false)}>
+                  {activeGenerationJob.status === 'running' ? 'Свернуть — процесс продолжится' : 'Закрыть'}
+                </button>
+              </div>
             </div>
           </motion.div>
         )}

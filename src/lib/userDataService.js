@@ -25,6 +25,23 @@ export const getUserGenerations = async (uid, maxResults = 50) => {
   return json.data || [];
 };
 
+export const getGenerationTasks = async (uid, maxResults = 100) => {
+  const params = new URLSearchParams({ type: 'generation-tasks', uid, limit: String(maxResults) });
+  const res = await apiFetch(`/api/user-data?${params}`);
+  if (!res.ok) throw new Error('Не удалось обновить статусы генераций');
+  const json = await res.json();
+  return json.data || [];
+};
+
+export const deleteGeneration = async (uid, generationId) => {
+  const params = new URLSearchParams({ type: 'generation', id: generationId });
+  const res = await apiFetch(`/api/user-data?${params}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Не удалось удалить работу');
+  }
+};
+
 // ═══════════════════════════════════════
 //  МОДЕЛИ (saved_models)
 // ═══════════════════════════════════════
